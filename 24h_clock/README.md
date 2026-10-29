@@ -1,6 +1,6 @@
 # 24h Clock
 
-Displays supported in-game clocks in 24-hour format.
+Changes in-game clock displays to 24-hour format.
 
 ## Requirements
 
