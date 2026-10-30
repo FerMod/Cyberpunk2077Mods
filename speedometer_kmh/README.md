@@ -1,4 +1,4 @@
-# First-Person Speedometer km/h
+# First-Person Speedometer in km/h
 
 ## Description
 
