@@ -1,3 +1,4 @@
+
 @addField(speedometerLogicController)
 private let m_speedometerSettings: ref<UserSettings>;
 
@@ -13,14 +14,16 @@ private let m_isMetric: Bool;
 @replaceMethod(speedometerLogicController)
 public final func OnSpeedValueChanged(speed: Float) -> Void {
   let velocity: Float = AbsF(speed);
-  let multiplier: Float = GameInstance.GetStatsDataSystem(this.m_vehicle.GetGame()).GetValueFromCurve(n"vehicle_ui", velocity, n"speed_to_multiplier");
+  let multiplier: Float = GameInstance
+    .GetStatsDataSystem(this.m_vehicle.GetGame())
+    .GetValueFromCurve(n"vehicle_ui", velocity, n"speed_to_multiplier");
   let floatspeed: Float = velocity * multiplier;
   let displayedSpeed: Int32;
   if !IsDefined(this.m_speedometerSettings) {
     this.m_speedometerSettings = new UserSettings();
     this.m_isMetric = (this.m_speedometerSettings.GetVar(n"/interface", n"SpeedometerUnits") as ConfigVarListString).GetIndex() == 0;
-  };
-  if velocity <= 0.00 {
+  }
+  if velocity <= 0.0 {
     displayedSpeed = 0;
   } else if this.m_isMetric {
     // Convert from m/s to km/h
@@ -28,11 +31,15 @@ public final func OnSpeedValueChanged(speed: Float) -> Void {
   } else {
     // Already in mph
     displayedSpeed = RoundMath(floatspeed);
-  };
-  if displayedSpeed != this.m_currentSpeed {
-    inkTextRef.SetText(this.m_speedTextWidget, IntToString(displayedSpeed));
-    this.m_currentSpeed = displayedSpeed;
-  };
+  }
+
+  // If the speed hasn't changed, don't update the text to avoid unnecessary redraws
+  if displayedSpeed == this.m_currentSpeed {
+    return;
+  }
+
+  inkTextRef.SetText(this.m_speedTextWidget, IntToString(displayedSpeed));
+  this.m_currentSpeed = displayedSpeed;
 }
 
 @replaceMethod(vehicleInteriorUIGameController)
@@ -42,15 +49,17 @@ protected cb func OnSpeedValueChanged(speedValue: Float) -> Bool {
   if !IsDefined(this.m_speedometerSettings) {
     this.m_speedometerSettings = new UserSettings();
     this.m_isMetric = (this.m_speedometerSettings.GetVar(n"/interface", n"SpeedometerUnits") as ConfigVarListString).GetIndex() == 0;
-  };
-  if velocity <= 0.00 {
+  }
+  if velocity <= 0.0 {
     displayedSpeed = 0;
   } else if this.m_isMetric {
     // Convert from m/s to km/h
-    displayedSpeed = RoundMath(velocity * 3.60);
+    displayedSpeed = RoundMath(velocity * 3.6);
   } else {
     // Convert from m/s to mph
     displayedSpeed = RoundMath(velocity * 2.24);
-  };
+  }
+
   inkTextRef.SetText(this.m_speedTextWidget, IntToString(displayedSpeed));
 }
+

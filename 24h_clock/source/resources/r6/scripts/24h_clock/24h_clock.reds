@@ -1,5 +1,5 @@
-public struct Clock24hUtils {
 
+public struct Clock24hUtils {
   // Shared formatter for all HUD, menu, and vehicle clocks.
   public final static func Format(gameTime: GameTime) -> String {
     let hours: Int32 = GameTime.Hours(gameTime);
@@ -21,17 +21,21 @@ public struct Clock24hUtils {
     let i: Int32 = 0;
     if IsDefined(textWidget) {
       textWidget.SetText(text);
-    };
+    }
     if IsDefined(compoundWidget) {
       while i < compoundWidget.GetNumChildren() {
         Clock24hUtils.SetClockText(compoundWidget.GetWidgetByIndex(i), text);
         i += 1;
-      };
-    };
+      }
+    }
   }
 
   // Rebuild the hub clock text after the game time is updated.
-  public final static func UpdateHubClock(player: ref<GameObject>, timeController: wref<gameuiTimeDisplayLogicController>, timeContainer: inkWidgetRef) -> Void {
+  public final static func UpdateHubClock(
+    player: ref<GameObject>,
+    timeController: wref<gameuiTimeDisplayLogicController>,
+    timeContainer: inkWidgetRef
+  ) -> Void {
     let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(player.GetGame());
     let gameTime: GameTime;
     let isGlitchEnabled: Bool;
@@ -40,9 +44,10 @@ public struct Clock24hUtils {
       gameTime = timeSystem.GetGameTime();
       timeController.UpdateTime(isGlitchEnabled, gameTime);
       if !isGlitchEnabled {
-        Clock24hUtils.SetClockText(inkWidgetRef.Get(timeContainer), Clock24hUtils.Format(gameTime));
-      };
-    };
+        Clock24hUtils
+          .SetClockText(inkWidgetRef.Get(timeContainer), Clock24hUtils.Format(gameTime));
+      }
+    }
   }
 }
 
@@ -62,12 +67,22 @@ protected cb func OnInitialize() -> Bool {
 
 @replaceMethod(MenuHubGameController)
 private final func UpdateTimeDisplay() -> Void {
-  Clock24hUtils.UpdateHubClock(this.GetPlayerControlledObject(), this.m_gameTimeController, this.m_gameTimeContainer);
+  Clock24hUtils
+    .UpdateHubClock(
+      this.GetPlayerControlledObject(),
+      this.m_gameTimeController,
+      this.m_gameTimeContainer
+    );
 }
 
 @replaceMethod(RadialMenuHubGameController)
 private final func UpdateTimeDisplay() -> Void {
-  Clock24hUtils.UpdateHubClock(this.GetPlayerControlledObject(), this.m_gameTimeController, this.m_gameTimeContainer);
+  Clock24hUtils
+    .UpdateHubClock(
+      this.GetPlayerControlledObject(),
+      this.m_gameTimeController,
+      this.m_gameTimeContainer
+    );
 }
 
 @replaceMethod(GameTimeUtils)
@@ -88,5 +103,8 @@ private final func SetTimeText(time: GameTime) -> Void {
 protected final func PassGameTimeToVehBB() -> Void {
   let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(this.GetVehicle().GetGame());
   let gameTime: GameTime = timeSystem.GetGameTime();
-  this.m_vehicleBlackboard.SetString(GetAllBlackboardDefs().Vehicle.GameTime, Clock24hUtils.Format(gameTime));
+  this
+    .m_vehicleBlackboard
+    .SetString(GetAllBlackboardDefs().Vehicle.GameTime, Clock24hUtils.Format(gameTime));
 }
+
