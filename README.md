@@ -1,4 +1,4 @@
-# Cyberpunk2077Mods
+# Cyberpunk 2077 Mods
 
 A repository containing mods for Cyberpunk 2077:
 
