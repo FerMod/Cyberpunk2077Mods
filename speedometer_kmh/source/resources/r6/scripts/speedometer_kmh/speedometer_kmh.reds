@@ -20,7 +20,7 @@ public final func OnSpeedValueChanged(speed: Float) -> Void {
     this.m_speedometerSettings = new UserSettings();
     this.m_isMetric = (this.m_speedometerSettings.GetVar(n"/interface", n"SpeedometerUnits") as ConfigVarListString).GetIndex() == 0;
   };
-  if speed <= 0.00 {
+  if velocity <= 0.00 {
     displayedSpeed = 0;
   } else if this.m_isMetric {
     // Convert from m/s to km/h
@@ -37,19 +37,20 @@ public final func OnSpeedValueChanged(speed: Float) -> Void {
 
 @replaceMethod(vehicleInteriorUIGameController)
 protected cb func OnSpeedValueChanged(speedValue: Float) -> Bool {
+  let velocity: Float = AbsF(speedValue);
   let displayedSpeed: Int32;
   if !IsDefined(this.m_speedometerSettings) {
     this.m_speedometerSettings = new UserSettings();
     this.m_isMetric = (this.m_speedometerSettings.GetVar(n"/interface", n"SpeedometerUnits") as ConfigVarListString).GetIndex() == 0;
   };
-  if speedValue <= 0.00 {
+  if velocity <= 0.00 {
     displayedSpeed = 0;
   } else if this.m_isMetric {
     // Convert from m/s to km/h
-    displayedSpeed = RoundMath(speedValue * 3.60);
+    displayedSpeed = RoundMath(velocity * 3.60);
   } else {
     // Convert from m/s to mph
-    displayedSpeed = RoundMath(speedValue * 2.24);
+    displayedSpeed = RoundMath(velocity * 2.24);
   };
   inkTextRef.SetText(this.m_speedTextWidget, IntToString(displayedSpeed));
 }
