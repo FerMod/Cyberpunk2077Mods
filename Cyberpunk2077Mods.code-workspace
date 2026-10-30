@@ -7,5 +7,11 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"Lua.runtime.version": "LuaJIT",
+		"Lua.workspace.preloadFileSize": 15360,
+		"Lua.workspace.library": [
+			"D:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\cet-lua-b-1.18.0-211124"
+		]
+	}
 }
