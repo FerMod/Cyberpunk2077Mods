@@ -1,18 +1,20 @@
 
 public struct Clock24hUtils {
+  // Zero-pads to two digits without the SpaceFill/StrReplace string churn.
+  public final static func Pad2(value: Int32) -> String {
+    if value < 10 {
+      return "0" + IntToString(value);
+    }
+    return IntToString(value);
+  }
+
   // Shared formatter for all HUD, menu, and vehicle clocks.
   public final static func Format(gameTime: GameTime) -> String {
-    let hours: Int32 = GameTime.Hours(gameTime);
-    let minutes: Int32 = GameTime.Minutes(gameTime);
-    let hourText: String = StrReplace(SpaceFill(IntToString(hours), 2, ESpaceFillMode.JustifyRight), " ", "0");
-    let minuteText: String = StrReplace(SpaceFill(IntToString(minutes), 2, ESpaceFillMode.JustifyRight), " ", "0");
-    return hourText + ":" + minuteText;
+    return Clock24hUtils.Pad2(GameTime.Hours(gameTime)) + ":" + Clock24hUtils.Pad2(GameTime.Minutes(gameTime));
   }
 
   public final static func FormatWithSeconds(gameTime: GameTime) -> String {
-    let seconds: Int32 = GameTime.Seconds(gameTime);
-    let secondText: String = StrReplace(SpaceFill(IntToString(seconds), 2, ESpaceFillMode.JustifyRight), " ", "0");
-    return Clock24hUtils.Format(gameTime) + ":" + secondText;
+    return Clock24hUtils.Format(gameTime) + ":" + Clock24hUtils.Pad2(GameTime.Seconds(gameTime));
   }
 
   public final static func SetClockText(widget: wref<inkWidget>, text: String) -> Void {
@@ -93,10 +95,7 @@ public final static func SetGameTimeText(textWidgetRef: inkTextRef, textParamsRe
 
 @replaceMethod(PhoneContactItemVirtualController)
 private final func SetTimeText(time: GameTime) -> Void {
-  let textParams: ref<inkTextParams> = new inkTextParams();
-  inkTextRef.SetText(this.m_msgCount, "{TIME,time,HH:mm}");
-  textParams.AddTime("TIME", time);
-  inkTextRef.SetTextParameters(this.m_msgCount, textParams);
+  inkTextRef.SetText(this.m_msgCount, Clock24hUtils.Format(time));
 }
 
 @replaceMethod(VehicleComponent)
