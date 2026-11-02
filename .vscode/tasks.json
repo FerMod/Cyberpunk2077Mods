@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cyberpunk: Decompile Redscript bundle",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$gitPath = (Get-Command git.exe -ErrorAction Stop).Source; $gitRoot = Split-Path (Split-Path $gitPath); $bash = Join-Path $gitRoot 'bin\\bash.exe'; $cygpath = Join-Path $gitRoot 'usr\\bin\\cygpath.exe'; if (!(Test-Path $bash) -or !(Test-Path $cygpath)) { throw 'Git Bash was not found next to git.exe.' }; $script = & $cygpath -u '${workspaceFolder}\\scripts\\decompile.sh'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; & $bash $script"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
