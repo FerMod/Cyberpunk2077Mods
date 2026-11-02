@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CP77Mod xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Name>exploding_horns</Name>
+  <ModName>Exploding Horns</ModName>
+  <Author>FerMod</Author>
+  <Email />
+  <Description>Makes vehicles explode when its horn are activated.</Description>
+  <Version>1.0.0</Version>
+  <ModIoId>-1</ModIoId>
+  <ModIoLogo />
+</CP77Mod>
