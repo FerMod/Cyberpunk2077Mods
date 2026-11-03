@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<bindings>
+  <context name="VehicleDriveBase" append="true">
+    <action name="SelfDestructTrigger" map="SelfDestructMap" />
+  </context>
+  <mapping name="SelfDestructMap" type="Button">
+    <button id="IK_Z" overridableUI="selfDestructKey" />
+  </mapping>
+</bindings>
