@@ -2,9 +2,11 @@
 
 ## Description
 
-Detonates the current driving vehicle on a key press. For those who thrive for chaos.
+Detonate your current vehicle with a key press. For those looking for chaos.
 
-Both the trigger key and the detonation delay can be adjusted using [Mod Settings](https://www.nexusmods.com/cyberpunk2077/mods/4885), or manually edit the input XML file.
+By default, the self destruct is triggered by pressing `Z`.
+
+Both the trigger key and the detonation delay can be modified using [Mod Settings](https://www.nexusmods.com/cyberpunk2077/mods/4885), or manually edit the input XML file.
 
 ## Installation instructions
 
@@ -39,7 +41,7 @@ Open it in a text editor and change the `id` attribute of the `<button>` element
 </mapping>
 ```
 
-The `id` must be a valid `EInputKey` name — you can find the full list in the decompiled redscript sources under `EInputKey`. The `overridableUI` attribute must stay as `"selfDestructKey"` so that Mod Settings can still override it if the mod is installed later.
+The `id` must be a valid `EInputKey` name.
 
 Save the file and restart the game for the change to take effect.
 

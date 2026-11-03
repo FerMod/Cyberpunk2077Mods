@@ -4,7 +4,7 @@
   <ModName>Self Destruct Vehicle</ModName>
   <Author>FerMod</Author>
   <Email />
-  <Description>Detonates the current driving vehicle on a key press.</Description>
+  <Description>Detonate your current vehicle with a key press.</Description>
   <Version>1.0.0</Version>
   <ModIoId>-1</ModIoId>
   <ModIoLogo />
