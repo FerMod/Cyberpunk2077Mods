@@ -1,0 +1,68 @@
+
+public class OverrideRangedAttackPackageEffector extends Effector {
+
+  public let m_attackPackage: ref<RangedAttackPackage_Record>;
+
+  public let m_weaponAttachmentSource: ref<Item_Record>;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    let effectorRecord: ref<OverrideRangedAttackPackageEffector_Record> = TweakDBInterface.GetOverrideRangedAttackPackageEffectorRecord(record);
+    this.m_weaponAttachmentSource = effectorRecord.WeaponAttachmentSource();
+    this.m_attackPackage = effectorRecord.AttackPackage();
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ActionOn(owner);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let i: Int32;
+    let targetObjects: array<wref<GameObject>>;
+    let targetWeapon: ref<WeaponObject>;
+    if !this.GetApplicationTarget(owner, n"Weapon", targetObjects) {
+      return;
+    };
+    i = 0;
+    while i < ArraySize(targetObjects) {
+      targetWeapon = targetObjects[i] as WeaponObject;
+      if IsDefined(targetWeapon) && this.HasRequiredAttachmentMod(targetWeapon) {
+        targetWeapon.OverrideRangedAttackPackage(this.m_attackPackage);
+      };
+      i += 1;
+    };
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    let i: Int32;
+    let targetObjects: array<wref<GameObject>>;
+    let targetWeapon: ref<WeaponObject>;
+    if !this.GetApplicationTarget(owner, n"Weapon", targetObjects) {
+      return;
+    };
+    i = 0;
+    while i < ArraySize(targetObjects) {
+      targetWeapon = targetObjects[i] as WeaponObject;
+      if IsDefined(targetWeapon) {
+        targetWeapon.DefaultRangedAttackPackage();
+      };
+      i += 1;
+    };
+  }
+
+  private final func HasRequiredAttachmentMod(weaponObject: ref<WeaponObject>) -> Bool {
+    let j: Int32;
+    let weaponParts: array<InnerItemData>;
+    if this.m_weaponAttachmentSource.GetID() == t"NewPerks.Intelligence_Left_Milestone_2.preventInQueueAgain" {
+      return true;
+    };
+    weaponObject.GetItemData().GetItemParts(weaponParts);
+    j = 0;
+    while j < ArraySize(weaponParts) {
+      if ItemID.GetTDBID(InnerItemData.GetItemID(weaponParts[j])) == this.m_weaponAttachmentSource.GetID() {
+        return true;
+      };
+      j += 1;
+    };
+    return false;
+  }
+}

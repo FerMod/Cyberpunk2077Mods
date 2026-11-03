@@ -1,0 +1,1655 @@
+
+public native class gameuiNewPhoneRelatedHUDGameController extends inkHUDGameController {
+
+  protected let m_player: wref<PlayerPuppet>;
+
+  protected let m_isRemoteControllingVehicle: Bool;
+
+  protected let m_visibilityFact1ListenerId: Uint32;
+
+  protected let m_visibilityFact2ListenerId: Uint32;
+
+  protected let m_visibilityFact3ListenerId: Uint32;
+
+  protected let m_remoteControlledVehicleDataCallback: ref<CallbackHandle>;
+
+  protected native let isNewPhoneEnabled: Bool;
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    this.m_player = player as PlayerPuppet;
+  }
+
+  protected final func RegisterFactVisibilityListeners() -> Void {
+    this.m_visibilityFact1ListenerId = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"dpad_hints_visibility_enabled", this, n"OnConsumableTutorial");
+    this.m_visibilityFact2ListenerId = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"q000_started", this, n"OnGameStarted");
+    this.m_visibilityFact3ListenerId = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"dpad_hints_visibility_hidden_by_pattern_wheel", this, n"OnHidingRequestFromPatternWheel");
+  }
+
+  protected final func UnregisterFactVisibilityListeners() -> Void {
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"dpad_hints_visibility_enabled", this.m_visibilityFact1ListenerId);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"q000_started", this.m_visibilityFact2ListenerId);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"dpad_hints_visibility_hidden_by_pattern_wheel", this.m_visibilityFact3ListenerId);
+  }
+
+  protected final func RegisterCommonBlackboardListeners() -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = this.GetBlackboardSystem();
+    let uiActiveVehicleBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+    this.m_remoteControlledVehicleDataCallback = uiActiveVehicleBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this, n"OnRemoteControlledVehicleChanged", true);
+  }
+
+  protected final func UnregisterCommonBlackboardListeners() -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = this.GetBlackboardSystem();
+    let uiActiveVehicleBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+    if IsDefined(this.m_remoteControlledVehicleDataCallback) {
+      uiActiveVehicleBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this.m_remoteControlledVehicleDataCallback);
+    };
+  }
+
+  protected final func OnGameStarted(value: Int32) -> Void {
+    this.UpdateVisibility();
+  }
+
+  protected final func OnConsumableTutorial(value: Int32) -> Void {
+    this.UpdateVisibility();
+  }
+
+  protected final func OnHidingRequestFromPatternWheel(value: Int32) -> Void {
+    this.UpdateVisibility();
+  }
+
+  protected final func UpdateVisibility() -> Void {
+    if this.GameStarted() {
+      this.GetRootWidget().SetVisible(this.IsDerivedHUDVisible() && this.TutorialActivated() && !this.DpadHintsHiddenByPatternWheel());
+    } else {
+      if !this.TutorialActivated() {
+        this.GetRootWidget().SetVisible(this.IsDerivedHUDVisible() && !this.DpadHintsHiddenByPatternWheel());
+      };
+    };
+  }
+
+  protected func IsDerivedHUDVisible() -> Bool {
+    return true;
+  }
+
+  protected func UpdateCurrentItem() -> Void;
+
+  protected cb func OnRemoteControlledVehicleChanged(value: Variant) -> Bool {
+    let data: RemoteControlDrivingUIData = FromVariant<RemoteControlDrivingUIData>(value);
+    this.m_isRemoteControllingVehicle = data.remoteControlledVehicle != null;
+    this.UpdateVisibility();
+    this.UpdateCurrentItem();
+  }
+
+  protected final func GameStarted() -> Bool {
+    let qs: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    if IsDefined(qs) {
+      return Cast<Bool>(qs.GetFact(n"q000_started"));
+    };
+    return false;
+  }
+
+  protected final func TutorialActivated() -> Bool {
+    let qs: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    if IsDefined(qs) {
+      return Cast<Bool>(qs.GetFact(n"dpad_hints_visibility_enabled"));
+    };
+    return false;
+  }
+
+  protected final func DpadHintsHiddenByPatternWheel() -> Bool {
+    let qs: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    if IsDefined(qs) {
+      return Cast<Bool>(qs.GetFact(n"dpad_hints_visibility_hidden_by_pattern_wheel"));
+    };
+    return false;
+  }
+
+  protected final func CanUseOverclock() -> Bool {
+    return QuickHackableHelper.CanActivateOverclockedState(this.m_player);
+  }
+}
+
+public class ContactDataHelper extends IScriptable {
+
+  public final static func Contains(data: script_ref<[ref<IScriptable>]>, hashToFind: Int32) -> Bool {
+    let contact: ref<ContactData>;
+    let entryHash: Int32;
+    let i: Int32;
+    let j: Int32;
+    if hashToFind == 0 {
+      return false;
+    };
+    i = 0;
+    while i < ArraySize(Deref(data)) {
+      contact = Deref(data)[i] as ContactData;
+      if contact.hash == hashToFind || contact.conversationHash == hashToFind {
+        return true;
+      };
+      j = 0;
+      while j < ArraySize(contact.unreadMessages) {
+        entryHash = contact.unreadMessages[j];
+        if entryHash == hashToFind {
+          return true;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final static func IndexOfOrZero(dataView: wref<DialerContactDataView>, hash: Int32) -> Uint32 {
+    let contact: ref<ContactData>;
+    let entryHash: Int32;
+    let i: Uint32;
+    let j: Int32;
+    if hash == 0 {
+      return 0u;
+    };
+    i = 0u;
+    while i < dataView.Size() {
+      contact = dataView.GetItem(i) as ContactData;
+      if contact.hash == hash || contact.conversationHash == hash {
+        return i;
+      };
+      j = 0;
+      while j < ArraySize(contact.unreadMessages) {
+        entryHash = contact.unreadMessages[j];
+        if entryHash == hash {
+          return i;
+        };
+        j += 1;
+      };
+      i += 1u;
+    };
+    return 0u;
+  }
+
+  public final static func FindClosestContactWithUnread(dataView: wref<DialerContactDataView>, startIndex: Int32) -> ref<ContactData> {
+    let aContact: ref<ContactData>;
+    let bContact: ref<ContactData>;
+    let a: Int32 = startIndex;
+    let b: Int32 = startIndex;
+    let size: Int32 = Cast<Int32>(dataView.Size()) - 1;
+    while a != 0 && b != size {
+      a = Clamp(a - 1, 0, size);
+      b = Clamp(b + 1, 0, size);
+      aContact = dataView.GetItem(Cast<Uint32>(a)) as ContactData;
+      bContact = dataView.GetItem(Cast<Uint32>(b)) as ContactData;
+      if ArraySize(aContact.unreadMessages) > 0 || aContact.playerCanReply {
+        return aContact;
+      };
+      if ArraySize(bContact.unreadMessages) > 0 || bContact.playerCanReply {
+        return bContact;
+      };
+    };
+    return null;
+  }
+
+  public final static func FetchContactHash(contactData: wref<ContactData>) -> Int32 {
+    if !IsDefined(contactData) {
+      return 0;
+    };
+    return Equals(contactData.type, MessengerContactType.MultiThread) ? contactData.conversationHash : contactData.hash;
+  }
+}
+
+public class NewHudPhoneGameController extends gameuiNewHudPhoneGameController {
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_journalMgr: wref<JournalManager>;
+
+  public let m_questsSystem: wref<QuestsSystem>;
+
+  public let m_uiSystem: wref<UISystem>;
+
+  public let m_fact1ListenerId: Uint32;
+
+  public let m_fact2ListenerId: Uint32;
+
+  public let m_fact3ListenerId: Uint32;
+
+  public let m_onNotificationsQueueChanged: ref<CallbackHandle>;
+
+  @default(NewHudPhoneGameController, -1)
+  public let m_currActiveQueueId: Int32;
+
+  public let m_CurrentFunction: EHudPhoneFunction;
+
+  public let m_gameplayRestrictions: [CName];
+
+  @default(NewHudPhoneGameController, false)
+  public let m_buttonPressed: Bool;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_repeatingScrollActionEnabled: Bool;
+
+  @default(NewHudPhoneGameController, 8.0f)
+  public let m_TimeoutPeroid: Float;
+
+  public let m_activePhoneElements: Uint32;
+
+  public let m_bbSystem: wref<BlackboardSystem>;
+
+  public let m_bbUiSystemDef: ref<UI_SystemDef>;
+
+  public let m_bbUiSystem: wref<IBlackboard>;
+
+  public let m_isInMenuCallback: ref<CallbackHandle>;
+
+  public let m_bbUiComDeviceDef: ref<UI_ComDeviceDef>;
+
+  public let m_bbUiComDevice: wref<IBlackboard>;
+
+  public let m_phoneCallInformationCallback: ref<CallbackHandle>;
+
+  public let m_phoneStatusChangedCallback: ref<CallbackHandle>;
+
+  public let m_phoneMinimizedCallback: ref<CallbackHandle>;
+
+  public let m_contactsActiveCallback: ref<CallbackHandle>;
+
+  public let m_messageToOpenCallback: ref<CallbackHandle>;
+
+  public let m_phoneEnabledBBId: ref<CallbackHandle>;
+
+  public let m_bbUiQuickSlotsDataDef: ref<UI_QuickSlotsDataDef>;
+
+  public let m_bbUiQuickSlotsData: wref<IBlackboard>;
+
+  public let m_bbUiPlayerStatsDef: ref<UI_PlayerStatsDef>;
+
+  public let m_bbUiPlayerStats: wref<IBlackboard>;
+
+  public let m_DelaySystem: wref<DelaySystem>;
+
+  public let m_DelayedTimeoutCallbackId: DelayID;
+
+  public let m_PhoneSystem: wref<PhoneSystem>;
+
+  public let m_CurrentCallInformation: PhoneCallInformation;
+
+  public let m_CurrentPhoneCallContact: wref<JournalContact>;
+
+  public let m_holoAudioCallLogicController: wref<HoloAudioCallLogicController>;
+
+  public let m_contactListLogicController: wref<PhoneDialerLogicController>;
+
+  public let m_phoneIconAnimProxy: ref<inkAnimProxy>;
+
+  public let m_backgroundAnimProxy: ref<inkAnimProxy>;
+
+  public let m_screenType: PhoneScreenType;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_messagesPanelVisible: Bool;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_messagesPanelSpawned: Bool;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_threadsVisible: Bool;
+
+  public let m_messageToOpenHash: Int32;
+
+  public let m_indexToSelect: Uint32;
+
+  public let m_isSingleThread: Bool;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_isShowingAllMessages: Bool;
+
+  @default(NewHudPhoneGameController, false)
+  public let m_keepOpenWhenInHubMenu: Bool;
+
+  public let m_audioSystem: wref<AudioSystem>;
+
+  private let m_isRemoteControllingDevice: Bool;
+
+  private let m_psmIsControllingDeviceCallback: ref<CallbackHandle>;
+
+  private let m_vehicleEnterCallback: ref<CallbackHandle>;
+
+  public func GetShouldSaveState() -> Bool {
+    return true;
+  }
+
+  public func GetID() -> Int32 {
+    return 8;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    let infoVariant: Variant;
+    let lastPhoneCallInformation: PhoneCallInformation;
+    let psmBlackboard: wref<IBlackboard>;
+    let request: ref<questTriggerCallRequest>;
+    let uiBlackboard: wref<IBlackboard>;
+    if !IsDefined(this.phoneIconElement.request) {
+      this.phoneIconElement.request = this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.phoneIconElement.slot), this.phoneIconElement.libraryID, this, n"OnPhoneIconSpawned");
+    };
+    this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_journalMgr = GameInstance.GetJournalManager(this.m_player.GetGame());
+    if IsDefined(this.m_journalMgr) {
+      this.m_journalMgr.RegisterScriptCallback(this, n"OnJournalUpdate", gameJournalListenerType.State);
+      this.m_journalMgr.RegisterScriptCallback(this, n"OnJournalEntryVisited", gameJournalListenerType.Visited);
+    };
+    this.m_questsSystem = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    if IsDefined(this.m_questsSystem) {
+      this.m_fact1ListenerId = this.m_questsSystem.RegisterListener(n"dpad_hints_visibility_enabled", this, n"OnConsumableTutorial");
+      this.m_fact2ListenerId = this.m_questsSystem.RegisterListener(n"q000_started", this, n"OnGameStarted");
+      this.m_fact3ListenerId = this.m_questsSystem.RegisterListener(n"dpad_hint_phone_visible", this, n"OnDpadVisibilityChanged");
+    };
+    uiBlackboard = this.GetUIBlackboard();
+    if IsDefined(uiBlackboard) {
+      this.m_onNotificationsQueueChanged = uiBlackboard.RegisterListenerInt(GetAllBlackboardDefs().UIGameData.ActiveNotificationsQueue, this, n"OnNotificationsQueueChanged");
+    };
+    this.m_bbSystem = this.GetBlackboardSystem();
+    psmBlackboard = this.m_bbSystem.GetLocalInstanced(this.m_player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    if IsDefined(psmBlackboard) {
+      this.m_psmIsControllingDeviceCallback = psmBlackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice, this, n"OnPSMIsControllingDeviceChanged", true);
+      this.m_vehicleEnterCallback = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerEnteredVehicle", true);
+    };
+    this.m_bbUiSystemDef = GetAllBlackboardDefs().UI_System;
+    this.m_bbUiSystem = this.m_bbSystem.Get(this.m_bbUiSystemDef);
+    if IsDefined(this.m_bbUiSystem) {
+      this.m_isInMenuCallback = this.m_bbUiSystem.RegisterDelayedListenerBool(this.m_bbUiSystemDef.IsInMenu, this, n"OnMenuUpdate");
+      this.m_bbUiSystem.SignalBool(this.m_bbUiSystemDef.IsInMenu);
+    };
+    this.m_bbUiComDeviceDef = GetAllBlackboardDefs().UI_ComDevice;
+    this.m_bbUiComDevice = this.m_bbSystem.Get(this.m_bbUiComDeviceDef);
+    if IsDefined(this.m_bbUiComDevice) {
+      this.m_phoneCallInformationCallback = this.m_bbUiComDevice.RegisterDelayedListenerVariant(this.m_bbUiComDeviceDef.PhoneCallInformation, this, n"OnPhoneCall");
+      this.m_phoneStatusChangedCallback = this.m_bbUiComDevice.RegisterDelayedListenerName(this.m_bbUiComDeviceDef.comDeviceSetStatusText, this, n"OnPhoneStatusChanged");
+      this.m_phoneMinimizedCallback = this.m_bbUiComDevice.RegisterDelayedListenerBool(this.m_bbUiComDeviceDef.PhoneStyle_Minimized, this, n"OnPhoneMinimized");
+      this.m_contactsActiveCallback = this.m_bbUiComDevice.RegisterDelayedListenerBool(this.m_bbUiComDeviceDef.ContactsActive, this, n"OnContactsActive");
+      this.m_messageToOpenCallback = this.m_bbUiComDevice.RegisterDelayedListenerInt(this.m_bbUiComDeviceDef.MessageToOpenHash, this, n"OnMessageToOpenHashChanged");
+      this.m_phoneEnabledBBId = this.m_bbUiComDevice.RegisterListenerBool(this.m_bbUiComDeviceDef.PhoneEnabled, this, n"OnPhoneEnabledChanged");
+      infoVariant = this.m_bbUiComDevice.GetVariant(this.m_bbUiComDeviceDef.PhoneCallInformation);
+      if IsDefined(infoVariant) {
+        lastPhoneCallInformation = FromVariant<PhoneCallInformation>(infoVariant);
+        if Equals(lastPhoneCallInformation.callPhase, questPhoneCallPhase.IncomingCall) || Equals(lastPhoneCallInformation.callPhase, questPhoneCallPhase.StartCall) {
+          request = this.CreateTriggerCallRequestFromPhoneCallInformation(lastPhoneCallInformation);
+          GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).QueueRequest(request);
+        };
+      };
+    };
+    this.m_bbUiQuickSlotsDataDef = GetAllBlackboardDefs().UI_QuickSlotsData;
+    this.m_bbUiQuickSlotsData = this.m_bbSystem.Get(this.m_bbUiQuickSlotsDataDef);
+    this.m_bbUiPlayerStatsDef = GetAllBlackboardDefs().UI_PlayerStats;
+    this.m_bbUiPlayerStats = this.m_bbSystem.Get(this.m_bbUiPlayerStatsDef);
+    this.m_uiSystem = GameInstance.GetUISystem(this.m_player.GetGame());
+    this.m_DelaySystem = GameInstance.GetDelaySystem(this.m_player.GetGame());
+    this.m_PhoneSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"PhoneSystem") as PhoneSystem;
+    this.m_audioSystem = GameInstance.GetAudioSystem(this.m_player.GetGame());
+    this.CachePredefinedRestrictions();
+    this.SetPhoneFunction(EHudPhoneFunction.Inactive);
+    PopupStateUtils.SetBackgroundBlurBlendTime(this, 0.10);
+    this.SetNotificationPauseWhenHidden(true);
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let uiBlackboard: ref<IBlackboard>;
+    if IsDefined(this.m_journalMgr) {
+      this.m_journalMgr.UnregisterScriptCallback(this, n"OnJournalUpdate");
+      this.m_journalMgr.UnregisterScriptCallback(this, n"OnJournalEntryVisited");
+    };
+    if IsDefined(this.m_questsSystem) {
+      this.m_questsSystem.UnregisterListener(n"dpad_hints_visibility_enabled", this.m_fact1ListenerId);
+      this.m_questsSystem.UnregisterListener(n"q000_started", this.m_fact2ListenerId);
+      this.m_questsSystem.UnregisterListener(n"dpad_hint_phone_visible", this.m_fact3ListenerId);
+    };
+    if IsDefined(this.m_psmIsControllingDeviceCallback) {
+      this.GetBlackboardSystem().GetLocalInstanced(this.m_player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine).UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice, this.m_psmIsControllingDeviceCallback);
+    };
+    if IsDefined(this.m_vehicleEnterCallback) {
+      this.GetBlackboardSystem().GetLocalInstanced(this.m_player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine).UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.m_vehicleEnterCallback);
+    };
+    uiBlackboard = this.GetUIBlackboard();
+    if IsDefined(uiBlackboard) {
+      uiBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().UIGameData.ActiveNotificationsQueue, this.m_onNotificationsQueueChanged);
+    };
+    if IsDefined(this.m_bbUiSystem) {
+      this.m_bbUiSystem.UnregisterDelayedListener(this.m_bbUiSystemDef.IsInMenu, this.m_isInMenuCallback);
+    };
+    if IsDefined(this.m_bbUiComDevice) {
+      this.m_bbUiComDevice.UnregisterDelayedListener(this.m_bbUiComDeviceDef.PhoneCallInformation, this.m_phoneCallInformationCallback);
+      this.m_bbUiComDevice.UnregisterDelayedListener(this.m_bbUiComDeviceDef.comDeviceSetStatusText, this.m_phoneStatusChangedCallback);
+      this.m_bbUiComDevice.UnregisterDelayedListener(this.m_bbUiComDeviceDef.PhoneStyle_Minimized, this.m_phoneMinimizedCallback);
+      this.m_bbUiComDevice.UnregisterDelayedListener(this.m_bbUiComDeviceDef.ContactsActive, this.m_contactsActiveCallback);
+      this.m_bbUiComDevice.UnregisterDelayedListener(this.m_bbUiComDeviceDef.MessageToOpenHash, this.m_messageToOpenCallback);
+      this.m_bbUiComDevice.UnregisterListenerBool(this.m_bbUiComDeviceDef.PhoneEnabled, this.m_phoneEnabledBBId);
+    };
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    playerPuppet.RegisterInputListener(this, n"PhoneInteract");
+    playerPuppet.RegisterInputListener(this, n"PhoneReject");
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    playerPuppet.UnregisterInputListener(this);
+  }
+
+  protected cb func OnPlayerEnteredVehicle(value: Int32) -> Bool {
+    if value != 0 && value != 4 {
+      this.ActivatePhoneElement(gameuiActivePhoneElement.InVehicle);
+    } else {
+      this.DeactivatePhoneElement(gameuiActivePhoneElement.InVehicle);
+    };
+  }
+
+  public final func OnPhoneEnabledChanged(enabled: Bool) -> Void {
+    if !enabled && this.IsPhoneActive() {
+      this.CloseContactList();
+    };
+  }
+
+  private final func IsPhoneActive() -> Bool {
+    if IsDefined(this.m_bbUiComDevice) {
+      return this.m_bbUiComDevice.GetBool(this.m_bbUiComDeviceDef.ContactsActive);
+    };
+    return false;
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let pickupRequest: ref<PickupPhoneRequest>;
+    let uiActionPerformed: ref<DPADActionPerformed>;
+    let actionName: CName = ListenerAction.GetName(action);
+    let actionType: gameinputActionType = ListenerAction.GetType(action);
+    let wheelOpened: Bool = this.m_bbUiQuickSlotsData.GetBool(this.m_bbUiQuickSlotsDataDef.UIRadialContextRequest);
+    let hacksOpened: Bool = this.m_bbUiQuickSlotsData.GetBool(this.m_bbUiQuickSlotsDataDef.quickhackPanelOpen);
+    if Equals(actionName, n"PhoneInteract") {
+      uiActionPerformed = new DPADActionPerformed();
+      uiActionPerformed.action = EHotkey.DPAD_DOWN;
+      if Equals(actionType, gameinputActionType.BUTTON_PRESSED) {
+        if this.m_player.PlayerLastUsedPad() {
+          uiActionPerformed.state = EUIActionState.STARTED;
+          uiActionPerformed.successful = true;
+          this.m_buttonPressed = true;
+          this.QueueEvent(uiActionPerformed);
+        };
+      } else {
+        if Equals(actionType, gameinputActionType.BUTTON_RELEASED) {
+          if Equals(this.m_CurrentCallInformation.callPhase, questPhoneCallPhase.IncomingCall) {
+            pickupRequest = new PickupPhoneRequest();
+            pickupRequest.CallInformation = this.m_CurrentCallInformation;
+            this.m_PhoneSystem.QueueRequest(pickupRequest);
+            return true;
+          };
+          if this.m_buttonPressed {
+            this.m_buttonPressed = false;
+            uiActionPerformed.state = EUIActionState.ABORTED;
+            uiActionPerformed.successful = false;
+            this.QueueEvent(uiActionPerformed);
+          };
+        };
+      };
+      if Equals(actionType, gameinputActionType.BUTTON_HOLD_COMPLETE) && NotEquals(this.m_CurrentCallInformation.callPhase, questPhoneCallPhase.IncomingCall) {
+        if !wheelOpened && !hacksOpened {
+          if !this.m_bbUiPlayerStats.GetBool(this.m_bbUiPlayerStatsDef.isReplacer) {
+            this.m_PhoneSystem.QueueRequest(new UsePhoneRequest());
+            uiActionPerformed.successful = true;
+            uiActionPerformed.state = EUIActionState.COMPLETED;
+            this.m_buttonPressed = false;
+            this.QueueEvent(uiActionPerformed);
+            return true;
+          };
+        } else {
+          this.QueueEvent(uiActionPerformed);
+        };
+      };
+    } else {
+      if Equals(actionName, n"PhoneReject") {
+        if Equals(actionType, gameinputActionType.BUTTON_HOLD_COMPLETE) && Equals(this.m_CurrentCallInformation.callPhase, questPhoneCallPhase.IncomingCall) {
+          pickupRequest = new PickupPhoneRequest();
+          pickupRequest.CallInformation = this.m_CurrentCallInformation;
+          pickupRequest.shouldBeRejected = true;
+          this.m_PhoneSystem.QueueRequest(pickupRequest);
+        };
+      } else {
+        if IsDefined(this.m_contactListLogicController) {
+          return this.OnContactListAction(action, consumer);
+        };
+      };
+    };
+  }
+
+  protected cb func OnContactListAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let actionName: CName = ListenerAction.GetName(action);
+    let actionType: gameinputActionType = ListenerAction.GetType(action);
+    if Equals(actionType, gameinputActionType.REPEAT) {
+      if !this.m_repeatingScrollActionEnabled {
+        return false;
+      };
+      switch actionName {
+        case n"popup_moveDown":
+          this.m_contactListLogicController.NavigateDown();
+          break;
+        case n"popup_moveUp":
+          this.m_contactListLogicController.NavigateUp();
+          break;
+        case n"popup_moveUp_left_stick_down":
+          this.m_contactListLogicController.NavigateDown();
+          break;
+        case n"popup_moveUp_left_stick_up":
+          this.m_contactListLogicController.NavigateUp();
+      };
+    } else {
+      if Equals(actionType, gameinputActionType.BUTTON_PRESSED) {
+        if !this.m_repeatingScrollActionEnabled {
+          this.m_repeatingScrollActionEnabled = true;
+        };
+        switch actionName {
+          case n"popup_moveDown":
+            this.m_contactListLogicController.NavigateDown();
+            break;
+          case n"popup_moveUp":
+            this.m_contactListLogicController.NavigateUp();
+            break;
+          case n"popup_moveUp_left_stick_down":
+            this.m_contactListLogicController.NavigateDown();
+            break;
+          case n"popup_moveUp_left_stick_up":
+            this.m_contactListLogicController.NavigateUp();
+            break;
+          case n"showAll":
+            this.ToggleShowAllMessages();
+            break;
+          case n"secondaryAction":
+            this.AlternativeAcceptAction();
+            break;
+          case n"click":
+            this.AcceptAction();
+            break;
+          case n"touch_popup":
+            this.AcceptAction();
+            break;
+          case n"OpenPauseMenu":
+            ListenerActionConsumer.DontSendReleaseEvent(consumer);
+            break;
+          case n"cancel":
+            this.Back();
+            break;
+          case n"popup_moveRight":
+          case n"popup_next":
+          case n"popup_prior":
+          case n"popup_moveLeft":
+            this.SelectOtherTab();
+        };
+      };
+    };
+    return true;
+  }
+
+  public final func ToggleShowAllMessages() -> Void {
+    if Equals(this.m_screenType, PhoneScreenType.Unread) {
+      this.m_isShowingAllMessages = !this.m_isShowingAllMessages;
+      this.FindMessageToSelect();
+      this.m_audioSystem.Play(n"ui_menu_map_pin_created");
+      this.SetScreenType(this.m_screenType);
+      this.m_messageToOpenHash = 0;
+    };
+  }
+
+  private final func FindMessageToSelect() -> Void {
+    let contact: wref<ContactData> = this.m_contactListLogicController.GetSelectedContactData();
+    if !IsDefined(contact) {
+      this.m_messageToOpenHash = 0;
+    } else {
+      if Equals(contact.type, MessengerContactType.Fake_ShowAll) {
+        this.m_messageToOpenHash = -1;
+      } else {
+        if !this.m_isShowingAllMessages {
+          this.m_messageToOpenHash = this.m_contactListLogicController.GetContactWithUnreadHash();
+        } else {
+          this.m_messageToOpenHash = this.m_contactListLogicController.GetSelectedContactHash();
+        };
+      };
+    };
+  }
+
+  public final func AcceptAction() -> Void {
+    switch this.m_screenType {
+      case PhoneScreenType.Unread:
+        this.ExecuteAction();
+        break;
+      case PhoneScreenType.Contacts:
+        if this.m_threadsVisible {
+          this.ExecuteAction();
+        } else {
+          this.CallContact();
+        };
+    };
+  }
+
+  public final func AlternativeAcceptAction() -> Void {
+    switch this.m_screenType {
+      case PhoneScreenType.Unread:
+        this.CallContact();
+        break;
+      case PhoneScreenType.Contacts:
+        this.ExecuteAction();
+    };
+  }
+
+  public final func RefreshSmsMessager(contactData: wref<ContactData>) -> Void {
+    let evt: ref<RefreshSmsMessagerEvent> = new RefreshSmsMessagerEvent();
+    evt.m_data = new JournalNotificationData();
+    evt.m_data.type = contactData.type;
+    evt.m_data.contactNameLocKey = StringToName(contactData.localizedName);
+    if Equals(contactData.type, MessengerContactType.MultiThread) {
+      evt.m_data.journalEntry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.conversationHash));
+    } else {
+      evt.m_data.journalEntry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.hash));
+    };
+    evt.m_data.mode = JournalNotificationMode.HUD;
+    evt.m_data.openedFromPhone = true;
+    evt.m_data.source = this.m_screenType;
+    this.QueueEvent(evt);
+  }
+
+  public final func FocusSmsMessenger() -> Void {
+    if this.m_messagesPanelSpawned {
+      this.DisableContactsInput();
+      this.QueueEvent(new FocusSmsMessagerEvent());
+    };
+  }
+
+  private final func MoveMessengerLeft(moveBackToRight: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.playReversed = moveBackToRight;
+    this.PlayLibraryAnimation(n"sms_move_left", playbackOptions);
+  }
+
+  protected cb func OnSmsMessageGotFocus(evt: ref<FocusSmsMessagerEvent>) -> Bool {
+    this.contactsElement.widget.SetOpacity(0.30);
+    this.m_contactListLogicController.ShowInputHints(false);
+    this.m_contactListLogicController.OpenSelectedItem();
+    this.m_audioSystem.Play(n"ui_menu_map_pin_created");
+    this.MoveMessengerLeft(false);
+    this.ShowSmsMessager(true);
+  }
+
+  protected cb func OnSmsMessageLostFocus(evt: ref<UnfocusSmsMessagerEvent>) -> Bool {
+    let contact: wref<ContactData>;
+    let contactChanged: Bool;
+    this.contactsElement.widget.SetOpacity(1.00);
+    this.EnableContactsInput();
+    this.m_audioSystem.Play(n"ui_menu_map_pin_on");
+    this.MoveMessengerLeft(true);
+    this.ShowSmsMessager(false);
+    this.m_contactListLogicController.ShowInputHints(true);
+    contact = this.m_contactListLogicController.GetSelectedContactData();
+    if Equals(contact.type, MessengerContactType.Fake_ShowAll) {
+      return true;
+    };
+    contactChanged = this.RefreshReplies(contact);
+    this.m_contactListLogicController.RefreshSelectedContact();
+    if Equals(this.m_screenType, PhoneScreenType.Unread) && contactChanged && ArraySize(contact.unreadMessages) == 0 && !contact.playerCanReply && !this.m_isShowingAllMessages {
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+      this.m_contactListLogicController.HideSelectedItem();
+      this.m_audioSystem.Play(n"ui_menu_item_disassemble");
+    } else {
+      if Equals(this.m_screenType, PhoneScreenType.Contacts) && this.m_isSingleThread {
+        this.Back();
+      };
+    };
+  }
+
+  protected cb func OnContactHidden(target: wref<inkWidget>) -> Bool {
+    let indexToSelect: Uint32;
+    if Equals(this.m_screenType, PhoneScreenType.Unread) {
+      indexToSelect = this.m_contactListLogicController.GetSelectedContactIndex();
+      this.m_indexToSelect = Cast<Uint32>(Max(Cast<Int32>(indexToSelect) - 1, 0));
+      this.SetScreenType(this.m_screenType);
+      this.m_indexToSelect = 0u;
+    };
+  }
+
+  public final func RefreshReplies(contactData: ref<ContactData>) -> Bool {
+    let canReply: Bool;
+    let entry: wref<JournalEntry>;
+    let messagesReceived: array<wref<JournalEntry>>;
+    let playerReplies: array<wref<JournalEntry>>;
+    let unreadCount: Int32;
+    if Equals(contactData.type, MessengerContactType.SingleThread) {
+      entry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.hash));
+      if !IsDefined(entry) {
+        return false;
+      };
+      this.m_journalMgr.GetFlattenedMessagesAndChoices(entry, messagesReceived, playerReplies);
+    } else {
+      entry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.conversationHash));
+      if !IsDefined(entry) {
+        return false;
+      };
+      this.m_journalMgr.GetMessagesAndChoices(entry, messagesReceived, playerReplies);
+    };
+    unreadCount = ArraySize(contactData.unreadMessages);
+    canReply = contactData.playerCanReply;
+    MessengerUtils.GetContactMessageData(contactData, this.m_journalMgr, messagesReceived, playerReplies);
+    MessengerUtils.RefreshQuestRelatedStatus(contactData, this.m_journalMgr, messagesReceived);
+    return unreadCount != ArraySize(contactData.unreadMessages) || NotEquals(canReply, contactData.playerCanReply);
+  }
+
+  public final func CallContact() -> Void {
+    let contactData: wref<ContactData>;
+    if IsDefined(this.m_contactListLogicController) {
+      contactData = this.m_contactListLogicController.GetSelectedContactData();
+      if contactData == null || !contactData.isCallable {
+        return;
+      };
+      if !this.m_PhoneSystem.IsCallingEnabled() {
+        this.ShowActionBlockedNotification();
+        return;
+      };
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+      this.CallSelectedContact(contactData);
+    };
+  }
+
+  private final func ShowActionBlockedNotification() -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    this.m_uiSystem.QueueEvent(new UIInGameNotificationRemoveEvent());
+    notificationEvent.m_notificationType = UIInGameNotificationType.CombatRestriction;
+    this.m_uiSystem.QueueEvent(notificationEvent);
+  }
+
+  public final func ExecuteAction() -> Void {
+    let contactData: wref<ContactData>;
+    if IsDefined(this.m_contactListLogicController) {
+      contactData = this.m_contactListLogicController.GetSelectedContactData();
+      if contactData == null {
+        return;
+      };
+      if Equals(contactData.type, MessengerContactType.Contact) && !contactData.hasMessages && !contactData.playerCanReply {
+        return;
+      };
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+      switch contactData.type {
+        case MessengerContactType.Contact:
+          this.ShowSelectedContactMessages(contactData);
+          break;
+        case MessengerContactType.MultiThread:
+        case MessengerContactType.SingleThread:
+          this.FocusSmsMessenger();
+          break;
+        case MessengerContactType.Fake_ShowAll:
+          this.ToggleShowAllMessages();
+          break;
+        default:
+      };
+    };
+  }
+
+  public final func ShowSelectedContactMessages(contactData: wref<ContactData>) -> Void {
+    this.m_threadsVisible = true;
+    let messages: array<ref<IScriptable>> = MessengerUtils.GetMessageDataArrayForContact(this.m_journalMgr, contactData.hash, true, true);
+    this.m_contactListLogicController.PushList(messages, ContactsSortMethod.ByTime);
+    this.m_audioSystem.Play(n"ui_menu_map_pin_created");
+    this.m_contactListLogicController.SetTitle(contactData.localizedName);
+    this.m_contactListLogicController.ShowTitle(true);
+    this.m_isSingleThread = ArraySize(messages) == 1;
+  }
+
+  public final func GotoSmsMessenger(contactData: wref<ContactData>) -> Void {
+    let evt: ref<OpenSmsMessengerEvent> = new OpenSmsMessengerEvent();
+    evt.m_data = new JournalNotificationData();
+    evt.m_data.type = contactData.type;
+    evt.m_data.contactNameLocKey = StringToName(contactData.localizedName);
+    if Equals(contactData.type, MessengerContactType.MultiThread) {
+      evt.m_data.journalEntry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.conversationHash));
+    } else {
+      evt.m_data.journalEntry = this.m_journalMgr.GetEntry(Cast<Uint32>(contactData.hash));
+    };
+    evt.m_data.mode = JournalNotificationMode.HUD;
+    evt.m_data.openedFromPhone = true;
+    evt.m_data.source = this.m_screenType;
+    this.QueueEvent(evt);
+  }
+
+  protected cb func OnPSMIsControllingDeviceChanged(value: Bool) -> Bool {
+    this.m_isRemoteControllingDevice = value;
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnNotificationsQueueChanged(id: Int32) -> Bool {
+    if id == this.GetID() {
+      this.ActivatePhoneElement(gameuiActivePhoneElement.Notifications);
+    } else {
+      if Cast<Bool>(this.m_currActiveQueueId = this.GetID()) {
+        this.DeactivatePhoneElement(gameuiActivePhoneElement.Notifications);
+      };
+    };
+    this.m_currActiveQueueId = id;
+  }
+
+  protected cb func OnPhoneIconSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.phoneIconElement.widget = widget;
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnConsumableTutorial(value: Int32) -> Bool {
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnDpadVisibilityChanged(value: Int32) -> Bool {
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnGameStarted(value: Int32) -> Bool {
+    this.ResolveVisibility();
+  }
+
+  protected cb func OnMenuUpdate(value: Bool) -> Bool {
+    this.SetCallingPaused(value);
+    this.SetNotificationPaused(value);
+    this.GetRootWidget().SetVisible(!value);
+  }
+
+  private final func SetCallingPaused(value: Bool) -> Void {
+    let controller: ref<IncomingCallLogicController>;
+    if IsDefined(this.incomingCallElement.widget) {
+      controller = this.incomingCallElement.widget.GetController() as IncomingCallLogicController;
+      controller.SetCallingPaused(value);
+    };
+  }
+
+  protected cb func OnJournalUpdate(hash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    let entry: wref<JournalEntry>;
+    let state: gameJournalEntryState;
+    switch className {
+      case n"gameJournalPhoneChoiceEntry":
+        entry = this.m_journalMgr.GetEntry(hash);
+        state = this.m_journalMgr.GetEntryState(entry);
+        if Equals(state, gameJournalEntryState.Active) {
+          this.NotifyOrRefreshData(entry, state);
+        };
+        break;
+      case n"gameJournalPhoneMessage":
+        entry = this.m_journalMgr.GetEntry(hash);
+        state = this.m_journalMgr.GetEntryState(entry);
+        if Equals(notifyOption, JournalNotifyOption.Notify) && Equals(state, gameJournalEntryState.Active) && Equals(changeType, JournalChangeType.Direct) {
+          this.NotifyOrRefreshData(entry, state);
+        };
+        break;
+      case n"gameJournalContact":
+        entry = this.m_journalMgr.GetEntry(hash);
+        state = this.m_journalMgr.GetEntryState(entry);
+        if Equals(notifyOption, JournalNotifyOption.Notify) && Equals(state, gameJournalEntryState.Active) && Equals(changeType, JournalChangeType.Direct) {
+          this.ShowContactUpdate(entry, state);
+        };
+        break;
+      default:
+    };
+  }
+
+  private final func NotifyOrRefreshData(entry: wref<JournalEntry>, state: gameJournalEntryState) -> Void {
+    if IsDefined(this.contactsElement.widget) {
+      if Equals(this.m_screenType, PhoneScreenType.Unread) && !this.m_messagesPanelVisible {
+        this.SetScreenType(PhoneScreenType.Unread);
+      };
+    } else {
+      this.ShowNewMessage(entry, state);
+    };
+  }
+
+  protected cb func OnJournalEntryVisited(hash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    let request: ref<JournalEntryNotificationRemoveRequestData>;
+    if Equals(className, n"gameJournalQuest") || Equals(className, n"gameJournalPhoneMessage") || Equals(className, n"gameJournalContact") {
+      request = new JournalEntryNotificationRemoveRequestData();
+      request.entryHash = hash;
+      this.RemoveNotification(request);
+    };
+  }
+
+  public final func CreateTriggerCallRequestFromPhoneCallInformation(phoneCallInformation: PhoneCallInformation) -> ref<questTriggerCallRequest> {
+    let request: ref<questTriggerCallRequest> = new questTriggerCallRequest();
+    request.callPhase = phoneCallInformation.callPhase;
+    request.visuals = phoneCallInformation.visuals;
+    request.isRejectable = phoneCallInformation.isRejectable;
+    if phoneCallInformation.isAudioCall {
+      request.callMode = questPhoneCallMode.Audio;
+    } else {
+      request.callMode = questPhoneCallMode.Video;
+    };
+    if phoneCallInformation.isPlayerCalling {
+      request.caller = n"player";
+      request.addressee = phoneCallInformation.contactName;
+    } else {
+      request.caller = phoneCallInformation.contactName;
+      request.addressee = n"player";
+    };
+    return request;
+  }
+
+  protected cb func OnPhoneCall(value: Variant) -> Bool {
+    this.m_CurrentCallInformation = FromVariant<PhoneCallInformation>(value);
+    this.m_CurrentPhoneCallContact = this.GetIncomingContact();
+    if Equals(this.m_CurrentCallInformation.visuals, questPhoneCallVisuals.Somi) {
+      return false;
+    };
+    if !IsDefined(this.incomingCallElement.request) && !IsDefined(this.incomingCallElement.widget) && Equals(this.m_CurrentCallInformation.callPhase, questPhoneCallPhase.IncomingCall) && !this.m_CurrentCallInformation.isPlayerCalling {
+      this.incomingCallElement.request = this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.incomingCallElement.slot), this.incomingCallElement.libraryID, this, n"OnIncommingCallSpawned");
+    };
+    switch this.m_CurrentCallInformation.callPhase {
+      case questPhoneCallPhase.EndCall:
+      case questPhoneCallPhase.Undefined:
+        this.CancelPendingSpawnRequests();
+        this.SetTalkingTrigger(this.m_CurrentCallInformation.isPlayerCalling, questPhoneTalkingState.Ended);
+        this.SetPhoneFunction(EHudPhoneFunction.Inactive);
+        break;
+      case questPhoneCallPhase.StartCall:
+      case questPhoneCallPhase.IncomingCall:
+        this.HandleCall();
+    };
+  }
+
+  private final func CancelPendingSpawnRequests() -> Void {
+    if IsDefined(this.holoAudioCallElement.request) && !IsDefined(this.holoAudioCallElement.widget) {
+      this.holoAudioCallElement.request.Cancel();
+    };
+  }
+
+  private final func HandleCall() -> Void {
+    if !IsDefined(this.holoAudioCallElement.request) && !IsDefined(this.holoAudioCallElement.widget) {
+      this.holoAudioCallElement.request = this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.holoAudioCallElement.slot), this.holoAudioCallElement.libraryID, this, n"OnHoloAudioCallSpawned");
+    } else {
+      this.UpdateHoloAudioCall();
+    };
+  }
+
+  protected cb func OnIncommingCallSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let controller: wref<IncomingCallLogicController>;
+    if IsDefined(widget) {
+      if this.holoAudioCallElement.widget != null {
+        this.m_holoAudioCallLogicController.Hide();
+      };
+      this.incomingCallElement.widget = widget;
+      this.incomingCallElement.widget.RegisterToCallback(n"OnIncomingCallFinished", this, n"OnIncomingCallFinished");
+      this.ActivatePhoneElement(gameuiActivePhoneElement.IncomingCall);
+      controller = this.incomingCallElement.widget.GetController() as IncomingCallLogicController;
+      if IsDefined(controller) {
+        controller.SetCallInfo(this.m_CurrentPhoneCallContact.GetLocalizedName(this.m_journalMgr), this.m_CurrentPhoneCallContact, this.m_journalMgr, this.m_CurrentCallInformation.isRejectable);
+      };
+    };
+  }
+
+  public final func GetIncomingContact() -> wref<JournalContact> {
+    let contactsList: array<wref<JournalEntry>>;
+    let context: JournalRequestContext;
+    let currContact: wref<JournalContact>;
+    let i: Int32;
+    let limit: Int32;
+    context.stateFilter.active = true;
+    context.stateFilter.inactive = true;
+    this.m_journalMgr.GetContacts(context, contactsList);
+    i = 0;
+    limit = ArraySize(contactsList);
+    while i < limit {
+      currContact = contactsList[i] as JournalContact;
+      if Equals(currContact.GetId(), NameToString(this.m_CurrentCallInformation.contactName)) {
+        return currContact;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  protected cb func OnIncomingCallFinished(target: wref<inkWidget>) -> Bool {
+    this.DeactivatePhoneElement(gameuiActivePhoneElement.IncomingCall);
+    inkCompoundRef.RemoveChild(this.incomingCallElement.slot, this.incomingCallElement.widget);
+    this.incomingCallElement.widget = null;
+  }
+
+  protected cb func OnHoloAudioCallSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    if IsDefined(widget) {
+      this.holoAudioCallElement.widget = widget;
+      this.holoAudioCallElement.widget.RegisterToCallback(n"OnHoloAudioCallFinished", this, n"OnHoloAudioCallFinished");
+      this.ActivatePhoneElement(gameuiActivePhoneElement.Call);
+      this.m_holoAudioCallLogicController = this.holoAudioCallElement.widget.GetController() as HoloAudioCallLogicController;
+      this.UpdateHoloAudioCall();
+    };
+  }
+
+  private final func UpdateHoloAudioCall() -> Void {
+    if IsDefined(this.m_holoAudioCallLogicController) {
+      this.CancelTimeoutFailsafe();
+      switch this.m_CurrentCallInformation.callPhase {
+        case questPhoneCallPhase.EndCall:
+        case questPhoneCallPhase.Undefined:
+          break;
+        case questPhoneCallPhase.IncomingCall:
+          this.PlaySound(n"PhoneCallPopup", n"OnOpen");
+          this.StartTimeoutFailsafe();
+          this.SetPhoneFunction(EHudPhoneFunction.IncomingCall);
+          if this.m_CurrentCallInformation.isPlayerCalling {
+            this.m_holoAudioCallLogicController.Show();
+          };
+          break;
+        case questPhoneCallPhase.StartCall:
+          this.SetTalkingTrigger(this.m_CurrentCallInformation.isPlayerCalling, questPhoneTalkingState.Talking);
+          this.SetPhoneFunction(this.m_CurrentCallInformation.isAudioCall ? EHudPhoneFunction.Audiocall : EHudPhoneFunction.Holocall);
+          this.OnIncomingCallFinished(null);
+          this.m_holoAudioCallLogicController.Show();
+      };
+    };
+  }
+
+  protected cb func OnHoloAudioCallFinished(target: wref<inkWidget>) -> Bool {
+    this.DeactivatePhoneElement(gameuiActivePhoneElement.Call);
+    this.m_holoAudioCallLogicController = null;
+    inkCompoundRef.RemoveChild(this.holoAudioCallElement.slot, this.holoAudioCallElement.widget);
+    this.holoAudioCallElement.widget = null;
+  }
+
+  protected cb func OnPhoneStatusChanged(phoneStatus: CName) -> Bool {
+    if IsDefined(this.m_holoAudioCallLogicController) {
+      this.m_holoAudioCallLogicController.SetStatusText(NameToString(phoneStatus));
+    };
+  }
+
+  protected cb func OnPhoneMinimized(value: Bool) -> Bool {
+    if IsDefined(this.m_holoAudioCallLogicController) {
+      this.m_holoAudioCallLogicController.ChangeMinimized(value);
+    };
+  }
+
+  public final func StartTimeoutFailsafe() -> Void {
+    let timeoutRequest: ref<PhoneTimeoutRequest> = new PhoneTimeoutRequest();
+    if IsDefined(this.m_DelaySystem) {
+      this.m_DelayedTimeoutCallbackId = this.m_DelaySystem.DelayScriptableSystemRequest(n"PhoneSystem", timeoutRequest, this.m_TimeoutPeroid);
+    };
+  }
+
+  public final func CancelTimeoutFailsafe() -> Void {
+    if IsDefined(this.m_DelaySystem) {
+      this.m_DelaySystem.CancelCallback(this.m_DelayedTimeoutCallbackId);
+    };
+  }
+
+  public final func SetTalkingTrigger(isPlayerCalling: Bool, state: questPhoneTalkingState) -> Void {
+    let request: ref<TalkingTriggerRequest>;
+    if IsDefined(this.m_CurrentPhoneCallContact) {
+      request = new TalkingTriggerRequest();
+      request.isPlayerCalling = isPlayerCalling;
+      request.contact = StringToName(this.m_CurrentPhoneCallContact.GetId());
+      request.state = state;
+      this.m_PhoneSystem.QueueRequest(request);
+    };
+  }
+
+  public final func SetPhoneFunction(newFunction: EHudPhoneFunction) -> Void {
+    let avatarID: TweakDBID;
+    let contactName: String;
+    if IsDefined(this.m_holoAudioCallLogicController) && NotEquals(this.m_CurrentFunction, newFunction) {
+      this.m_CurrentFunction = newFunction;
+      avatarID = this.m_CurrentPhoneCallContact.GetAvatarID(this.m_journalMgr);
+      contactName = this.m_CurrentPhoneCallContact.GetLocalizedName(this.m_journalMgr);
+      switch newFunction {
+        case EHudPhoneFunction.DisplayingMessage:
+          break;
+        case EHudPhoneFunction.IncomingCall:
+          this.m_holoAudioCallLogicController.ShowIncomingContact(avatarID, contactName);
+          break;
+        case EHudPhoneFunction.Audiocall:
+          this.m_holoAudioCallLogicController.StartAudiocall(avatarID, contactName, this.m_CurrentCallInformation.showAvatar);
+          break;
+        case EHudPhoneFunction.Holocall:
+          this.m_holoAudioCallLogicController.StartHolocall(avatarID, contactName);
+          break;
+        case EHudPhoneFunction.Inactive:
+          this.m_holoAudioCallLogicController.ShowEndCallContact(avatarID, contactName);
+      };
+    };
+    if this.incomingCallElement.widget != null {
+      if Equals(newFunction, EHudPhoneFunction.Inactive) {
+        this.OnIncomingCallFinished(null);
+      };
+    };
+  }
+
+  public final func CachePredefinedRestrictions() -> Void {
+    PlayerGameplayRestrictions.AcquireHotkeyRestrictionTags(EHotkey.DPAD_DOWN, this.m_gameplayRestrictions);
+  }
+
+  protected cb func OnTimeSkip(evt: ref<TimeSkipFinishEvent>) -> Bool {
+    if this.IsPhoneActive() {
+      this.CloseContactList();
+    };
+  }
+
+  protected cb func OnKeepPhoneOpenWhenInHubMenu(evt: ref<KeepPhoneOpenWhenInHubMenuEvent>) -> Bool {
+    this.m_keepOpenWhenInHubMenu = true;
+  }
+
+  protected cb func OnHUBMenuChanged(evt: ref<inkMenuLayer_SetMenuModeEvent>) -> Bool {
+    let mode: inkMenuMode = evt.GetMenuMode();
+    let state: inkMenuState = evt.GetMenuState();
+    if !this.IsPhoneActive() || NotEquals(mode, inkMenuMode.HubMenu) {
+      return false;
+    };
+    if Equals(state, inkMenuState.Enabled) && !this.m_keepOpenWhenInHubMenu {
+      this.CloseContactList();
+    } else {
+      this.m_keepOpenWhenInHubMenu = this.m_bbUiSystem.GetBool(this.m_bbUiSystemDef.IsInMenu);
+    };
+  }
+
+  protected cb func OnContactsActive(value: Bool) -> Bool {
+    if value && !IsDefined(this.contactsElement.widget) {
+      if !IsDefined(this.contactsElement.request) {
+        this.contactsElement.request = this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.contactsElement.slot), this.contactsElement.libraryID, this, n"OnContactListSpawned");
+      };
+    } else {
+      if !value && IsDefined(this.contactsElement.widget) {
+        this.OnContactListClosed();
+      } else {
+        if !value && IsDefined(this.contactsElement.request) {
+          this.contactsElement.request.Cancel();
+        };
+      };
+    };
+  }
+
+  protected cb func OnContactListSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let contactDataArray: array<ref<IScriptable>>;
+    let hasImportantCalls: Bool;
+    let hasImportantMessages: Bool;
+    let hasUnreadMsg: Bool;
+    let isCallingEnabled: Bool;
+    if IsDefined(widget) {
+      this.contactsElement.widget = widget;
+      this.contactsElement.widget.RegisterToCallback(n"OnCloseContactList", this, n"OnCloseContactList");
+      this.contactsElement.widget.RegisterToCallback(n"OnContactHidden", this, n"OnContactHidden");
+      this.ActivatePhoneElement(gameuiActivePhoneElement.Contacts);
+      this.m_contactListLogicController = this.contactsElement.widget.GetController() as PhoneDialerLogicController;
+      if IsDefined(this.m_contactListLogicController) {
+        this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);
+        this.m_uiSystem.RequestNewVisualState(n"inkModalPopupState");
+        TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", true, true);
+        PopupStateUtils.SetBackgroundBlur(this, true);
+        isCallingEnabled = this.m_PhoneSystem.IsCallingEnabled();
+        hasImportantCalls = MessengerUtils.HasQuestImportantCalls(this.m_journalMgr);
+        hasImportantMessages = MessengerUtils.HasQuestImportantMessages(this.m_journalMgr);
+        contactDataArray = MessengerUtils.GetSimpleContactDataArray(this.m_journalMgr, true, true, this.m_isShowingAllMessages);
+        hasUnreadMsg = ArraySize(contactDataArray) > 0;
+        this.m_contactListLogicController.ShowCallsQuestIndicator(hasImportantCalls);
+        this.m_contactListLogicController.SetCallingEnabled(isCallingEnabled);
+        this.VerifyMessageToOpenHash(contactDataArray, this.m_messageToOpenHash);
+        if this.m_messageToOpenHash != 0 {
+          this.SetScreenType(PhoneScreenType.Unread);
+        } else {
+          if hasImportantMessages {
+            this.SetScreenType(PhoneScreenType.Unread);
+          } else {
+            if hasImportantCalls && isCallingEnabled {
+              this.SetScreenType(PhoneScreenType.Contacts);
+            } else {
+              if hasUnreadMsg {
+                this.SetScreenType(PhoneScreenType.Unread);
+              } else {
+                this.SetScreenType(PhoneScreenType.Contacts);
+              };
+            };
+          };
+        };
+        this.m_audioSystem.Play(n"ui_phone_incoming_call_positive");
+        this.m_contactListLogicController.Show();
+        this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Slow, RumblePosition.Left);
+        this.EnableContactsInput();
+      };
+    };
+    if IsDefined(this.m_holoAudioCallLogicController) {
+      this.m_holoAudioCallLogicController.Interrupt(true);
+    };
+  }
+
+  private final func VerifyMessageToOpenHash(const contactDataArray: script_ref<[ref<IScriptable>]>, out messageToOpenHash: Int32) -> Void {
+    let foundInUnread: Bool;
+    if messageToOpenHash != 0 {
+      foundInUnread = ContactDataHelper.Contains(contactDataArray, messageToOpenHash);
+      if !foundInUnread {
+        messageToOpenHash = 0;
+      };
+    };
+  }
+
+  protected cb func OnMessageToOpenHashChanged(hash: Int32) -> Bool {
+    this.m_messageToOpenHash = hash;
+  }
+
+  protected cb func OnContactSelectionChanged(evt: ref<ContactSelectionChangedEvent>) -> Bool {
+    if evt.ContactData == null {
+      this.ShowSmsMessager(false);
+      return true;
+    };
+    if Equals(this.m_screenType, PhoneScreenType.Contacts) && this.m_threadsVisible || Equals(this.m_screenType, PhoneScreenType.Unread) {
+      if this.m_messagesPanelSpawned {
+        this.RefreshSmsMessager(evt.ContactData);
+        if Equals(this.m_screenType, PhoneScreenType.Contacts) && this.m_isSingleThread {
+          this.FocusSmsMessenger();
+        };
+      } else {
+        this.GotoSmsMessenger(evt.ContactData);
+      };
+    };
+  }
+
+  public final func SelectOtherTab() -> Void {
+    let nextScreen: PhoneScreenType = this.GetOtherScreenType(this.m_screenType);
+    this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+    this.m_audioSystem.Play(n"ui_gui_tab_change");
+    if this.m_threadsVisible {
+      this.m_threadsVisible = false;
+      this.m_contactListLogicController.PopList();
+      this.m_contactListLogicController.ShowTitle(false);
+    };
+    if NotEquals(this.m_screenType, nextScreen) {
+      this.SetScreenType(nextScreen);
+    };
+  }
+
+  public final func GetOtherScreenType(current: PhoneScreenType) -> PhoneScreenType {
+    return Equals(current, PhoneScreenType.Unread) ? PhoneScreenType.Contacts : PhoneScreenType.Unread;
+  }
+
+  public final func SetScreenType(type: PhoneScreenType) -> Void {
+    let dots: ref<ContactData>;
+    let messages: array<ref<IScriptable>>;
+    this.m_screenType = type;
+    switch this.m_screenType {
+      case PhoneScreenType.Unread:
+        messages = MessengerUtils.GetSimpleContactDataArray(this.m_journalMgr, true, true, this.m_isShowingAllMessages);
+        dots = this.CreateFakeContactData(ArraySize(messages));
+        ArrayPush(messages, dots);
+        this.m_contactListLogicController.UpdateShowAllButton(this.m_isShowingAllMessages);
+        this.m_contactListLogicController.SetSortMethod(ContactsSortMethod.ByTime);
+        this.m_contactListLogicController.PopulateListData(messages, this.m_indexToSelect, this.m_messageToOpenHash);
+        this.m_contactListLogicController.SwtichTabs(PhoneDialerTabs.Unread);
+        this.HideThreads();
+        break;
+      case PhoneScreenType.Contacts:
+        messages = MessengerUtils.GetCallableAndNonEmptyContacts(this.m_journalMgr);
+        this.m_contactListLogicController.SetSortMethod(ContactsSortMethod.ByName);
+        this.m_contactListLogicController.PopulateListData(messages);
+        this.m_contactListLogicController.SwtichTabs(PhoneDialerTabs.Contacts);
+    };
+  }
+
+  private final func CreateFakeContactData(messagesCount: Int32) -> ref<ContactData> {
+    let contact: ref<ContactData> = new ContactData();
+    contact.type = MessengerContactType.Fake_ShowAll;
+    contact.id = "fake_show_all";
+    contact.hash = -1;
+    if messagesCount == 0 {
+      contact.localizedName = "LocKey#93930";
+    } else {
+      contact.localizedName = this.m_isShowingAllMessages ? "LocKey#93929" : "";
+    };
+    return contact;
+  }
+
+  private final func ShowSmsMessager(visible: Bool) -> Void {
+    if Equals(visible, this.m_messagesPanelVisible) {
+      return;
+    };
+    if visible {
+      this.QueueEvent(new ShowSmsMessagerEvent());
+      this.m_messagesPanelVisible = true;
+    } else {
+      this.QueueEvent(new HideSmsMessagerEvent());
+      this.m_messagesPanelVisible = false;
+    };
+  }
+
+  protected cb func OnContactListClosed() -> Bool {
+    if IsDefined(this.m_contactListLogicController) {
+      this.DisableContactsInput();
+      this.m_messagesPanelVisible = false;
+      this.m_messagesPanelSpawned = false;
+      this.m_threadsVisible = false;
+      this.m_keepOpenWhenInHubMenu = false;
+      this.m_repeatingScrollActionEnabled = false;
+      this.m_audioSystem.Play(n"ui_phone_incoming_call_negative");
+      this.m_contactListLogicController.Hide();
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Fast, RumblePosition.Left);
+      TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", false, false);
+      PopupStateUtils.SetBackgroundBlur(this, false);
+      this.m_uiSystem.PopGameContext(UIGameContext.ModalPopup);
+      this.m_uiSystem.RestorePreviousVisualState(n"inkModalPopupState");
+      this.DeactivatePhoneElement(gameuiActivePhoneElement.Contacts);
+      this.m_contactListLogicController = null;
+      inkCompoundRef.RemoveChild(this.contactsElement.slot, this.contactsElement.widget);
+      this.contactsElement.widget = null;
+      this.CloseSmsMessenger();
+    };
+    if IsDefined(this.m_holoAudioCallLogicController) {
+      this.m_holoAudioCallLogicController.Interrupt(false);
+    };
+  }
+
+  public final func CallSelectedContact(contactData: wref<ContactData>) -> Void {
+    let callRequest: ref<questTriggerCallRequest> = new questTriggerCallRequest();
+    callRequest.addressee = StringToName(contactData.contactId);
+    callRequest.caller = n"Player";
+    callRequest.callPhase = questPhoneCallPhase.IncomingCall;
+    callRequest.callMode = questPhoneCallMode.Video;
+    this.m_PhoneSystem.QueueRequest(callRequest);
+  }
+
+  protected cb func OnCloseContactList(target: wref<inkWidget>) -> Bool {
+    this.CloseContactList();
+  }
+
+  public final func CloseContactList() -> Void {
+    if IsDefined(this.m_bbUiComDevice) {
+      this.m_bbUiComDevice.SetBool(this.m_bbUiComDeviceDef.ContactsActive, false, true);
+    };
+  }
+
+  public final func Back() -> Void {
+    if this.m_threadsVisible {
+      this.m_threadsVisible = false;
+      this.m_contactListLogicController.PopList();
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+      this.m_audioSystem.Play(n"ui_menu_map_pin_on");
+      this.m_contactListLogicController.ShowTitle(false);
+    } else {
+      this.CloseContactList();
+    };
+  }
+
+  public final func HideThreads() -> Void {
+    if this.m_threadsVisible {
+      this.m_threadsVisible = false;
+      this.m_contactListLogicController.ShowTitle(false);
+    };
+  }
+
+  protected cb func OnOpenSmsMessenger(evt: ref<OpenSmsMessengerEvent>) -> Bool {
+    this.OpenSmsMessenger(evt.m_data);
+  }
+
+  protected cb func OnSmsMessangerInitalized(e: ref<SmsMessangerInitalizedEvent>) -> Bool {
+    this.m_messagesPanelSpawned = true;
+    if this.m_messageToOpenHash != 0 {
+      this.FocusSmsMessenger();
+      this.m_messageToOpenHash = 0;
+    };
+  }
+
+  protected cb func OnCloseSmsMessenger(evt: ref<CloseSmsMessengerEvent>) -> Bool {
+    this.CloseSmsMessenger();
+    this.m_messagesPanelSpawned = false;
+    this.m_messagesPanelVisible = false;
+  }
+
+  public final func EnableContactsInput() -> Void {
+    this.m_player.RegisterInputListener(this, n"popup_moveDown");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp_left_stick_up");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp_left_stick_down");
+    this.m_player.RegisterInputListener(this, n"popup_goto_messenger");
+    this.m_player.RegisterInputListener(this, n"OpenPauseMenu");
+    this.m_player.RegisterInputListener(this, n"click");
+    this.m_player.RegisterInputListener(this, n"touch_popup");
+    this.m_player.RegisterInputListener(this, n"secondaryAction");
+    this.m_player.RegisterInputListener(this, n"showAll");
+    this.m_player.RegisterInputListener(this, n"cancel");
+    this.m_player.RegisterInputListener(this, n"popup_prior");
+    this.m_player.RegisterInputListener(this, n"popup_next");
+    this.m_player.RegisterInputListener(this, n"popup_moveLeft");
+    this.m_player.RegisterInputListener(this, n"popup_moveRight");
+  }
+
+  public final func DisableContactsInput() -> Void {
+    this.m_player.UnregisterInputListener(this, n"popup_moveDown");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp_left_stick_up");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp_left_stick_down");
+    this.m_player.UnregisterInputListener(this, n"popup_goto_messenger");
+    this.m_player.UnregisterInputListener(this, n"OpenPauseMenu");
+    this.m_player.UnregisterInputListener(this, n"click");
+    this.m_player.UnregisterInputListener(this, n"touch_popup");
+    this.m_player.UnregisterInputListener(this, n"secondaryAction");
+    this.m_player.UnregisterInputListener(this, n"showAll");
+    this.m_player.UnregisterInputListener(this, n"cancel");
+    this.m_player.UnregisterInputListener(this, n"popup_prior");
+    this.m_player.UnregisterInputListener(this, n"popup_next");
+    this.m_player.UnregisterInputListener(this, n"popup_moveLeft");
+    this.m_player.UnregisterInputListener(this, n"popup_moveRight");
+  }
+
+  public final func ShowContactUpdate(entry: wref<JournalEntry>, state: gameJournalEntryState) -> Void {
+    let title: String = GetLocalizedText("Story-base-gameplay-gui-widgets-notifications-quest_update-_localizationString6");
+    let contactEntry: wref<JournalContact> = entry as JournalContact;
+    this.PushNewContactNotification(title, contactEntry.GetLocalizedName(this.m_journalMgr), n"notification_newcontact", n"notification_newContactAdded");
+  }
+
+  public final func ShowNewMessage(entry: wref<JournalEntry>, state: gameJournalEntryState) -> Void {
+    let action: ref<OpenPhoneMessageAction>;
+    let msgConversation: wref<JournalPhoneConversation>;
+    let msgEntry: wref<JournalPhoneMessage> = entry as JournalPhoneMessage;
+    if NotEquals(msgEntry.GetSender(), gameMessageSender.Player) {
+      msgConversation = this.m_journalMgr.GetParentEntry(msgEntry) as JournalPhoneConversation;
+      if IsDefined(msgConversation) {
+        action = new OpenPhoneMessageAction();
+        action.m_phoneSystem = this.m_PhoneSystem;
+        action.m_journalEntry = msgConversation;
+        this.PushSMSNotification(msgEntry, action);
+      };
+    };
+  }
+
+  public final func PushNewContactNotification(const title: script_ref<String>, const text: script_ref<String>, widget: CName, animation: CName, opt action: ref<GenericNotificationBaseAction>) -> Void {
+    let notificationData: gameuiGenericNotificationData;
+    let userData: ref<QuestUpdateNotificationViewData> = new QuestUpdateNotificationViewData();
+    userData.title = Deref(title);
+    userData.text = Deref(text);
+    userData.action = action;
+    userData.animation = animation;
+    userData.soundEvent = n"QuestUpdatePopup";
+    userData.soundAction = n"OnOpen";
+    notificationData.time = 6.00;
+    notificationData.widgetLibraryItemName = widget;
+    notificationData.notificationData = userData;
+    this.AddNewNotificationData(notificationData);
+  }
+
+  public final func PushSMSNotification(msgEntry: wref<JournalPhoneMessage>, opt action: ref<GenericNotificationBaseAction>) -> Void {
+    let notificationData: gameuiGenericNotificationData;
+    let msgConversation: wref<JournalPhoneConversation> = this.m_journalMgr.GetParentEntry(msgEntry) as JournalPhoneConversation;
+    let msgContact: wref<JournalContact> = this.m_journalMgr.GetParentEntry(msgConversation) as JournalContact;
+    let userData: ref<PhoneMessageNotificationViewData> = new PhoneMessageNotificationViewData();
+    userData.entryHash = this.m_journalMgr.GetEntryHash(msgEntry);
+    userData.threadHash = this.m_journalMgr.GetEntryHash(msgConversation);
+    userData.contactHash = this.m_journalMgr.GetEntryHash(msgContact);
+    userData.title = msgContact.GetLocalizedName(this.m_journalMgr);
+    userData.SMSLocKey = msgEntry.GetText();
+    userData.SMSText = GetLocalizedText(msgEntry.GetText());
+    userData.action = action;
+    userData.animation = n"notification_phone_MSG";
+    userData.soundEvent = n"PhoneSmsPopup";
+    userData.soundAction = n"OnOpen";
+    notificationData.time = 6.70;
+    notificationData.widgetLibraryItemName = n"notification_message";
+    notificationData.notificationData = userData;
+    this.AddNewNotificationData(notificationData);
+  }
+
+  private final func ResolveVisibility() -> Void {
+    if !IsDefined(this.phoneIconElement.widget) {
+      return;
+    };
+    if this.GameStarted() {
+      this.phoneIconElement.widget.SetVisible(!this.m_isRemoteControllingDevice && this.TutorialActivated());
+    } else {
+      if !this.TutorialActivated() {
+        this.phoneIconElement.widget.SetVisible(true);
+      } else {
+        if this.IsVisibilityForced() {
+          this.phoneIconElement.widget.SetVisible(true);
+        };
+      };
+    };
+  }
+
+  private final func IsVisibilityForced() -> Bool {
+    if IsDefined(this.m_questsSystem) {
+      return Cast<Bool>(this.m_questsSystem.GetFact(n"dpad_hint_phone_visible"));
+    };
+    return false;
+  }
+
+  private final func GameStarted() -> Bool {
+    if IsDefined(this.m_questsSystem) {
+      return Cast<Bool>(this.m_questsSystem.GetFact(n"q000_started"));
+    };
+    return false;
+  }
+
+  private final func TutorialActivated() -> Bool {
+    if IsDefined(this.m_questsSystem) {
+      return Cast<Bool>(this.m_questsSystem.GetFact(n"dpad_hints_visibility_enabled"));
+    };
+    return false;
+  }
+
+  private final func ActivatePhoneElement(element: gameuiActivePhoneElement) -> Void {
+    if !this.TestPhoneElement(element) {
+      if !this.AnyElementExceptInVehicle() && NotEquals(element, gameuiActivePhoneElement.InVehicle) {
+        if IsDefined(this.phoneIconElement.widget) {
+          this.phoneIconElement.widget.CallCustomCallback(n"OnPhoneDeviceSlot");
+        };
+      };
+      this.m_activePhoneElements = this.m_activePhoneElements | EnumInt(element);
+      this.m_bbUiComDevice.SetUint(this.m_bbUiComDeviceDef.ActivatePhoneElements, this.m_activePhoneElements);
+      this.PlayPhoneIconAnim(element);
+      this.PlayBackgroundAnim(element);
+    };
+  }
+
+  private final func DeactivatePhoneElement(element: gameuiActivePhoneElement) -> Void {
+    let notElement: Uint32;
+    if this.TestPhoneElement(element) {
+      notElement = ~EnumInt(element);
+      this.m_activePhoneElements = this.m_activePhoneElements & notElement;
+      this.m_bbUiComDevice.SetUint(this.m_bbUiComDeviceDef.ActivatePhoneElements, this.m_activePhoneElements);
+      if !this.AnyElementExceptInVehicle() {
+        if IsDefined(this.phoneIconElement.widget) {
+          this.phoneIconElement.widget.CallCustomCallback(n"OnPhoneDeviceReset");
+        };
+      };
+      this.PlayPhoneIconAnim(element, true);
+      this.PlayBackgroundAnim(element, true);
+    };
+  }
+
+  private final func AnyElementExceptInVehicle() -> Bool {
+    return Cast<Bool>(this.m_activePhoneElements & ~32u);
+  }
+
+  private final func TestPhoneElement(element: gameuiActivePhoneElement) -> Bool {
+    return (this.m_activePhoneElements & EnumInt(element)) != 0u;
+  }
+
+  private final func PlayPhoneIconAnim(element: gameuiActivePhoneElement, opt deactivation: Bool) -> Void {
+    let value: gameuiActivePhoneElement;
+    let count: Int32 = 64;
+    let i: Int32 = 0;
+    while i < count {
+      value = IntEnum<gameuiActivePhoneElement>(i);
+      if i < EnumInt(element) {
+        if this.TestPhoneElement(value) {
+          return;
+        };
+      } else {
+        if !deactivation {
+          break;
+        };
+        if this.TestPhoneElement(value) {
+          break;
+        };
+      };
+      i = i + 1;
+    };
+    if i == count {
+      value = gameuiActivePhoneElement.None;
+    };
+    if IsDefined(this.m_phoneIconAnimProxy) {
+      this.m_phoneIconAnimProxy.Stop();
+      this.m_phoneIconAnimProxy = null;
+    };
+    switch value {
+      case gameuiActivePhoneElement.IncomingCall:
+      case gameuiActivePhoneElement.Call:
+        this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Call");
+        break;
+      case gameuiActivePhoneElement.SmsMessenger:
+      case gameuiActivePhoneElement.Contacts:
+        this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Contacts");
+        break;
+      case gameuiActivePhoneElement.Notifications:
+        this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Notifications");
+        break;
+      case gameuiActivePhoneElement.InVehicle:
+        this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Vehicle");
+        break;
+      case gameuiActivePhoneElement.None:
+        this.m_phoneIconAnimProxy = this.PlayLibraryAnimation(n"2Phone");
+    };
+  }
+
+  private final func PlayBackgroundAnim(element: gameuiActivePhoneElement, opt deactivation: Bool) -> Void {
+    if Equals(element, gameuiActivePhoneElement.Contacts) || Equals(element, gameuiActivePhoneElement.SmsMessenger) {
+      if IsDefined(this.m_backgroundAnimProxy) {
+        this.m_backgroundAnimProxy.Stop();
+        this.m_backgroundAnimProxy = null;
+      };
+      if deactivation {
+        this.m_backgroundAnimProxy = this.PlayLibraryAnimation(n"bg_hide");
+      } else {
+        this.m_backgroundAnimProxy = this.PlayLibraryAnimation(n"bg_show");
+      };
+    };
+  }
+
+  protected cb func OnResolutionChanged() -> Bool {
+    if Equals(GetPlatformShortName(), "mac") {
+      if this.m_messagesPanelVisible {
+        this.MoveMessengerLeft(false);
+      };
+      ConsumablesChargesHelper.HotkeyRefresh(this.m_player.GetGame());
+    };
+    if this.m_activePhoneElements == 0u {
+      this.m_phoneIconAnimProxy.Stop();
+      this.m_phoneIconAnimProxy = null;
+      return true;
+    };
+    return false;
+  }
+
+  public final func StopPhoneIconAnim() -> Void {
+    if IsDefined(this.m_phoneIconAnimProxy) && this.m_phoneIconAnimProxy.IsPlaying() {
+      this.m_phoneIconAnimProxy.Stop();
+      this.m_phoneIconAnimProxy = null;
+    };
+  }
+
+  public final func GetTopmostActivePhoneElement() -> gameuiActivePhoneElement {
+    let value: gameuiActivePhoneElement;
+    let count: Int32 = 64;
+    let i: Int32 = 0;
+    while i < count {
+      value = IntEnum<gameuiActivePhoneElement>(i);
+      if this.TestPhoneElement(value) {
+        return value;
+      };
+      i = i + 1;
+    };
+    return gameuiActivePhoneElement.None;
+  }
+}

@@ -1,0 +1,2579 @@
+
+public class GlamDocItemBoughtCallback extends InventoryScriptCallback {
+
+  private let eventTarget: wref<GlamDocGameController>;
+
+  public final func Bind(eventTargetArg: ref<GlamDocGameController>) -> Void {
+    this.eventTarget = eventTargetArg;
+  }
+
+  public func OnItemAdded(itemIDArg: ItemID, itemData: wref<gameItemData>, flaggedAsSilent: Bool) -> Void {
+    this.eventTarget.OnItemBought(itemIDArg, itemData);
+  }
+}
+
+public class GlamdocAttachmentSlotsScriptCallback extends AttachmentSlotsScriptCallback {
+
+  public let m_puppet: wref<gamePuppet>;
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_transactionSystem: wref<TransactionSystem>;
+
+  public let m_slotToWaitFor: TweakDBID;
+
+  public let m_slotToClear: TweakDBID;
+
+  public let m_itemToWaitFor: ItemID;
+
+  public let m_controller: wref<GlamDocGameController>;
+
+  public let m_visualSlots: [TweakDBID];
+
+  public let m_isUnequipping: Bool;
+
+  public let m_timeToWaitWhenUnequipping: Float;
+
+  public func OnItemEquippedVisual(slot: TweakDBID, item: ItemID) -> Void {
+    this.ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot, item);
+  }
+
+  public func OnItemUnequippedComplete(slot: TweakDBID, item: ItemID) -> Void {
+    this.ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot, item);
+  }
+
+  private final func ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot: TweakDBID, item: ItemID) -> Void {
+    let delayEvent: ref<VisualSlotsUpdatedEvent>;
+    let armsCWVisualEquipped: ref<ArmsCWVisualEquipped> = new ArmsCWVisualEquipped();
+    if this.m_slotToWaitFor == slot {
+      if this.m_itemToWaitFor == item && !this.m_transactionSystem.IsSlotEmpty(this.m_puppet, this.m_slotToClear) {
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_puppet, this.m_slotToClear);
+        GameInstance.GetUISystem(this.m_puppet.GetGame()).QueueEvent(armsCWVisualEquipped);
+        this.m_controller.UpdatePuppetBasedOnCurrentScreen();
+        ArrayPush(this.m_visualSlots, this.m_slotToClear);
+      };
+    };
+    ArrayRemove(this.m_visualSlots, slot);
+    if ArraySize(this.m_visualSlots) <= 0 {
+      if this.m_isUnequipping {
+        delayEvent = new VisualSlotsUpdatedEvent();
+        GameInstance.GetDelaySystem(this.m_player.GetGame()).DelayEvent(this.m_player, delayEvent, this.m_timeToWaitWhenUnequipping, false);
+      } else {
+        this.m_controller.ShowPreviewPuppet();
+      };
+    };
+  }
+}
+
+public class GlamDocGameController extends gameuiGlamdocGameController {
+
+  private edit let m_TooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_animationControllerContainer: inkWidgetRef;
+
+  private edit let m_CursorRootContainerRef: inkWidgetRef;
+
+  private edit let m_CursorRootOffsetPoint: inkWidgetRef;
+
+  private edit let m_headerTabContainer: inkWidgetRef;
+
+  public edit let m_colorWheelColorA: cyberwareCustomColorWheelDef;
+
+  public edit let m_colorWheelColorB: cyberwareCustomColorWheelDef;
+
+  public edit let m_brandIcon: inkImageRef;
+
+  private edit let m_colorPaletteRef: inkWidgetRef;
+
+  private edit let m_mouseHitColor1Ref: inkWidgetRef;
+
+  private edit let m_mouseHitColor2Ref: inkWidgetRef;
+
+  private edit let m_mouseHitAppearancePanel: inkWidgetRef;
+
+  private edit let m_mouseHitColorPanel: inkWidgetRef;
+
+  private edit let m_inventoryViewAnchor: inkCompoundRef;
+
+  private edit let m_selectorAnchor: inkCompoundRef;
+
+  private edit let m_tooltipLeftAnchor: inkWidgetRef;
+
+  private edit let m_tooltipRightAnchor: inkWidgetRef;
+
+  private edit let m_colorWheelSubMenuTitle: inkTextRef;
+
+  private edit let m_minigridTitleAnchor: inkTextRef;
+
+  private edit let m_minigridTitlePreview: inkTextRef;
+
+  private edit let m_minigridTextAnchor: inkTextRef;
+
+  private edit let m_appearanceWrapper: inkCompoundRef;
+
+  private edit let m_colorPickerWrapper: inkCompoundRef;
+
+  private edit let m_swapContainer: inkWidgetRef;
+
+  private edit let m_swapArrowPrimaryColor: inkImageRef;
+
+  private edit let m_swapArrowSecondaryColor: inkImageRef;
+
+  private edit const let m_colorWheelModeSwitchInputs: [inkWidgetRef];
+
+  private edit const let m_headerTabInputs: [inkWidgetRef];
+
+  private edit const let m_appearanceWidgetsWithFeedback: [inkWidgetRef];
+
+  @runtimeProperty("category", "CW Preview Settings")
+  private edit let m_monoWirePreviewSettings: CyberwarePreviewSettings;
+
+  @runtimeProperty("category", "CW Preview Settings")
+  private edit let m_mantisBladesPreviewSettings: CyberwarePreviewSettings;
+
+  @runtimeProperty("category", "CW Preview Settings")
+  private edit let m_launcherPreviewSettings: CyberwarePreviewSettings;
+
+  @runtimeProperty("category", "CW Preview Settings")
+  private edit let m_strongArmPreviewSettings: CyberwarePreviewSettings;
+
+  private let m_cyberwarePreviewSettingsTable: [CyberwarePreviewSettings; 4];
+
+  @runtimeProperty("category", "CW SLOT ANCHORS")
+  private edit let m_armsAnchor: inkCompoundRef;
+
+  @default(GlamDocGameController, cyberwareCustomColorSelectorActiveMode.None)
+  private let m_activeMode: cyberwareCustomColorSelectorActiveMode;
+
+  private let m_customizationItemData: ref<gameItemData>;
+
+  private let m_colorADefined: Bool;
+
+  private let m_colorBDefined: Bool;
+
+  private let m_cachedNewColorA: Color;
+
+  private let m_cachedNewColorB: Color;
+
+  private let m_selectedIndexColorA: Uint8;
+
+  private let m_selectedIndexColorB: Uint8;
+
+  private let m_hoveredIndex: Uint8;
+
+  private let m_lastSelectedIndex: Uint8;
+
+  private let m_hoveredAnimProxy: ref<inkAnimProxy>;
+
+  private let m_hoveringVendorItem: Bool;
+
+  @default(GlamDocGameController, cyberwareCustomSelectorActiveInputMode.None)
+  private let m_activeInputMode: cyberwareCustomSelectorActiveInputMode;
+
+  private let m_isInPopup: Bool;
+
+  private let m_equippedSlotIndex: Int32;
+
+  private let m_animationController: wref<GlamdocScreenAnimationController>;
+
+  private let m_dollHoverArea: gamedataEquipmentArea;
+
+  private let m_dollSelected: Bool;
+
+  private let m_minigridSelectorLeftAnchorMargin: inkMargin;
+
+  private let m_minigridSelectorRightAnchorMargin: inkMargin;
+
+  private let m_minigridTargetAnchorMargin: inkMargin;
+
+  @default(GlamDocGameController, 72)
+  private let m_sectionAngle: Int32;
+
+  @default(GlamDocGameController, glamdoc_intro)
+  private let m_introAnimation: CName;
+
+  private let m_tabRoot: wref<TabRadioGroup>;
+
+  private let m_tabAnimProxy: ref<inkAnimProxy>;
+
+  private let m_previewPuppet: wref<gamePuppet>;
+
+  private let m_currentCyberarmItem: ItemID;
+
+  @default(GlamDocGameController, false)
+  private let m_isProcessingCustomizationChange: Bool;
+
+  private let m_isPuppetWaitingForUnequip: Bool;
+
+  private let m_isPuppetWaitingForPreviewModeExit: Bool;
+
+  private let m_isPurchasing: Bool;
+
+  private let m_isTutorial: Bool;
+
+  private let m_hasUnequipEventTriggered: Bool;
+
+  private let m_isPurchased: Bool;
+
+  @default(GlamDocGameController, false)
+  private let m_isExitingGlamdocMenu: Bool;
+
+  private let m_allCyberwareOptions: [ref<CharacterCustomizationOption>];
+
+  private let m_cyberwareOptionToUpdate: ref<CharacterCustomizationOption>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_questSystem: wref<QuestsSystem>;
+
+  private let m_cyberwareCustomizationSystem: wref<CyberwareCustomizationSystem>;
+
+  private let m_screenType: GlamdocScreenType;
+
+  private let m_appearanceWidgets: [inkWidgetRef];
+
+  private let m_colorPickerWidgets: [inkWidgetRef];
+
+  private let m_uiInventorySystem: wref<UIInventoryScriptableSystem>;
+
+  private let m_uiSystem: wref<UISystem>;
+
+  private let m_playerID: EntityID;
+
+  private let m_filterMode: RipperdocModes;
+
+  private let m_statsSystem: wref<StatsSystem>;
+
+  private let m_statsDataSystem: wref<StatsDataSystem>;
+
+  private let m_statusEffectSystem: wref<StatusEffectSystem>;
+
+  private let m_inventorySystem: wref<InventoryManager>;
+
+  private let m_transactionSystem: wref<TransactionSystem>;
+
+  private let m_InventoryManager: ref<InventoryDataManagerV2>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_ripperdocTokenManager: ref<RipperdocTokenManager>;
+
+  private let m_audioSystem: wref<AudioSystem>;
+
+  private let m_TooltipsManager: wref<gameuiTooltipsManager>;
+
+  @default(GlamDocGameController, 10.f)
+  private let m_defaultTooltipGap: Float;
+
+  @default(GlamDocGameController, false)
+  private let m_anyChangesMade: Bool;
+
+  @default(GlamDocGameController, false)
+  private let m_colorChanged: Bool;
+
+  @default(GlamDocGameController, false)
+  private let m_appearanceChanged: Bool;
+
+  @default(GlamDocGameController, false)
+  private let m_hasChangesToApply: Bool;
+
+  private let m_vendorUserData: ref<VendorUserData>;
+
+  private let m_VendorDataManager: ref<VendorDataManager>;
+
+  private let m_cameFromInventoryMenu: Bool;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_spendCost: Int32;
+
+  private let m_spendCount: Int32;
+
+  private let m_glamdocData: ref<Glamdoc_Record>;
+
+  private let m_factThresholds: [wref<GlamdocThreshold_Record>];
+
+  private let m_styleDataWhenEnteringGlamdoc: CyberwareCustomizationPersistentData;
+
+  private let m_inventoryView: wref<GlamdocInventoryController>;
+
+  private let m_inventoryListener: ref<InventoryScriptListener>;
+
+  private let m_tokenPopup: ref<inkGameNotificationToken>;
+
+  private let m_playerItemDisplayContext: ref<ItemDisplayContextData>;
+
+  private let m_vendorItemDisplayContext: ref<ItemDisplayContextData>;
+
+  private let m_cachedPlayerItems: [wref<UIInventoryItem>];
+
+  private let m_cachedVendorItems: [[wref<WrappedUIInventoryItem>]; 10];
+
+  @default(GlamDocGameController, ArmsWareType.Invalid)
+  private let m_filterArea: ArmsWareType;
+
+  private let m_selector: wref<GlamdocSelectorController>;
+
+  private let m_allFilters: [ArmsWareType];
+
+  private let m_VendorBlackboard: wref<IBlackboard>;
+
+  private let m_equipmentBlackboard: wref<IBlackboard>;
+
+  private let m_equipmentBlackboardCallback: ref<CallbackHandle>;
+
+  private let m_tokenBlackboardCallback: ref<CallbackHandle>;
+
+  private let m_vendorItems: ref<inkHashMap>;
+
+  private let m_vendorWrappedItems: ref<inkHashMap>;
+
+  private let m_minigridController: wref<CyberwareInventoryMiniGrid>;
+
+  private let m_equippedArmItem: wref<UIInventoryItem>;
+
+  private let m_equippedStyle: wref<UIInventoryItem>;
+
+  private let m_equippedStyleItem: ref<UIInventoryItem>;
+
+  private let m_previewedStyleID: ItemID;
+
+  private let m_isInPreviewMode: Bool;
+
+  private let m_prePreviewStyleData: CyberwareCustomizationPersistentData;
+
+  private let m_isExitingMenuAfterBuy: Bool;
+
+  private let m_characterCustomizationSystem: wref<gameuiICharacterCustomizationSystem>;
+
+  private let m_attachmentSlotCallback: ref<AttachmentSlotsScriptListener>;
+
+  private let m_axisInputCache: Vector2;
+
+  @default(GlamDocGameController, 0.2)
+  private let m_axisInputThreshold: Float;
+
+  private let m_fakeUpdateProxy: ref<inkAnimProxy>;
+
+  private let m_usedVirtualCursorWithMouse: Bool;
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let menuData: ref<PreviousMenuData> = userData as PreviousMenuData;
+    if IsDefined(menuData) {
+      this.m_cameFromInventoryMenu = true;
+    };
+    this.m_vendorUserData = userData as VendorUserData;
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_cyberwarePreviewSettingsTable[0] = this.m_launcherPreviewSettings;
+    this.m_cyberwarePreviewSettingsTable[1] = this.m_mantisBladesPreviewSettings;
+    this.m_cyberwarePreviewSettingsTable[2] = this.m_monoWirePreviewSettings;
+    this.m_cyberwarePreviewSettingsTable[3] = this.m_strongArmPreviewSettings;
+    this.InitializeVendor();
+    this.InitializeSystems();
+    this.InitializeUI();
+    this.HidePuppetPreview();
+    this.m_inventoryView = inkWidgetRef.GetController(this.m_inventoryViewAnchor) as GlamdocInventoryController;
+    this.m_playerID = this.m_player.GetEntityID();
+    this.m_statsSystem = GameInstance.GetStatsSystem(this.m_player.GetGame());
+    this.m_statsDataSystem = GameInstance.GetStatsDataSystem(this.m_player.GetGame());
+    this.m_statusEffectSystem = GameInstance.GetStatusEffectSystem(this.m_player.GetGame());
+    this.m_inventorySystem = GameInstance.GetInventoryManager(this.m_player.GetGame());
+    this.m_transactionSystem = GameInstance.GetTransactionSystem(this.m_player.GetGame());
+    this.RegisterInventoryListener(this.GetPlayerControlledObject());
+    this.m_dollHoverArea = gamedataEquipmentArea.Invalid;
+    this.m_dollSelected = false;
+    this.Init();
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.m_spendCost = this.m_inventorySystem.GetSpendByVendorID(this.m_VendorDataManager.GetVendorID());
+    this.m_spendCount = this.m_spendCost % 100;
+    this.m_spendCost = this.m_spendCost / 100;
+    this.m_glamdocData = TweakDBInterface.GetGlamdocRecord(this.m_VendorDataManager.GetVendorID());
+    this.m_glamdocData.FactThresholds(this.m_factThresholds);
+    if MarketSystem.IsAttached(this.m_VendorDataManager.GetVendorInstance()) {
+      this.OnUIVendorAttachedEvent(null);
+    };
+    this.UpdateCurrentCustomizationItem(this.GetSavedCustomizationItemID());
+    this.InitializeBrandData(CyberwareCustomizationPersistentData.GetBrandDataID(this.m_cyberwareCustomizationSystem.GetSavedData()));
+    this.InitializeEquippedCyberArm();
+    this.DisplayInventory();
+    this.ProcessPreviousCustomizationState();
+    this.m_styleDataWhenEnteringGlamdoc = this.m_cyberwareCustomizationSystem.GetSavedData();
+    this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorA);
+    this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorB);
+    this.UpdateSwapArrows();
+    this.SpawnMinigrid();
+    this.InitializeAxisInputDeadZone();
+    this.ProcessFakeUpdate(true);
+    this.PlayLibraryAnimation(this.m_introAnimation);
+    this.m_audioSystem.Play(n"ui_gui_cyberware_tab_open");
+    if this.NeedToToggleLongSleeveVersionOfCyberware(false) {
+      this.SendLatestToCyberwareCustomization(true);
+    };
+  }
+
+  private final func Init() -> Void {
+    this.m_TooltipsManager = inkWidgetRef.GetControllerByType(this.m_TooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_TooltipsManager.Setup(ETooltipsStyle.Menus);
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.m_playerItemDisplayContext = ItemDisplayContextData.Make(this.m_player, ItemDisplayContext.VendorPlayer);
+    this.m_vendorItemDisplayContext = ItemDisplayContextData.Make(this.m_player, ItemDisplayContext.Vendor);
+    this.m_playerItemDisplayContext.AddTag(n"AllowProgramLink");
+    this.m_vendorItemDisplayContext.AddTag(n"AllowProgramLink");
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_uiInventorySystem = UIInventoryScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_inventoryView.Configure(this.m_uiScriptableSystem);
+    this.RegisterBlackboard(this.GetPlayerControlledObject());
+    this.m_ripperdocTokenManager = new RipperdocTokenManager();
+    this.m_ripperdocTokenManager.Initialize(this.m_player);
+    this.m_animationController = inkWidgetRef.GetControllerByType(this.m_animationControllerContainer, n"GlamdocScreenAnimationController") as GlamdocScreenAnimationController;
+    this.m_animationController.SetGender(Equals(this.m_player.GetResolvedGenderName(), n"Female"));
+    this.PlayLibraryAnimation(n"Paperdoll_default_tab_intro");
+    this.DollHover(gamedataEquipmentArea.ArmsCW);
+    this.DollSelect(true);
+  }
+
+  protected cb func OnPuppetPreviewShown() -> Bool {
+    this.m_isProcessingCustomizationChange = false;
+  }
+
+  private final func UpdatePuppetWithCyberware(itemToEquip: ItemID) -> Void {
+    let activeClothingItem: ItemID;
+    let attachmentCallback: ref<GlamdocAttachmentSlotsScriptCallback>;
+    let cyberwarePreviewItem: ItemID;
+    let feetItem: ItemID;
+    let feetPlacementSlot: TweakDBID;
+    let i: Int32;
+    let innerChestItem: ItemID;
+    let innerChestItemData: ref<gameItemData>;
+    let innerChestPlacementSlot: TweakDBID;
+    let itemData: wref<gameItemData>;
+    let legsItem: ItemID;
+    let legsPlacementSlot: TweakDBID;
+    let outerChestItem: ItemID;
+    let outerChestItemData: ref<gameItemData>;
+    let outerChestPlacementSlot: TweakDBID;
+    let outfitItem: ItemID;
+    let outfitPlacementSlot: TweakDBID;
+    let placementSlot: TweakDBID;
+    let rightArm: ItemID;
+    let rightPlacementSlot: TweakDBID;
+    let visualSlots: array<TweakDBID>;
+    let needToAddPantsAndBoots: Bool = false;
+    let needToAddShirt: Bool = false;
+    let isOuterChestBodySuit: Bool = false;
+    let isOuterChestLongSleeve: Bool = false;
+    let isInnerChestBodySuit: Bool = false;
+    let isInnerChestLongSleeve: Bool = false;
+    let mainPuppet: ref<gamePuppet> = GetMainPlayer(this.m_previewPuppet.GetGame());
+    let equipData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(mainPuppet);
+    let activeClothingSet: ref<ClothingSet> = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetActiveClothingSet();
+    if !IsDefined(activeClothingSet) || ClothingSet.IsEmpty(activeClothingSet) {
+      outerChestItem = equipData.GetItemInEquipSlot(gamedataEquipmentArea.OuterChest, 0);
+      innerChestItem = equipData.GetItemInEquipSlot(gamedataEquipmentArea.InnerChest, 0);
+      outfitItem = equipData.GetItemInEquipSlot(gamedataEquipmentArea.Outfit, 0);
+      legsItem = equipData.GetItemInEquipSlot(gamedataEquipmentArea.Legs, 0);
+      feetItem = equipData.GetItemInEquipSlot(gamedataEquipmentArea.Feet, 0);
+    } else {
+      i = 0;
+      while i < ArraySize(activeClothingSet.clothingList) {
+        activeClothingItem = activeClothingSet.clothingList[i].visualItem;
+        if !ItemID.IsValid(activeClothingItem) {
+        } else {
+          if Equals(activeClothingSet.clothingList[i].areaType, gamedataEquipmentArea.OuterChest) {
+            outerChestItem = activeClothingItem;
+          } else {
+            if Equals(activeClothingSet.clothingList[i].areaType, gamedataEquipmentArea.InnerChest) {
+              innerChestItem = activeClothingItem;
+            } else {
+              if Equals(activeClothingSet.clothingList[i].areaType, gamedataEquipmentArea.Outfit) {
+                outfitItem = activeClothingItem;
+              } else {
+                if Equals(activeClothingSet.clothingList[i].areaType, gamedataEquipmentArea.Legs) {
+                  legsItem = activeClothingItem;
+                } else {
+                  if Equals(activeClothingSet.clothingList[i].areaType, gamedataEquipmentArea.Feet) {
+                    feetItem = activeClothingItem;
+                  };
+                };
+              };
+            };
+          };
+        };
+        i += 1;
+      };
+    };
+    this.m_currentCyberarmItem = EquipmentSystem.GetData(mainPuppet).GetActiveMeleeWare();
+    this.m_currentCyberarmItem = ItemID.CreateQuery(ItemID.GetTDBID(itemToEquip));
+    rightArm = equipData.GetActiveItem(gamedataEquipmentArea.RightArm);
+    rightPlacementSlot = EquipmentSystem.GetPlacementSlot(rightArm);
+    placementSlot = EquipmentSystem.GetPlacementSlot(this.m_currentCyberarmItem);
+    cyberwarePreviewItem = this.m_transactionSystem.CreatePreviewItemID(this.m_currentCyberarmItem);
+    if placementSlot != t"AttachmentSlots.WeaponRight" {
+      this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, t"AttachmentSlots.WeaponRight");
+    };
+    if placementSlot != t"AttachmentSlots.WeaponLeft" {
+      this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, t"AttachmentSlots.WeaponLeft");
+    };
+    if !this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, placementSlot) {
+      this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, placementSlot);
+      ArrayPush(visualSlots, placementSlot);
+    };
+    attachmentCallback = new GlamdocAttachmentSlotsScriptCallback();
+    attachmentCallback.m_puppet = this.m_previewPuppet;
+    attachmentCallback.m_player = this.m_player;
+    attachmentCallback.m_slotToWaitFor = placementSlot;
+    attachmentCallback.m_slotToClear = rightPlacementSlot;
+    attachmentCallback.m_transactionSystem = this.m_transactionSystem;
+    attachmentCallback.m_itemToWaitFor = cyberwarePreviewItem;
+    attachmentCallback.m_isUnequipping = this.m_isPuppetWaitingForUnequip || this.m_isPuppetWaitingForPreviewModeExit;
+    attachmentCallback.m_timeToWaitWhenUnequipping = Equals(this.GetCurrentArmsWareType(), ArmsWareType.StrongArms) ? 0.80 : 0.40;
+    attachmentCallback.m_controller = this;
+    this.m_attachmentSlotCallback = this.m_transactionSystem.RegisterAttachmentSlotListener(this.m_previewPuppet, attachmentCallback);
+    outerChestPlacementSlot = t"AttachmentSlots.Torso";
+    innerChestPlacementSlot = t"AttachmentSlots.Chest";
+    outfitPlacementSlot = t"AttachmentSlots.Outfit";
+    legsPlacementSlot = t"AttachmentSlots.Legs";
+    feetPlacementSlot = t"AttachmentSlots.Feet";
+    outerChestItemData = GameInstance.GetInventoryManager(this.m_player.GetGame()).CreateBasicItemData(outerChestItem, this.m_player);
+    isOuterChestBodySuit = outerChestItemData.HasTag(n"BodySuit");
+    isOuterChestLongSleeve = outerChestItemData.HasTag(n"LongSleeve");
+    if ItemID.IsValid(outerChestItem) && !this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, outerChestPlacementSlot) {
+      if isOuterChestLongSleeve || isOuterChestBodySuit {
+        if !this.m_transactionSystem.IsSlotEmptySpawningItem(this.m_previewPuppet, outerChestPlacementSlot) {
+          ArrayPush(visualSlots, outerChestPlacementSlot);
+        };
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, outerChestPlacementSlot);
+        needToAddPantsAndBoots = isOuterChestBodySuit;
+        needToAddShirt = true;
+      };
+    };
+    innerChestItemData = GameInstance.GetInventoryManager(this.m_player.GetGame()).CreateBasicItemData(innerChestItem, this.m_player);
+    isInnerChestBodySuit = innerChestItemData.HasTag(n"BodySuit");
+    isInnerChestLongSleeve = innerChestItemData.HasTag(n"LongSleeve");
+    if needToAddShirt {
+      if !ItemID.IsValid(innerChestItem) || this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, innerChestPlacementSlot) || isOuterChestBodySuit || isInnerChestLongSleeve || isInnerChestBodySuit {
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, innerChestPlacementSlot);
+        needToAddPantsAndBoots = isInnerChestBodySuit || isOuterChestBodySuit;
+        this.GiveAndAddItemToSlot(innerChestPlacementSlot, ItemID.CreateQuery(t"Items.TShirt_01_basic_01"));
+        ArrayPush(visualSlots, innerChestPlacementSlot);
+      };
+    } else {
+      if isInnerChestLongSleeve || isInnerChestBodySuit {
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, innerChestPlacementSlot);
+        needToAddPantsAndBoots = isOuterChestBodySuit || isInnerChestBodySuit && !ItemID.IsValid(legsItem);
+        this.GiveAndAddItemToSlot(innerChestPlacementSlot, ItemID.CreateQuery(t"Items.TShirt_01_basic_01"));
+        ArrayPush(visualSlots, innerChestPlacementSlot);
+      };
+    };
+    if !this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, outfitPlacementSlot) {
+      if this.m_transactionSystem.GetItemData(mainPuppet, outfitItem).HasTag(n"LongSleeve") || this.m_transactionSystem.GetItemData(mainPuppet, outfitItem).HasTag(n"BodySuit") {
+        if !this.m_transactionSystem.IsSlotEmptySpawningItem(this.m_previewPuppet, outfitPlacementSlot) {
+          ArrayPush(visualSlots, outfitPlacementSlot);
+        };
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, outfitPlacementSlot);
+        needToAddPantsAndBoots = true;
+        this.GiveAndAddItemToSlot(innerChestPlacementSlot, ItemID.CreateQuery(t"Items.TShirt_01_basic_01"));
+      };
+    };
+    if needToAddPantsAndBoots && (!ItemID.IsValid(legsItem) || this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, legsPlacementSlot)) {
+      this.GiveAndAddItemToSlot(legsPlacementSlot, ItemID.CreateQuery(t"Items.Pants_01_basic_01"));
+      ArrayPush(visualSlots, legsPlacementSlot);
+      if !ItemID.IsValid(feetItem) || this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, feetPlacementSlot) {
+        this.GiveAndAddItemToSlot(feetPlacementSlot, ItemID.CreateQuery(t"Items.Boots_01_basic_01"));
+        ArrayPush(visualSlots, feetPlacementSlot);
+      };
+    };
+    if !this.m_transactionSystem.HasItem(this.m_previewPuppet, this.m_currentCyberarmItem) {
+      itemData = this.m_transactionSystem.GetItemData(mainPuppet, this.m_currentCyberarmItem);
+      this.m_transactionSystem.GiveItemByItemData(this.m_previewPuppet, itemData);
+    };
+    if this.DoesPlayerHaveGlamEquipped() && this.m_transactionSystem.CanPlaceItemInSlot(this.m_previewPuppet, placementSlot, this.m_currentCyberarmItem) {
+      if !this.m_transactionSystem.IsSlotEmpty(this.m_previewPuppet, placementSlot) {
+        ArrayPush(visualSlots, placementSlot);
+      };
+      this.m_transactionSystem.AddItemToSlot(this.m_previewPuppet, placementSlot, cyberwarePreviewItem, true);
+      ArrayPush(visualSlots, placementSlot);
+    } else {
+      if this.m_transactionSystem.IsSlotEmptySpawningItem(this.m_previewPuppet, placementSlot) {
+        this.m_transactionSystem.RemoveItemFromSlot(this.m_previewPuppet, placementSlot);
+        ArrayPush(visualSlots, placementSlot);
+      };
+    };
+    if this.m_isPuppetWaitingForUnequip || this.m_isPuppetWaitingForPreviewModeExit {
+      ArrayPush(visualSlots, t"AttachmentSlots.TppHead");
+    };
+    if ArraySize(visualSlots) == 0 {
+      this.ShowPreviewPuppet();
+    };
+    attachmentCallback.m_visualSlots = visualSlots;
+    this.m_isPuppetWaitingForUnequip = false;
+    this.m_isPuppetWaitingForPreviewModeExit = false;
+    this.UpdatePuppetPreview();
+  }
+
+  private final func GiveAndAddItemToSlot(placementSlot: TweakDBID, itemToAdd: ItemID) -> Void {
+    if !this.m_transactionSystem.HasItem(this.m_previewPuppet, itemToAdd) {
+      this.m_transactionSystem.GiveItem(this.m_previewPuppet, itemToAdd, 1);
+    };
+    this.m_transactionSystem.AddItemToSlot(this.m_previewPuppet, placementSlot, itemToAdd);
+  }
+
+  protected cb func OnArmsCWVisualEquipped(evt: ref<ArmsCWVisualEquipped>) -> Bool {
+    this.UpdatePuppetPreview();
+  }
+
+  protected cb func OnVisualSlotsUpdatedEvent(evt: ref<VisualSlotsUpdatedEvent>) -> Bool {
+    this.ShowPreviewPuppet();
+  }
+
+  public final func NeedToToggleLongSleeveVersionOfCyberware(showLongSleeve: Bool) -> Bool {
+    let isLongSleeveVersion: Bool;
+    let longsleeveSwitcherIndex: Int32;
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    if !savedData.enabled {
+      return false;
+    };
+    longsleeveSwitcherIndex = CyberwareCustomizationHelper.GetLongSleevesCustomizationIndexFromCustomizationItem(this.m_equippedStyle.GetItemData());
+    isLongSleeveVersion = showLongSleeve ? savedData.switcherIndex != Cast<Uint32>(longsleeveSwitcherIndex) : savedData.switcherIndex == Cast<Uint32>(longsleeveSwitcherIndex);
+    return EquipmentSystemPlayerData.HasLongSleeves(this.m_player) && longsleeveSwitcherIndex != -1 && isLongSleeveVersion;
+  }
+
+  public final func DoesPlayerHaveGlamEquipped() -> Bool {
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    return savedData.enabled && savedData.switcherIndex > 0u;
+  }
+
+  protected cb func OnInventoryPuppetReceived(puppet: ref<gamePuppet>) -> Bool {
+    if IsDefined(this.m_attachmentSlotCallback) {
+      this.m_transactionSystem.UnregisterAttachmentSlotListener(this.m_previewPuppet, this.m_attachmentSlotCallback);
+    };
+    this.m_previewPuppet = puppet;
+    this.m_currentCyberarmItem = EquipmentSystem.GetData(GetMainPlayer(this.m_previewPuppet.GetGame())).GetActiveItem(gamedataEquipmentArea.ArmsCW);
+    this.UpdatePuppetWithCyberware(this.m_currentCyberarmItem);
+  }
+
+  private final func DisplayInventory() -> Void {
+    let filteredPlayerItems: array<ref<GlamdocWrappedUIInventoryItem>>;
+    let filteredVendorItems: array<ref<GlamdocWrappedUIInventoryItem>>;
+    let glamdocItem: ref<GlamdocWrappedUIInventoryItem>;
+    let playerCurrencyAmount: Int32;
+    let requirementsManager: wref<UIInventoryItemRequirementsManager>;
+    this.m_filterMode = RipperdocModes.Item;
+    let vendorItems: array<wref<WrappedUIInventoryItem>> = this.GetVendorItems(this.m_filterArea);
+    let playerItems: array<wref<UIInventoryItem>> = this.m_cachedPlayerItems;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(playerItems);
+    while i < limit {
+      if this.FilterItem(playerItems[i]) {
+        ArrayPush(filteredPlayerItems, GlamdocWrappedUIInventoryItem.Make(playerItems[i], this.m_playerItemDisplayContext));
+        requirementsManager = playerItems[i].GetRequirementsManager(this.m_player);
+        requirementsManager.SetIsEquippableRaw(this.CheckIfCanApply(playerItems[i].GetItemData()));
+      };
+      i += 1;
+    };
+    playerCurrencyAmount = this.m_VendorDataManager.GetLocalPlayerCurrencyAmount();
+    i = 0;
+    limit = ArraySize(vendorItems);
+    while i < limit {
+      if this.FilterItem(vendorItems[i].Item) {
+        glamdocItem = GlamdocWrappedUIInventoryItem.Make(vendorItems[i].Item, this.m_vendorItemDisplayContext, vendorItems[i].AdditionalData);
+        glamdocItem.IsEnoughMoney = playerCurrencyAmount >= Cast<Int32>(vendorItems[i].Item.GetBuyPrice());
+        if MarketSystem.IsNewItem(this.m_VendorDataManager.GetVendorInstance(), vendorItems[i].Item.GetTweakDBID()) {
+          glamdocItem.IsNew = true;
+        };
+        glamdocItem.IsEnoughMoney = playerCurrencyAmount >= Cast<Int32>(vendorItems[i].Item.GetBuyPrice());
+        requirementsManager = vendorItems[i].Item.GetRequirementsManager(this.m_player);
+        requirementsManager.SetIsEquippableRaw(this.CheckIfCanApply(vendorItems[i].Item.GetItemData()));
+        ArrayPush(filteredVendorItems, glamdocItem);
+      };
+      i += 1;
+    };
+    this.m_inventoryView.ShowArea(filteredPlayerItems, filteredVendorItems, this.m_filterArea);
+  }
+
+  private final func CheckIfCanApply(itemData: wref<gameItemData>) -> Bool {
+    let playerItems: array<wref<UIInventoryItem>> = this.m_uiInventorySystem.GetPlayerAreaItems(gamedataEquipmentArea.ArmsCW);
+    return this.ItemTagMatch(itemData, IntEnum<ArmsWareType>(EnumInt(playerItems[0].GetItemType()) - 15));
+  }
+
+  private final func FilterItem(item: wref<UIInventoryItem>) -> Bool {
+    if item.IsEquipped() {
+      return false;
+    };
+    if item.IsRecipe() {
+      return false;
+    };
+    if EquipmentSystem.GetInstance(this.m_player).GetPlayerData(this.m_player).IsSideUpgradeEquipped(item.GetID()) {
+      return false;
+    };
+    if this.IsPreviewedItem(item.GetID()) {
+      return false;
+    };
+    return this.ItemTagMatch(item.GetItemData(), this.m_filterArea);
+  }
+
+  private final func ItemTagMatch(item: wref<gameItemData>, filterArea: ArmsWareType) -> Bool {
+    return EnumInt(filterArea) == this.ItemTagToIndex(item);
+  }
+
+  private final func GetVendorItems(area: ArmsWareType) -> [wref<WrappedUIInventoryItem>] {
+    let data: array<wref<WrappedUIInventoryItem>>;
+    let i: Int32;
+    let j: Int32;
+    let limit: Int32;
+    let playerItem: wref<UIInventoryItem>;
+    let vendorItems: array<wref<IScriptable>>;
+    if Equals(area, ArmsWareType.Invalid) {
+      this.m_vendorWrappedItems.GetValues(vendorItems);
+      i = 0;
+      limit = ArraySize(vendorItems);
+      while i < limit {
+        ArrayPush(data, vendorItems[i] as WrappedUIInventoryItem);
+        i += 1;
+      };
+    } else {
+      data = this.m_cachedVendorItems[EnumInt(this.m_filterArea)];
+    };
+    i = ArraySize(data) - 1;
+    while i >= limit {
+      j = 0;
+      while j < ArraySize(this.m_cachedPlayerItems) {
+        if playerItem.GetTweakDBID() == data[i].Item.GetTweakDBID() {
+          ArrayRemove(data, data[i]);
+        };
+        j += 1;
+      };
+      i -= 1;
+    };
+    return data;
+  }
+
+  protected final func RegisterBlackboard(player: ref<GameObject>) -> Void {
+    this.m_equipmentBlackboard = GameInstance.GetBlackboardSystem(player.GetGame()).Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(this.m_equipmentBlackboard) {
+      this.m_equipmentBlackboardCallback = this.m_equipmentBlackboard.RegisterDelayedListenerVariant(GetAllBlackboardDefs().UI_Equipment.itemEquipped, this, n"OnItemEquipped");
+    };
+    this.m_VendorBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Vendor);
+  }
+
+  protected final func UnregisterBlackboard() -> Void {
+    if IsDefined(this.m_equipmentBlackboard) {
+      this.m_equipmentBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_Equipment.itemEquipped, this.m_equipmentBlackboardCallback);
+    };
+    this.m_VendorBlackboard = null;
+  }
+
+  protected cb func OnUIVendorAttachedEvent(evt: ref<UIVendorAttachedEvent>) -> Bool {
+    this.PreparePlayerItems();
+    this.PrepareVendorItems();
+  }
+
+  private final func PreparePlayerItems() -> Void {
+    let i: Int32;
+    let index: Int32;
+    let limit: Int32;
+    let tags: array<CName>;
+    let uiInventoryItem: wref<UIInventoryItem>;
+    let values: array<wref<IScriptable>>;
+    let playerItems: ref<inkHashMap> = this.m_uiInventorySystem.GetPlayerItemsMap();
+    playerItems.GetValues(values);
+    this.m_uiInventorySystem.GetInventoryItemsManager().FlushEquippedItems();
+    ArrayClear(this.m_cachedPlayerItems);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      uiInventoryItem = values[i] as UIInventoryItem;
+      tags = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(uiInventoryItem.GetID())).Tags();
+      if !ArrayContains(tags, n"Glamdoc") {
+      } else {
+        index = 0;
+        while index < ArraySize(this.m_cachedPlayerItems) {
+          if uiInventoryItem.GetQualityInt() > this.m_cachedPlayerItems[index].GetQualityInt() {
+            break;
+          };
+          index += 1;
+        };
+        ArrayInsert(this.m_cachedPlayerItems, index, uiInventoryItem);
+      };
+      i += 1;
+    };
+  }
+
+  private final func EquipmentAreaToIndex(equipArea: gamedataItemType) -> Int32 {
+    switch equipArea {
+      case gamedataItemType.Cyb_Launcher:
+        return 0;
+      case gamedataItemType.Cyb_MantisBlades:
+        return 1;
+      case gamedataItemType.Cyb_NanoWires:
+        return 2;
+      case gamedataItemType.Cyb_StrongArms:
+        return 3;
+    };
+    return -1;
+  }
+
+  private final func GetCurrentArmsWareType() -> ArmsWareType {
+    let equippedItems: array<wref<UIInventoryItem>> = this.m_uiInventorySystem.GetPlayerAreaItems(gamedataEquipmentArea.ArmsCW);
+    if ArraySize(equippedItems) > 0 {
+      return IntEnum<ArmsWareType>(EnumInt(equippedItems[0].GetItemType()) - 15);
+    };
+    return ArmsWareType.Launcher;
+  }
+
+  private final func PrepareVendorItems() -> Void {
+    let isOwned: Bool;
+    let j: Int32;
+    let targetIndex: Int32;
+    let uiInventoryItem: ref<UIInventoryItem>;
+    let vendorItems: array<ref<VendorGameItemData>>;
+    let vendorObject: wref<GameObject>;
+    let wrappedItem: ref<WrappedUIInventoryItem>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_cachedVendorItems);
+    while i < limit {
+      ArrayClear(this.m_cachedVendorItems[i]);
+      i += 1;
+    };
+    vendorObject = this.m_VendorDataManager.GetVendorInstance();
+    vendorItems = this.m_VendorDataManager.GetGlamDocItems();
+    this.m_vendorItems = new inkHashMap();
+    this.m_vendorWrappedItems = new inkHashMap();
+    this.m_filterArea = this.GetCurrentArmsWareType();
+    this.m_selector.Show(EnumInt(this.m_filterArea));
+    i = 0;
+    limit = ArraySize(vendorItems);
+    while i < limit {
+      isOwned = false;
+      uiInventoryItem = UIInventoryItem.Make(vendorObject, vendorItems[i].itemData, this.m_uiInventorySystem.GetInventoryItemsManager());
+      wrappedItem = WrappedUIInventoryItem.Make(uiInventoryItem, VendorItemAdditionalData.Make(vendorItems[i].itemStack));
+      this.m_vendorItems.Insert(uiInventoryItem.Hash, uiInventoryItem);
+      this.m_vendorWrappedItems.Insert(uiInventoryItem.Hash, wrappedItem);
+      targetIndex = this.ItemTagToIndex(uiInventoryItem);
+      if targetIndex < 0 {
+      } else {
+        j = 0;
+        while j < ArraySize(this.m_cachedPlayerItems) {
+          if this.m_cachedPlayerItems[j].GetTweakDBID() == uiInventoryItem.GetTweakDBID() {
+            isOwned = true;
+            break;
+          };
+          j += 1;
+        };
+        if isOwned {
+        } else {
+          if !IsEP1() && uiInventoryItem.GetItemData().HasTag(n"EP1") {
+          } else {
+            ArrayPush(this.m_cachedVendorItems[targetIndex], wrappedItem);
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func ItemTagToIndex(item: ref<UIInventoryItem>) -> Int32 {
+    return this.ItemTagToIndex(item.GetItemData());
+  }
+
+  private final func ItemTagToIndex(itemData: wref<gameItemData>) -> Int32 {
+    if itemData.HasTag(n"ProjectileLauncher") {
+      return 0;
+    };
+    if itemData.HasTag(n"MantisBlades") {
+      return 1;
+    };
+    if itemData.HasTag(n"NanoWires") {
+      return 2;
+    };
+    if itemData.HasTag(n"StrongArms") {
+      return 3;
+    };
+    return -1;
+  }
+
+  private final func InitializeVendor() -> Void {
+    let vendorData: VendorData;
+    let vendorPanelData: ref<VendorPanelData>;
+    if IsDefined(this.m_vendorUserData) {
+      vendorPanelData = this.m_vendorUserData.vendorData;
+      vendorData = vendorPanelData.data;
+      this.m_VendorDataManager = new VendorDataManager();
+      this.m_VendorDataManager.Initialize(this.GetPlayerControlledObject(), vendorData.entityID);
+    };
+  }
+
+  private final func InitializeSystems() -> Void {
+    this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_questSystem = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    this.m_cyberwareCustomizationSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"CyberwareCustomizationSystem") as CyberwareCustomizationSystem;
+    this.m_audioSystem = GameInstance.GetAudioSystem(this.m_player.GetGame());
+  }
+
+  private final func InitializeUI() -> Void {
+    let i: Int32;
+    let names: array<String>;
+    let savedData: CyberwareCustomizationPersistentData;
+    this.m_player.RegisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnButtonPress");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnMouseInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalInputReleased");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnGlobalAxisInput");
+    this.m_tabRoot = inkWidgetRef.GetController(this.m_headerTabContainer) as TabRadioGroup;
+    this.RegisterTabButtons();
+    this.UpdateControlsState();
+    ArrayPush(this.m_allFilters, ArmsWareType.Launcher);
+    ArrayPush(this.m_allFilters, ArmsWareType.MantisBlades);
+    ArrayPush(this.m_allFilters, ArmsWareType.NanoWires);
+    ArrayPush(this.m_allFilters, ArmsWareType.StrongArms);
+    i = 0;
+    while i < ArraySize(this.m_allFilters) {
+      ArrayPush(names, this.GetAreaHeader(this.m_allFilters[i]));
+      i += 1;
+    };
+    this.m_uiSystem = GameInstance.GetUISystem(this.m_player.GetGame());
+    this.m_filterMode = RipperdocModes.Default;
+    this.m_filterArea = ArmsWareType.Invalid;
+    this.m_selector = inkWidgetRef.GetController(this.m_selectorAnchor) as GlamdocSelectorController;
+    this.m_selector.Configure(names);
+    ArrayPush(this.m_appearanceWidgets, this.m_appearanceWrapper);
+    ArrayPush(this.m_appearanceWidgets, this.m_selectorAnchor);
+    i = 0;
+    while i < ArraySize(this.m_allFilters) {
+      ArrayPush(this.m_appearanceWidgets, this.m_appearanceWidgetsWithFeedback[i]);
+      i += 1;
+    };
+    ArrayPush(this.m_colorPickerWidgets, this.m_colorPickerWrapper);
+    this.SetWidgetsArrayVisibility(this.m_colorWheelModeSwitchInputs, Equals(this.m_screenType, GlamdocScreenType.ColorPicker));
+    this.SwitchSelectionTab(GlamdocScreenType.Appearance);
+    this.ChangeColorWheelSubTitle(cyberwareCustomColorSelectorActiveMode.Primary);
+    this.PlayHoverWidgetAnimation();
+    this.PlayBackgroundAnimation();
+    savedData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    if !savedData.enabled {
+      this.ResetDefinedColors();
+    };
+  }
+
+  protected final func RegisterTabButtons() -> Void {
+    let labels: array<String>;
+    this.m_tabRoot.RegisterToCallback(n"OnValueChanged", this, n"OnValueChanged");
+    ArrayPush(labels, GetLocalizedText("LocKey#97490"));
+    ArrayPush(labels, GetLocalizedText("LocKey#97491"));
+    this.m_tabRoot.SetData(ArraySize(labels), null, labels);
+  }
+
+  protected final func GetColorsHeaderTab() -> wref<inkWidget> {
+    return this.m_tabRoot.GetController(1).GetRootWidget();
+  }
+
+  protected cb func OnValueChanged(controller: wref<inkRadioGroupController>, selectedIndex: Int32) -> Bool {
+    this.SelectTab(selectedIndex);
+  }
+
+  private final func SelectTab(selectedIndex: Int32) -> Void {
+    switch selectedIndex {
+      case 0:
+        this.SwitchSelectionTab(GlamdocScreenType.Appearance);
+        break;
+      case 1:
+        this.SwitchSelectionTab(GlamdocScreenType.ColorPicker);
+    };
+    this.PlaySound(n"TabButton", n"OnPress");
+  }
+
+  private final func InitializeAxisInputDeadZone() -> Void {
+    let deadzoneConfig: ref<ConfigVarFloat>;
+    let controlsGroupBase: CName = n"/controls";
+    let deadzoneSettingName: CName = n"Axis_DeadzoneInner";
+    if GameInstance.GetSettingsSystem(this.m_player.GetGame()).HasVar(controlsGroupBase, deadzoneSettingName) {
+      deadzoneConfig = GameInstance.GetSettingsSystem(this.m_player.GetGame()).GetVar(controlsGroupBase, deadzoneSettingName) as ConfigVarFloat;
+    };
+    if IsDefined(deadzoneConfig) {
+      this.m_axisInputThreshold = deadzoneConfig.GetValue();
+    } else {
+      this.m_axisInputThreshold = 0.35;
+    };
+  }
+
+  private final func ProcessFakeUpdate(on: Bool) -> Void {
+    let alphaInterpolator: ref<inkAnimTransparency>;
+    let anim: ref<inkAnimDef>;
+    let animOptions: inkAnimOptions;
+    if on {
+      anim = new inkAnimDef();
+      alphaInterpolator = new inkAnimTransparency();
+      alphaInterpolator.SetDuration(0.00);
+      alphaInterpolator.SetStartTransparency(1.00);
+      alphaInterpolator.SetEndTransparency(1.00);
+      alphaInterpolator.SetType(inkanimInterpolationType.Linear);
+      alphaInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+      anim.AddInterpolator(alphaInterpolator);
+      animOptions.playReversed = false;
+      animOptions.executionDelay = 0.00;
+      animOptions.loopType = inkanimLoopType.Cycle;
+      animOptions.loopInfinite = true;
+      this.m_fakeUpdateProxy = inkWidgetRef.PlayAnimationWithOptions(this.m_CursorRootContainerRef, anim, animOptions);
+      this.m_fakeUpdateProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnFakeUpdate");
+    } else {
+      if this.m_fakeUpdateProxy.IsPlaying() {
+        this.m_fakeUpdateProxy.Stop();
+        this.m_fakeUpdateProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnFakeUpdate");
+      };
+    };
+  }
+
+  private final func GetAreaHeader(area: ArmsWareType) -> String {
+    let label: String;
+    switch area {
+      case ArmsWareType.Launcher:
+        label = GetLocalizedText("LocKey#3722");
+        break;
+      case ArmsWareType.MantisBlades:
+        label = GetLocalizedText("LocKey#3717");
+        break;
+      case ArmsWareType.NanoWires:
+        label = GetLocalizedText("LocKey#3720");
+        break;
+      case ArmsWareType.StrongArms:
+        label = GetLocalizedText("LocKey#3718");
+    };
+    return label;
+  }
+
+  private final func ProcessPreviousCustomizationState() -> Void {
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    if savedData.enabled {
+      this.m_customizationItemData = GameInstance.GetTransactionSystem(this.m_player.GetGame()).GetItemData(this.m_player, savedData.customizationItemID);
+      this.m_colorADefined = true;
+      this.m_selectedIndexColorA = savedData.primaryColorIndex;
+      this.UpdateControlsState();
+      this.UpdateAndApplyColor(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary, true);
+      this.m_colorBDefined = true;
+      this.m_selectedIndexColorB = savedData.secondaryColorIndex;
+      this.UpdateControlsState();
+      this.UpdateAndApplyColor(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary, true);
+      this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Primary);
+    } else {
+      this.m_selectedIndexColorA = 0u;
+      this.m_selectedIndexColorB = 0u;
+    };
+  }
+
+  private final func FindInventoryItem(itemData: ref<gameItemData>) -> wref<UIInventoryItem> {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_cachedPlayerItems) {
+      if this.m_cachedPlayerItems[i].ID == itemData.GetID() {
+        return this.m_cachedPlayerItems[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func InitializeBrandData(brandData: ref<UIGlamdocBrandData_Record>) -> Void {
+    if !TDBID.IsValid(brandData.GetRecordID()) || !IsDefined(this.m_equippedStyle) {
+      this.HideColorTab(false);
+      return;
+    };
+    this.ShowColorTab();
+    this.SetColorWheelTintFromBrandData(this.m_colorWheelColorA, brandData);
+    this.SetColorWheelTintFromBrandData(this.m_colorWheelColorB, brandData);
+    inkImageRef.SetAtlasResource(this.m_brandIcon, brandData.BrandIconHandle().AtlasResourcePath());
+    inkImageRef.SetTexturePart(this.m_brandIcon, brandData.BrandIconHandle().AtlasPartName());
+  }
+
+  private final func InitializeEquippedCyberArm() -> Void {
+    let items: array<wref<UIInventoryItem>> = this.m_uiInventorySystem.GetPlayerAreaItems(gamedataEquipmentArea.ArmsCW);
+    if ArraySize(items) > 0 {
+      this.m_equippedArmItem = items[0];
+    };
+  }
+
+  private final func HideColorTab(useAnimToHideColorWidget: Bool) -> Void {
+    this.HideColorWidget(useAnimToHideColorWidget);
+    this.SetWidgetsArrayVisibility(this.m_headerTabInputs, false);
+    this.GetColorsHeaderTab().SetVisible(false);
+    inkWidgetRef.SetInteractive(this.m_mouseHitColorPanel, false);
+    this.ResetHighlightOnColorWheel();
+  }
+
+  private final func HideColorWidget(useAnimToHideColorWidget: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    if useAnimToHideColorWidget {
+      playbackOptions.playReversed = true;
+      if this.m_tabAnimProxy.IsPlaying() {
+        this.m_tabAnimProxy.GotoEndAndStop();
+      };
+      this.m_tabAnimProxy = this.PlayLibraryAnimation(n"ColorWheel_Intro", playbackOptions);
+    } else {
+      this.SetWidgetsArrayVisibility(this.m_colorPickerWidgets, false);
+    };
+  }
+
+  private final func ShowColorTab() -> Void {
+    this.SetWidgetsArrayVisibility(this.m_colorPickerWidgets, true);
+    this.SetWidgetsArrayVisibility(this.m_headerTabInputs, true);
+    this.GetColorsHeaderTab().SetVisible(true);
+    this.ShowVisualSelectionOnColorWheels();
+    inkWidgetRef.SetInteractive(this.m_mouseHitColorPanel, true);
+    if this.m_tabAnimProxy.IsPlaying() {
+      this.m_tabAnimProxy.GotoEndAndStop();
+    };
+    this.m_tabAnimProxy = this.PlayLibraryAnimation(n"ColorWheel_Intro");
+  }
+
+  private final func SetColorTabInputHintsVisibility(isVisible: Bool) -> Void {
+    if isVisible {
+      this.m_buttonHintsController.AddButtonHint(n"unequip_item", "LocKey#97495");
+      this.m_buttonHintsController.AddButtonHint(n"select", "LocKey#97494");
+      this.m_buttonHintsController.RemoveButtonHint(n"buy_cyberware_glam");
+    } else {
+      this.m_buttonHintsController.RemoveButtonHint(n"unequip_item");
+      this.m_buttonHintsController.RemoveButtonHint(n"select");
+    };
+  }
+
+  private final func SetColorWheelTintFromBrandData(colorWheel: cyberwareCustomColorWheelDef, brandData: ref<UIGlamdocBrandData_Record>) -> Void {
+    inkWidgetRef.SetTintColor(colorWheel.m_color1Part, CyberwareCustomizationHelper.GetColorFromBrandData(brandData, 0u));
+    inkWidgetRef.SetTintColor(colorWheel.m_color2Part, CyberwareCustomizationHelper.GetColorFromBrandData(brandData, 1u));
+    inkWidgetRef.SetTintColor(colorWheel.m_color3Part, CyberwareCustomizationHelper.GetColorFromBrandData(brandData, 2u));
+    inkWidgetRef.SetTintColor(colorWheel.m_color4Part, CyberwareCustomizationHelper.GetColorFromBrandData(brandData, 3u));
+    inkWidgetRef.SetTintColor(colorWheel.m_color5Part, CyberwareCustomizationHelper.GetColorFromBrandData(brandData, 4u));
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnCloseMenu", this, n"OnCloseMenu");
+  }
+
+  protected cb func OnBeforeLeaveScenario(userData: ref<IScriptable>) -> Bool {
+    let i: Int32;
+    this.m_inventorySystem.SaveSpendByVendorID(this.m_VendorDataManager.GetVendorID(), this.m_spendCost, this.m_spendCount);
+    i = 0;
+    while i < ArraySize(this.m_factThresholds) {
+      if this.m_spendCost > this.m_factThresholds[i].SpendCost() && this.m_spendCount > this.m_factThresholds[i].SpendCount() {
+        if this.m_questSystem.GetFact(this.m_factThresholds[i].FactKey()) <= i {
+          this.m_questSystem.SetFact(this.m_factThresholds[i].FactKey(), i + 1);
+        };
+      };
+      i += 1;
+    };
+    if this.m_anyChangesMade {
+      if this.m_colorChanged || this.m_appearanceChanged {
+        this.m_questSystem.SetFact(n"glamdoc_color", 1);
+      };
+      this.m_questSystem.SetFact(n"cyberware_changes_save", 1);
+    };
+  }
+
+  protected cb func OnCloseMenu(userData: ref<IScriptable>) -> Bool {
+    if IsDefined(this.m_inventoryView) {
+      this.m_inventoryView.ReleaseVirtualGrid();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if IsDefined(this.m_attachmentSlotCallback) {
+      this.m_transactionSystem.UnregisterAttachmentSlotListener(this.m_previewPuppet, this.m_attachmentSlotCallback);
+    };
+    if this.m_isInPreviewMode {
+      this.ExitPreviewMode();
+    };
+    this.m_player.UnregisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnButtonPress");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnMouseInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalInputReleased");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnGlobalAxisInput");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.UnregisterBlackboard();
+    this.ProcessFakeUpdate(false);
+  }
+
+  private final func QuitVendor(opt isDiscardingChanges: Bool, opt isCustoAlreadyApplied: Bool) -> Void {
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    if this.m_hasChangesToApply && !isDiscardingChanges {
+      if !isCustoAlreadyApplied {
+        this.SendLatestToCyberwareCustomization();
+      };
+      this.m_appearanceChanged = this.m_styleDataWhenEnteringGlamdoc.customizationItemID != this.m_equippedStyle.GetItemData().GetID();
+      this.SpawnOnEquipEvent();
+    } else {
+      if !isDiscardingChanges && this.m_equippedStyleItem.GetItemData().GetID() == savedData.customizationItemID && this.NeedToToggleLongSleeveVersionOfCyberware(true) {
+        this.SendLatestToCyberwareCustomization();
+      };
+    };
+    if isDiscardingChanges {
+      this.SetAnyChangesMade(false);
+    };
+    this.m_menuEventDispatcher.SpawnEvent(n"OnVendorClose");
+    this.m_isExitingGlamdocMenu = true;
+  }
+
+  private final func DiscardChangesAndQuitVendor() -> Void {
+    let itemData: ref<gameItemData>;
+    let request: ref<SaveAndApplyCyberwareCustomizationDataRequest>;
+    let switcherName: CName;
+    if !this.m_hasChangesToApply {
+      this.QuitVendor();
+      return;
+    };
+    itemData = GameInstance.GetTransactionSystem(this.m_player.GetGame()).GetItemData(this.m_player, this.m_styleDataWhenEnteringGlamdoc.customizationItemID);
+    if !IsDefined(itemData) {
+      this.UnequipFromEquipmentSystem();
+    } else {
+      this.EquipFromEquipmentSystem(itemData);
+    };
+    switcherName = CyberwareCustomizationHelper.GetCyberarmTypeFromCustomizationItem(IsDefined(itemData) ? itemData : this.m_equippedStyle.GetItemData());
+    request = new SaveAndApplyCyberwareCustomizationDataRequest();
+    request.enabled = this.m_styleDataWhenEnteringGlamdoc.enabled;
+    request.customizationItem = itemData;
+    request.switcherName = switcherName;
+    request.switcherIndex = this.m_styleDataWhenEnteringGlamdoc.switcherIndex;
+    request.primaryColorIndex = this.m_styleDataWhenEnteringGlamdoc.primaryColorIndex;
+    request.secondaryColorIndex = this.m_styleDataWhenEnteringGlamdoc.secondaryColorIndex;
+    this.m_cyberwareCustomizationSystem.QueueRequest(request);
+    this.QuitVendor(true);
+  }
+
+  private final func ShowExitConfirmationPopup() -> Void {
+    let data: ref<GlamdocConfirmationPopupCloseData> = new GlamdocConfirmationPopupCloseData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\glamdoc_confirmation.inkwidget";
+    data.isBlocking = true;
+    data.useCursor = true;
+    data.queueName = n"modal_popup";
+    this.m_tokenPopup = this.ShowGameNotification(data);
+    this.m_tokenPopup.RegisterListener(this, n"OnExitConfirmationPopupClosed");
+    this.OnPopupVisibilityToggled(true);
+    this.ResetVisualHoverOnColorWheel(this.GetActiveColorWheelData());
+  }
+
+  protected cb func OnExitConfirmationPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_tokenPopup = null;
+    let resultData: ref<GlamdocConfirmationPopupCloseData> = data as GlamdocConfirmationPopupCloseData;
+    if resultData.confirm {
+      this.m_audioSystem.Play(n"ui_menu_onpress");
+      this.DiscardChangesAndQuitVendor();
+      return true;
+    };
+    this.HideExitConfirmationPopup();
+  }
+
+  private final func HideExitConfirmationPopup() -> Void {
+    this.OnPopupVisibilityToggled(false);
+    this.UpdateCursorVisibility();
+  }
+
+  private final func OnPopupVisibilityToggled(isPopupVisible: Bool) -> Void {
+    if isPopupVisible {
+      this.m_audioSystem.Play(n"ui_hacking_access_granted");
+      this.m_buttonHintsController.Hide();
+      this.SetWidgetsArrayVisibility(this.m_colorWheelModeSwitchInputs, false);
+    } else {
+      this.m_audioSystem.Play(n"ui_menu_onpress");
+      this.m_buttonHintsController.Show();
+      this.SetWidgetsArrayVisibility(this.m_colorWheelModeSwitchInputs, NotEquals(this.m_screenType, GlamdocScreenType.Appearance));
+    };
+    this.m_isInPopup = isPopupVisible;
+    this.m_selector.SetIsDisabled(isPopupVisible);
+    this.m_tabRoot.GetController(0).GetRootWidget().SetInteractive(!isPopupVisible);
+    this.m_tabRoot.GetController(1).GetRootWidget().SetInteractive(!isPopupVisible);
+    if !this.m_isInPreviewMode {
+      this.SetWidgetsArrayVisibility(this.m_headerTabInputs, !isPopupVisible);
+      this.UpdateSwapArrows();
+      this.m_minigridController.SetNavigable(Equals(this.m_screenType, GlamdocScreenType.Appearance) ? !isPopupVisible : false);
+      this.m_inventoryView.SetNavigable(Equals(this.m_screenType, GlamdocScreenType.Appearance) ? !isPopupVisible : false);
+    };
+  }
+
+  private final func UpdateAndApplyColor(colorIndex: Uint8, selectedMode: cyberwareCustomColorSelectorActiveMode, opt skipColorChangeNotification: Bool) -> Void {
+    this.SelectColorIndexForMode(colorIndex, selectedMode);
+    switch selectedMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_cachedNewColorA = this.GetColorFromIndexForCurrentBrand(colorIndex);
+        this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorA, true);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_cachedNewColorB = this.GetColorFromIndexForCurrentBrand(colorIndex);
+        this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorB, true);
+    };
+    this.UpdateSwapArrows();
+    this.SendCustomizationColorToSystem(skipColorChangeNotification);
+  }
+
+  private final func GetColorFromIndexForCurrentBrand(index: Uint8) -> Color {
+    return CyberwareCustomizationHelper.GetColorFromBrandData(CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(this.m_customizationItemData), index);
+  }
+
+  private final func SendCustomizationColorToSystem(opt skipColorChangeNotification: Bool) -> Void {
+    let request: ref<SaveAndApplyCyberWareCustomColorRequest> = new SaveAndApplyCyberWareCustomColorRequest();
+    request.enabled = true;
+    request.primaryColorIndex = this.m_colorADefined ? this.m_selectedIndexColorA : Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultPrimaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    request.secondaryColorIndex = this.m_colorBDefined ? this.m_selectedIndexColorB : Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultSecondaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    this.m_colorChanged = request.primaryColorIndex != savedData.primaryColorIndex || request.secondaryColorIndex != savedData.secondaryColorIndex;
+    if this.m_colorChanged && !skipColorChangeNotification && !this.m_isInPreviewMode {
+      this.SetAnyChangesMade(true);
+    };
+    this.m_cyberwareCustomizationSystem.QueueRequest(request);
+  }
+
+  public final func UpdatePuppetBasedOnCurrentScreen() -> Void {
+    if this.DoesPlayerHaveGlamEquipped() || this.m_isInPreviewMode {
+      this.UpdatePuppetPreview();
+    };
+  }
+
+  private final func UpdatePuppetPreview() -> Void {
+    let playerGender: CName;
+    let currentArmWareType: ArmsWareType = this.GetCurrentArmsWareType();
+    let currentMenu: Int32 = EnumInt(this.m_screenType);
+    this.SetPuppetPoseData(this.DoesPlayerHaveGlamEquipped() ? EnumInt(currentArmWareType) : -1, currentMenu, EnumInt(this.m_activeMode));
+    playerGender = this.m_player.GetResolvedGenderName();
+    if Equals(this.m_screenType, GlamdocScreenType.ColorPicker) {
+      if Equals(playerGender, n"Male") {
+        this.SetCameraSlotForPreviewPuppet(this.m_cyberwarePreviewSettingsTable[EnumInt(currentArmWareType)].m_maleColorCustomizationCameraLocation, false);
+      } else {
+        if Equals(playerGender, n"Female") {
+          this.SetCameraSlotForPreviewPuppet(this.m_cyberwarePreviewSettingsTable[EnumInt(currentArmWareType)].m_femaleColorCustomizationCameraLocation, false);
+        };
+      };
+    } else {
+      this.SetCameraSlotForPreviewPuppet(this.m_cyberwarePreviewSettingsTable[EnumInt(currentArmWareType)].m_apperanceCameraLocation, false);
+    };
+  }
+
+  private final func UpdatePuppetWhenExitingPreviewMode() -> Void {
+    let currentArmWareType: ArmsWareType = this.GetCurrentArmsWareType();
+    this.SetPuppetPoseData(EnumInt(currentArmWareType), EnumInt(this.m_screenType), EnumInt(this.m_activeMode));
+    this.SetCameraSlotForPreviewPuppet(this.m_cyberwarePreviewSettingsTable[EnumInt(currentArmWareType)].m_apperanceCameraLocation, false);
+  }
+
+  protected cb func OnGlobalAxisInput(e: ref<inkPointerEvent>) -> Bool {
+    let value: Float = e.GetAxisData();
+    if e.IsAction(n"popup_axisX") {
+      this.m_axisInputCache.X = value;
+    } else {
+      if e.IsAction(n"popup_axisY") {
+        this.m_axisInputCache.Y = value;
+      };
+    };
+  }
+
+  protected cb func OnButtonPress(e: ref<inkPointerEvent>) -> Bool {
+    if !e.IsHandled() {
+      if Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+        if e.IsAction(n"left_button") || e.IsAction(n"down_button") {
+          this.ProcessKeyboardPointerMovement(false, this.GetActiveColorWheelData());
+        } else {
+          if e.IsAction(n"right_button") || e.IsAction(n"up_button") {
+            this.ProcessKeyboardPointerMovement(true, this.GetActiveColorWheelData());
+          };
+        };
+      };
+      if e.IsAction(n"back") {
+        if this.m_isInPreviewMode {
+          this.ExitPreviewMode();
+        } else {
+          if this.m_hasChangesToApply {
+            this.ShowExitConfirmationPopup();
+          } else {
+            this.QuitVendor();
+          };
+        };
+      } else {
+        return false;
+      };
+      e.Handle();
+    };
+  }
+
+  protected cb func OnGlobalInputReleased(e: ref<inkPointerEvent>) -> Bool {
+    let nextMode: cyberwareCustomColorSelectorActiveMode;
+    if e.IsHandled() {
+      return false;
+    };
+    if e.IsAction(n"select") {
+      e.Handle();
+      if !this.SelectPanelByClick(e) && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+        this.ProcessPointerClick(e);
+      };
+      this.m_audioSystem.Play(n"ui_menu_onpress");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Both);
+    } else {
+      if e.IsAction(n"tap") {
+        e.Handle();
+        if !this.SelectPanelByTouch(e) && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+          this.ProcessPointerTouch(e);
+        };
+        this.m_audioSystem.Play(n"ui_menu_onpress");
+        this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Both);
+      } else {
+        if e.IsAction(n"glam_select_color") && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+          e.Handle();
+          switch this.m_activeMode {
+            case cyberwareCustomColorSelectorActiveMode.Primary:
+              this.m_colorADefined = true;
+              this.m_selectedIndexColorA = this.m_hoveredIndex;
+              this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+              this.UpdateAndApplyColor(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+              this.UpdateHoveredPartForWheel(this.m_selectedIndexColorA, this.m_colorWheelColorA);
+              break;
+            case cyberwareCustomColorSelectorActiveMode.Secondary:
+              this.m_colorBDefined = true;
+              this.m_selectedIndexColorB = this.m_hoveredIndex;
+              this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+              this.UpdateAndApplyColor(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+              this.UpdateHoveredPartForWheel(this.m_selectedIndexColorB, this.m_colorWheelColorB);
+          };
+        } else {
+          if e.IsAction(n"glam_apply_and_close") && (this.m_hasChangesToApply || this.m_isInPreviewMode) && !this.m_isInPopup {
+            e.Handle();
+            if this.m_isInPreviewMode {
+              if !this.CanPlayerCanBuyItem(this.m_equippedStyle.GetID()) {
+                this.OpenNotEnoughMoneyNotification();
+              } else {
+                this.m_isExitingMenuAfterBuy = true;
+                this.OpenConfirmationPopup(this.m_equippedStyle, this.m_VendorDataManager.GetBuyingPrice(this.m_equippedStyle.GetID()), VendorConfirmationPopupType.BuyAndEquipPreviewedCyberware, n"OnBuyConfirmationPopupClosed");
+              };
+              return true;
+            };
+            this.QuitVendor();
+          } else {
+            if e.IsAction(n"UI_vehicle_customization_swap") && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+              if this.SwapColors() {
+                e.Consume();
+                this.m_audioSystem.Play(n"ui_menu_onpress");
+              };
+            } else {
+              if e.IsAction(n"unequip_item") && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) {
+                if this.ResetColorsToDefault() {
+                  e.Consume();
+                  this.m_audioSystem.Play(n"ui_menu_onpress");
+                };
+              } else {
+                if (e.IsAction(n"next_menu") || e.IsAction(n"prior_menu")) && !this.m_isInPopup && this.m_equippedStyle != null && ItemID.IsValid(this.m_equippedStyle.GetID()) {
+                  this.m_tabRoot.Toggle(Equals(this.m_screenType, GlamdocScreenType.Appearance) ? 1 : 0);
+                  e.Consume();
+                } else {
+                  if (e.IsAction(n"option_switch_next_settings") || e.IsAction(n"option_switch_prev_settings")) && Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup {
+                    nextMode = Equals(this.m_activeMode, cyberwareCustomColorSelectorActiveMode.Primary) ? cyberwareCustomColorSelectorActiveMode.Secondary : cyberwareCustomColorSelectorActiveMode.Primary;
+                    this.SwitchActiveMode(nextMode);
+                  } else {
+                    if (e.IsAction(n"UI_MoveLeft") || e.IsAction(n"UI_MoveRight") || e.IsAction(n"UI_MoveUp") || e.IsAction(n"UI_MoveDown")) && Equals(this.m_screenType, GlamdocScreenType.Appearance) {
+                      this.m_usedVirtualCursorWithMouse = true;
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func SwitchSelectionTab(screenType: GlamdocScreenType) -> Void {
+    let i: Int32;
+    let previousWidgets: array<inkWidgetRef>;
+    let targetWidgets: array<inkWidgetRef>;
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    if Equals(screenType, GlamdocScreenType.ColorPicker) && !ItemID.IsValid(savedData.customizationItemID) {
+      return;
+    };
+    this.m_screenType = screenType;
+    if !this.m_isInPreviewMode {
+      this.m_selector.SetIsDisabled(NotEquals(this.m_screenType, GlamdocScreenType.Appearance));
+    };
+    if Equals(this.m_screenType, GlamdocScreenType.Appearance) {
+      targetWidgets = this.m_appearanceWidgets;
+      previousWidgets = this.m_colorPickerWidgets;
+      this.SwitchPanel(true);
+    } else {
+      targetWidgets = this.m_colorPickerWidgets;
+      previousWidgets = this.m_appearanceWidgets;
+      this.SwitchPanel(false);
+    };
+    this.UpdateCursorVisibility();
+    this.UpdateSwapArrows();
+    this.UpdatePuppetBasedOnCurrentScreen();
+    i = 0;
+    while i < ArraySize(targetWidgets) {
+      inkWidgetRef.SetInteractive(targetWidgets[i], true);
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(previousWidgets) {
+      inkWidgetRef.SetInteractive(previousWidgets[i], false);
+      i += 1;
+    };
+    this.m_audioSystem.Play(n"ui_menu_onpress");
+  }
+
+  private final func SwitchPanel(isAppearancePanel: Bool) -> Void {
+    let panelAnim: inkAnimOptions;
+    let isPlatformPC: Bool = Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux");
+    panelAnim.playReversed = isAppearancePanel;
+    if this.m_tabAnimProxy.IsPlaying() {
+      this.m_tabAnimProxy.GotoEndAndStop();
+    };
+    this.m_tabAnimProxy = this.PlayLibraryAnimation(n"TabSwap", panelAnim);
+    this.SetColorTabInputHintsVisibility(!isAppearancePanel);
+    this.m_minigridController.SetNavigable(isAppearancePanel);
+    this.m_inventoryView.SetNavigable(isAppearancePanel);
+    this.m_minigridController.SetInteractive(isAppearancePanel);
+    this.m_inventoryView.SetInteractive(isAppearancePanel);
+    inkWidgetRef.SetInteractive(this.m_mouseHitAppearancePanel, !isAppearancePanel && isPlatformPC);
+    inkWidgetRef.SetInteractive(this.m_mouseHitColorPanel, isAppearancePanel);
+    this.SetWidgetsArrayVisibility(this.m_colorWheelModeSwitchInputs, !isAppearancePanel);
+    if isAppearancePanel {
+      this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorA);
+      this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorB);
+    } else {
+      this.m_TooltipsManager.HideTooltips();
+      if Equals(this.m_activeMode, cyberwareCustomColorSelectorActiveMode.None) {
+        this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Primary);
+      };
+    };
+  }
+
+  protected cb func OnMouseInput(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"mouse_x") || e.IsAction(n"mouse_y") {
+      if this.m_usedVirtualCursorWithMouse {
+        this.m_usedVirtualCursorWithMouse = false;
+        this.UpdateCursorVisibility();
+      };
+      this.ProcessMouseInput(e.GetScreenSpacePosition());
+    };
+  }
+
+  private final func ProcessMouseInput(mousePos: Vector2) -> Void {
+    let angle: Float;
+    let mouseLocationRelativeToColorPicker: Vector2;
+    if NotEquals(this.m_screenType, GlamdocScreenType.ColorPicker) || this.m_isInPopup {
+      return;
+    };
+    if !this.ShouldProcessMouseInputForActiveColorWheel(mousePos) {
+      return;
+    };
+    mouseLocationRelativeToColorPicker = this.GetMouseLocationRelativeToActiveColorPicker(mousePos);
+    angle = AtanF(mouseLocationRelativeToColorPicker.Y, mouseLocationRelativeToColorPicker.X);
+    this.ProcessPointerMovement(this.GetColorIndexFromAngle(angle), this.GetActiveColorWheelData());
+  }
+
+  private final func ProcessKeyboardPointerMovement(isClockwise: Bool, wheelData: cyberwareCustomColorWheelDef) -> Void {
+    if this.m_hoveredIndex == 0u && !isClockwise {
+      this.m_hoveredIndex = 4u;
+    } else {
+      if this.m_hoveredIndex == 4u && isClockwise {
+        this.m_hoveredIndex = 0u;
+      } else {
+        if isClockwise {
+          this.m_hoveredIndex += 1u;
+        } else {
+          this.m_hoveredIndex -= 1u;
+        };
+      };
+    };
+    if this.m_hoveredIndex != this.m_lastSelectedIndex {
+      this.m_lastSelectedIndex = this.m_hoveredIndex;
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+    };
+    this.UpdateHoveredPartForWheel(this.m_hoveredIndex, wheelData);
+  }
+
+  private final func ProcessKeyboardPointerClick() -> Void {
+    switch this.m_activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_colorADefined = true;
+        this.m_selectedIndexColorA = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorA, this.m_colorWheelColorA);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_colorBDefined = true;
+        this.m_selectedIndexColorB = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorB, this.m_colorWheelColorB);
+    };
+  }
+
+  private final func GetColorIndexFromAngle(angle: Float) -> Uint8 {
+    let offset: Float = -2.20;
+    angle = this.WrapAngle(angle - offset);
+    return Cast<Uint8>(Cast<Int32>(Rad2Deg(angle)) / this.m_sectionAngle);
+  }
+
+  private final func ProcessPointerMovement(index: Uint8, wheelData: cyberwareCustomColorWheelDef) -> Void {
+    let movedCursorToTheLeft: Bool;
+    this.m_hoveredIndex = index;
+    if this.m_hoveredIndex != this.m_lastSelectedIndex {
+      if !this.m_player.PlayerLastUsedKBM() {
+        movedCursorToTheLeft = this.IsInputAxisVectorOrientedToTheLeftOfSelectedColorWheelPart(this.m_lastSelectedIndex);
+        this.ChooseHoverMask(index, wheelData);
+        this.PlayDirectionalHoverAnimation(movedCursorToTheLeft);
+      };
+      this.m_lastSelectedIndex = index;
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+    };
+    this.UpdateHoveredPartForWheel(index, wheelData);
+  }
+
+  protected cb func OnFakeUpdate(proxy: ref<inkAnimProxy>) -> Bool {
+    if Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_player.PlayerLastUsedKBM() && !this.m_isInPopup {
+      this.ProcessGamePadInput();
+    };
+  }
+
+  private final func ProcessGamePadInput() -> Void {
+    let angle: Float;
+    if AbsF(this.m_axisInputCache.Y) > this.m_axisInputThreshold || AbsF(this.m_axisInputCache.X) > this.m_axisInputThreshold {
+      angle = AtanF(this.m_axisInputCache.X, this.m_axisInputCache.Y) - 1.57;
+      this.ProcessPointerMovement(this.GetColorIndexFromAngle(angle), this.GetActiveColorWheelData());
+      this.m_axisInputCache.X = 0.00;
+      this.m_axisInputCache.Y = 0.00;
+    };
+  }
+
+  private final func IsInputAxisVectorOrientedToTheLeftOfSelectedColorWheelPart(index: Uint8) -> Bool {
+    let selectedColorPartAngle: Float = Cast<Float>(index) * Cast<Float>(this.m_sectionAngle);
+    let selectedColorPartVector: Vector4 = new Vector4(SinF(Deg2Rad(selectedColorPartAngle)), CosF(Deg2Rad(selectedColorPartAngle)), 0.00, 0.00);
+    let axisInput: Vector4 = new Vector4(this.m_axisInputCache.X, this.m_axisInputCache.Y, 0.00, 0.00);
+    let crossProduct: Vector4 = Vector4.Cross(selectedColorPartVector, axisInput);
+    return crossProduct.Z >= 0.00;
+  }
+
+  private final func PlayDirectionalHoverAnimation(toTheLeft: Bool) -> Void {
+    if this.m_hoveredAnimProxy.IsPlaying() {
+      this.m_hoveredAnimProxy.Stop();
+    };
+    if toTheLeft {
+      this.m_hoveredAnimProxy = this.PlayLibraryAnimation(Equals(this.m_activeMode, cyberwareCustomColorSelectorActiveMode.Primary) ? n"MainColor_HoverLightSwip_Left" : n"SecondaryColor_HoverLightSwip_Left");
+    } else {
+      this.m_hoveredAnimProxy = this.PlayLibraryAnimation(Equals(this.m_activeMode, cyberwareCustomColorSelectorActiveMode.Primary) ? n"MainColor_HoverLightSwip_Right" : n"SecondaryColor_HoverLightSwip_Right");
+    };
+  }
+
+  private final func ChooseHoverMask(index: Uint8, colorWheel: cyberwareCustomColorWheelDef) -> Void {
+    let mask: wref<inkMask> = inkWidgetRef.Get(colorWheel.m_swipeAnimationMask) as inkMask;
+    let mainWheelMaskName: String = "MainWheel_Mask_" + IntToString(Cast<Int32>(index) * this.m_sectionAngle);
+    let secondaryWheelMaskName: String = "SecondaryWheel_Mask_" + IntToString(Cast<Int32>(index) * this.m_sectionAngle);
+    inkWidgetRef.SetRotation(colorWheel.m_swipeRotationGroup, Cast<Float>(index) * Cast<Float>(this.m_sectionAngle));
+    mask.SetTexturePart(Equals(colorWheel, this.m_colorWheelColorA) ? StringToName(mainWheelMaskName) : StringToName(secondaryWheelMaskName));
+  }
+
+  private final func UpdateCursorVisibility() -> Void {
+    let visible: Bool = this.m_player.PlayerLastUsedKBM() && !this.m_usedVirtualCursorWithMouse || Equals(this.m_screenType, GlamdocScreenType.Appearance);
+    let evt: ref<inkMenuLayer_SetCursorVisibility> = new inkMenuLayer_SetCursorVisibility();
+    evt.Init(visible);
+    this.QueueEvent(evt);
+  }
+
+  private final func UpdateHoveredPartForWheel(index: Uint8, wheelData: cyberwareCustomColorWheelDef) -> Void {
+    this.ResetVisualHoverOnColorWheel(wheelData);
+    inkWidgetRef.SetVisible(wheelData.m_hoverFrame, true);
+    inkWidgetRef.SetRotation(wheelData.m_hoverFrame, this.GetSelectorAngleFromColorIndex(index));
+  }
+
+  private final func ResetVisualHoverOnColorWheel(wheelData: cyberwareCustomColorWheelDef) -> Void {
+    inkWidgetRef.SetVisible(wheelData.m_hoverFrame, false);
+  }
+
+  private final func SetVisualSelectionOnColorWheel(wheelData: cyberwareCustomColorWheelDef, isVisible: Bool) -> Void {
+    inkWidgetRef.SetVisible(wheelData.m_selectionFrame, isVisible);
+  }
+
+  private final func ShowVisualSelectionOnColorWheels() -> Void {
+    this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorA, this.m_colorADefined);
+    this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorB, this.m_colorBDefined);
+  }
+
+  private final func ResetHighlightOnColorWheel() -> Void {
+    this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorA);
+    this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorA, false);
+    this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorB);
+    this.SetVisualSelectionOnColorWheel(this.m_colorWheelColorB, false);
+  }
+
+  private final func ProcessPointerClick(e: ref<inkPointerEvent>) -> Void {
+    if this.m_player.PlayerLastUsedKBM() {
+      switch e.GetTarget() {
+        case inkWidgetRef.Get(this.m_mouseHitColor1Ref):
+          this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Primary);
+          this.ProcessMouseInput(e.GetScreenSpacePosition());
+          break;
+        case inkWidgetRef.Get(this.m_mouseHitColor2Ref):
+          this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Secondary);
+          this.ProcessMouseInput(e.GetScreenSpacePosition());
+      };
+      if !this.ShouldProcessMouseInputForActiveColorWheel(e.GetScreenSpacePosition()) {
+        return;
+      };
+    };
+    switch this.m_activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_colorADefined = true;
+        this.m_selectedIndexColorA = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorA, this.m_colorWheelColorA);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_colorBDefined = true;
+        this.m_selectedIndexColorB = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorB, this.m_colorWheelColorB);
+    };
+  }
+
+  private final func SelectPanelByClick(e: ref<inkPointerEvent>) -> Bool {
+    switch e.GetTarget() {
+      case inkWidgetRef.Get(this.m_mouseHitAppearancePanel):
+        if NotEquals(this.m_screenType, GlamdocScreenType.Appearance) {
+          this.m_tabRoot.Toggle(0);
+          return true;
+        };
+        break;
+      case inkWidgetRef.Get(this.m_mouseHitColorPanel):
+        if NotEquals(this.m_screenType, GlamdocScreenType.ColorPicker) && ItemID.IsValid(this.m_equippedStyle.GetID()) {
+          this.m_tabRoot.Toggle(1);
+          return true;
+        };
+    };
+    return false;
+  }
+
+  private final func ProcessPointerTouch(e: ref<inkPointerEvent>) -> Void {
+    switch e.GetTarget() {
+      case inkWidgetRef.Get(this.m_mouseHitColor1Ref):
+        this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Primary);
+        this.ProcessMouseInput(e.GetScreenSpacePosition());
+        break;
+      case inkWidgetRef.Get(this.m_mouseHitColor2Ref):
+        this.SwitchActiveMode(cyberwareCustomColorSelectorActiveMode.Secondary);
+        this.ProcessMouseInput(e.GetScreenSpacePosition());
+    };
+    if !this.ShouldProcessMouseInputForActiveColorWheel(e.GetScreenSpacePosition()) {
+      return;
+    };
+    switch this.m_activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_colorADefined = true;
+        this.m_selectedIndexColorA = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorA, this.m_colorWheelColorA);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_colorBDefined = true;
+        this.m_selectedIndexColorB = this.m_hoveredIndex;
+        this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+        this.UpdateAndApplyColor(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorB, this.m_colorWheelColorB);
+    };
+  }
+
+  private final func SelectPanelByTouch(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInPreviewMode {
+      return false;
+    };
+    switch e.GetTarget() {
+      case inkWidgetRef.Get(this.m_mouseHitAppearancePanel):
+        if NotEquals(this.m_screenType, GlamdocScreenType.Appearance) {
+          this.m_tabRoot.Toggle(0);
+          return true;
+        };
+        break;
+      case inkWidgetRef.Get(this.m_mouseHitColorPanel):
+        if NotEquals(this.m_screenType, GlamdocScreenType.ColorPicker) && ItemID.IsValid(this.m_equippedStyle.GetID()) {
+          this.m_tabRoot.Toggle(1);
+          return true;
+        };
+    };
+    return false;
+  }
+
+  private final func SelectColorIndexForMode(index: Uint8, mode: cyberwareCustomColorSelectorActiveMode) -> Void {
+    switch mode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_selectedIndexColorA = index;
+        inkWidgetRef.SetRotation(this.m_colorWheelColorA.m_selectionFrame, this.GetSelectorAngleFromColorIndex(index));
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_selectedIndexColorB = index;
+        inkWidgetRef.SetRotation(this.m_colorWheelColorB.m_selectionFrame, this.GetSelectorAngleFromColorIndex(index));
+    };
+  }
+
+  private final func GetSelectorAngleFromColorIndex(colorIndex: Uint8) -> Float {
+    let sectionAngle: Float = 1.26;
+    return Rad2Deg(this.WrapAngle(sectionAngle * Cast<Float>(colorIndex)));
+  }
+
+  private final func ShouldProcessMouseInputForActiveColorWheel(mousePos: Vector2) -> Bool {
+    let mouseLocationRelativeToColorPicker: Vector2 = this.GetMouseLocationRelativeToActiveColorPicker(mousePos);
+    let activeColorWheelData: cyberwareCustomColorWheelDef = this.GetActiveColorWheelData();
+    return mouseLocationRelativeToColorPicker.X * mouseLocationRelativeToColorPicker.X + mouseLocationRelativeToColorPicker.Y * mouseLocationRelativeToColorPicker.Y <= (activeColorWheelData.m_wheelRadius + activeColorWheelData.m_selectionMargin) * (activeColorWheelData.m_wheelRadius + activeColorWheelData.m_selectionMargin);
+  }
+
+  private final func GetMouseLocationRelativeToActiveColorPicker(mousePos: Vector2) -> Vector2 {
+    let offsetMargins: inkMargin = inkWidgetRef.GetMargin(this.m_CursorRootOffsetPoint);
+    let localPos: Vector2 = WidgetUtils.GlobalToLocal(inkWidgetRef.Get(this.m_CursorRootContainerRef), mousePos);
+    let offsetX: Float = (offsetMargins.left - rootSize.X / 2.00) * -1.00;
+    let offsetY: Float = (offsetMargins.top - rootSize.Y / 2.00) * -1.00;
+    let rootSize: Vector2 = this.GetRootWidget().GetSize();
+    return new Vector2(localPos.X + offsetX - rootSize.X / 2.00, localPos.Y + offsetY - rootSize.Y / 2.00);
+  }
+
+  private final func WrapAngle(angle: Float) -> Float {
+    let value: Float = (angle + 6.28) % 6.28;
+    return value;
+  }
+
+  private final func SwitchActiveMode(switchTo: cyberwareCustomColorSelectorActiveMode) -> Void {
+    this.m_activeMode = switchTo;
+    this.ChangeColorWheelSubTitle(switchTo);
+    this.UpdatePuppetPreview();
+    if this.m_hoveredAnimProxy.IsPlaying() {
+      this.m_hoveredAnimProxy.GotoEndAndStop();
+    };
+    switch this.m_activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        this.m_hoveredIndex = this.m_selectedIndexColorA;
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        this.m_hoveredIndex = this.m_selectedIndexColorB;
+    };
+    inkWidgetRef.SetVisible(this.m_colorPaletteRef, true);
+    this.UpdateWidgetsForNewMode(this.m_activeMode);
+    this.m_audioSystem.Play(n"ui_menu_onpress");
+  }
+
+  private final func ChangeColorWheelSubTitle(activeMode: cyberwareCustomColorSelectorActiveMode) -> Void {
+    let colorWheelText: String;
+    let colorNumber: Int32 = Equals(activeMode, cyberwareCustomColorSelectorActiveMode.None) ? 1 : EnumInt(activeMode);
+    switch activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        colorWheelText = GetLocalizedText("LocKey#95816") + " " + IntToString(colorNumber);
+        inkTextRef.SetText(this.m_colorWheelSubMenuTitle, colorWheelText);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        colorWheelText = GetLocalizedText("LocKey#95816") + " " + IntToString(colorNumber);
+        inkTextRef.SetText(this.m_colorWheelSubMenuTitle, colorWheelText);
+    };
+  }
+
+  private final func UpdateWidgetsForNewMode(currentMode: cyberwareCustomColorSelectorActiveMode) -> Void {
+    switch currentMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorA.m_parent, 0.80);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorB.m_parent, 0.10);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorA, this.m_colorWheelColorA);
+        this.SelectColorIndexForMode(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+        this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorB);
+        break;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorA.m_parent, 0.10);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorB.m_parent, 0.80);
+        this.UpdateHoveredPartForWheel(this.m_selectedIndexColorB, this.m_colorWheelColorB);
+        this.SelectColorIndexForMode(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+        this.ResetVisualHoverOnColorWheel(this.m_colorWheelColorA);
+    };
+  }
+
+  private final func SwapColors() -> Bool {
+    let swapCachedColor: Color;
+    let swapIndex: Uint8;
+    if !this.m_colorADefined {
+      this.SelectColorIndexForMode(Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultPrimaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData())), cyberwareCustomColorSelectorActiveMode.Primary);
+    };
+    if !this.m_colorBDefined {
+      this.SelectColorIndexForMode(Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultSecondaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData())), cyberwareCustomColorSelectorActiveMode.Secondary);
+    };
+    swapIndex = this.m_selectedIndexColorA;
+    swapCachedColor = this.m_cachedNewColorA;
+    this.m_selectedIndexColorA = this.m_selectedIndexColorB;
+    this.m_cachedNewColorA = this.m_cachedNewColorB;
+    this.m_selectedIndexColorB = swapIndex;
+    this.m_cachedNewColorB = swapCachedColor;
+    this.UpdateControlsState();
+    this.UpdateSwapArrows();
+    this.SetHasAnyChangesToApply(this.m_hasChangesToApply || !this.m_isInPreviewMode);
+    this.SendCustomizationColorToSystem();
+    return true;
+  }
+
+  private final func UpdateSwapArrows() -> Void {
+    if !this.m_colorADefined || !this.m_colorBDefined || Equals(this.m_screenType, GlamdocScreenType.Appearance) || this.m_isInPopup {
+      inkWidgetRef.SetVisible(this.m_swapContainer, false);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_swapContainer, true);
+    inkWidgetRef.SetTintColor(this.m_swapArrowPrimaryColor, this.m_cachedNewColorA);
+    inkWidgetRef.SetTintColor(this.m_swapArrowSecondaryColor, this.m_cachedNewColorB);
+  }
+
+  private final func ResetColorsToDefault(opt skipColorChangeNotification: Bool) -> Bool {
+    let savedData: CyberwareCustomizationPersistentData;
+    let request: ref<SaveAndApplyCyberWareCustomColorRequest> = new SaveAndApplyCyberWareCustomColorRequest();
+    if !this.m_colorADefined && !this.m_colorBDefined {
+      return false;
+    };
+    this.ResetDefinedColors();
+    savedData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    request.enabled = true;
+    request.primaryColorIndex = this.m_selectedIndexColorA;
+    request.secondaryColorIndex = this.m_selectedIndexColorB;
+    this.m_colorChanged = request.primaryColorIndex != savedData.primaryColorIndex || request.secondaryColorIndex != savedData.secondaryColorIndex;
+    if this.m_colorChanged && !skipColorChangeNotification && !this.m_isInPreviewMode {
+      this.SetAnyChangesMade(true);
+      this.SetHasAnyChangesToApply(true);
+    };
+    this.m_cyberwareCustomizationSystem.QueueRequest(request);
+    this.UpdateSwapArrows();
+    return true;
+  }
+
+  private final func ResetDefinedColors() -> Void {
+    let defaultColorA: Uint8 = Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultPrimaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    let defaultColorB: Uint8 = Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultSecondaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    this.m_colorADefined = true;
+    this.SelectColorIndexForMode(defaultColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+    this.m_cachedNewColorA = this.GetColorFromIndexForCurrentBrand(defaultColorA);
+    this.m_colorBDefined = true;
+    this.SelectColorIndexForMode(defaultColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+    this.m_cachedNewColorB = this.GetColorFromIndexForCurrentBrand(defaultColorB);
+  }
+
+  private final func UpdateControlsState() -> Void {
+    if this.m_colorADefined {
+      this.SelectColorIndexForMode(this.m_selectedIndexColorA, cyberwareCustomColorSelectorActiveMode.Primary);
+    };
+    if this.m_colorBDefined {
+      this.SelectColorIndexForMode(this.m_selectedIndexColorB, cyberwareCustomColorSelectorActiveMode.Secondary);
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsAction(action, n"__DEVICE_CHANGED__") {
+      if Equals(this.GetActiveInputMode(), this.m_activeInputMode) {
+        return false;
+      };
+      this.m_activeInputMode = this.GetActiveInputMode();
+      this.UpdateCursorVisibility();
+      this.SetWidgetsArrayVisibility(this.m_colorWheelModeSwitchInputs, Equals(this.m_screenType, GlamdocScreenType.ColorPicker) && !this.m_isInPopup);
+    };
+  }
+
+  private final func SetWidgetsArrayVisibility(widgets: [inkWidgetRef], visible: Bool) -> Void {
+    let index: Int32 = 0;
+    while index < ArraySize(widgets) {
+      inkWidgetRef.SetVisible(widgets[index], visible);
+      index += 1;
+    };
+  }
+
+  private final func GetActiveInputMode() -> cyberwareCustomSelectorActiveInputMode {
+    if !IsDefined(this.m_player) {
+      return cyberwareCustomSelectorActiveInputMode.None;
+    };
+    if this.m_player.PlayerLastUsedKBM() {
+      return cyberwareCustomSelectorActiveInputMode.KBM;
+    };
+    return cyberwareCustomSelectorActiveInputMode.Gamepad;
+  }
+
+  private final func GetActiveColorWheelData() -> cyberwareCustomColorWheelDef {
+    switch this.m_activeMode {
+      case cyberwareCustomColorSelectorActiveMode.Primary:
+        return this.m_colorWheelColorA;
+      case cyberwareCustomColorSelectorActiveMode.Secondary:
+        return this.m_colorWheelColorB;
+    };
+    return this.m_colorWheelColorA;
+  }
+
+  protected final func PlayHoverWidgetAnimation() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.PlayLibraryAnimation(n"Reworked_PrimaryColor_Hover", playbackOptions);
+    this.PlayLibraryAnimation(n"Reworked_SecondaryColor_Hover", playbackOptions);
+  }
+
+  protected final func PlayBackgroundAnimation() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.PlayLibraryAnimation(n"background_fluff_idle", playbackOptions);
+  }
+
+  protected cb func OnSlotClick(evt: ref<ItemDisplayClickEvent>) -> Bool {
+    let isRequirementMet: Bool;
+    let type: VendorConfirmationPopupType;
+    let item: wref<UIInventoryItem> = evt.uiInventoryItem;
+    let isEquipped: Bool = item.IsEquipped();
+    if item == null || NotEquals(this.m_screenType, GlamdocScreenType.Appearance) || this.m_isExitingGlamdocMenu {
+      return false;
+    };
+    if evt.actionName.IsAction(n"buy_cyberware_glam") {
+      this.m_audioSystem.Play(n"ui_menu_onpress");
+      if (evt.displayContextData.IsVendorItem() || this.IsPreviewedItem(item.GetID())) && !this.m_isPurchasing {
+        isRequirementMet = this.ItemTagMatch(item.GetItemData(), IntEnum<ArmsWareType>(EnumInt(this.m_equippedArmItem.GetItemType()) - 15));
+        if !this.CanPlayerCanBuyItem(item.GetID()) {
+          this.OpenNotEnoughMoneyNotification();
+        } else {
+          if !isRequirementMet {
+            this.OpenConfirmationPopup(item, this.m_VendorDataManager.GetBuyingPrice(item.GetID()), VendorConfirmationPopupType.BuyNotEquipableCyberware, n"OnBuyConfirmationPopupClosed");
+          } else {
+            type = EquipmentSystem.GetInstance(this.m_player).GetPlayerData(this.m_player).IsEquippable(item.GetItemData()) ? VendorConfirmationPopupType.BuyAndEquipCyberware : VendorConfirmationPopupType.BuyNotEquipableCyberware;
+            this.OpenConfirmationPopup(item, this.m_VendorDataManager.GetBuyingPrice(item.GetID()), type, n"OnBuyConfirmationPopupClosed");
+          };
+        };
+      };
+    } else {
+      if evt.actionName.IsAction(n"click") {
+        if evt.displayContextData.IsVendorItem() {
+          if this.CanEnterPreviewMode(item, evt.displayContextData) {
+            this.EnterPreviewMode(item);
+          };
+        } else {
+          if !isEquipped {
+            if !this.m_isProcessingCustomizationChange && !this.m_isInPopup {
+              if this.m_isInPreviewMode {
+                this.ExitPreviewMode(true);
+              };
+              if this.ApplyCyberwareCosmetic(item.GetItemData()) {
+                this.ResetColorsToDefault();
+                this.SetAnyChangesMade(true);
+                this.SetHasAnyChangesToApply(true);
+              };
+            };
+          };
+        };
+      } else {
+        if evt.actionName.IsAction(n"unequip_item") && !this.m_isInPreviewMode && this.m_equippedStyle != null && ItemID.IsValid(this.m_equippedStyle.GetID()) && item.GetID() == this.m_equippedStyle.GetID() {
+          this.UpdateCurrentCustomizationItem(ItemID.None());
+          this.UnequipCyberwareCustomization();
+          this.HideColorTab(true);
+        };
+      };
+    };
+  }
+
+  private final func CanEnterPreviewMode(item: wref<UIInventoryItem>, displayContextData: wref<ItemDisplayContextData>) -> Bool {
+    if !displayContextData.IsVendorItem() || this.m_isPurchasing {
+      return false;
+    };
+    if !this.CheckIfCanApply(item.GetItemData()) {
+      return false;
+    };
+    return true;
+  }
+
+  private final func EnterPreviewMode(item: wref<UIInventoryItem>) -> Void {
+    let previewItems: array<wref<UIInventoryItem>>;
+    if !this.m_isInPreviewMode {
+      this.m_prePreviewStyleData = this.m_cyberwareCustomizationSystem.GetSavedData();
+      this.m_prePreviewStyleData.switcherName = CyberwareCustomizationHelper.GetCyberarmTypeFromCustomizationItem(item.GetItemData());
+    };
+    this.m_isInPreviewMode = true;
+    ArrayPush(previewItems, item);
+    this.m_minigridController.UpdateData(gamedataEquipmentArea.ArmsCWStyle, previewItems);
+    inkTextRef.SetText(this.m_minigridTextAnchor, item.GetName());
+    this.m_buttonHintsController.AddButtonHint(n"UI_Apply", GetLocalizedText("Gameplay-Cyberware-PimpMyChrome-Hints-CloseApply"));
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("UI-UserActions-NavigateBack"));
+    this.m_buttonHintsController.RemoveButtonHint(n"buy_cyberware_glam");
+    this.ApplyPreviewCyberwareCosmetic(item.GetItemData());
+    this.UpdateWidgetsVisualsForPreviewMode();
+  }
+
+  private final func UpdateWidgetsVisualsForPreviewMode() -> Void {
+    inkWidgetRef.SetVisible(this.m_minigridTitlePreview, this.m_isInPreviewMode);
+    inkWidgetRef.SetVisible(this.m_minigridTitleAnchor, !this.m_isInPreviewMode);
+    this.m_selector.SetIsDisabled(this.m_isInPreviewMode);
+    if this.m_isInPreviewMode {
+      this.ShowColorTab();
+      this.DisplayInventory();
+    } else {
+      this.m_tabRoot.Toggle(0);
+      if !ItemID.IsValid(this.m_equippedStyle.GetID()) {
+        this.HideColorTab(true);
+      };
+    };
+  }
+
+  private final func IsPreviewedItem(itemID: ItemID) -> Bool {
+    return itemID == this.m_previewedStyleID;
+  }
+
+  private final func ExitPreviewMode(opt skipRestorePreviousCyberware: Bool) -> Void {
+    let exitEvent: ref<ExitGlamdocPreviewModeDelayed> = new ExitGlamdocPreviewModeDelayed();
+    this.QueueEvent(exitEvent);
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    if !this.m_hasChangesToApply {
+      this.m_buttonHintsController.RemoveButtonHint(n"UI_Apply");
+    };
+    this.m_previewedStyleID = ItemID.None();
+    if !skipRestorePreviousCyberware {
+      this.RestoreCyberwareCosmetic();
+    };
+    this.UpdateMinigrid();
+    this.m_isPuppetWaitingForPreviewModeExit = true;
+  }
+
+  protected cb func OnExitPreviewMode(evt: ref<ExitGlamdocPreviewModeDelayed>) -> Bool {
+    this.m_isInPreviewMode = false;
+    this.UpdateWidgetsVisualsForPreviewMode();
+    this.UpdatePuppetWhenExitingPreviewMode();
+    this.DisplayInventory();
+  }
+
+  protected cb func OnSelectorChange(evt: ref<GlamdocSelectorChangeEvent>) -> Bool {
+    if NotEquals(this.m_screenType, GlamdocScreenType.Appearance) || this.m_isInPopup {
+      return false;
+    };
+    this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, evt.SlidingRight ? RumblePosition.Right : RumblePosition.Left);
+    this.m_audioSystem.Play(n"ui_menu_onpress");
+    this.m_filterArea = this.m_allFilters[evt.Index];
+    this.DisplayInventory();
+    this.m_selector.Show(evt.Index);
+    this.DollHover(gamedataEquipmentArea.ArmsCW);
+    this.DollSelect(true);
+  }
+
+  private final func DollHover(area: gamedataEquipmentArea) -> Void {
+    if Equals(this.m_dollHoverArea, area) {
+      return;
+    };
+    if this.m_dollSelected {
+      this.DollSelect(false);
+    };
+    if NotEquals(this.m_dollHoverArea, gamedataEquipmentArea.Invalid) {
+      this.m_animationController.StopHover();
+    };
+    if NotEquals(area, gamedataEquipmentArea.Invalid) {
+      this.m_animationController.StartHover();
+    };
+    this.m_dollHoverArea = area;
+  }
+
+  private final func DollSelect(select: Bool) -> Void {
+    if Equals(this.m_dollHoverArea, gamedataEquipmentArea.Invalid) || Equals(this.m_dollSelected, select) {
+      return;
+    };
+    if select {
+      this.m_animationController.StartSelect();
+    } else {
+      this.m_animationController.StopSelect();
+    };
+    this.m_dollSelected = select;
+  }
+
+  private final func CanPlayerCanBuyItem(itemID: ItemID) -> Bool {
+    return this.m_VendorDataManager.GetBuyingPrice(itemID) <= this.m_VendorDataManager.GetLocalPlayerCurrencyAmount();
+  }
+
+  private final func OpenNotEnoughMoneyNotification() -> Void {
+    let uiMenuNotification: ref<UIMenuNotificationEvent> = new UIMenuNotificationEvent();
+    uiMenuNotification.m_notificationType = UIMenuNotificationType.VNotEnoughMoney;
+    this.m_uiSystem.QueueEvent(uiMenuNotification);
+  }
+
+  private final func OpenConfirmationPopup(item: wref<UIInventoryItem>, price: Int32, type: VendorConfirmationPopupType, listener: CName) -> Void {
+    let data: ref<VendorConfirmationPopupData> = new VendorConfirmationPopupData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\vendor_confirmation.inkwidget";
+    data.isBlocking = true;
+    data.useCursor = true;
+    data.queueName = n"modal_popup";
+    data.inventoryItem = item;
+    data.quantity = item.GetQuantity();
+    data.type = type;
+    data.price = price;
+    if Equals(type, VendorConfirmationPopupType.BuyAndEquipCyberware) || Equals(type, VendorConfirmationPopupType.BuyNotEquipableCyberware) || Equals(type, VendorConfirmationPopupType.BuyAndEquipPreviewedCyberware) {
+      this.m_isPurchasing = true;
+    };
+    this.m_tokenPopup = this.ShowGameNotification(data);
+    this.m_tokenPopup.RegisterListener(this, listener);
+    this.OnPopupVisibilityToggled(true);
+  }
+
+  protected cb func OnBuyConfirmationPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_tokenPopup = null;
+    let resultData: ref<VendorConfirmationPopupCloseData> = data as VendorConfirmationPopupCloseData;
+    if resultData.confirm {
+      this.m_VendorDataManager.BuyItemFromVendor(resultData.inventoryItem.GetItemData(), resultData.inventoryItem.GetQuantity());
+    } else {
+      this.m_isExitingMenuAfterBuy = false;
+      this.m_isPurchasing = false;
+      this.UpdateCursorVisibility();
+    };
+    this.OnPopupVisibilityToggled(false);
+  }
+
+  public final func OnItemBought(itemID: ItemID, itemData: wref<gameItemData>) -> Void {
+    if !this.m_isPurchasing {
+      return;
+    };
+    this.m_isPurchased = true;
+    this.m_isPurchasing = false;
+    this.RemoveCachedVendorItem(itemID);
+    this.m_InventoryManager.MarkToRebuild();
+    if !this.ApplyCyberwareCosmetic(itemData) {
+      this.m_isPurchased = false;
+    };
+    this.DisplayInventory();
+    this.m_spendCost += this.m_VendorDataManager.GetBuyingPrice(itemID);
+    this.m_spendCount += 1;
+    if this.m_spendCost > 0 {
+      this.m_questSystem.SetFact(n"glam_bought", 1);
+    };
+    this.SetAnyChangesMade(true);
+    if this.m_isInPreviewMode {
+      this.SetHasAnyChangesToApply(true);
+      if this.m_isExitingMenuAfterBuy {
+        this.m_isInPreviewMode = false;
+        this.QuitVendor(false, true);
+      } else {
+        this.ExitPreviewMode(true);
+      };
+    } else {
+      this.ResetColorsToDefault();
+    };
+  }
+
+  private final func RemoveCachedVendorItem(itemID: ItemID) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let hash: Uint64 = ItemID.GetCombinedHash(itemID);
+    let item: wref<WrappedUIInventoryItem> = this.m_vendorWrappedItems.Get(hash) as WrappedUIInventoryItem;
+    if item != null {
+      i = 0;
+      limit = ArraySize(this.m_cachedVendorItems);
+      while i < limit {
+        ArrayRemove(this.m_cachedVendorItems[i], item);
+        i += 1;
+      };
+      this.m_vendorItems.Remove(hash);
+      this.m_vendorWrappedItems.Remove(hash);
+    };
+  }
+
+  protected cb func OnUIVendorItemBoughtEvent(evt: ref<UIVendorItemsBoughtEvent>) -> Bool {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(evt.itemsID);
+    while i < limit {
+      this.RemoveCachedVendorItem(evt.itemsID[i]);
+      i += 1;
+    };
+  }
+
+  protected cb func OnSlotHover(evt: ref<ItemDisplayHoverOverEvent>) -> Bool {
+    let item: wref<UIInventoryItem>;
+    this.m_TooltipsManager.HideTooltips();
+    if Equals(this.m_screenType, GlamdocScreenType.Appearance) {
+      item = evt.uiInventoryItem;
+      this.m_hoveringVendorItem = Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.Vendor) || this.IsPreviewedItem(item.GetID());
+      this.SetButtonHintsHover(item, this.m_hoveringVendorItem);
+      if ItemID.IsValid(item.GetID()) {
+        this.ShowCWTooltip(item, evt.widget, this.m_hoveringVendorItem);
+      };
+      if this.m_hoveringVendorItem {
+        MarketSystem.ItemInspected(this.m_VendorDataManager.GetVendorInstance(), ItemID.GetTDBID(item.ID));
+      };
+      if item.GetID() == this.m_equippedStyle.GetID() {
+        this.m_minigridController.HighlightSlot(0, true);
+      } else {
+        this.m_audioSystem.Play(n"ui_menu_hover");
+      };
+    };
+  }
+
+  protected cb func OnSlotUnhover(evt: ref<ItemDisplayHoverOutEvent>) -> Bool {
+    if Equals(this.m_screenType, GlamdocScreenType.Appearance) {
+      this.m_hoveringVendorItem = false;
+      this.m_TooltipsManager.HideTooltips();
+      this.SetButtonHintsHoverOut();
+      this.m_minigridController.UnhighlightSlot(0);
+    };
+  }
+
+  private final func ShowCWTooltip(item: wref<UIInventoryItem>, widget: wref<inkWidget>, isVendorItem: Bool, opt iconErrorInfo: ref<DEBUG_IconErrorInfo>) -> Void {
+    let anchor: wref<inkWidget> = widget;
+    let placement: gameuiETooltipPlacement = gameuiETooltipPlacement.RightTop;
+    let tooltipData: ref<UIInventoryItemTooltipWrapper> = UIInventoryItemTooltipWrapper.Make(item, isVendorItem ? this.m_vendorItemDisplayContext : this.m_playerItemDisplayContext);
+    this.m_TooltipsManager.ShowTooltipAtWidget(n"itemTooltip", anchor, tooltipData, placement, false, new inkMargin(this.m_defaultTooltipGap, 0.00, 0.00, 0.00));
+  }
+
+  private final func SetButtonHintsHover(item: wref<UIInventoryItem>, isVendorItem: Bool) -> Void {
+    let isEmpty: Bool = item == null;
+    let isEquipped: Bool = item.IsEquipped();
+    if Equals(this.m_screenType, GlamdocScreenType.Appearance) {
+      if isEquipped {
+        this.m_buttonHintsController.AddButtonHint(n"unequip_item", GetLocalizedText("UI-UserActions-Unequip"));
+      } else {
+        if isVendorItem {
+          this.m_buttonHintsController.AddButtonHint(n"buy_cyberware_glam", "LocKey#17847");
+          if this.CheckIfCanApply(item.GetItemData()) {
+            if !this.m_isInPreviewMode || !this.IsPreviewedItem(item.GetID()) {
+              this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("Gameplay-Cyberware-PimpMyChrome-Hints-Preview"));
+            };
+          };
+        } else {
+          if !isEmpty {
+            this.m_buttonHintsController.AddButtonHint(n"select", "LocKey#246");
+          };
+        };
+      };
+      this.SetCursorContext(n"Hover");
+    };
+  }
+
+  private final func SetButtonHintsHoverOut() -> Void {
+    this.m_buttonHintsController.RemoveButtonHint(n"unequip_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"select");
+    this.m_buttonHintsController.RemoveButtonHint(n"buy_cyberware_glam");
+  }
+
+  public final func SendLatestToCyberwareCustomization(opt ignoreLongSleeves: Bool) -> Void {
+    let request: ref<SaveAndApplyCyberwareCustomizationDataRequest>;
+    let switcherIndex: Uint32;
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    let longsleeveSwitcherIndex: Int32 = CyberwareCustomizationHelper.GetLongSleevesCustomizationIndexFromCustomizationItem(this.m_equippedStyle.GetItemData());
+    if !ignoreLongSleeves && longsleeveSwitcherIndex != -1 && EquipmentSystemPlayerData.HasLongSleeves(this.m_player) {
+      switcherIndex = Cast<Uint32>(longsleeveSwitcherIndex);
+    } else {
+      switcherIndex = Cast<Uint32>(CyberwareCustomizationHelper.GetCustomizationIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    };
+    this.HidePuppetPreview();
+    this.m_isProcessingCustomizationChange = true;
+    request = new SaveAndApplyCyberwareCustomizationDataRequest();
+    request.enabled = this.m_isInPreviewMode || savedData.enabled;
+    request.customizationItem = this.m_equippedStyle.GetItemData();
+    request.switcherName = IsDefined(this.m_equippedStyle) ? CyberwareCustomizationHelper.GetCyberarmTypeFromCustomizationItem(this.m_equippedStyle.GetItemData()) : savedData.switcherName;
+    request.switcherIndex = switcherIndex;
+    request.primaryColorIndex = this.m_colorADefined ? this.m_selectedIndexColorA : Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultPrimaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    request.secondaryColorIndex = this.m_colorBDefined ? this.m_selectedIndexColorB : Cast<Uint8>(CyberwareCustomizationHelper.GetDefaultSecondaryColorIndexFromCustomizationItem(this.m_equippedStyle.GetItemData()));
+    this.m_cyberwareCustomizationSystem.QueueRequest(request);
+  }
+
+  public final func UnequipCyberwareCustomization() -> Void {
+    let custoRequest: ref<SaveAndApplyCyberwareCustomizationDataRequest>;
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    this.HidePuppetPreview();
+    this.m_isProcessingCustomizationChange = true;
+    this.m_isPuppetWaitingForUnequip = true;
+    custoRequest = new SaveAndApplyCyberwareCustomizationDataRequest();
+    custoRequest.enabled = false;
+    custoRequest.switcherName = savedData.switcherName;
+    custoRequest.switcherIndex = 0u;
+    this.m_cyberwareCustomizationSystem.QueueRequest(custoRequest);
+    this.UnequipFromEquipmentSystem();
+    this.SetAnyChangesMade(true);
+    this.SetHasAnyChangesToApply(true);
+  }
+
+  private final func UnequipFromEquipmentSystem() -> Void {
+    let unequipRequest: ref<UnequipRequest> = new UnequipRequest();
+    unequipRequest.areaType = gamedataEquipmentArea.ArmsCWStyle;
+    unequipRequest.owner = this.m_player;
+    unequipRequest.slotIndex = 0;
+    unequipRequest.force = false;
+    GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"EquipmentSystem").QueueRequest(unequipRequest);
+    this.m_questSystem.SetFact(n"glam_equipped", 0);
+  }
+
+  private final func ApplyCyberwareCosmetic(itemData: wref<gameItemData>) -> Bool {
+    let ignoreLongSleeves: Bool;
+    let notification: ref<UIMenuNotificationEvent>;
+    if !this.CheckIfCanApply(itemData) {
+      notification = new UIMenuNotificationEvent();
+      notification.m_notificationType = UIMenuNotificationType.CyberwareMismatch;
+      this.m_uiSystem.QueueEvent(notification);
+      this.m_audioSystem.Play(n"ui_menu_attributes_fail");
+      return false;
+    };
+    this.UpdateCurrentCustomizationItem(itemData.GetID());
+    this.m_customizationItemData = this.m_equippedStyle.GetItemData();
+    this.InitializeBrandData(CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(this.m_customizationItemData));
+    if !this.m_isInPreviewMode || !this.IsPreviewedItem(itemData.GetID()) {
+      this.ResetColorsToDefault();
+    };
+    ignoreLongSleeves = !this.m_isExitingMenuAfterBuy;
+    this.SendLatestToCyberwareCustomization(ignoreLongSleeves);
+    this.EquipFromEquipmentSystem(itemData);
+    if this.m_isPurchased {
+      this.m_isPurchased = false;
+      this.m_audioSystem.Play(n"ui_menu_item_bought");
+    };
+    if IsDefined(this.m_minigridController) {
+      this.m_minigridController.UpdateData(gamedataEquipmentArea.ArmsCWStyle, this.m_uiInventorySystem.GetPlayerAreaItems(gamedataEquipmentArea.ArmsCWStyle));
+    };
+    return true;
+  }
+
+  private final func EquipFromEquipmentSystem(itemData: wref<gameItemData>) -> Void {
+    let equipRequest: ref<EquipRequest> = new EquipRequest();
+    equipRequest.owner = this.m_player;
+    equipRequest.itemID = itemData.GetID();
+    equipRequest.slotIndex = 0;
+    GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"EquipmentSystem").QueueRequest(equipRequest);
+    this.m_questSystem.SetFact(n"glam_equipped", 1);
+  }
+
+  private final func ApplyPreviewCyberwareCosmetic(itemData: wref<gameItemData>) -> Bool {
+    this.UpdateCurrentCustomizationItem(ItemID.None(), itemData);
+    this.m_previewedStyleID = itemData.GetID();
+    this.m_customizationItemData = this.m_equippedStyle.GetItemData();
+    this.InitializeBrandData(CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(this.m_customizationItemData));
+    this.ResetColorsToDefault(true);
+    this.SendLatestToCyberwareCustomization(true);
+    return true;
+  }
+
+  private final func RestoreCyberwareCosmetic() -> Void {
+    let request: ref<SaveAndApplyCyberwareCustomizationDataRequest>;
+    let switcherName: CName = CyberwareCustomizationHelper.GetCyberarmTypeFromCustomizationItem(this.m_equippedStyle.GetItemData());
+    this.UpdateCurrentCustomizationItem(this.m_prePreviewStyleData.customizationItemID);
+    this.HidePuppetPreview();
+    this.m_isProcessingCustomizationChange = true;
+    request = new SaveAndApplyCyberwareCustomizationDataRequest();
+    request.enabled = this.m_prePreviewStyleData.enabled;
+    request.customizationItem = this.m_equippedStyle.GetItemData();
+    request.switcherName = Equals(this.m_prePreviewStyleData.switcherName, n"None") ? switcherName : this.m_prePreviewStyleData.switcherName;
+    request.switcherIndex = this.m_prePreviewStyleData.switcherIndex;
+    request.primaryColorIndex = this.m_prePreviewStyleData.primaryColorIndex;
+    request.secondaryColorIndex = this.m_prePreviewStyleData.secondaryColorIndex;
+    this.m_cyberwareCustomizationSystem.QueueRequest(request);
+    this.m_customizationItemData = this.m_equippedStyle.GetItemData();
+    this.SelectColorIndexForMode(this.m_prePreviewStyleData.primaryColorIndex, cyberwareCustomColorSelectorActiveMode.Primary);
+    this.SelectColorIndexForMode(this.m_prePreviewStyleData.secondaryColorIndex, cyberwareCustomColorSelectorActiveMode.Secondary);
+    this.InitializeBrandData(CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(this.m_customizationItemData));
+  }
+
+  protected cb func OnItemEquipped(value: Variant) -> Bool {
+    this.m_uiInventorySystem.GetInventoryItemsManager().FlushEquippedItems();
+    this.QueueEvent(new DelayedItemEquipped());
+    this.QueueEvent(new RipperdocRefreshInventoryEvent());
+  }
+
+  protected cb func OnDelayedItemEquipped(evt: ref<DelayedItemEquipped>) -> Bool {
+    this.UpdateMinigrid();
+    if IsDefined(this.m_equippedStyle) {
+      this.m_minigridController.PlayEquipAnimation(0);
+    };
+  }
+
+  protected cb func OnRefreshInventoryEvent(evt: ref<RipperdocRefreshInventoryEvent>) -> Bool {
+    this.DisplayInventory();
+  }
+
+  protected cb func OnUIInventoryItemAdded(evt: ref<UIInventoryItemAdded>) -> Bool {
+    this.PreparePlayerItems();
+    this.QueueEvent(new RipperdocRefreshInventoryEvent());
+  }
+
+  private final func RegisterInventoryListener(player: ref<GameObject>) -> Void {
+    let itemBoughtCallback: ref<GlamDocItemBoughtCallback> = new GlamDocItemBoughtCallback();
+    itemBoughtCallback.itemID = ItemID.None();
+    itemBoughtCallback.Bind(this);
+    this.m_inventoryListener = GameInstance.GetTransactionSystem(player.GetGame()).RegisterInventoryListener(player, itemBoughtCallback);
+  }
+
+  private final func SpawnMinigrid() -> Void {
+    let gridUserData: ref<GridUserData>;
+    let category: RipperdocCategory = new RipperdocCategory(gamedataEquipmentArea.ArmsCWStyle, inkEHorizontalAlign.Left, this.m_armsAnchor);
+    inkCompoundRef.RemoveAllChildren(category.parent);
+    gridUserData = new GridUserData();
+    gridUserData.equipArea = category.equipArea;
+    gridUserData.align = category.align;
+    gridUserData.parent = category.parent;
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(category.parent), n"ArmsInventoryMiniGridLeft", this, n"OnMinigridSpawned", gridUserData);
+  }
+
+  protected cb func OnMinigridSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let i: Int32;
+    let items: array<wref<UIInventoryItem>>;
+    let limit: Int32;
+    let margin: inkMargin;
+    margin.left = -300.00;
+    margin.top = -130.00;
+    this.m_minigridTargetAnchorMargin = margin;
+    let gridUserData: ref<GridUserData> = userData as GridUserData;
+    widget.SetHAlign(gridUserData.align);
+    this.m_minigridController = widget.GetController() as CyberwareInventoryMiniGrid;
+    ArrayPush(items, this.m_equippedStyle);
+    i = 0;
+    limit = ArraySize(items);
+    while i < limit {
+      items[i].GetRequirementsManager(this.m_player).SetIsEquippableRaw(false);
+      i += 1;
+    };
+    this.m_minigridController.SetTargetMargin(this.m_minigridTargetAnchorMargin, gridUserData.parent);
+    this.m_minigridController.SetupData(gridUserData.equipArea, items, this, n"None", CyberwareScreenType.Glamdoc, false, this.m_playerItemDisplayContext, this.m_InventoryManager, this.m_player, true, false);
+    this.m_minigridController.SetPositionImmediate(this.m_minigridTargetAnchorMargin);
+    this.m_minigridController.SetLabelImmediate(false);
+    this.m_minigridController.RefreshisNewPreview(false);
+    this.m_minigridController.OpacityShow();
+    inkTextRef.SetLocalizedTextScript(this.m_minigridTitleAnchor, "LocKey#97489");
+    inkTextRef.SetLocalizedTextScript(this.m_minigridTitlePreview, "LocKey#98021");
+    inkWidgetRef.SetVisible(this.m_minigridTitlePreview, false);
+    inkTextRef.SetText(this.m_minigridTextAnchor, items[0].GetName());
+  }
+
+  private final func UpdateMinigrid() -> Void {
+    this.m_minigridController.UpdateData(gamedataEquipmentArea.ArmsCWStyle, this.m_uiInventorySystem.GetPlayerAreaItems(gamedataEquipmentArea.ArmsCWStyle));
+    inkTextRef.SetText(this.m_minigridTextAnchor, IsDefined(this.m_equippedStyle) ? this.m_equippedStyle.GetName() : "");
+  }
+
+  private final func GetSavedCustomizationItemID() -> ItemID {
+    let savedData: CyberwareCustomizationPersistentData = this.m_cyberwareCustomizationSystem.GetSavedData();
+    return savedData.customizationItemID;
+  }
+
+  private final func UpdateCurrentCustomizationItem(itemID: ItemID, opt itemData: wref<gameItemData>) -> Void {
+    if !IsDefined(itemData) {
+      itemData = GameInstance.GetTransactionSystem(this.m_player.GetGame()).GetItemData(this.m_player, itemID);
+    };
+    this.m_equippedStyleItem = itemData == null ? null : UIInventoryItem.Make(this.m_player, itemData, this.m_uiInventorySystem.GetInventoryItemsManager());
+    this.m_equippedStyle = this.m_equippedStyleItem;
+  }
+
+  private final func SpawnOnEquipEvent() -> Void {
+    let equipAnimationUpdateData: ref<EquipAnimationUpdateData> = new EquipAnimationUpdateData();
+    equipAnimationUpdateData.equipArea = gamedataEquipmentArea.ArmsCW;
+    equipAnimationUpdateData.isEquip = true;
+    this.m_menuEventDispatcher.SpawnEvent(n"OnEquipAnimationDataUpdate", equipAnimationUpdateData);
+  }
+
+  private final func SetAnyChangesMade(value: Bool) -> Void {
+    this.m_anyChangesMade = value;
+  }
+
+  private final func SetHasAnyChangesToApply(value: Bool) -> Void {
+    this.m_hasChangesToApply = value;
+    if this.m_hasChangesToApply {
+      this.m_buttonHintsController.AddButtonHint(n"UI_Apply", GetLocalizedText("Gameplay-Cyberware-PimpMyChrome-Hints-CloseApply"));
+    };
+  }
+
+  public final func ShowPreviewPuppet() -> Void {
+    this.OnItemsFinishedAttach();
+  }
+}

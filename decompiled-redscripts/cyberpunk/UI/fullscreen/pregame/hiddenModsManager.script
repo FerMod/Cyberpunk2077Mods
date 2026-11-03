@@ -1,0 +1,580 @@
+
+public class HiddenModManager extends inkGameController {
+
+  private edit let m_hiddenModsTab: inkWidgetRef;
+
+  private edit let m_hiddenAuthorsTab: inkWidgetRef;
+
+  private edit let m_applyButtonRef: inkWidgetRef;
+
+  private edit let m_applyButtonText: inkWidgetRef;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  private let m_data: ref<HiddenModManagerPopupData>;
+
+  private let m_ownerMenuRef: wref<BrowserModsMenuGameController>;
+
+  private let m_hiddenModsTabController: wref<HiddenManagerTabItem>;
+
+  private let m_hiddenAuthorsTabController: wref<HiddenManagerTabItem>;
+
+  private let m_openAnim: ref<inkAnimProxy>;
+
+  private let m_closeAnim: ref<inkAnimProxy>;
+
+  private let m_applyButtonController: wref<inkButtonController>;
+
+  private let m_closeButtonController: wref<inkButtonController>;
+
+  private let m_bHasChanges: Bool;
+
+  private let m_currentlyHoveredWidget: wref<inkWidget>;
+
+  private edit let m_mainHiddenModsWidget: inkWidgetRef;
+
+  private edit let m_hiddenModSpawnerRef: inkWidgetRef;
+
+  private let m_hiddenModList: [wref<HiddenModItem>];
+
+  private let m_listOfHiddenModsToUnhide: [ModioModInfos];
+
+  private edit let m_mainHiddenAuthorsWidget: inkWidgetRef;
+
+  private edit let m_hiddenAuthorSpawnerRef: inkWidgetRef;
+
+  private let m_hiddenAuthorList: [wref<HiddenAuthorItem>];
+
+  private let m_listOfHiddenAuthorsToUnhide: [inkModAuthorInfo];
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_currentlyHoveredWidget = null;
+    this.m_data = this.GetRootWidget().GetUserData(n"HiddenModManagerPopupData") as HiddenModManagerPopupData;
+    this.Setup();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.m_hiddenModsTabController = inkWidgetRef.GetController(this.m_hiddenModsTab) as HiddenManagerTabItem;
+    inkWidgetRef.RegisterToCallback(this.m_hiddenModsTab, n"OnRelease", this, n"OnModsTabButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_hiddenModsTab, n"OnHoverOver", this, n"OnModsTabButtonHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_hiddenModsTab, n"OnHoverOut", this, n"OnModsTabButtonHoveredOut");
+    this.m_hiddenAuthorsTabController = inkWidgetRef.GetController(this.m_hiddenAuthorsTab) as HiddenManagerTabItem;
+    inkWidgetRef.RegisterToCallback(this.m_hiddenAuthorsTab, n"OnRelease", this, n"OnAuthorTabsButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_hiddenAuthorsTab, n"OnHoverOver", this, n"OnAuthorTabsButtonHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_hiddenAuthorsTab, n"OnHoverOut", this, n"OnAuthorTabsButtonHoveredOut");
+    inkWidgetRef.RegisterToCallback(this.m_applyButtonRef, n"OnRelease", this, n"OnApplyButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_applyButtonRef, n"OnHoverOver", this, n"OnApplyButtonHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_applyButtonRef, n"OnHoverOut", this, n"OnApplyButtonHoveredOut");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnRelease", this, n"OnCloseButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnHoverOver", this, n"OnCloseButtonHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnHoverOut", this, n"OnCloseButtonHoveredOut");
+    this.m_applyButtonController = inkWidgetRef.GetController(this.m_applyButtonRef) as inkButtonController;
+    this.m_closeButtonController = inkWidgetRef.GetController(this.m_closeButtonRef) as inkButtonController;
+    this.m_hiddenModsTabController.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_applyButtonRef));
+    this.m_hiddenAuthorsTabController.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_applyButtonRef));
+    this.m_hiddenModsTabController.OverrideNavigation(inkDiscreteNavigationDirection.Left, inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+    this.m_hiddenAuthorsTabController.OverrideNavigation(inkDiscreteNavigationDirection.Right, inkWidgetRef.Get(this.m_hiddenModsTab));
+    this.m_applyButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Left, inkWidgetRef.Get(this.m_closeButtonRef));
+    this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Right, inkWidgetRef.Get(this.m_applyButtonRef));
+    this.UpdateApplyButtonEnableState();
+    this.DisplayMutedModsTab();
+    this.m_openAnim = this.PlayLibraryAnimation(n"In");
+    this.m_openAnim.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOpenAnimFinished");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenModsTab, n"OnRelease", this, n"OnModsTabButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenModsTab, n"OnRelease", this, n"OnModsTabButtonHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenModsTab, n"OnRelease", this, n"OnModsTabButtonHoveredOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenAuthorsTab, n"OnRelease", this, n"OnAuthorTabsButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenAuthorsTab, n"OnRelease", this, n"OnAuthorTabsButtonHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hiddenAuthorsTab, n"OnRelease", this, n"OnAuthorTabsButtonHoveredOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_applyButtonRef, n"OnRelease", this, n"OnApplyButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_applyButtonRef, n"OnHoverOver", this, n"OnApplyButtonHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_applyButtonRef, n"OnHoverOut", this, n"OnApplyButtonHoveredOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnRelease", this, n"OnCloseButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnHoverOver", this, n"OnCloseButtonHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnHoverOut", this, n"OnCloseButtonHoveredOut");
+  }
+
+  protected cb func OnApplyButtonHoveredOver(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOver(inkWidgetRef.Get(this.m_applyButtonRef));
+  }
+
+  protected cb func OnApplyButtonHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_applyButtonRef));
+  }
+
+  protected cb func OnCloseButtonHoveredOver(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOver(inkWidgetRef.Get(this.m_closeButtonRef));
+  }
+
+  protected cb func OnCloseButtonHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_closeButtonRef));
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_closeAnim != null {
+      return false;
+    };
+    if evt.IsAction(n"cancel") {
+      this.AskToClose();
+    } else {
+      if evt.IsAction(n"mod_notification_confirm") && this.m_bHasChanges {
+        this.ApplySelection();
+      } else {
+        if evt.IsAction(n"prior_menu") {
+          this.DisplayMutedModsTab();
+        } else {
+          if evt.IsAction(n"next_menu") {
+            this.DisplayMutedAuthorsTab();
+          } else {
+            if (evt.IsAction(n"popup_navigate_up") || evt.IsAction(n"popup_navigate_right")) && this.m_currentlyHoveredWidget == null {
+              this.SetCursorOverWidget(inkWidgetRef.Get(this.m_closeButtonRef), 0.10, true);
+            } else {
+              if (evt.IsAction(n"popup_navigate_down") || evt.IsAction(n"popup_navigate_left")) && this.m_currentlyHoveredWidget == null {
+                this.SetCursorOverWidget(inkWidgetRef.Get(this.m_hiddenModsTab), 0.10, true);
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnModsTabButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.DisplayMutedModsTab();
+    };
+  }
+
+  protected cb func OnModsTabButtonHoveredOver(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOver(inkWidgetRef.Get(this.m_hiddenModsTab));
+  }
+
+  protected cb func OnModsTabButtonHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_hiddenModsTab));
+  }
+
+  protected cb func OnAuthorTabsButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.DisplayMutedAuthorsTab();
+    };
+  }
+
+  protected cb func OnAuthorTabsButtonHoveredOver(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOver(inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+  }
+
+  protected cb func OnAuthorTabsButtonHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+  }
+
+  protected cb func OnApplyButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.m_bHasChanges {
+      this.ApplySelection();
+    };
+  }
+
+  protected cb func OnCloseButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.AskToClose();
+    };
+  }
+
+  public final func OnWidgetHoveredOut(inWidget: ref<inkWidget>) -> Void {
+    if this.m_currentlyHoveredWidget == inWidget {
+      this.m_currentlyHoveredWidget = null;
+    };
+  }
+
+  public final func OnWidgetHoveredOver(inWidget: ref<inkWidget>) -> Void {
+    this.m_currentlyHoveredWidget = inWidget;
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  private final func DisplayMutedModsTab() -> Void {
+    this.PlaySound(n"Button", n"OnPress");
+    inkWidgetRef.SetVisible(this.m_mainHiddenModsWidget, true);
+    inkWidgetRef.SetVisible(this.m_mainHiddenAuthorsWidget, false);
+    this.m_hiddenModsTabController.SetSelectedTab(true);
+    this.m_hiddenAuthorsTabController.SetSelectedTab(false);
+    this.m_applyButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, ArraySize(this.m_hiddenModList) > 0 ? this.m_hiddenModList[0].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+    this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, ArraySize(this.m_hiddenModList) > 0 ? this.m_hiddenModList[0].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+    this.m_applyButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, ArraySize(this.m_hiddenModList) > 0 ? this.m_hiddenModList[ArraySize(this.m_hiddenModList) - 1].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+    this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, ArraySize(this.m_hiddenModList) > 0 ? this.m_hiddenModList[ArraySize(this.m_hiddenModList) - 1].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenAuthorsTab));
+  }
+
+  private final func DisplayMutedAuthorsTab() -> Void {
+    this.PlaySound(n"Button", n"OnPress");
+    inkWidgetRef.SetVisible(this.m_mainHiddenModsWidget, false);
+    inkWidgetRef.SetVisible(this.m_mainHiddenAuthorsWidget, true);
+    this.m_hiddenModsTabController.SetSelectedTab(false);
+    this.m_hiddenAuthorsTabController.SetSelectedTab(true);
+    this.m_applyButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, ArraySize(this.m_hiddenAuthorList) > 0 ? this.m_hiddenAuthorList[0].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenModsTab));
+    this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, ArraySize(this.m_hiddenAuthorList) > 0 ? this.m_hiddenAuthorList[0].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenModsTab));
+    this.m_applyButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, ArraySize(this.m_hiddenAuthorList) > 0 ? this.m_hiddenAuthorList[ArraySize(this.m_hiddenAuthorList) - 1].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenModsTab));
+    this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, ArraySize(this.m_hiddenAuthorList) > 0 ? this.m_hiddenAuthorList[ArraySize(this.m_hiddenAuthorList) - 1].GetRootWidget() : inkWidgetRef.Get(this.m_hiddenModsTab));
+  }
+
+  private final func Setup() -> Void {
+    let currentEmptySlot: ref<EmptySlotItem>;
+    let currentHiddenAuthorItem: ref<HiddenAuthorItem>;
+    let currentHiddenModItem: ref<HiddenModItem>;
+    let i: Int32;
+    this.m_ownerMenuRef = this.m_data.m_ownerMenu;
+    this.m_ownerMenuRef.OnHiddenManagerOpened();
+    i = 0;
+    while i < ArraySize(this.m_data.m_listOfHiddenMods) {
+      currentHiddenModItem = this.SpawnFromLocal(inkWidgetRef.Get(this.m_hiddenModSpawnerRef), n"mutedModItem").GetController() as HiddenModItem;
+      currentHiddenModItem.Setup(this, this.GetSystemRequestsHandler(), this.m_data.m_listOfHiddenMods[i], this.m_data.m_listOfModLogoPath[i]);
+      ArrayPush(this.m_hiddenModList, currentHiddenModItem);
+      i += 1;
+    };
+    i;
+    while i < 6 {
+      currentEmptySlot = this.SpawnFromLocal(inkWidgetRef.Get(this.m_hiddenModSpawnerRef), n"EmptySlotItem").GetController() as EmptySlotItem;
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_data.m_listOfHiddenAuthors) {
+      currentHiddenAuthorItem = this.SpawnFromLocal(inkWidgetRef.Get(this.m_hiddenAuthorSpawnerRef), n"mutedAuthorItem").GetController() as HiddenAuthorItem;
+      currentHiddenAuthorItem.Setup(this, this.m_data.m_listOfHiddenAuthors[i]);
+      ArrayPush(this.m_hiddenAuthorList, currentHiddenAuthorItem);
+      i += 1;
+    };
+    i;
+    while i < 6 {
+      currentEmptySlot = this.SpawnFromLocal(inkWidgetRef.Get(this.m_hiddenAuthorSpawnerRef), n"EmptySlotItem").GetController() as EmptySlotItem;
+      currentEmptySlot.HideImageContainer();
+      i += 1;
+    };
+  }
+
+  private final func AskToClose() -> Void {
+    let m_systemHandler: ref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    if ArraySize(this.m_listOfHiddenAuthorsToUnhide) > 0 || ArraySize(this.m_listOfHiddenModsToUnhide) > 0 {
+      m_systemHandler.RequestSystemNotificationGenericYesNo(n"UI-Modio-ErrorMessages-WarningHiddenTitle", n"UI-Modio-ErrorMessages-WarningHiddenManager", this, n"OnWarnPlayerAboutUnappliedChangesResult", true);
+    } else {
+      this.StartClosing();
+    };
+  }
+
+  protected cb func OnWarnPlayerAboutUnappliedChangesResult(bAccepted: Bool) -> Bool {
+    if bAccepted {
+      this.StartClosing();
+    };
+  }
+
+  private final func StartClosing() -> Void {
+    if this.m_closeAnim != null {
+      return;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    this.m_closeAnim = this.PlayLibraryAnimation(n"Out");
+    this.m_closeAnim.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAnimFinished");
+  }
+
+  protected cb func OnOpenAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    if this.m_openAnim != null {
+      this.m_openAnim.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOpenAnimFinished");
+      this.m_openAnim = null;
+    };
+  }
+
+  protected cb func OnCloseAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    if this.m_closeAnim != null {
+      this.m_closeAnim.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnCloseAnimFinished");
+      this.m_closeAnim = null;
+    };
+    this.m_ownerMenuRef.OnHiddenManagerClosed();
+    this.m_data.token.TriggerCallback(null);
+  }
+
+  private final func ApplySelection() -> Void {
+    if this.m_closeAnim != null {
+      return;
+    };
+    this.m_ownerMenuRef.UnhideMods(this.m_listOfHiddenModsToUnhide);
+    this.m_ownerMenuRef.UnmuteAuthors(this.m_listOfHiddenAuthorsToUnhide);
+    this.StartClosing();
+  }
+
+  public final func OnHiddenModItemClicked(hiddenMod: ref<HiddenModItem>) -> Void {
+    if hiddenMod.GetHiddenState() {
+      ArrayRemove(this.m_listOfHiddenModsToUnhide, hiddenMod.GetModInfo());
+    } else {
+      ArrayPush(this.m_listOfHiddenModsToUnhide, hiddenMod.GetModInfo());
+    };
+    this.m_hiddenModsTabController.SetIsModified(ArraySize(this.m_listOfHiddenModsToUnhide) > 0);
+    this.UpdateApplyButtonEnableState();
+  }
+
+  public final func OnHiddenAuthorItemClicked(hiddenAuthor: ref<HiddenAuthorItem>) -> Void {
+    if hiddenAuthor.GetHiddenState() {
+      ArrayRemove(this.m_listOfHiddenAuthorsToUnhide, hiddenAuthor.GetAuthorInfo());
+    } else {
+      ArrayPush(this.m_listOfHiddenAuthorsToUnhide, hiddenAuthor.GetAuthorInfo());
+    };
+    this.m_hiddenAuthorsTabController.SetIsModified(ArraySize(this.m_listOfHiddenAuthorsToUnhide) > 0);
+    this.UpdateApplyButtonEnableState();
+  }
+
+  private final func UpdateApplyButtonEnableState() -> Void {
+    this.m_bHasChanges = ArraySize(this.m_listOfHiddenModsToUnhide) > 0 || ArraySize(this.m_listOfHiddenAuthorsToUnhide) > 0;
+    this.m_applyButtonController.SetEnabled(this.m_bHasChanges);
+    this.m_applyButtonController.SetSelectable(this.m_bHasChanges);
+    this.m_applyButtonController.UpdateButtonState(true);
+    if this.m_bHasChanges {
+      inkWidgetRef.Get(this.m_applyButtonText).BindProperty(n"tintColor", n"PopupButton.textColor");
+    } else {
+      inkWidgetRef.Get(this.m_applyButtonText).BindProperty(n"tintColor", n"MainColors.Grey");
+    };
+  }
+}
+
+public class HiddenModItem extends MutedItemCosmetic {
+
+  private edit let m_checkboxCanvas: inkWidgetRef;
+
+  private edit let m_modNametext: inkTextRef;
+
+  private edit let m_modAuthorName: inkTextRef;
+
+  private edit let m_logoWidget: inkImageRef;
+
+  private let m_isHiddenState: Bool;
+
+  private let m_modInfo: ModioModInfos;
+
+  private let m_managerRef: wref<HiddenModManager>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_isHiddenState = true;
+    inkWidgetRef.SetVisible(this.m_checkboxFill, true);
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnRelease", this, n"OnClicked");
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnHoverOut", this, n"OnHoverOut");
+    this.SetDefaultColor();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnRelease", this, n"OnClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func Setup(managerRef: ref<HiddenModManager>, systemHandler: ref<inkISystemRequestsHandler>, modInfo: ModioModInfos, modLogoPath: String) -> Void {
+    this.m_managerRef = managerRef;
+    inkTextRef.SetText(this.m_modAuthorName, modInfo.authorName);
+    inkTextRef.SetText(this.m_modNametext, modInfo.name);
+    this.m_modInfo = modInfo;
+    systemHandler.RequestGameScreenshotByPath(modLogoPath, inkWidgetRef.Get(this.m_logoWidget) as inkImage, this, n"OnScreenshotLoadedByPath");
+  }
+
+  protected cb func OnScreenshotLoadedByPath(screenshotSize: Vector2, errorCode: Int32) -> Bool;
+
+  protected cb func OnClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_isHiddenState = !this.m_isHiddenState;
+      this.SetIsModified(!this.m_isHiddenState);
+      inkWidgetRef.SetVisible(this.m_checkboxFill, this.m_isHiddenState);
+      this.m_managerRef.OnHiddenModItemClicked(this);
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.SetHoveredColor();
+    this.m_managerRef.OnWidgetHoveredOver(this.GetRootWidget());
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.SetDefaultColor();
+    this.m_managerRef.OnWidgetHoveredOut(this.GetRootWidget());
+  }
+
+  public final func GetHiddenState() -> Bool {
+    return this.m_isHiddenState;
+  }
+
+  public final func GetModInfo() -> ModioModInfos {
+    return this.m_modInfo;
+  }
+}
+
+public class HiddenAuthorItem extends MutedItemCosmetic {
+
+  private edit let m_checkboxCanvas: inkWidgetRef;
+
+  private edit let m_authorNameText: inkTextRef;
+
+  private let m_authorInfo: inkModAuthorInfo;
+
+  private let m_managerRef: wref<HiddenModManager>;
+
+  private let m_isHiddenState: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_isHiddenState = true;
+    inkWidgetRef.SetVisible(this.m_checkboxFill, true);
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnRelease", this, n"OnClicked");
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_checkboxCanvas, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnRelease", this, n"OnClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_checkboxCanvas, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func Setup(managerRef: ref<HiddenModManager>, authorInfo: inkModAuthorInfo) -> Void {
+    this.m_managerRef = managerRef;
+    this.m_authorInfo = authorInfo;
+    inkTextRef.SetText(this.m_authorNameText, authorInfo.username);
+  }
+
+  protected cb func OnClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_isHiddenState = !this.m_isHiddenState;
+      this.SetIsModified(!this.m_isHiddenState);
+      inkWidgetRef.SetVisible(this.m_checkboxFill, this.m_isHiddenState);
+      this.m_managerRef.OnHiddenAuthorItemClicked(this);
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.SetHoveredColor();
+    this.m_managerRef.OnWidgetHoveredOver(this.GetRootWidget());
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.SetDefaultColor();
+    this.m_managerRef.OnWidgetHoveredOut(this.GetRootWidget());
+  }
+
+  public final func GetHiddenState() -> Bool {
+    return this.m_isHiddenState;
+  }
+
+  public final func GetAuthorInfo() -> inkModAuthorInfo {
+    return this.m_authorInfo;
+  }
+}
+
+public class MutedItemCosmetic extends WarnModificationCosmetic {
+
+  protected edit let m_checkboxFill: inkWidgetRef;
+
+  protected edit let m_isHiddenText: inkTextRef;
+
+  protected edit let m_panelOutline: inkWidgetRef;
+
+  protected edit let m_panelBackground: inkWidgetRef;
+
+  protected let m_colorNames: ModsMenuColorsNames;
+
+  protected final func SetHoveredColor() -> Void {
+    inkWidgetRef.Get(this.m_isHiddenText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_checkboxFill).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenPrimaryBackgroundDarkName);
+  }
+
+  protected final func SetDefaultColor() -> Void {
+    inkWidgetRef.Get(this.m_isHiddenText).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_checkboxFill).BindProperty(n"tintColor", this.m_colorNames.redName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.faintRedName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.SetHoveredColor();
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.SetDefaultColor();
+  }
+}
+
+public class EmptySlotItem extends inkLogicController {
+
+  private edit let m_imageContainer: inkWidgetRef;
+
+  public final func HideImageContainer() -> Void {
+    inkWidgetRef.SetVisible(this.m_imageContainer, false);
+  }
+}
+
+public class WarnModificationCosmetic extends inkButtonController {
+
+  protected edit let m_modifiedFlag: inkWidgetRef;
+
+  protected let m_isModified: Bool;
+
+  public final func SetIsModified(bModified: Bool) -> Void {
+    this.m_isModified = bModified;
+    inkWidgetRef.SetVisible(this.m_modifiedFlag, this.m_isModified);
+  }
+}
+
+public class HiddenManagerTabItem extends WarnModificationCosmetic {
+
+  private edit let m_selectedStateCanvas: inkWidgetRef;
+
+  private edit let m_tabTextRef: inkTextRef;
+
+  private edit let m_frameRef: inkWidgetRef;
+
+  private let m_isSelected: Bool;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.RegisterToCallback(n"OnRelease", this, n"OnTabClicked");
+    this.SetSelectedTab(false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.PlaySound(n"Button", n"OnHover");
+    inkWidgetRef.Get(this.m_tabTextRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_frameRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_isSelected {
+      inkWidgetRef.Get(this.m_tabTextRef).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+      inkWidgetRef.Get(this.m_frameRef).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    } else {
+      inkWidgetRef.Get(this.m_tabTextRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+      inkWidgetRef.Get(this.m_frameRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    };
+  }
+
+  protected cb func OnTabClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.SetSelectedTab(true);
+    };
+  }
+
+  public final func SetSelectedTab(bSelected: Bool) -> Void {
+    this.m_isSelected = bSelected;
+    if this.m_isSelected {
+      inkWidgetRef.Get(this.m_tabTextRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+      inkWidgetRef.SetVisible(this.m_selectedStateCanvas, true);
+      inkWidgetRef.Get(this.m_frameRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    } else {
+      inkWidgetRef.Get(this.m_tabTextRef).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+      inkWidgetRef.SetVisible(this.m_selectedStateCanvas, false);
+      inkWidgetRef.Get(this.m_frameRef).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    };
+  }
+}

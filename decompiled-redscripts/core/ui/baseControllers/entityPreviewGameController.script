@@ -1,0 +1,380 @@
+
+public abstract native class inkPreviewGameController extends gameuiMenuGameController {
+
+  protected edit let m_isRotatable: Bool;
+
+  @default(inkGlamdocPuppetPreviewGameController, 60.0f)
+  @default(inkInventoryPuppetPreviewGameController, 60.0f)
+  @default(inkPreviewGameController, 30.0f)
+  protected edit let m_rotationSpeed: Float;
+
+  protected let m_inputDisabled: Bool;
+
+  public final native func Rotate(yaw: Float) -> Void;
+
+  public final native func RotateVector(value: Vector3) -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_inputDisabled = false;
+    if this.m_isRotatable {
+      this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if this.m_isRotatable {
+      this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    };
+  }
+
+  protected func HandleAxisInput(e: ref<inkPointerEvent>) -> Void {
+    let amount: Float = e.GetAxisData();
+    if e.IsAction(n"left_trigger") || e.IsAction(n"character_preview_rotate") {
+      this.Rotate(amount * -this.m_rotationSpeed);
+    } else {
+      if e.IsAction(n"right_trigger") || e.IsAction(n"character_preview_rotate") {
+        this.Rotate(amount * this.m_rotationSpeed);
+      };
+    };
+  }
+
+  protected cb func OnAxisInput(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      this.HandleAxisInput(e);
+    };
+  }
+
+  public final func SetInputDisabled(disabled: Bool) -> Void {
+    this.m_inputDisabled = disabled;
+  }
+}
+
+public native class inkPuppetPreviewGameController extends inkPreviewGameController {
+
+  public final native func GetGamePuppet() -> wref<gamePuppet>;
+
+  protected cb func OnPreviewInitialized() -> Bool {
+    this.SendAnimData();
+  }
+
+  private func SendAnimData() -> Void {
+    let animFeature: ref<AnimFeature_Paperdoll>;
+    this.GetAnimFeature(animFeature);
+    AnimationControllerComponent.ApplyFeature(this.GetGamePuppet(), n"Paperdoll", animFeature);
+  }
+
+  private func GetAnimFeature(out animFeature: ref<AnimFeature_Paperdoll>) -> Void {
+    animFeature = new AnimFeature_Paperdoll();
+  }
+}
+
+public native class inkGenderSelectionPuppetPreviewGameController extends inkPuppetPreviewGameController {
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+  }
+
+  private func GetAnimFeature(out animFeature: ref<AnimFeature_Paperdoll>) -> Void {
+    animFeature = new AnimFeature_Paperdoll();
+    animFeature.genderSelection = true;
+  }
+}
+
+public native class inkCharacterCreationPuppetPreviewGameController extends inkPuppetPreviewGameController {
+
+  private edit let m_puppetColliderWidget: inkWidgetRef;
+
+  private let m_characterCustomizationSystem: wref<gameuiICharacterCustomizationSystem>;
+
+  private let m_rotationPanDown: Bool;
+
+  @default(inkCharacterCreationPuppetPreviewGameController, 100.0f)
+  private let m_maxMousePointerOffset: Float;
+
+  @default(inkCharacterCreationPuppetPreviewGameController, 70.0f)
+  private let m_mouseRotationSpeed: Float;
+
+  protected final native func GetCharacterCustomizationSystem() -> ref<gameuiICharacterCustomizationSystem>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.m_characterCustomizationSystem = this.GetCharacterCustomizationSystem();
+    if IsDefined(this.m_characterCustomizationSystem) {
+      this.m_characterCustomizationSystem.RegisterPuppetPreviewGameController(this);
+    };
+    this.PlayLibraryAnimation(n"intro");
+    inkWidgetRef.RegisterToCallback(this.m_puppetColliderWidget, n"OnPress", this, n"OnPanDown");
+    inkWidgetRef.RegisterToCallback(this.m_puppetColliderWidget, n"OnRelease", this, n"OnPanRelease");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+    if IsDefined(this.m_characterCustomizationSystem) {
+      this.m_characterCustomizationSystem.UnregisterPuppetPreviewGameController();
+    };
+    inkWidgetRef.UnregisterFromCallback(this.m_puppetColliderWidget, n"OnPress", this, n"OnPanDown");
+    inkWidgetRef.UnregisterFromCallback(this.m_puppetColliderWidget, n"OnRelease", this, n"OnPanRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+  }
+
+  protected cb func OnPanDown(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if !this.m_inputDisabled && (e.IsAction(n"mouse_left") || e.IsAction(n"pan") || e.IsAction(n"jcms_left_click")) {
+      this.m_rotationPanDown = true;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(false);
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnPanRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if !this.m_inputDisabled && this.m_rotationPanDown {
+      if e.IsAction(n"mouse_left") || e.IsAction(n"pan") || e.IsAction(n"jcms_left_click") {
+        e.Consume();
+        this.m_rotationPanDown = false;
+        evt = new inkMenuLayer_SetCursorVisibility();
+        evt.Init(true);
+        this.QueueEvent(evt);
+      };
+    };
+  }
+
+  protected cb func OnRelativeInput(e: ref<inkPointerEvent>) -> Bool {
+    let offset: Float;
+    let ratio: Float;
+    let velocity: Float;
+    if this.m_rotationPanDown {
+      offset = e.GetAxisData();
+      if e.IsAction(n"mouse_x") || e.IsAction(n"jcms_x") {
+        if offset > 0.00 {
+          ratio = ClampF(offset / this.m_maxMousePointerOffset, 0.50, 1.00);
+        } else {
+          ratio = ClampF(offset / this.m_maxMousePointerOffset, -1.00, -0.50);
+        };
+        velocity = ratio * this.m_mouseRotationSpeed;
+        this.Rotate(velocity);
+      } else {
+        if e.IsAction(n"touch_x") {
+          ratio = 20.00;
+          this.Rotate(offset * ratio);
+        };
+      };
+    };
+  }
+
+  private func GetAnimFeature(out animFeature: ref<AnimFeature_Paperdoll>) -> Void {
+    animFeature = new AnimFeature_Paperdoll();
+    animFeature.characterCreation = true;
+  }
+
+  protected cb func OnSetCameraSetupEvent(index: Uint32, slotName: CName) -> Bool {
+    let animFeature: ref<AnimFeature_Paperdoll> = new AnimFeature_Paperdoll();
+    if Equals(slotName, n"UI_HeadPreview") {
+      animFeature.characterCreation_Head = true;
+    } else {
+      if Equals(slotName, n"UI_Skin") {
+        animFeature.characterCreation_Head = true;
+      } else {
+        if Equals(slotName, n"UI_Hairs") {
+          animFeature.characterCreation_Head = true;
+          animFeature.characterCreation_Hair = true;
+        } else {
+          if Equals(slotName, n"UI_Teeth") {
+            animFeature.characterCreation_Head = true;
+            animFeature.characterCreation_Teeth = true;
+          } else {
+            if Equals(slotName, n"UI_FingerNails") {
+              animFeature.characterCreation_Nails = true;
+            } else {
+              if Equals(slotName, n"UI_Eyes") {
+                animFeature.characterCreation_Head = true;
+                animFeature.characterCreation_Eyes = true;
+              } else {
+                if Equals(slotName, n"UI_Nose") {
+                  animFeature.characterCreation_Head = true;
+                  animFeature.characterCreation_Nose = true;
+                } else {
+                  if Equals(slotName, n"UI_Lips") {
+                    animFeature.characterCreation_Head = true;
+                    animFeature.characterCreation_Lips = true;
+                  } else {
+                    if Equals(slotName, n"UI_Jaw") {
+                      animFeature.characterCreation_Head = true;
+                      animFeature.characterCreation_Jaw = true;
+                    } else {
+                      if Equals(slotName, n"Summary_Preview") {
+                        animFeature.characterCreation_Summary = true;
+                      } else {
+                        if Equals(slotName, n"Gender_Preview") {
+                          animFeature.genderSelection = true;
+                        } else {
+                          animFeature.characterCreation = true;
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    AnimationControllerComponent.ApplyFeature(this.GetGamePuppet(), n"Paperdoll", animFeature);
+  }
+}
+
+public native class inkInventoryPuppetPreviewGameController extends inkPuppetPreviewGameController {
+
+  private edit let m_collider: inkWidgetRef;
+
+  private let m_rotationIsMouseDown: Bool;
+
+  @default(GarmentItemPreviewGameController, 40.0f)
+  @default(WardrobeSetPreviewGameController, 40.0f)
+  @default(inkInventoryPuppetPreviewGameController, 40.0f)
+  protected let m_maxMousePointerOffset: Float;
+
+  @default(GarmentItemPreviewGameController, 250.0f)
+  @default(WardrobeSetPreviewGameController, 250.0f)
+  @default(inkInventoryPuppetPreviewGameController, 250.0f)
+  protected let m_mouseRotationSpeed: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    inkWidgetRef.RegisterToCallback(this.m_collider, n"OnPress", this, n"OnMouseDown");
+    inkWidgetRef.RegisterToCallback(this.m_collider, n"OnPress", this, n"OnPanDown");
+    inkWidgetRef.RegisterToCallback(this.m_collider, n"OnRelease", this, n"OnPanRelease");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    super.OnUninitialize();
+    if this.m_rotationIsMouseDown {
+      this.m_rotationIsMouseDown = false;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(true, new Vector2(0.50, 0.50));
+      this.QueueEvent(evt);
+    };
+    inkWidgetRef.UnregisterFromCallback(this.m_collider, n"OnPress", this, n"OnMouseDown");
+    inkWidgetRef.UnregisterFromCallback(this.m_collider, n"OnPress", this, n"OnPanDown");
+    inkWidgetRef.UnregisterFromCallback(this.m_collider, n"OnRelease", this, n"OnPanRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+  }
+
+  protected cb func OnMouseDown(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if e.IsAction(n"mouse_left") || e.IsAction(n"jcms_left_click") {
+      this.m_rotationIsMouseDown = true;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(false);
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnPanDown(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if e.IsAction(n"pan") {
+      this.m_rotationIsMouseDown = true;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(false);
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnGlobalRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if this.m_rotationIsMouseDown && (e.IsAction(n"mouse_left") || e.IsAction(n"jcms_left_click")) {
+      e.Consume();
+      this.m_rotationIsMouseDown = false;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(true, new Vector2(0.50, 0.50));
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnPanRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    if this.m_rotationIsMouseDown && e.IsAction(n"pan") {
+      e.Consume();
+      this.m_rotationIsMouseDown = false;
+      evt = new inkMenuLayer_SetCursorVisibility();
+      evt.Init(true, new Vector2(0.50, 0.50));
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnRelativeInput(e: ref<inkPointerEvent>) -> Bool {
+    let offset: Float;
+    let ratio: Float;
+    let velocity: Float;
+    if this.m_rotationIsMouseDown && (e.IsAction(n"mouse_x") || e.IsAction(n"touch_fast_pan_x") || e.IsAction(n"jcms_x")) {
+      offset = e.GetAxisData();
+      if offset > 0.00 {
+        ratio = ClampF(offset / this.m_maxMousePointerOffset, 0.50, 1.00);
+      } else {
+        ratio = ClampF(offset / this.m_maxMousePointerOffset, -1.00, -0.50);
+      };
+      velocity = ratio * this.m_mouseRotationSpeed;
+      this.Rotate(velocity);
+    };
+  }
+
+  private func GetAnimFeature(out animFeature: ref<AnimFeature_Paperdoll>) -> Void {
+    animFeature = new AnimFeature_Paperdoll();
+    animFeature.inventoryScreen = true;
+  }
+
+  protected cb func OnSetCameraSetupEvent(index: Uint32, slotName: CName) -> Bool {
+    let animFeature: ref<AnimFeature_Paperdoll> = new AnimFeature_Paperdoll();
+    let zoomArea: InventoryPaperdollZoomArea = IntEnum<InventoryPaperdollZoomArea>(index);
+    animFeature.inventoryScreen = Equals(zoomArea, InventoryPaperdollZoomArea.Default);
+    animFeature.inventoryScreen_Weapon = Equals(zoomArea, InventoryPaperdollZoomArea.Weapon);
+    animFeature.inventoryScreen_Legs = Equals(zoomArea, InventoryPaperdollZoomArea.Legs);
+    animFeature.inventoryScreen_Feet = Equals(zoomArea, InventoryPaperdollZoomArea.Feet);
+    animFeature.inventoryScreen_Cyberware = Equals(zoomArea, InventoryPaperdollZoomArea.Cyberware);
+    animFeature.inventoryScreen_QuickSlot = Equals(zoomArea, InventoryPaperdollZoomArea.QuickSlot);
+    animFeature.inventoryScreen_Consumable = Equals(zoomArea, InventoryPaperdollZoomArea.Consumable);
+    animFeature.inventoryScreen_Outfit = Equals(zoomArea, InventoryPaperdollZoomArea.Outfit);
+    animFeature.inventoryScreen_Head = Equals(zoomArea, InventoryPaperdollZoomArea.Head);
+    animFeature.inventoryScreen_Face = Equals(zoomArea, InventoryPaperdollZoomArea.Face);
+    animFeature.inventoryScreen_InnerChest = Equals(zoomArea, InventoryPaperdollZoomArea.InnerChest);
+    animFeature.inventoryScreen_OuterChest = Equals(zoomArea, InventoryPaperdollZoomArea.OuterChest);
+    AnimationControllerComponent.ApplyFeature(this.GetGamePuppet(), n"Paperdoll", animFeature);
+  }
+}
+
+public native class inkGlamdocPuppetPreviewGameController extends inkPuppetPreviewGameController {
+
+  private edit let m_collider: inkWidgetRef;
+
+  private let m_rotationIsMouseDown: Bool;
+
+  @default(inkGlamdocPuppetPreviewGameController, 40.0f)
+  protected let m_maxMousePointerOffset: Float;
+
+  @default(inkGlamdocPuppetPreviewGameController, 250.0f)
+  protected let m_mouseRotationSpeed: Float;
+
+  private func GetAnimFeature(out animFeature: ref<AnimFeature_Paperdoll>) -> Void {
+    animFeature = new AnimFeature_Paperdoll();
+    animFeature.glamdocScreen = true;
+  }
+
+  protected cb func OnSetPuppetData(cyberware: Int32, menu: Int32, color: Int32) -> Bool {
+    let puppet: wref<gamePuppet> = this.GetGamePuppet();
+    let animFeature: ref<AnimFeature_Paperdoll> = new AnimFeature_Paperdoll();
+    animFeature.glamdocScreen = true;
+    animFeature.glamdocScreen_Cyberware = cyberware;
+    animFeature.glamdocScreen_CameraMode = menu == 2 ? color : 0;
+    AnimationControllerComponent.ApplyFeature(puppet, n"Paperdoll", animFeature);
+    AnimationControllerComponent.SetAnimWrapperWeightOnOwnerAndItems(puppet, n"gender", Equals(puppet.GetResolvedGenderName(), n"Male") ? 1.00 : 0.00);
+  }
+}

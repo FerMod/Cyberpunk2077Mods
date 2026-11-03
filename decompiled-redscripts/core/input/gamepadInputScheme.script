@@ -1,0 +1,49 @@
+
+public static func ConvertIntValueToInputScheme(valueToConvert: Uint32) -> InputScheme {
+  let toReturn: InputScheme = InputScheme.ALTERNATIVE;
+  if Equals(GetPlatformShortName(), "emporium") {
+    switch valueToConvert {
+      case 0u:
+        toReturn = InputScheme.ALTERNATIVE;
+        break;
+      case 1u:
+        toReturn = InputScheme.SWITCH_LEGACY;
+        break;
+      default:
+    };
+  } else {
+    switch valueToConvert {
+      case 0u:
+        toReturn = InputScheme.LEGACY;
+        break;
+      case 1u:
+        toReturn = InputScheme.AGILE;
+        break;
+      case 2u:
+        toReturn = InputScheme.ALTERNATIVE;
+        break;
+      default:
+    };
+  };
+  return toReturn;
+}
+
+public static func ConvertCNameIntoStyleSettingsIndex(valueToConvert: CName) -> Int32 {
+  let toReturn: Int32 = 0;
+  switch NameToString(valueToConvert) {
+    case "Handheld":
+      toReturn = 0;
+      break;
+    case "FullKey":
+      toReturn = 1;
+      break;
+    case "JoyDual":
+      toReturn = 2;
+      break;
+    case "Mouser":
+      toReturn = 3;
+      break;
+    default:
+  };
+  return toReturn;
+}

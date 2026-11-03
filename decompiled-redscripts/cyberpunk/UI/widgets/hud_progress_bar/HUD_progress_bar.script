@@ -1,0 +1,446 @@
+
+public class HUDProgressBarController extends inkHUDGameController {
+
+  private edit let m_bar: inkWidgetRef;
+
+  private edit let m_barExtra: inkWidgetRef;
+
+  private edit let m_header: inkTextRef;
+
+  private edit let m_bottomText: inkTextRef;
+
+  private edit let m_percent: inkTextRef;
+
+  private edit let m_completed: inkTextRef;
+
+  private edit let m_failed: inkTextRef;
+
+  private edit let m_attencionIcon: inkWidgetRef;
+
+  private edit let m_neutralIcon: inkWidgetRef;
+
+  private edit let m_relicIcon: inkWidgetRef;
+
+  private edit let m_moneyIcon: inkWidgetRef;
+
+  private edit let m_twintoneIcon: inkWidgetRef;
+
+  private edit let m_connectionIcon: inkWidgetRef;
+
+  private edit let m_apartmentIcon: inkImageRef;
+
+  private edit let m_vehicleIcon: inkImageRef;
+
+  private edit let m_neutralInIcon: inkImageRef;
+
+  private edit let m_revealIcon: inkWidgetRef;
+
+  private edit let m_vahicleHackIcon: inkWidgetRef;
+
+  private edit let m_reaperIcon: inkWidgetRef;
+
+  private edit let m_wrapper: inkWidgetRef;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  private let m_progressBarBB: wref<IBlackboard>;
+
+  private let m_progressBarDef: ref<UI_HUDProgressBarDef>;
+
+  private let m_activeBBID: ref<CallbackHandle>;
+
+  private let m_headerBBID: ref<CallbackHandle>;
+
+  private let m_typeBBID: ref<CallbackHandle>;
+
+  private let m_bottomTextBBID: ref<CallbackHandle>;
+
+  private let m_completedTextBBID: ref<CallbackHandle>;
+
+  private let m_failedTextBBID: ref<CallbackHandle>;
+
+  private let m_progressBBID: ref<CallbackHandle>;
+
+  private let m_progressBumpBBID: ref<CallbackHandle>;
+
+  private let m_bb: wref<IBlackboard>;
+
+  private let m_bbUIInteractionsDef: ref<UIInteractionsDef>;
+
+  private let m_bbChoiceHubDataCallbackId: ref<CallbackHandle>;
+
+  private let m_OutroAnimation: ref<inkAnimProxy>;
+
+  private let m_LoopAnimation: ref<inkAnimProxy>;
+
+  private let m_VLoopAnimation: ref<inkAnimProxy>;
+
+  private let m_IntroAnimation: ref<inkAnimProxy>;
+
+  private let m_IntroWasPlayed: Bool;
+
+  private let m_title: String;
+
+  private let m_type: SimpleMessageType;
+
+  private let valueSaved: Float;
+
+  private let m_bumpValue: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    this.m_rootWidget.SetVisible(false);
+    this.SetupBB();
+  }
+
+  protected cb func OnUnInitialize() -> Bool {
+    this.UnregisterFromBB();
+  }
+
+  private final func SetupBB() -> Void {
+    this.m_progressBarDef = GetAllBlackboardDefs().UI_HUDProgressBar;
+    this.m_progressBarBB = this.GetBlackboardSystem().Get(this.m_progressBarDef);
+    this.m_bbUIInteractionsDef = GetAllBlackboardDefs().UIInteractions;
+    this.m_bb = this.GetBlackboardSystem().Get(this.m_bbUIInteractionsDef);
+    if IsDefined(this.m_progressBarBB) {
+      this.m_activeBBID = this.m_progressBarBB.RegisterDelayedListenerBool(this.m_progressBarDef.Active, this, n"OnActivated", true);
+      this.m_headerBBID = this.m_progressBarBB.RegisterDelayedListenerString(this.m_progressBarDef.Header, this, n"OnHeaderChanged", true);
+      this.m_completedTextBBID = this.m_progressBarBB.RegisterDelayedListenerString(this.m_progressBarDef.CompletedText, this, n"OnCompletedTextChanged", true);
+      this.m_failedTextBBID = this.m_progressBarBB.RegisterDelayedListenerString(this.m_progressBarDef.FailedText, this, n"OnFailedTextChanged", true);
+      this.m_bottomTextBBID = this.m_progressBarBB.RegisterDelayedListenerString(this.m_progressBarDef.BottomText, this, n"OnBottomTextChanged", true);
+      this.m_progressBBID = this.m_progressBarBB.RegisterDelayedListenerFloat(this.m_progressBarDef.Progress, this, n"OnProgressChanged", true);
+      this.m_progressBumpBBID = this.m_progressBarBB.RegisterDelayedListenerFloat(this.m_progressBarDef.ProgressBump, this, n"OnProgressBumpChanged", true);
+      this.m_typeBBID = this.m_progressBarBB.RegisterDelayedListenerVariant(this.m_progressBarDef.MessageType, this, n"OnTypeChanged", true);
+    };
+    if IsDefined(this.m_bbUIInteractionsDef) {
+      this.m_bbChoiceHubDataCallbackId = this.m_bb.RegisterDelayedListenerVariant(this.m_bbUIInteractionsDef.DialogChoiceHubs, this, n"OnDialogHubAppeared", true);
+    };
+    if this.m_progressBarBB.GetBool(this.m_progressBarDef.Active) {
+      this.Intro();
+      this.m_IntroAnimation.GotoEndAndStop();
+    };
+  }
+
+  private final func UnregisterFromBB() -> Void {
+    if IsDefined(this.m_activeBBID) {
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.Active, this.m_activeBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.Header, this.m_headerBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.MessageType, this.m_typeBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.BottomText, this.m_bottomTextBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.Progress, this.m_progressBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.ProgressBump, this.m_progressBumpBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.FailedText, this.m_failedTextBBID);
+      this.m_progressBarBB.UnregisterDelayedListener(this.m_progressBarDef.CompletedText, this.m_completedTextBBID);
+      this.m_bb.UnregisterDelayedListener(this.m_bbUIInteractionsDef.DialogChoiceHubs, this.m_bbChoiceHubDataCallbackId);
+    };
+  }
+
+  protected cb func OnTypeChanged(value: Variant) -> Bool {
+    this.m_type = FromVariant<SimpleMessageType>(value);
+    switch this.m_type {
+      case SimpleMessageType.Neutral:
+        this.UpdateNeutralType();
+        break;
+      case SimpleMessageType.Money:
+        this.UpdateMoneyType();
+        break;
+      case SimpleMessageType.Relic:
+        this.UpdateRelicType();
+        break;
+      case SimpleMessageType.Vehicle:
+        this.UpdateVehicleType();
+        break;
+      case SimpleMessageType.Reveal:
+        this.UpdateRevealType();
+        break;
+      case SimpleMessageType.Boss:
+        this.UpdateBossType();
+        break;
+      case SimpleMessageType.Negative:
+        this.UpdateDefaultType();
+        break;
+      case SimpleMessageType.Twintone:
+        this.UpdateTwintoneType();
+        break;
+      case SimpleMessageType.Connection:
+        this.UpdateConnectionType();
+        break;
+      case SimpleMessageType.Reaper:
+        this.UpdateReaperType();
+        break;
+      case SimpleMessageType.HandScan:
+        this.UpdateHandScanType();
+        break;
+      case SimpleMessageType.Undefined:
+        this.ResetLabels();
+        this.UpdateDefaultType();
+        break;
+      default:
+        this.UpdateDefaultType();
+    };
+  }
+
+  protected cb func OnDialogHubAppeared(value: Variant) -> Bool {
+    let data: DialogChoiceHubs = FromVariant<DialogChoiceHubs>(value);
+    if ArraySize(data.choiceHubs) == 2 {
+      inkWidgetRef.SetMargin(this.m_wrapper, 0.00, 0.00, 0.00, 150.00);
+    } else {
+      if ArraySize(data.choiceHubs) == 1 {
+        inkWidgetRef.SetMargin(this.m_wrapper, 0.00, 0.00, 0.00, 100.00);
+      } else {
+        inkWidgetRef.SetMargin(this.m_wrapper, 0.00, 0.00, 0.00, 0.00);
+      };
+    };
+  }
+
+  protected cb func OnActivated(activated: Bool) -> Bool {
+    this.UpdateProgressBarActive(activated);
+  }
+
+  protected cb func OnHeaderChanged(header: String) -> Bool {
+    if Equals(header, "") {
+      if Equals(this.m_type, SimpleMessageType.Reaper) && this.IsProgressUnfinished() {
+        this.UpdateReaperType();
+        return false;
+      };
+      this.UpdateDefaultType();
+      return false;
+    };
+    this.UpdateTimerHeader(header);
+    if Equals(header, "LocKey#78223") {
+      this.UpdateNeutralType();
+    } else {
+      if Equals(header, "LocKey#47982") || Equals(header, "LocKey#43690") {
+        this.UpdateMoneyType();
+      } else {
+        if Equals(header, "LocKey#91924") || Equals(header, "LocKey#91925") {
+          this.UpdateRelicType();
+        } else {
+          if Equals(header, "LocKey#92700") || Equals(header, "LocKey#92701") {
+            this.UpdateVehicleType();
+          } else {
+            if Equals(header, "LocKey#98607") {
+              this.UpdateHandScanType();
+            } else {
+              this.UpdateDefaultType();
+            };
+          };
+        };
+      };
+    };
+    this.m_title = header;
+  }
+
+  private final func IsProgressUnfinished() -> Bool {
+    return this.valueSaved < 0.96;
+  }
+
+  private final func UpdateNeutralType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Neutral");
+    inkWidgetRef.SetVisible(this.m_neutralIcon, true);
+    inkWidgetRef.SetVisible(this.m_neutralInIcon, true);
+  }
+
+  private final func UpdateMoneyType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Money");
+    inkWidgetRef.SetVisible(this.m_moneyIcon, true);
+  }
+
+  private final func UpdateRelicType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Relic");
+    inkWidgetRef.SetVisible(this.m_relicIcon, true);
+  }
+
+  private final func UpdateVehicleType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Default");
+    inkWidgetRef.SetVisible(this.m_vahicleHackIcon, true);
+  }
+
+  private final func UpdateDefaultType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Default");
+    inkWidgetRef.SetVisible(this.m_attencionIcon, true);
+  }
+
+  private final func UpdateRevealType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Default");
+    inkWidgetRef.SetVisible(this.m_revealIcon, true);
+  }
+
+  private final func UpdateBossType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Boss");
+    inkWidgetRef.SetVisible(this.m_attencionIcon, true);
+  }
+
+  private final func UpdateTwintoneType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Neutral");
+    inkWidgetRef.SetVisible(this.m_twintoneIcon, true);
+  }
+
+  private final func UpdateConnectionType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Connection");
+    inkWidgetRef.SetVisible(this.m_connectionIcon, true);
+  }
+
+  private final func UpdateReaperType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Reaper");
+    inkWidgetRef.SetVisible(this.m_reaperIcon, true);
+    inkTextRef.SetText(this.m_failed, "LocKey#99161");
+    inkTextRef.SetText(this.m_completed, "LocKey#99160");
+  }
+
+  private final func UpdateHandScanType() -> Void {
+    this.DisableIcons();
+    this.m_rootWidget.SetState(n"Default");
+    inkWidgetRef.SetVisible(this.m_attencionIcon, true);
+    inkTextRef.SetText(this.m_completed, "LocKey#99247");
+  }
+
+  private final func DisableIcons() -> Void {
+    inkWidgetRef.SetVisible(this.m_revealIcon, false);
+    inkWidgetRef.SetVisible(this.m_attencionIcon, false);
+    inkWidgetRef.SetVisible(this.m_neutralIcon, false);
+    inkWidgetRef.SetVisible(this.m_neutralInIcon, false);
+    inkWidgetRef.SetVisible(this.m_moneyIcon, false);
+    inkWidgetRef.SetVisible(this.m_apartmentIcon, false);
+    inkWidgetRef.SetVisible(this.m_vehicleIcon, false);
+    inkWidgetRef.SetVisible(this.m_relicIcon, false);
+    inkWidgetRef.SetVisible(this.m_vahicleHackIcon, false);
+    inkWidgetRef.SetVisible(this.m_twintoneIcon, false);
+    inkWidgetRef.SetVisible(this.m_connectionIcon, false);
+    inkWidgetRef.SetVisible(this.m_reaperIcon, false);
+  }
+
+  protected cb func OnBottomTextChanged(bottomText: String) -> Bool {
+    this.UpdateTimerBottomText(bottomText);
+  }
+
+  protected cb func OnCompletedTextChanged(completedText: String) -> Bool {
+    this.UpdateTimerCompletedText(completedText);
+  }
+
+  protected cb func OnFailedTextChanged(failedText: String) -> Bool {
+    this.UpdateTimerFailedText(failedText);
+  }
+
+  protected cb func OnProgressChanged(progress: Float) -> Bool {
+    this.UpdateTimerProgress(progress);
+  }
+
+  protected cb func OnProgressBumpChanged(progress: Float) -> Bool {
+    if progress >= 0.00 {
+      inkWidgetRef.Get(this.m_barExtra).BindProperty(n"tintColor", n"MainColors.ActiveYellow");
+    } else {
+      inkWidgetRef.Get(this.m_barExtra).BindProperty(n"tintColor", n"MainColors.ActiveGreen");
+    };
+    this.m_bumpValue = progress;
+  }
+
+  public final func UpdateProgressBarActive(active: Bool) -> Void {
+    if active {
+      this.Intro();
+    } else {
+      this.Outro();
+    };
+  }
+
+  public final func UpdateTimerProgress(value: Float) -> Void {
+    let loopOptions: inkAnimOptions;
+    loopOptions.applyCustomTimeDilation = true;
+    loopOptions.loopType = inkanimLoopType.Cycle;
+    loopOptions.loopInfinite = true;
+    loopOptions.dependsOnTimeDilation = true;
+    let baseVal: Float = MaxF(0.00, MinF(1.00, value));
+    let extraVal: Float = MaxF(0.00, MinF(1.00, value + this.m_bumpValue));
+    inkWidgetRef.SetSize(this.m_bar, new Vector2(MinF(baseVal, extraVal) * 996.00, 9.00));
+    inkWidgetRef.SetSize(this.m_barExtra, new Vector2(MaxF(baseVal, extraVal) * 996.00, 9.00));
+    inkTextRef.SetText(this.m_percent, FloatToStringPrec(value * 100.00, 0));
+    this.valueSaved = value;
+    if value == 1.00 && Equals(this.m_type, SimpleMessageType.Vehicle) {
+      this.m_VLoopAnimation = this.PlayLibraryAnimation(n"Quickhack_VehicleHackLoop", loopOptions);
+    };
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Parameter(n"ui_loading_bar", value);
+  }
+
+  public final func UpdateTimerHeader(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_header, Deref(label));
+  }
+
+  public final func UpdateTimerBottomText(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_bottomText, Deref(label));
+  }
+
+  public final func UpdateTimerCompletedText(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_completed, Deref(label));
+  }
+
+  public final func UpdateTimerFailedText(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_failed, Deref(label));
+  }
+
+  private final func ResetLabels() -> Void {
+    this.UpdateTimerCompletedText("LocKey#15455");
+    this.UpdateTimerFailedText("LocKey#15353");
+    this.UpdateTimerBottomText("LocKey#92249");
+  }
+
+  private final func Intro() -> Void {
+    this.m_VLoopAnimation.GotoEndAndStop();
+    this.m_OutroAnimation.GotoEndAndStop();
+    this.m_IntroAnimation.GotoEndAndStop();
+    this.m_rootWidget.SetVisible(true);
+    if !this.m_IntroAnimation.IsPlaying() && !this.m_IntroWasPlayed {
+      this.m_IntroAnimation = this.PlayLibraryAnimation(n"Quickhack_Intro");
+      this.m_IntroAnimation.RegisterToCallback(inkanimEventType.OnFinish, this, n"IntroEnded");
+      GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"ui_loading_bar_start");
+    };
+  }
+
+  private final func Outro() -> Void {
+    let animOptions: inkAnimOptions;
+    this.m_VLoopAnimation.GotoEndAndStop();
+    this.m_OutroAnimation.GotoEndAndStop();
+    this.m_IntroAnimation.GotoEndAndStop();
+    animOptions.customTimeDilation = 0.50;
+    animOptions.applyCustomTimeDilation = true;
+    if this.IsProgressUnfinished() && GetFact(this.GetPlayerControlledObject().GetGame(), n"holofixer_on") == 0 {
+      this.m_OutroAnimation = this.PlayLibraryAnimation(n"Quickhack_Outro_Failed", animOptions);
+    } else {
+      this.m_OutroAnimation = this.PlayLibraryAnimation(n"Quickhack_Outro", animOptions);
+    };
+    this.m_OutroAnimation.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHide");
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"ui_loading_bar_stop");
+  }
+
+  public final func IntroEnded() -> Void {
+    this.m_IntroWasPlayed = true;
+    this.m_OutroAnimation.GotoEndAndStop();
+    this.m_IntroAnimation.GotoEndAndStop();
+    this.m_VLoopAnimation.GotoEndAndStop();
+    this.m_LoopAnimation = this.PlayLibraryAnimation(n"Quickhack_Loop");
+  }
+
+  protected cb func OnHide(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_OutroAnimation.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnHide");
+    this.Hide();
+  }
+
+  public final func Hide() -> Void {
+    this.m_OutroAnimation.GotoEndAndStop();
+    this.m_IntroAnimation.GotoEndAndStop();
+    this.m_LoopAnimation.GotoEndAndStop();
+    this.m_VLoopAnimation.GotoEndAndStop();
+    this.m_rootWidget.SetVisible(false);
+    this.m_IntroWasPlayed = false;
+    this.ResetLabels();
+  }
+}

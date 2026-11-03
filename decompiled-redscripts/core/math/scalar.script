@@ -1,0 +1,39 @@
+
+public static func Pi() -> Float {
+  return 3.14;
+}
+
+public static func HalfPi() -> Float {
+  return 1.57;
+}
+
+public static func SgnF(a: Float) -> Float {
+  if a > 0.00 {
+    return 1.00;
+  };
+  return -1.00;
+}
+
+public static func ModF(a: Float, b: Float) -> Float {
+  if b <= 0.00 || a <= 0.00 {
+    return 0.00;
+  };
+  return a - Cast<Float>(FloorF(a / b)) * b;
+}
+
+public static func ProportionalClampF(inMin: Float, inMax: Float, v: Float, outMin: Float, outMax: Float) -> Float {
+  let lerp: Float;
+  let inputRange: Float = inMax - inMin;
+  v = ClampF(v, inMin, inMax);
+  if AbsF(inputRange) > 0.00 {
+    lerp = (v - inMin) / inputRange;
+  } else {
+    lerp = 0.00;
+  };
+  v = LerpF(lerp, outMin, outMax);
+  return v;
+}
+
+public static func FloatIsEqual(f: Float, to: Float) -> Bool {
+  return AbsF(f - to) <= 0.00;
+}

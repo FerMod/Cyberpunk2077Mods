@@ -1,0 +1,20 @@
+
+public class InstigatorSlotPrereq extends IScriptablePrereq {
+
+  public let m_slot: TweakDBID;
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    this.m_slot = TDB.GetForeignKey(recordID + t".slot");
+  }
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>, instigator: ref<IScriptable>) -> Bool {
+    let instigatorSlot: TweakDBID;
+    let castedState: ref<InstigatorSlotPrereqState> = state as InstigatorSlotPrereqState;
+    castedState.m_instigator = instigator as WeaponObject;
+    if IsDefined(castedState.m_instigator) {
+      instigatorSlot = castedState.m_instigator.GetAttachedSlotID();
+      return instigatorSlot == this.m_slot;
+    };
+    return false;
+  }
+}

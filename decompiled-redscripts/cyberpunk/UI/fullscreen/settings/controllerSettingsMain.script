@@ -1,0 +1,217 @@
+
+public native class ControllerSettingsGameController extends gameuiMenuGameController {
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_generalInputPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_vehicleInputPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_vehicleCombatInputPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_mouserInputPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_selectorWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Graphic")
+  private edit let m_commonGraphicsPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Graphic")
+  private edit let m_mouserGraphicsPanel: inkWidgetRef;
+
+  @runtimeProperty("category", "Input Modes")
+  private edit let m_schemeLegacyRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Input Modes")
+  private edit let m_schemeAgileRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Input Modes")
+  private edit let m_schemeAlternativeRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Settings")
+  @default(ControllerSettingsGameController, /controls/controller)
+  private edit let m_inputSettingGroupName: CName;
+
+  @runtimeProperty("category", "Settings")
+  @default(ControllerSettingsGameController, InputSchemesMode)
+  private edit let m_inputSettingVarName: CName;
+
+  @runtimeProperty("category", "Settings")
+  private edit let m_inputSettingSelectorRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_selectorCtrl: wref<ListController>;
+
+  private let m_inputPanel: [inkWidgetRef];
+
+  private let m_currentTab: Int32;
+
+  @default(ControllerSettingsGameController, false)
+  private let m_settingsAvailable: Bool;
+
+  private let m_inputSettingSelector: wref<SettingsSelectorControllerListString>;
+
+  private let m_inputSettingsListener: ref<InputSettingsVarListener>;
+
+  private let m_settings: ref<UserSettings>;
+
+  private let m_inputSettingGroup: ref<ConfigGroup>;
+
+  private let m_inputSettingVar: ref<ConfigVar>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_selectorCtrl = inkWidgetRef.GetController(this.m_selectorWidget) as ListController;
+    this.m_selectorCtrl.RegisterToCallback(n"OnItemActivated", this, n"OnMenuChanged");
+    this.m_settings = this.GetSystemRequestsHandler().GetUserSettings();
+    if this.m_settings.HasGroup(this.m_inputSettingGroupName) {
+      this.m_inputSettingGroup = this.m_settings.GetGroup(this.m_inputSettingGroupName);
+      if this.m_inputSettingGroup.HasVar(this.m_inputSettingVarName) {
+        this.m_inputSettingVar = this.m_inputSettingGroup.GetVar(this.m_inputSettingVarName);
+        this.m_settingsAvailable = true;
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_inputSettingSelectorRef, false);
+    };
+    if this.m_settingsAvailable {
+      this.m_inputSettingSelector = inkWidgetRef.GetController(this.m_inputSettingSelectorRef) as SettingsSelectorControllerListString;
+      this.m_inputSettingSelector.Setup(this.m_inputSettingVar, this.GetSystemRequestsHandler().IsPreGame());
+      this.m_inputSettingVar.SetEnabled(true);
+      this.m_inputSettingsListener = new InputSettingsVarListener();
+      this.m_inputSettingsListener.RegisterController(this);
+      this.m_inputSettingsListener.Register(this.m_inputSettingVar.GetGroupPath());
+    };
+    this.RefreshInputsVisiblity();
+    this.PopulatePanelsList();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.m_selectorCtrl.UnregisterFromCallback(n"OnItemActivated", this, n"OnMenuChanged");
+  }
+
+  protected cb func OnMenuChanged(index: Int32, target: ref<ListItemController>) -> Bool {
+    this.PlaySound(n"Button", n"OnPress");
+    inkWidgetRef.SetVisible(this.m_inputPanel[this.m_currentTab], false);
+    inkWidgetRef.SetVisible(this.m_inputPanel[index], true);
+    this.m_currentTab = index;
+    inkWidgetRef.SetVisible(this.m_inputSettingSelectorRef, this.m_currentTab == 0 && this.m_settingsAvailable);
+    inkWidgetRef.SetVisible(this.m_commonGraphicsPanel, this.m_currentTab != 3);
+    inkWidgetRef.SetVisible(this.m_mouserGraphicsPanel, this.m_currentTab == 3);
+    if this.m_currentTab == 0 && this.m_settingsAvailable {
+      this.SetCursorOverWidget(inkWidgetRef.Get(this.m_inputSettingSelectorRef), 0.00, true);
+    };
+    this.ForceResetCursorType();
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let currentToggledIndex: Int32;
+    let listSize: Int32 = this.m_selectorCtrl.Size();
+    if evt.IsAction(n"prior_menu") {
+      currentToggledIndex = this.m_selectorCtrl.GetToggledIndex();
+      if currentToggledIndex < 1 {
+        this.m_selectorCtrl.SetToggledIndex(listSize - 1);
+      } else {
+        this.m_selectorCtrl.SetToggledIndex(currentToggledIndex - 1);
+      };
+    } else {
+      if evt.IsAction(n"next_menu") {
+        currentToggledIndex = this.m_selectorCtrl.GetToggledIndex();
+        if currentToggledIndex >= this.m_selectorCtrl.Size() - 1 {
+          this.m_selectorCtrl.SetToggledIndex(0);
+        } else {
+          this.m_selectorCtrl.SetToggledIndex(currentToggledIndex + 1);
+        };
+      };
+    };
+  }
+
+  private final func RefreshInputsVisiblity() -> Void {
+    let settingIndex: Int32 = (this.m_inputSettingVar as ConfigVarListString).GetIndex();
+    switch settingIndex {
+      case 0:
+        inkWidgetRef.SetVisible(this.m_schemeLegacyRef, true);
+        inkWidgetRef.SetVisible(this.m_schemeAgileRef, false);
+        inkWidgetRef.SetVisible(this.m_schemeAlternativeRef, false);
+        break;
+      case 1:
+        inkWidgetRef.SetVisible(this.m_schemeLegacyRef, false);
+        inkWidgetRef.SetVisible(this.m_schemeAgileRef, true);
+        inkWidgetRef.SetVisible(this.m_schemeAlternativeRef, false);
+        break;
+      case 2:
+        inkWidgetRef.SetVisible(this.m_schemeLegacyRef, false);
+        inkWidgetRef.SetVisible(this.m_schemeAgileRef, false);
+        inkWidgetRef.SetVisible(this.m_schemeAlternativeRef, true);
+    };
+  }
+
+  private final func PopulatePanelsList() -> Void {
+    let newData: ref<ListItemData> = new ListItemData();
+    newData.label = GetLocalizedTextByKey(n"UI-Settings-ButtonMappings-Categories-General");
+    this.m_selectorCtrl.PushData(newData);
+    ArrayPush(this.m_inputPanel, this.m_generalInputPanel);
+    inkWidgetRef.SetVisible(this.m_inputPanel[0], false);
+    newData = new ListItemData();
+    newData.label = GetLocalizedTextByKey(n"UI-Settings-ButtonMappings-Categories-Vehicle");
+    this.m_selectorCtrl.PushData(newData);
+    ArrayPush(this.m_inputPanel, this.m_vehicleInputPanel);
+    inkWidgetRef.SetVisible(this.m_inputPanel[1], false);
+    newData = new ListItemData();
+    newData.label = GetLocalizedTextByKey(n"Story-base-journal-codex-tutorials-Vehiclecombat_title");
+    this.m_selectorCtrl.PushData(newData);
+    ArrayPush(this.m_inputPanel, this.m_vehicleCombatInputPanel);
+    inkWidgetRef.SetVisible(this.m_inputPanel[2], false);
+    if inkWidgetRef.IsValid(this.m_mouserInputPanel) {
+      newData = new ListItemData();
+      newData.label = GetLocalizedTextByKey(n"UI-Settings-ButtonMappings-Categories-Mouser");
+      this.m_selectorCtrl.PushData(newData);
+      ArrayPush(this.m_inputPanel, this.m_mouserInputPanel);
+      inkWidgetRef.SetVisible(this.m_inputPanel[3], false);
+    };
+    this.m_selectorCtrl.Refresh();
+    this.m_selectorCtrl.SetToggledIndex(0);
+    this.m_currentTab = 0;
+  }
+
+  public final func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    this.m_inputSettingSelector.Refresh();
+    this.RefreshInputsVisiblity();
+  }
+}
+
+public class InputSettingsVarListener extends ConfigVarListener {
+
+  private let m_ctrl: wref<ControllerSettingsGameController>;
+
+  public final func RegisterController(ctrl: ref<ControllerSettingsGameController>) -> Void {
+    this.m_ctrl = ctrl;
+  }
+
+  public func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    this.m_ctrl.OnVarModified(groupPath, varName, varType, reason);
+  }
+}
+
+public native class gameuiStadiaControllersGameController extends gameuiMenuGameController {
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+  }
+}

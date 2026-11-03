@@ -1,0 +1,453 @@
+
+public class GOGProfileLogicController extends inkLogicController {
+
+  public let m_gogMenuState: EGOGMenuState;
+
+  public let m_gogContainer: wref<inkCompoundWidget>;
+
+  public final func SetMenuState(menuState: EGOGMenuState) -> Void {
+    this.m_gogMenuState = menuState;
+  }
+
+  public final func SetGogContainer(gogContainer: wref<inkCompoundWidget>) -> Void {
+    this.m_gogContainer = gogContainer;
+  }
+}
+
+public class GOGProfileGameController extends BaseGOGProfileController {
+
+  public edit let m_retryButton: inkWidgetRef;
+
+  public edit let m_parentContainerWidget: inkWidgetRef;
+
+  private let isFirstLogin: Bool;
+
+  private let showingFirstLogin: Bool;
+
+  private let canRetry: Bool;
+
+  private let currentScreenType: GogPopupScreenType;
+
+  private let currentWidget: wref<inkWidget>;
+
+  private let gogRewardsList: [ref<GogRewardEntryData>];
+
+  private let uiSystem: ref<UISystem>;
+
+  private let m_gogContainerController: wref<GogContainerController>;
+
+  private let m_registerURL: String;
+
+  protected cb func OnInitialize() -> Bool {
+    this.isFirstLogin = false;
+    this.showingFirstLogin = false;
+    this.canRetry = false;
+    inkWidgetRef.RegisterToCallback(this.m_retryButton, n"OnRelease", this, n"OnRetry");
+    this.GetRootWidget().RegisterToCallback(n"OnRelease", this, n"OnButtonRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.ShowRetryButton(false);
+    this.uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.uiSystem.QueueMenuEvent(n"OnRequestHideMainMenuTooltip");
+    inkWidgetRef.UnregisterFromCallback(this.m_retryButton, n"OnRelease", this, n"OnRetry");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.GetRootWidget().UnregisterFromCallback(n"OnRelease", this, n"OnButtonRelease");
+  }
+
+  protected cb func OnRetry(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      e.Handle();
+      this.HandleRetry();
+    };
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsHandled() {
+      return false;
+    };
+    if evt.IsAction(n"next_menu") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.HandleClose(evt);
+    } else {
+      if this.canRetry && evt.IsAction(n"activate") {
+        this.PlaySound(n"Button", n"OnPress");
+        evt.Handle();
+        this.HandleRetry();
+      };
+    };
+  }
+
+  private final func HandleClose(evt: ref<inkPointerEvent>) -> Void {
+    if this.showingFirstLogin && this.isFirstLogin {
+      evt.Handle();
+      this.HidePreviousWidget();
+      this.ShowRewards();
+      this.showingFirstLogin = false;
+      this.isFirstLogin = false;
+    };
+  }
+
+  private final func HandleRetry() -> Void {
+    this.canRetry = false;
+    if Equals(GetPlatformShortName(), "emporium") {
+      this.GetGogContainerController();
+      if IsDefined(this.m_gogContainerController) {
+        this.m_gogContainerController.ReloadGogEmporium();
+      };
+    } else {
+      GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame()).RequestInitialStatus();
+    };
+  }
+
+  private final func HidePreviousWidget() -> Void {
+    let compoundParent: wref<inkCompoundWidget> = inkWidgetRef.Get(this.m_parentContainerWidget) as inkCompoundWidget;
+    compoundParent.RemoveAllChildren();
+    this.currentScreenType = GogPopupScreenType.Invalid;
+    this.currentWidget = null;
+    this.ShowRetryButton(false);
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    this.HidePreviousWidget();
+    if NotEquals(evt.error, GOGRewardsSystemErrors.None) {
+      this.ShowError(evt.error);
+    } else {
+      if Equals(evt.status, GOGRewardsSystemStatus.Registered) {
+        if Equals(this.GetMenuState(), EGOGMenuState.LoadGame) {
+          this.ShowFeatureInfo();
+        } else {
+          if this.isFirstLogin {
+            this.showingFirstLogin = true;
+          };
+          this.ShowRewards();
+        };
+      } else {
+        if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+          this.ShowRegister(evt.registerURL, evt.qrCodePNGBlob);
+        } else {
+          this.ShowLoading();
+        };
+      };
+    };
+  }
+
+  protected cb func OnLinkClicked(evt: ref<LinkClickedEvent>) -> Bool {
+    this.OpenProfileUrl(this.m_registerURL);
+  }
+
+  protected cb func OnDisconnectClickedEvent(evt: ref<DisconnectClickedEvent>) -> Bool {
+    let onlineSystem: wref<IOnlineSystem> = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame());
+    if IsDefined(onlineSystem) {
+      onlineSystem.SignOut();
+      this.RequestStop();
+    };
+  }
+
+  private final func IsErrorRetryable(error: GOGRewardsSystemErrors) -> Bool {
+    switch error {
+      case GOGRewardsSystemErrors.RequestFailed:
+        return false;
+      case GOGRewardsSystemErrors.NotSignedInGame:
+      case GOGRewardsSystemErrors.NoInternetConnection:
+      case GOGRewardsSystemErrors.TemporaryFailure:
+        return true;
+    };
+    return false;
+  }
+
+  private final func ShowError(error: GOGRewardsSystemErrors) -> Void {
+    let controller: ref<GogErrorNotificationController>;
+    if Equals(error, GOGRewardsSystemErrors.NotSignedInLauncher) {
+      controller = this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"InfoNotification").GetController() as GogErrorNotificationController;
+    } else {
+      controller = this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"ErrorNotification").GetController() as GogErrorNotificationController;
+    };
+    controller.ShowErrorMessage(error);
+  }
+
+  private final func ShowThanks() -> Void {
+    this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"ThanksWidget");
+  }
+
+  private final func ShowFeatureInfo() -> Void {
+    this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"FeatureInfoWidget");
+  }
+
+  private final func ShowLoading() -> Void {
+    this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"LoadingWidget");
+  }
+
+  private final func PopulateRewardsList(isEp1Enabled: Bool) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let records: array<wref<GOGReward_Record>>;
+    let rewardEntry: ref<GogRewardEntryData>;
+    if ArraySize(this.gogRewardsList) == 0 {
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_witcher_jacket"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_witcher_katana"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_witcher_tshirt"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_gwent_plushie"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_galaxy_tshirt"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_patch2400_unique_paintjobs_quadra_turbo_entropism"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_patch2400_unique_paintjobs_quadra_turbo_neokitsch"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_patch2400_unique_paintjobs_quadra_turbo_neomilitarism"));
+      ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_patch2400_unique_paintjobs_quadra_turbo_rebecca"));
+      if isEp1Enabled {
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_ep1_redplayvest"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_ep1_redplaytshirt"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_ep1_redplayjacket"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_ep1_gwent_pistol"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.gog_dlc_ep1_witcher_sword"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_specs"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_vest"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_pants"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_boots"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.twitch_drops_preset_ashura"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_chesapeake"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_foxhound"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_pit_bull"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_redbone"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_chinook"));
+        ArrayPush(records, TweakDBInterface.GetGOGRewardRecord(t"CPGOGRewards.amazon_drops_catahoula"));
+      };
+      i = 0;
+      limit = ArraySize(records);
+      while i < limit {
+        rewardEntry = new GogRewardEntryData();
+        rewardEntry.title = LocKeyToString(records[i].DisplayName());
+        rewardEntry.description = LocKeyToString(records[i].Description());
+        rewardEntry.icon = records[i].IconsAtlasSlot();
+        rewardEntry.group = records[i].Group();
+        rewardEntry.slotType = records[i].SlotType();
+        rewardEntry.isUnlocked = false;
+        rewardEntry.record = records[i];
+        ArrayPush(this.gogRewardsList, rewardEntry);
+        i += 1;
+      };
+    };
+  }
+
+  private final func UpdateUnlockedRewards() -> Void {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.gogRewardsList);
+    while i < limit {
+      this.gogRewardsList[i].isUnlocked = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame()).IsRewardUnlocked(this.gogRewardsList[i].record);
+      i += 1;
+    };
+  }
+
+  private final func GetObtainedAndAmazonRewards() -> [ref<GogRewardEntryData>] {
+    let result: array<ref<GogRewardEntryData>>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.gogRewardsList);
+    while i < limit {
+      if this.gogRewardsList[i].isUnlocked || Equals(this.gogRewardsList[i].group, n"amazon") {
+        ArrayPush(result, this.gogRewardsList[i]);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func ShowRewards() -> Void {
+    let isEp1Enabled: Bool;
+    let rewardsController: wref<GogRewardsListController>;
+    let rewardsWidget: wref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_parentContainerWidget), n"NewGogRewardsWidget");
+    rewardsWidget.SetOpacity(0.00);
+    this.currentScreenType = GogPopupScreenType.Rewards;
+    this.currentWidget = rewardsWidget;
+    rewardsController = rewardsWidget.GetController() as GogRewardsListController;
+    rewardsController.EnableSignOut(this.CanSignOut());
+    if IsDefined(rewardsController) {
+      isEp1Enabled = this.GetSystemRequestsHandler().IsAdditionalContentEnabled(n"EP1");
+      this.PopulateRewardsList(isEp1Enabled);
+      this.UpdateUnlockedRewards();
+      rewardsController.UpdateRewardsList(this.GetObtainedAndAmazonRewards());
+    };
+  }
+
+  protected cb func OnDelayedUpdateLayoutCompletedEvent(evt: ref<DelayedUpdateLayoutCompletedEvent>) -> Bool {
+    if Equals(this.currentScreenType, GogPopupScreenType.Rewards) {
+      if this.currentWidget != null {
+        this.currentWidget.SetOpacity(1.00);
+      };
+    };
+  }
+
+  private final func IsBaseRewardGroup(const groupName: CName) -> Bool {
+    return Equals(groupName, n"None") || Equals(groupName, n"default");
+  }
+
+  private final func ShowRegister(const registerUrl: script_ref<String>, const qrCodePNGBlob: script_ref<[Uint8]>) -> Void {
+    this.uiSystem.QueueMenuEvent(n"OnPitchScreenDisplay");
+    this.isFirstLogin = true;
+  }
+
+  protected cb func OnGogRewardsEntryHoverOver(evt: ref<GogRewardsEntryHoverOver>) -> Bool {
+    let mainMenuTooltipData: ref<MainMenuTooltipData>;
+    let tooltipData: ref<MessageTooltipData>;
+    if evt.controller.IsUnlocked() {
+      this.uiSystem.QueueMenuEvent(n"OnRequestHideMainMenuTooltip");
+      return false;
+    };
+    tooltipData = new MessageTooltipData();
+    tooltipData.Title = "LocKey#95888";
+    mainMenuTooltipData = new MainMenuTooltipData();
+    mainMenuTooltipData.identifier = n"descriptionTooltip";
+    mainMenuTooltipData.data = tooltipData;
+    mainMenuTooltipData.targetWidget = evt.widget;
+    mainMenuTooltipData.placement = gameuiETooltipPlacement.RightTop;
+    this.uiSystem.QueueMenuEvent(n"OnRequestShowMainMenuTooltip", mainMenuTooltipData);
+  }
+
+  protected cb func OnGogRewardsEntryHoverOut(evt: ref<GogRewardsEntryHoverOut>) -> Bool {
+    this.uiSystem.QueueMenuEvent(n"OnRequestHideMainMenuTooltip");
+  }
+
+  private final func ShowRetryButton(show: Bool) -> Void {
+    let widget: ref<inkWidget> = inkWidgetRef.Get(this.m_retryButton);
+    widget.SetVisible(show);
+  }
+
+  private final func GetMenuState() -> EGOGMenuState {
+    let controller: ref<GOGProfileLogicController> = this.GetRootWidget().GetController() as GOGProfileLogicController;
+    if controller != null {
+      return controller.m_gogMenuState;
+    };
+    return EGOGMenuState.None;
+  }
+
+  private final func GetGogContainerController() -> Void {
+    let controller: ref<GOGProfileLogicController> = this.GetRootWidget().GetController() as GOGProfileLogicController;
+    if controller != null {
+      this.m_gogContainerController = controller.m_gogContainer.GetController() as GogContainerController;
+    };
+  }
+}
+
+public class GogRegisterController extends BaseGOGRegisterController {
+
+  public edit let m_linkWidget: inkWidgetRef;
+
+  public edit let m_qrImageWidget: inkWidgetRef;
+
+  public edit let m_textDescription: inkTextRef;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_linkWidget, n"OnRelease", this, n"OnLinkClicked");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_linkWidget, n"OnRelease", this, n"OnLinkClicked");
+  }
+
+  protected cb func OnLinkClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.QueueEvent(new LinkClickedEvent());
+    };
+  }
+
+  public final func DisplayDiscription(isInMainMenu: Bool) -> Void {
+    inkTextRef.SetText(this.m_textDescription, isInMainMenu ? "UI-Menus-GOGProfile-ConnectMessage" : "UI-CrossProgression-Explanation");
+  }
+
+  public final func UpdateRegistrationData(const registerUrl: script_ref<String>, const qrCodePNGBlob: script_ref<[Uint8]>) -> Void {
+    let qrImageWidget: ref<inkImage>;
+    let linkWidget: ref<inkText> = inkWidgetRef.Get(this.m_linkWidget) as inkText;
+    if IsDefined(linkWidget) {
+      linkWidget.SetText(Deref(registerUrl));
+    };
+    qrImageWidget = inkWidgetRef.Get(this.m_qrImageWidget) as inkImage;
+    if IsDefined(qrImageWidget) {
+      this.SetupQRCodeWidget(qrImageWidget, Deref(qrCodePNGBlob));
+    };
+  }
+}
+
+public class GogRewardsController extends inkLogicController {
+
+  public edit let m_containerWidget: inkWidgetRef;
+
+  public final func UpdateRewardsList(const rewards: [ref<GogRewardEntryData>]) -> Void {
+    let count: Int32;
+    let entryController: wref<GogRewardEntryController>;
+    let i: Int32;
+    let compoundParent: wref<inkCompoundWidget> = inkWidgetRef.Get(this.m_containerWidget) as inkCompoundWidget;
+    compoundParent.RemoveAllChildren();
+    count = ArraySize(rewards);
+    i = 0;
+    while i < count {
+      entryController = this.SpawnFromLocal(compoundParent, n"RewardEntry").GetController() as GogRewardEntryController;
+      entryController.OldUpdateRewardDetails(rewards[i].title, rewards[i].description, rewards[i].icon);
+      i += 1;
+    };
+  }
+}
+
+public class GogRewardEntryController extends inkLogicController {
+
+  public edit let m_nameWidget: inkWidgetRef;
+
+  public edit let m_descriptionWidget: inkWidgetRef;
+
+  public edit let m_iconImage: inkImageRef;
+
+  public edit let m_ep1LabelContainer: inkWidgetRef;
+
+  public edit let m_backgroundWidget: inkWidgetRef;
+
+  private let m_isUnlocked: Bool;
+
+  public final func UpdateRewardDetails(iconName: CName, state: CName, isUnlocked: Bool, opt isOutfit: Bool) -> Void {
+    this.m_isUnlocked = isUnlocked;
+    if IsDefined(inkWidgetRef.Get(this.m_iconImage)) {
+      this.m_isUnlocked = isUnlocked;
+      inkWidgetRef.SetScale(this.m_iconImage, isOutfit ? new Vector2(0.50, 0.50) : new Vector2(1.00, 1.00));
+      inkImageRef.SetTexturePart(this.m_iconImage, iconName);
+      inkWidgetRef.Get(this.m_iconImage).SetEffectEnabled(inkEffectType.ColorCorrection, n"DisableEffect", !isUnlocked);
+      inkWidgetRef.SetVisible(this.m_backgroundWidget, !isUnlocked);
+    };
+    this.GetRootWidget().SetState(state);
+  }
+
+  public final func OldUpdateRewardDetails(const rewardTitle: script_ref<String>, const rewardDescription: script_ref<String>, iconSlot: CName, opt isUnlocked: Bool) -> Void {
+    let descriptionWidget: ref<inkText>;
+    let nameWidget: ref<inkText> = inkWidgetRef.Get(this.m_nameWidget) as inkText;
+    this.m_isUnlocked = isUnlocked;
+    if IsDefined(nameWidget) {
+      nameWidget.SetText(Deref(rewardTitle));
+    };
+    descriptionWidget = inkWidgetRef.Get(this.m_descriptionWidget) as inkText;
+    if IsDefined(descriptionWidget) {
+      descriptionWidget.SetText(Deref(rewardDescription));
+    };
+    if IsDefined(inkWidgetRef.Get(this.m_iconImage)) {
+      inkImageRef.SetTexturePart(this.m_iconImage, iconSlot);
+    };
+  }
+
+  public final func IsUnlocked() -> Bool {
+    return this.m_isUnlocked;
+  }
+}
+
+public class GogErrorNotificationController extends inkLogicController {
+
+  public edit let m_errorMessageWidget: inkWidgetRef;
+
+  public final func ShowErrorMessage(error: GOGRewardsSystemErrors) -> Void {
+    let errorMessageText: ref<inkText> = inkWidgetRef.Get(this.m_errorMessageWidget) as inkText;
+    errorMessageText.SetLocalizedText(StringToName(GOGRewardSystemErrorToDisplayString(error)));
+  }
+}
+
+public class GogContainerController extends inkLogicController {
+
+  public final func ReloadGogEmporium() -> Void {
+    let evt: ref<GogReloadEmporium> = new GogReloadEmporium();
+    this.QueueBroadcastEvent(evt);
+  }
+}

@@ -1,0 +1,53 @@
+
+public class UniqueRangedWeaponPSMPrereq extends PlayerStateMachinePrereq {
+
+  public let m_weaponRequiredTag: CName;
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let bb: ref<IBlackboard> = GameInstance.GetBlackboardSystem(game).GetLocalInstanced((context as ScriptedPuppet).GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    let castedState: ref<UniqueRangedWeaponPSMPrereqState> = state as UniqueRangedWeaponPSMPrereqState;
+    castedState.m_owner = context as GameObject;
+    castedState.m_listenedID = this.GetCorrespondingWeapon(context);
+    castedState.m_prevValue = bb.GetInt(castedState.m_listenedID);
+    castedState.m_listenerInt = bb.RegisterListenerInt(castedState.m_listenedID, castedState, n"OnStateUpdate");
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let bb: ref<IBlackboard> = GameInstance.GetBlackboardSystem(game).GetLocalInstanced((context as ScriptedPuppet).GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    let castedState: ref<UniqueRangedWeaponPSMPrereqState> = state as UniqueRangedWeaponPSMPrereqState;
+    bb.UnregisterListenerInt(castedState.m_listenedID, castedState.m_listenerInt);
+  }
+
+  public const func IsFulfilled(game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let checkPassed: Bool;
+    let listenedID: BlackboardID_Int;
+    let owner: wref<GameObject> = context as GameObject;
+    let bb: ref<IBlackboard> = GameInstance.GetBlackboardSystem(owner.GetGame()).GetLocalInstanced((context as ScriptedPuppet).GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    if !IsDefined(bb) {
+      return false;
+    };
+    listenedID = this.GetCorrespondingWeapon(context);
+    checkPassed = this.Evaluate(owner, bb.GetInt(listenedID), bb.GetInt(listenedID));
+    return checkPassed;
+  }
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    super.Initialize(recordID);
+    this.m_weaponRequiredTag = TweakDBInterface.GetCNameDefault(recordID + t".weaponRequiredTag");
+  }
+
+  protected const func GetStateMachineEnum() -> String {
+    return "gamePSMRangedWeaponStates";
+  }
+
+  private final const func GetCorrespondingWeapon(context: ref<IScriptable>) -> BlackboardID_Int {
+    let leftWeapon: ref<WeaponObject> = GameObject.GetLeftActiveWeapon(context as GameObject);
+    if IsDefined(leftWeapon) {
+      if leftWeapon.GetWeaponRecord().TagsContains(this.m_weaponRequiredTag) {
+        return GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon;
+      };
+    };
+    return GetAllBlackboardDefs().PlayerStateMachine.RightWeapon;
+  }
+}

@@ -1,0 +1,722 @@
+
+public class UIInventoryScriptableSystem extends ScriptableSystem {
+
+  private let m_attachedPlayer: wref<PlayerPuppet>;
+
+  private let m_inventoryListenerCallback: ref<UIInventoryScriptableInventoryListenerCallback>;
+
+  private let m_inventoryListener: ref<InventoryScriptListener>;
+
+  private let m_equipmentListener: ref<UIInventoryScriptableEquipmentListener>;
+
+  private let m_playerStatsListener: ref<UIInventoryScriptableStatsListener>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_playerItems: ref<inkHashMap>;
+
+  private let m_transactionSystem: ref<TransactionSystem>;
+
+  private let m_uiScriptableSystem: ref<UIScriptableSystem>;
+
+  private let m_inventoryItemsManager: ref<UIInventoryItemsManager>;
+
+  private let m_blacklistedTags: [CName];
+
+  private let m_cachedNonInventoryItems: ref<inkHashMap>;
+
+  private let m_statsDependantItems: ref<inkWeakHashMap>;
+
+  private let m_InventoryBlackboard: wref<IBlackboard>;
+
+  private let m_CraftingBlackboardDefinition: ref<UI_CraftingDef>;
+
+  private let m_LevelUpDef: ref<UI_LevelUpDef>;
+
+  private let m_AttributeBoughtDef: ref<UI_AttributeBoughtDef>;
+
+  private let m_Blackboard: wref<IBlackboard>;
+
+  private let m_BlackboardAttributeBought: wref<IBlackboard>;
+
+  private let m_BlackboardLevelUp: wref<IBlackboard>;
+
+  private let m_UpgradeBlackboardCallback: ref<CallbackHandle>;
+
+  private let m_CharacterLevelBlackboardCallback: ref<CallbackHandle>;
+
+  private let m_OnAttributesChangeCallback: ref<CallbackHandle>;
+
+  private let m_TEMP_questSystem: ref<QuestsSystem>;
+
+  private let m_TEMP_cuverBarsListener: Uint32;
+
+  private let m_TEMP_separatorBarsListener: Uint32;
+
+  private let m_itemsRestored: Bool;
+
+  private func OnDetach() -> Void {
+    this.FlushCraftingResults();
+    GameInstance.GetTransactionSystem(this.m_attachedPlayer.GetGame()).UnregisterInventoryListener(this.m_attachedPlayer, this.m_inventoryListener);
+    this.m_inventoryListener = null;
+    this.m_equipmentListener.UnregisterBlackboard();
+    if IsDefined(this.m_Blackboard) {
+      this.m_Blackboard.UnregisterListenerVariant(this.m_CraftingBlackboardDefinition.lastCommand, this.m_UpgradeBlackboardCallback);
+    };
+    if IsDefined(this.m_BlackboardLevelUp) {
+      this.m_BlackboardLevelUp.UnregisterDelayedListener(this.m_LevelUpDef.level, this.m_CharacterLevelBlackboardCallback);
+    };
+    if IsDefined(this.m_BlackboardAttributeBought) {
+      this.m_BlackboardAttributeBought.UnregisterDelayedListener(this.m_AttributeBoughtDef.attribute, this.m_OnAttributesChangeCallback);
+    };
+    this.m_TEMP_questSystem.UnregisterListener(n"disable_curve_bars", this.m_TEMP_cuverBarsListener);
+    this.m_TEMP_questSystem.UnregisterListener(n"enable_separator_bars", this.m_TEMP_separatorBarsListener);
+  }
+
+  private final func SetupInstance() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let playerItems: array<wref<gameItemData>>;
+    this.m_inventoryListenerCallback = new UIInventoryScriptableInventoryListenerCallback();
+    this.m_transactionSystem = GameInstance.GetTransactionSystem(this.GetGameInstance());
+    this.m_TEMP_questSystem = GameInstance.GetQuestsSystem(this.GetGameInstance());
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.GetGameInstance());
+    this.m_inventoryItemsManager = UIInventoryItemsManager.Make(this.m_attachedPlayer, this.m_transactionSystem, this.m_uiScriptableSystem);
+    this.m_uiSystem = GameInstance.GetUISystem(this.GetGameInstance());
+    this.m_playerItems = new inkHashMap();
+    this.m_cachedNonInventoryItems = new inkHashMap();
+    this.m_statsDependantItems = new inkWeakHashMap();
+    this.m_blacklistedTags = UIInventoryItemsManager.GetBlacklistedTags();
+    this.m_itemsRestored = false;
+    this.m_transactionSystem.GetItemListExcludingTags(this.m_attachedPlayer, this.m_blacklistedTags, playerItems);
+    i = 0;
+    limit = ArraySize(playerItems);
+    while i < limit {
+      if this.IsPreview(playerItems[i].GetID()) {
+      } else {
+        this.InsertPlayerItem(ItemID.GetCombinedHash(playerItems[i].GetID()), UIInventoryItem.Make(this.m_attachedPlayer, playerItems[i], this.m_inventoryItemsManager));
+      };
+      i += 1;
+    };
+    this.m_itemsRestored = true;
+    this.m_CraftingBlackboardDefinition = GetAllBlackboardDefs().UI_Crafting;
+    this.m_Blackboard = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.m_CraftingBlackboardDefinition);
+    if IsDefined(this.m_Blackboard) {
+      this.m_UpgradeBlackboardCallback = this.m_Blackboard.RegisterListenerVariant(this.m_CraftingBlackboardDefinition.lastCommand, this, n"OnUpgradeItem", true);
+    };
+    this.m_LevelUpDef = GetAllBlackboardDefs().UI_LevelUp;
+    this.m_AttributeBoughtDef = GetAllBlackboardDefs().UI_AttributeBought;
+    this.m_BlackboardLevelUp = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.m_LevelUpDef);
+    this.m_BlackboardAttributeBought = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.m_AttributeBoughtDef);
+    if IsDefined(this.m_BlackboardLevelUp) {
+      this.m_CharacterLevelBlackboardCallback = this.m_BlackboardLevelUp.RegisterListenerVariant(this.m_LevelUpDef.level, this, n"OnCharacterLevelUpdated", true);
+    };
+    if IsDefined(this.m_BlackboardAttributeBought) {
+      this.m_OnAttributesChangeCallback = this.m_BlackboardAttributeBought.RegisterListenerVariant(this.m_AttributeBoughtDef.attribute, this, n"OnCharacterAttributeUpdated", true);
+    };
+    this.m_TEMP_cuverBarsListener = this.m_TEMP_questSystem.RegisterListener(n"disable_curve_bars", this, n"DisableCurveBarsChanged");
+    this.m_inventoryItemsManager.SetCuverBarsEnabled(this.m_TEMP_questSystem.GetFact(n"disable_curve_bars") <= 0);
+    this.m_TEMP_separatorBarsListener = this.m_TEMP_questSystem.RegisterListener(n"enable_separator_bars", this, n"DisableSeparatorBarsChanged");
+    this.m_inventoryItemsManager.SetSeparatorBarsEnabled(this.m_TEMP_questSystem.GetFact(n"enable_separator_bars") > 0);
+  }
+
+  protected cb func OnCharacterLevelUpdated(value: Variant) -> Bool {
+    this.FlushCyberwareStats();
+  }
+
+  protected cb func OnCharacterAttributeUpdated(value: Variant) -> Bool {
+    this.FlushCyberwareStats();
+  }
+
+  private final func DisableCurveBarsChanged(value: Int32) -> Void {
+    this.m_inventoryItemsManager.SetCuverBarsEnabled(value <= 0);
+  }
+
+  private final func DisableSeparatorBarsChanged(value: Int32) -> Void {
+    this.m_inventoryItemsManager.SetSeparatorBarsEnabled(value > 0);
+  }
+
+  protected cb func OnUpgradeItem(value: Variant) -> Bool {
+    let itemID: ItemID;
+    let commandType: CraftingCommands = FromVariant<CraftingCommands>(this.m_Blackboard.GetVariant(this.m_CraftingBlackboardDefinition.lastCommand));
+    if Equals(commandType, CraftingCommands.UpgradingFinished) {
+      itemID = FromVariant<ItemID>(this.m_Blackboard.GetVariant(this.m_CraftingBlackboardDefinition.lastItem));
+      this.RefreshItem(itemID);
+    };
+  }
+
+  private final func RefreshItem(itemID: ItemID) -> Void {
+    let inventoryItemRefreshed: ref<UIInventoryItem>;
+    let itemData: wref<gameItemData>;
+    if this.IsPreview(itemID) {
+      return;
+    };
+    itemData = this.m_transactionSystem.GetItemData(this.m_attachedPlayer, itemID);
+    inventoryItemRefreshed = UIInventoryItem.Make(this.m_attachedPlayer, itemData, this.m_inventoryItemsManager);
+    this.m_playerItems.Set(ItemID.GetCombinedHash(itemID), inventoryItemRefreshed);
+  }
+
+  private final const func IsPreview(itemID: ItemID) -> Bool {
+    return ItemID.HasFlag(itemID, gameEItemIDFlag.Preview);
+  }
+
+  private final const func IsStatDependantItem(tweakDBID: TweakDBID) -> Bool {
+    return tweakDBID == t"Items.PermanentHealthFood" || tweakDBID == t"Items.PermanentStaminaRegenFood" || tweakDBID == t"Items.PermanentMemoryRegenFood";
+  }
+
+  private final func OnPlayerAttach(request: ref<PlayerAttachRequest>) -> Void {
+    if !request.owner.IsPlayer() || request.owner.IsReplacer() {
+      return;
+    };
+    if this.m_attachedPlayer != null {
+      GameInstance.GetTransactionSystem(this.m_attachedPlayer.GetGame()).UnregisterInventoryListener(this.m_attachedPlayer, this.m_inventoryListener);
+      GameInstance.GetStatsSystem(this.m_attachedPlayer.GetGame()).UnregisterListener(Cast<StatsObjectID>(this.m_attachedPlayer.GetEntityID()), this.m_playerStatsListener);
+    };
+    this.m_attachedPlayer = request.owner as PlayerPuppet;
+    this.SetupInstance();
+    if IsDefined(this.m_equipmentListener) {
+      this.m_equipmentListener.UnregisterBlackboard();
+    };
+    this.m_InventoryBlackboard = null;
+    this.m_equipmentListener = new UIInventoryScriptableEquipmentListener();
+    this.m_equipmentListener.AttachScriptableSystem(this.m_attachedPlayer.GetGame());
+    this.m_equipmentListener.RegisterBlackboard(this.m_attachedPlayer.GetGame());
+    this.m_InventoryBlackboard = GameInstance.GetBlackboardSystem(this.m_attachedPlayer.GetGame()).Get(GetAllBlackboardDefs().UI_Inventory);
+    this.m_inventoryItemsManager.AttachPlayer(this.m_attachedPlayer);
+    this.m_inventoryListener = GameInstance.GetTransactionSystem(this.m_attachedPlayer.GetGame()).RegisterInventoryListener(this.m_attachedPlayer, this.m_inventoryListenerCallback);
+    this.m_inventoryListenerCallback.AttachScriptableSystem(this.m_attachedPlayer.GetGame());
+    this.m_playerStatsListener = new UIInventoryScriptableStatsListener();
+    this.m_playerStatsListener.AttachScriptableSystem(this.m_attachedPlayer.GetGame());
+    GameInstance.GetStatsSystem(this.m_attachedPlayer.GetGame()).RegisterListener(Cast<StatsObjectID>(this.m_attachedPlayer.GetEntityID()), this.m_playerStatsListener);
+  }
+
+  public final static func GetInstance(gameInstance: GameInstance) -> ref<UIInventoryScriptableSystem> {
+    let system: ref<UIInventoryScriptableSystem> = GameInstance.GetScriptableSystemsContainer(gameInstance).Get(n"UIInventoryScriptableSystem") as UIInventoryScriptableSystem;
+    return system;
+  }
+
+  public final const func GetInventoryItemsManager() -> wref<UIInventoryItemsManager> {
+    return this.m_inventoryItemsManager;
+  }
+
+  public final const func GetPlayerItemsMap() -> ref<inkHashMap> {
+    return this.m_playerItems;
+  }
+
+  public final const func GetPlayerItem(itemID: ItemID) -> wref<UIInventoryItem> {
+    return this.m_playerItems.Get(ItemID.GetCombinedHash(itemID)) as UIInventoryItem;
+  }
+
+  public final const func GetPlayerItem(hash: Uint64) -> wref<UIInventoryItem> {
+    return this.m_playerItems.Get(hash) as UIInventoryItem;
+  }
+
+  public final const func QueryPlayerItem(tweakID: TweakDBID) -> wref<UIInventoryItem> {
+    return this.m_playerItems.Get(ItemID.GetCombinedHash(ItemID.CreateQuery(tweakID))) as UIInventoryItem;
+  }
+
+  private final const func InsertPlayerItem(hash: Uint64, itemData: ref<UIInventoryItem>) -> Void {
+    this.m_playerItems.Insert(hash, itemData);
+    if this.IsStatDependantItem(itemData.GetTweakDBID()) {
+      this.m_statsDependantItems.Insert(hash, itemData);
+    };
+    if this.m_itemsRestored {
+      this.NotifyItemAdded(itemData.GetID(), hash);
+    };
+  }
+
+  private final const func GetQueryIDs(query: ItemID) -> [ItemID] {
+    let i: Int32;
+    let ids: array<ItemID>;
+    let limit: Int32;
+    let uiInventoryItem: ref<UIInventoryItem>;
+    let values: array<wref<IScriptable>>;
+    this.m_playerItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      uiInventoryItem = values[i] as UIInventoryItem;
+      if uiInventoryItem.GetID() == query {
+        ArrayPush(ids, uiInventoryItem.GetID());
+      };
+      i += 1;
+    };
+    return ids;
+  }
+
+  private final const func GetNonInventoryQueryIDs(query: ItemID) -> [ItemID] {
+    let i: Int32;
+    let ids: array<ItemID>;
+    let limit: Int32;
+    let uiInventoryItem: ref<UIInventoryItem>;
+    let values: array<wref<IScriptable>>;
+    this.m_cachedNonInventoryItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      uiInventoryItem = values[i] as UIInventoryItem;
+      if uiInventoryItem.GetID() == query {
+        ArrayPush(ids, uiInventoryItem.GetID());
+      };
+      i += 1;
+    };
+    return ids;
+  }
+
+  private final const func InternalRemovePlayerItems(hash: Uint64, itemID: ItemID) -> Bool {
+    let result: Bool = this.m_playerItems.Remove(hash);
+    this.m_statsDependantItems.Remove(hash);
+    if this.m_itemsRestored {
+      this.NotifyItemRemoved(itemID, hash);
+    };
+    return result;
+  }
+
+  private final const func RemovePlayerItem(hash: Uint64, itemID: ItemID) -> Bool {
+    let i: Int32;
+    let ids: array<ItemID>;
+    let limit: Int32;
+    let result: Bool;
+    if ItemID.IsQuery(itemID) {
+      ids = this.GetQueryIDs(itemID);
+      i = 0;
+      limit = ArraySize(ids);
+      while i < limit {
+        result = result || this.InternalRemovePlayerItems(ItemID.GetCombinedHash(ids[i]), ids[i]);
+        i += 1;
+      };
+    } else {
+      result = this.InternalRemovePlayerItems(hash, itemID);
+    };
+    return result;
+  }
+
+  private final const func NotifyItemAdded(itemID: ItemID, hash: Uint64) -> Void {
+    let evt: ref<UIInventoryItemAdded> = new UIInventoryItemAdded();
+    evt.itemID = itemID;
+    evt.hash = hash;
+    this.m_uiSystem.QueueEvent(evt);
+  }
+
+  private final const func NotifyItemRemoved(itemID: ItemID, hash: Uint64) -> Void {
+    let evt: ref<UIInventoryItemRemoved> = new UIInventoryItemRemoved();
+    evt.itemID = itemID;
+    evt.hash = hash;
+    this.m_uiSystem.QueueEvent(evt);
+  }
+
+  public final const func GetNonInventoryItem(itemID: ItemID) -> wref<UIInventoryItem> {
+    let itemData: ref<gameItemData>;
+    let hash: Uint64 = ItemID.GetCombinedHash(itemID);
+    if !this.m_cachedNonInventoryItems.KeyExist(hash) {
+      itemData = RPGManager.GetItemData(this.m_attachedPlayer.GetGame(), this.m_attachedPlayer, itemID);
+      if !this.Internal_FetchNonInventoryItem(hash, itemData) {
+        return null;
+      };
+    };
+    return this.m_cachedNonInventoryItems.Get(hash) as UIInventoryItem;
+  }
+
+  private final const func Internal_FetchNonInventoryItem(hash: Uint64, itemData: wref<gameItemData>) -> Bool {
+    let inventoryItem: ref<UIInventoryItem>;
+    if itemData == null {
+      return false;
+    };
+    inventoryItem = UIInventoryItem.Make(this.m_attachedPlayer, itemData, this.m_inventoryItemsManager);
+    this.m_cachedNonInventoryItems.Insert(hash, inventoryItem);
+    return true;
+  }
+
+  public final const func GetPlayerItemFromAnySource(itemData: wref<gameItemData>) -> wref<UIInventoryItem> {
+    let hash: Uint64 = ItemID.GetCombinedHash(itemData.GetID());
+    let result: wref<UIInventoryItem> = this.GetPlayerItem(hash);
+    if IsDefined(result) {
+      return result;
+    };
+    if !this.m_cachedNonInventoryItems.KeyExist(hash) {
+      if !this.Internal_FetchNonInventoryItem(hash, itemData) {
+        return null;
+      };
+    };
+    return this.m_cachedNonInventoryItems.Get(hash) as UIInventoryItem;
+  }
+
+  public final const func QueryNonInventoryItem(tweakID: TweakDBID) -> wref<UIInventoryItem> {
+    return this.GetNonInventoryItem(ItemID.CreateQuery(tweakID));
+  }
+
+  public final const func GetPlayerAreaItems(equipmentArea: gamedataEquipmentArea) -> [wref<UIInventoryItem>] {
+    let result: array<wref<UIInventoryItem>>;
+    let ids: array<ItemID> = this.m_inventoryItemsManager.GetRawEquippedItems(equipmentArea);
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(ids);
+    while i < limit {
+      ArrayPush(result, this.m_playerItems.Get(ItemID.GetCombinedHash(ids[i])) as UIInventoryItem);
+      i += 1;
+    };
+    return result;
+  }
+
+  public final const func GetPlayerWeaponItems(opt onlyRightHandWeapons: Bool) -> [wref<UIInventoryItem>] {
+    let result: array<wref<UIInventoryItem>>;
+    let ids: array<ItemID> = this.m_inventoryItemsManager.GetRawEquippedWeapons(onlyRightHandWeapons);
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(ids);
+    while i < limit {
+      ArrayPush(result, this.m_playerItems.Get(ItemID.GetCombinedHash(ids[i])) as UIInventoryItem);
+      i += 1;
+    };
+    return result;
+  }
+
+  public final const func GetPlayerAreaItem(equipmentArea: gamedataEquipmentArea, opt slotIndex: Int32) -> wref<UIInventoryItem> {
+    let ids: array<ItemID> = this.m_inventoryItemsManager.GetRawEquippedItems(equipmentArea);
+    return this.m_playerItems.Get(ItemID.GetCombinedHash(ids[slotIndex])) as UIInventoryItem;
+  }
+
+  public final const func GetPlayerHealingItems() -> [wref<UIInventoryItem>] {
+    let i: Int32;
+    let items: array<wref<gameItemData>>;
+    let limit: Int32;
+    let result: array<wref<UIInventoryItem>>;
+    let tags: array<CName>;
+    ArrayPush(tags, n"Injector");
+    ArrayPush(tags, n"Inhaler");
+    this.m_transactionSystem.GetItemListByTags(this.m_attachedPlayer, tags, items);
+    i = 0;
+    limit = ArraySize(items);
+    while i < limit {
+      if items[i] != null {
+        ArrayPush(result, this.m_playerItems.Get(ItemID.GetCombinedHash(items[i].GetID())) as UIInventoryItem);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  public final const func FlushFullscreenCache() -> Void {
+    this.FlushTempData();
+  }
+
+  public final const func FlushTempData() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let values: array<wref<IScriptable>>;
+    this.m_inventoryItemsManager.FlushAmmoCache();
+    this.m_inventoryItemsManager.FlushEquippedItems();
+    this.m_inventoryItemsManager.FlushTransmogItems();
+    this.m_playerItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      values[i] as UIInventoryItem.Internal_FlushRequirements();
+      values[i] as UIInventoryItem.Internal_FlushComparedBars();
+      values[i] as UIInventoryItem.Internal_FlushCyberwareUpgrade();
+      i += 1;
+    };
+  }
+
+  public final const func FlushCraftingResults() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let values: array<wref<IScriptable>>;
+    this.m_playerItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      values[i] as UIInventoryItem.Internal_FlushRequirements();
+      i += 1;
+    };
+    this.m_cachedNonInventoryItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      values[i] as UIInventoryItem.Internal_FlushRequirements();
+      i += 1;
+    };
+  }
+
+  public final const func FlushStatsDependantItems() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let values: array<wref<IScriptable>>;
+    this.m_statsDependantItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      values[i] as UIInventoryItem.Internal_MarkModsDirty();
+      i += 1;
+    };
+  }
+
+  private final func OnInventoryItemAdded(request: ref<UIInventoryScriptableSystemInventoryAddItem>) -> Void {
+    let combinedHash: Uint64;
+    let data: ref<UIInventoryItem>;
+    let i: Int32;
+    let isBackpackItem: Bool;
+    let isUnique: Bool;
+    let itemAddedData: ItemRemovedData;
+    let itemRecord: wref<Item_Record>;
+    let itemTweakID: TweakDBID;
+    let limit: Int32;
+    let tags: array<CName>;
+    if ItemID.HasFlag(request.itemID, gameEItemIDFlag.Preview) {
+      return;
+    };
+    itemTweakID = ItemID.GetTDBID(request.itemID);
+    itemRecord = TweakDBInterface.GetItemRecord(itemTweakID);
+    tags = itemRecord.Tags();
+    isBackpackItem = true;
+    i = 0;
+    limit = ArraySize(tags);
+    while i < limit {
+      if ArrayContains(this.m_blacklistedTags, tags[i]) {
+        isBackpackItem = false;
+        break;
+      };
+      i += 1;
+    };
+    if request.itemData == null {
+      request.itemData = RPGManager.GetItemData(this.m_attachedPlayer.GetGame(), this.m_attachedPlayer, request.itemID);
+    };
+    data = UIInventoryItem.Make(this.m_attachedPlayer, request.itemData, itemTweakID, itemRecord, this.m_inventoryItemsManager);
+    isUnique = Equals(ItemID.GetStructure(request.itemID), gamedataItemStructure.Unique);
+    combinedHash = ItemID.GetCombinedHash(request.itemID);
+    if isBackpackItem {
+      if isUnique && this.m_playerItems.KeyExist(combinedHash) {
+        return;
+      };
+      this.InsertPlayerItem(combinedHash, data);
+    } else {
+      if isUnique && this.m_cachedNonInventoryItems.KeyExist(combinedHash) {
+        return;
+      };
+      this.m_cachedNonInventoryItems.Insert(combinedHash, data);
+    };
+    itemAddedData.itemID = request.itemID;
+    itemAddedData.isBackpackItem = isBackpackItem;
+    this.m_InventoryBlackboard.SetVariant(GetAllBlackboardDefs().UI_Inventory.itemAdded, ToVariant(itemAddedData), true);
+  }
+
+  private final func OnInventoryItemRemoved(request: ref<UIInventoryScriptableSystemInventoryRemoveItem>) -> Void {
+    let favouriteRequest: ref<UIScriptableSystemSetItemPlayerFavourite>;
+    let hash: Uint64;
+    let isBackpackItem: Bool;
+    let itemRemoved: Bool;
+    let itemRemovedData: ItemRemovedData;
+    if ItemID.HasFlag(request.itemID, gameEItemIDFlag.Preview) {
+      return;
+    };
+    hash = ItemID.GetCombinedHash(request.itemID);
+    isBackpackItem = this.RemovePlayerItem(hash, request.itemID);
+    itemRemoved = isBackpackItem;
+    itemRemoved = itemRemoved || this.m_cachedNonInventoryItems.Remove(hash);
+    if itemRemoved {
+      itemRemovedData.itemID = request.itemID;
+      itemRemovedData.isBackpackItem = isBackpackItem;
+      this.m_InventoryBlackboard.SetVariant(GetAllBlackboardDefs().UI_Inventory.itemRemoved, ToVariant(itemRemovedData), true);
+    };
+    favouriteRequest = new UIScriptableSystemSetItemPlayerFavourite();
+    favouriteRequest.itemID = request.itemID;
+    this.m_uiScriptableSystem.QueueRequest(favouriteRequest);
+  }
+
+  private final func OnInventoryItemQuantityChanged(request: ref<UIInventoryScriptableSystemInventoryQuantityChanged>) -> Void {
+    let hash: Uint64;
+    let i: Int32;
+    let ids: array<ItemID>;
+    let itemQuantityChangedData: ItemQuantityChangedData;
+    let limit: Int32;
+    let uiInventoryItem: wref<UIInventoryItem>;
+    if !ItemID.IsQuery(request.itemID) {
+      hash = ItemID.GetCombinedHash(request.itemID);
+      uiInventoryItem = this.m_playerItems.Get(hash) as UIInventoryItem;
+      if uiInventoryItem == null {
+        uiInventoryItem = this.m_cachedNonInventoryItems.Get(hash) as UIInventoryItem;
+      };
+      if IsDefined(uiInventoryItem) {
+        uiInventoryItem.MarkQuantityDirty();
+        itemQuantityChangedData.itemID = request.itemID;
+        itemQuantityChangedData.isBackpackItem = true;
+        this.m_InventoryBlackboard.SetVariant(GetAllBlackboardDefs().UI_Inventory.itemQuantityChanged, ToVariant(itemQuantityChangedData), true);
+      };
+      return;
+    };
+    ids = this.GetQueryIDs(request.itemID);
+    i = 0;
+    limit = ArraySize(ids);
+    while i < limit {
+      uiInventoryItem = this.m_playerItems.Get(ItemID.GetCombinedHash(ids[i])) as UIInventoryItem;
+      if IsDefined(uiInventoryItem) {
+        uiInventoryItem.MarkQuantityDirty();
+        itemQuantityChangedData.itemID = ids[i];
+        itemQuantityChangedData.isBackpackItem = true;
+        this.m_InventoryBlackboard.SetVariant(GetAllBlackboardDefs().UI_Inventory.itemQuantityChanged, ToVariant(itemQuantityChangedData), true);
+      };
+      i += 1;
+    };
+    ids = this.GetNonInventoryQueryIDs(request.itemID);
+    i = 0;
+    limit = ArraySize(ids);
+    while i < limit {
+      uiInventoryItem = this.m_cachedNonInventoryItems.Get(ItemID.GetCombinedHash(ids[i])) as UIInventoryItem;
+      if IsDefined(uiInventoryItem) {
+        uiInventoryItem.MarkQuantityDirty();
+        itemQuantityChangedData.itemID = ids[i];
+        itemQuantityChangedData.isBackpackItem = true;
+        this.m_InventoryBlackboard.SetVariant(GetAllBlackboardDefs().UI_Inventory.itemQuantityChanged, ToVariant(itemQuantityChangedData), true);
+      };
+      i += 1;
+    };
+  }
+
+  private final func OnPartInstallRequest(request: ref<PartInstallRequest>) -> Void {
+    let item: wref<UIInventoryItem> = this.m_playerItems.Get(ItemID.GetCombinedHash(request.itemID)) as UIInventoryItem;
+    if IsDefined(item) {
+      item.Internal_MarkStatsDirty();
+      item.Internal_MarkModsDirty();
+    };
+  }
+
+  private final func OnPartUninstallRequest(request: ref<PartUninstallRequest>) -> Void {
+    let item: wref<UIInventoryItem> = this.m_playerItems.Get(ItemID.GetCombinedHash(request.itemID)) as UIInventoryItem;
+    if IsDefined(item) {
+      item.Internal_MarkStatsDirty();
+      item.Internal_MarkModsDirty();
+    };
+  }
+
+  private final func OnBuyNewPerk(request: ref<BuyNewPerk>) -> Void {
+    this.UpdateNewPerk(request.m_perkType);
+  }
+
+  private final func OnSellNewPerk(request: ref<SellNewPerk>) -> Void {
+    this.UpdateNewPerk(request.m_perkType);
+  }
+
+  private final func UpdateNewPerk(perkType: gamedataNewPerkType) -> Void {
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Milestone_1) {
+      this.FlushNanoWiresMods();
+    } else {
+      if Equals(perkType, gamedataNewPerkType.Tech_Central_Milestone_2) || Equals(perkType, gamedataNewPerkType.Tech_Central_Perk_2_1) || Equals(perkType, gamedataNewPerkType.Tech_Inbetween_Right_2) || Equals(perkType, gamedataNewPerkType.Tech_Central_Milestone_3) || Equals(perkType, gamedataNewPerkType.Tech_Central_Perk_3_4) || Equals(perkType, gamedataNewPerkType.Tech_Central_Perk_3_1) {
+        this.FlushCyberwareStats();
+      };
+    };
+  }
+
+  private final func FlushNanoWiresMods() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let values: array<wref<IScriptable>>;
+    this.m_playerItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      if Equals(values[i] as UIInventoryItem.GetItemType(), gamedataItemType.Cyb_NanoWires) {
+        values[i] as UIInventoryItem.Internal_MarkModsDirty();
+      };
+      i += 1;
+    };
+  }
+
+  private final func FlushCyberwareStats() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let values: array<wref<IScriptable>>;
+    this.m_playerItems.GetValues(values);
+    i = 0;
+    limit = ArraySize(values);
+    while i < limit {
+      if values[i] as UIInventoryItem.IsAnyCyberware() {
+        values[i] as UIInventoryItem.Internal_MarkStatsDirty();
+        values[i] as UIInventoryItem.Internal_MarkModsDirty();
+      };
+      i += 1;
+    };
+  }
+}
+
+public class UIInventoryScriptableInventoryListenerCallback extends InventoryScriptCallback {
+
+  private let m_uiInventoryScriptableSystem: wref<UIInventoryScriptableSystem>;
+
+  public final func AttachScriptableSystem(gameInstance: GameInstance) -> Void {
+    this.m_uiInventoryScriptableSystem = UIInventoryScriptableSystem.GetInstance(gameInstance);
+  }
+
+  public func OnItemAdded(_itemID: ItemID, itemData: wref<gameItemData>, flaggedAsSilent: Bool) -> Void {
+    let request: ref<UIInventoryScriptableSystemInventoryAddItem> = new UIInventoryScriptableSystemInventoryAddItem();
+    request.itemID = _itemID;
+    request.itemData = itemData;
+    this.m_uiInventoryScriptableSystem.QueueRequest(request);
+  }
+
+  public func OnPartRemoved(partID: ItemID, formerItemID: ItemID) -> Void {
+    let request: ref<UIInventoryScriptableSystemInventoryAddItem> = new UIInventoryScriptableSystemInventoryAddItem();
+    request.itemID = partID;
+    this.m_uiInventoryScriptableSystem.QueueRequest(request);
+  }
+
+  public func OnItemRemoved(_itemID: ItemID, difference: Int32, currentQuantity: Int32) -> Void {
+    let request: ref<UIInventoryScriptableSystemInventoryRemoveItem> = new UIInventoryScriptableSystemInventoryRemoveItem();
+    request.itemID = _itemID;
+    this.m_uiInventoryScriptableSystem.QueueRequest(request);
+  }
+
+  public func OnItemQuantityChanged(_itemID: ItemID, diff: Int32, total: Uint32, flaggedAsSilent: Bool) -> Void {
+    let request: ref<UIInventoryScriptableSystemInventoryQuantityChanged> = new UIInventoryScriptableSystemInventoryQuantityChanged();
+    request.itemID = _itemID;
+    this.m_uiInventoryScriptableSystem.QueueRequest(request);
+  }
+
+  public func OnItemExtracted(_itemID: ItemID) -> Void {
+    let request: ref<UIInventoryScriptableSystemInventoryRemoveItem> = new UIInventoryScriptableSystemInventoryRemoveItem();
+    request.itemID = _itemID;
+    this.m_uiInventoryScriptableSystem.QueueRequest(request);
+  }
+}
+
+public class UIInventoryScriptableEquipmentListener extends IScriptable {
+
+  private let m_uiInventoryScriptableSystem: wref<UIInventoryScriptableSystem>;
+
+  private let m_EquipmentBlackboard: wref<IBlackboard>;
+
+  private let m_itemEquippedListener: ref<CallbackHandle>;
+
+  public final func AttachScriptableSystem(gameInstance: GameInstance) -> Void {
+    this.m_uiInventoryScriptableSystem = UIInventoryScriptableSystem.GetInstance(gameInstance);
+  }
+
+  public final func RegisterBlackboard(gameInstance: GameInstance) -> Void {
+    this.m_EquipmentBlackboard = GameInstance.GetBlackboardSystem(gameInstance).Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(this.m_EquipmentBlackboard) {
+      this.m_itemEquippedListener = this.m_EquipmentBlackboard.RegisterListenerInt(GetAllBlackboardDefs().UI_Equipment.areaChanged, this, n"OnAreaEquippedChanged");
+    };
+  }
+
+  public final func UnregisterBlackboard() -> Void {
+    if IsDefined(this.m_EquipmentBlackboard) {
+      this.m_EquipmentBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().UI_Equipment.areaChanged, this.m_itemEquippedListener);
+      this.m_itemEquippedListener = null;
+    };
+    this.m_EquipmentBlackboard = null;
+  }
+
+  protected cb func OnAreaEquippedChanged(equipmentAreaIndex: Int32) -> Bool;
+}
+
+public class UIInventoryScriptableStatsListener extends ScriptStatsListener {
+
+  private let m_uiInventoryScriptableSystem: wref<UIInventoryScriptableSystem>;
+
+  public final func AttachScriptableSystem(gameInstance: GameInstance) -> Void {
+    this.m_uiInventoryScriptableSystem = UIInventoryScriptableSystem.GetInstance(gameInstance);
+  }
+
+  public func OnStatChanged(ownerID: StatsObjectID, statType: gamedataStatType, diff: Float, total: Float) -> Void {
+    if Equals(statType, gamedataStatType.HealthBonusBlackmarket) || Equals(statType, gamedataStatType.StaminaRegenBonusBlackmarket) || Equals(statType, gamedataStatType.MemoryRegenBonusBlackmarket) {
+      this.m_uiInventoryScriptableSystem.FlushStatsDependantItems();
+    };
+  }
+}

@@ -1,0 +1,236 @@
+
+public class DifficultySelectionMenu extends BaseCharacterCreationController {
+
+  public edit let m_difficultyTitle: inkTextRef;
+
+  public edit let m_textureTop: inkImageRef;
+
+  public edit let m_textureBottom: inkImageRef;
+
+  private edit let m_hoverAnimation: CName;
+
+  public edit let m_difficulty0: inkWidgetRef;
+
+  public edit let m_difficulty1: inkWidgetRef;
+
+  public edit let m_difficulty2: inkWidgetRef;
+
+  public edit let m_difficulty3: inkWidgetRef;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_lastShownPart: CName;
+
+  @default(DifficultySelectionMenu, base\gameplay\gui\fullscreen\main_menu\difficulty_level.inkatlas)
+  private let m_lastAtlas: ResRef;
+
+  private let m_translationAnimationCtrl: wref<inkTextReplaceController>;
+
+  private let m_localizedText: String;
+
+  @default(DifficultySelectionMenu, base\gameplay\gui\fullscreen\main_menu\difficulty_level.inkatlas)
+  private const let c_atlas1: ResRef;
+
+  @default(DifficultySelectionMenu, base\gameplay\gui\fullscreen\main_menu\difficulty_level1.inkatlas)
+  private const let c_atlas2: ResRef;
+
+  @default(DifficultySelectionMenu, false)
+  private let m_isInputLocked: Bool;
+
+  private let m_difficulty0Tapped: Bool;
+
+  private let m_difficulty1Tapped: Bool;
+
+  private let m_difficulty2Tapped: Bool;
+
+  private let m_difficulty3Tapped: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorVisibility>;
+    super.OnInitialize();
+    inkWidgetRef.RegisterToCallback(this.m_difficulty0, n"OnPress", this, n"OnPressDifficulty0");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty1, n"OnPress", this, n"OnPressDifficulty1");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty2, n"OnPress", this, n"OnPressDifficulty2");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty3, n"OnPress", this, n"OnPressDifficulty3");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty0, n"OnHoverOver", this, n"OnHoverOverDifficulty0");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty1, n"OnHoverOver", this, n"OnHoverOverDifficulty1");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty2, n"OnHoverOver", this, n"OnHoverOverDifficulty2");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty3, n"OnHoverOver", this, n"OnHoverOverDifficulty3");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty0, n"OnHoverOut", this, n"OnHoverOutDifficulty0");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty1, n"OnHoverOut", this, n"OnHoverOutDifficulty1");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty2, n"OnHoverOut", this, n"OnHoverOutDifficulty2");
+    inkWidgetRef.RegisterToCallback(this.m_difficulty3, n"OnHoverOut", this, n"OnHoverOutDifficulty3");
+    this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.Difficulty);
+    evt = new inkMenuLayer_SetCursorVisibility();
+    if this.GetPlayerControlledObject().PlayerLastUsedTouch() {
+      evt.Init(true, new Vector2(0.50, 0.50));
+      this.QueueEvent(evt);
+    };
+    this.OnIntro();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+    this.UnregisterFromCallback(n"OnPress", this, n"OnPress");
+  }
+
+  private final func TextureTransition(atlas: ResRef, part: CName) -> Void {
+    if NotEquals(this.m_lastShownPart, part) {
+      inkImageRef.SetAtlasResource(this.m_textureBottom, this.m_lastAtlas);
+      inkImageRef.SetTexturePart(this.m_textureBottom, inkImageRef.GetTexturePart(this.m_textureTop));
+      inkImageRef.SetTexturePart(this.m_textureTop, part);
+      inkImageRef.SetAtlasResource(this.m_textureTop, atlas);
+      inkWidgetRef.SetOpacity(this.m_textureTop, 0.00);
+      this.PlayLibraryAnimation(n"hoverAnimation");
+      this.m_lastShownPart = part;
+      this.m_lastAtlas = atlas;
+    };
+  }
+
+  protected cb func OnPressDifficulty0(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") && this.m_difficulty0Tapped {
+      this.SetDifficulty(gameDifficulty.Story);
+    };
+    if e.IsAction(n"tap") {
+      this.m_difficulty0Tapped = true;
+      this.m_difficulty1Tapped = false;
+      this.m_difficulty2Tapped = false;
+      this.m_difficulty3Tapped = false;
+    };
+  }
+
+  protected cb func OnPressDifficulty1(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") && this.m_difficulty1Tapped {
+      this.SetDifficulty(gameDifficulty.Easy);
+    };
+    if e.IsAction(n"tap") {
+      this.m_difficulty0Tapped = false;
+      this.m_difficulty1Tapped = true;
+      this.m_difficulty2Tapped = false;
+      this.m_difficulty3Tapped = false;
+    };
+  }
+
+  protected cb func OnPressDifficulty2(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") && this.m_difficulty2Tapped {
+      this.SetDifficulty(gameDifficulty.Hard);
+    };
+    if e.IsAction(n"tap") {
+      this.m_difficulty0Tapped = false;
+      this.m_difficulty1Tapped = false;
+      this.m_difficulty2Tapped = true;
+      this.m_difficulty3Tapped = false;
+    };
+  }
+
+  protected cb func OnPressDifficulty3(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") && this.m_difficulty3Tapped {
+      this.SetDifficulty(gameDifficulty.VeryHard);
+    };
+    if e.IsAction(n"tap") {
+      this.m_difficulty0Tapped = false;
+      this.m_difficulty1Tapped = false;
+      this.m_difficulty2Tapped = false;
+      this.m_difficulty3Tapped = true;
+    };
+  }
+
+  protected cb func OnHoverOverDifficulty0(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(this.c_atlas1, n"story");
+    this.m_localizedText = GetLocalizedText("LocKey#54124");
+    this.PlayTranslationAnimation();
+  }
+
+  protected cb func OnHoverOverDifficulty1(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(this.c_atlas1, n"fight");
+    this.m_localizedText = GetLocalizedText("LocKey#54125");
+    this.PlayTranslationAnimation();
+  }
+
+  protected cb func OnHoverOverDifficulty2(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(this.c_atlas2, n"hard");
+    this.m_localizedText = GetLocalizedText("LocKey#54126");
+    this.PlayTranslationAnimation();
+  }
+
+  protected cb func OnHoverOverDifficulty3(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(this.c_atlas2, n"deathmarch");
+    this.m_localizedText = GetLocalizedText("LocKey#54127");
+    this.PlayTranslationAnimation();
+  }
+
+  protected cb func OnHoverOutDifficulty0(e: ref<inkPointerEvent>) -> Bool {
+    this.m_difficulty0Tapped = false;
+  }
+
+  protected cb func OnHoverOutDifficulty1(e: ref<inkPointerEvent>) -> Bool {
+    this.m_difficulty1Tapped = false;
+  }
+
+  protected cb func OnHoverOutDifficulty2(e: ref<inkPointerEvent>) -> Bool {
+    this.m_difficulty2Tapped = false;
+  }
+
+  protected cb func OnHoverOutDifficulty3(e: ref<inkPointerEvent>) -> Bool {
+    this.m_difficulty3Tapped = false;
+  }
+
+  private final func PlayTranslationAnimation() -> Void {
+    this.m_translationAnimationCtrl.SetBaseText("...");
+    this.m_translationAnimationCtrl = inkWidgetRef.GetController(this.m_difficultyTitle) as inkTextReplaceController;
+    this.m_translationAnimationCtrl.SetTargetText(this.m_localizedText);
+    this.m_translationAnimationCtrl.PlaySetAnimation();
+  }
+
+  private final func SetDifficulty(difficulty: gameDifficulty) -> Void {
+    GameInstance.GetStatsDataSystem(this.GetPlayerControlledObject().GetGame()).SetDifficulty(difficulty);
+    this.GetTelemetrySystem().LogInitialChoiceDifficultySelected(difficulty);
+    inkWidgetRef.SetVisible(this.m_textureBottom, false);
+    this.NextMenu();
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() {
+      if evt.IsAction(n"back") && !this.m_isInputLocked {
+        this.PlaySound(n"Button", n"OnPress");
+        evt.Handle();
+        this.PriorMenu();
+      } else {
+        return false;
+      };
+      evt.Handle();
+    };
+  }
+
+  protected func PriorMenu() -> Void {
+    this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.None);
+    super.PriorMenu();
+  }
+
+  protected func NextMenu() -> Void {
+    this.m_isInputLocked = true;
+    this.OnOutro();
+  }
+
+  private final func OnIntro() -> Void {
+    this.PlayAnim(n"intro", n"None");
+  }
+
+  private final func OnOutro() -> Void {
+    this.PlayAnim(n"outro", n"OnOutroComplete");
+  }
+
+  protected cb func OnOutroComplete(anim: ref<inkAnimProxy>) -> Bool {
+    this.NextMenu();
+  }
+
+  public final func PlayAnim(animName: CName, opt callBack: CName) -> Void {
+    if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+      this.m_animationProxy.Stop();
+    };
+    this.m_animationProxy = this.PlayLibraryAnimation(animName);
+    if NotEquals(callBack, n"None") {
+      this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, callBack);
+    };
+  }
+}

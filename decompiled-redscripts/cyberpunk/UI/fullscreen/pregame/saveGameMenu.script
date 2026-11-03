@@ -1,0 +1,389 @@
+
+public class SaveGameMenuGameController extends gameuiSaveHandlingController {
+
+  private edit let m_list: inkCompoundRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_gogButtonWidgetRef: inkWidgetRef;
+
+  private edit let m_gogContainer: inkWidgetRef;
+
+  private edit let m_scrollbar: inkWidgetRef;
+
+  private let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_handler: wref<inkISystemRequestsHandler>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_gogContainerController: wref<GogContainerController>;
+
+  private let m_saveInfo: ref<SaveMetadataInfo>;
+
+  private let m_saves: [String];
+
+  private let m_pendingRegistration: Bool;
+
+  private let m_hasEmptySlot: Bool;
+
+  private let m_saveInProgress: Bool;
+
+  private let m_loadComplete: Bool;
+
+  private let m_saveFilesReady: Bool;
+
+  private let m_cloudSynced: Bool;
+
+  private let m_emptySlotController: wref<LoadListItem>;
+
+  private let m_isEp1Enabled: Bool;
+
+  private let m_isUserUGCRestricted: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let platformName: String;
+    this.m_handler = this.GetSystemRequestsHandler();
+    this.m_handler.RegisterToCallback(n"OnSavesForSaveReady", this, n"OnSavesForSaveReady");
+    this.m_handler.RegisterToCallback(n"OnSaveMetadataReady", this, n"OnSaveMetadataReady");
+    this.m_handler.RegisterToCallback(n"OnSaveDeleted", this, n"OnSaveDeleted");
+    this.m_handler.RegisterToCallback(n"OnGogLoginStatusChanged", this, n"OnGogLoginStatusChanged");
+    this.m_handler.RegisterToCallback(n"OnSavingComplete", this, n"OnSavingComplete");
+    this.m_handler.RegisterToCallback(n"OnCloudSavesQueryStatusChanged", this, n"OnCloudSavesQueryStatusChanged");
+    this.m_handler.RegisterToCallback(n"OnCloudSaveUploadFinish", this, n"OnCloudSaveUploadFinish");
+    this.m_handler.RequestSavesForSave();
+    inkCompoundRef.RemoveAllChildren(this.m_list);
+    this.m_hasEmptySlot = false;
+    this.m_emptySlotController = null;
+    this.PlayLibraryAnimation(n"intro");
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddButtonHint(n"delete_save", GetLocalizedText("UI-Menus-DeleteSave"));
+    this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("UI-UserActions-Select"));
+    if this.IsTransferSavedExportSupported() {
+      this.m_buttonHintsController.AddButtonHint(n"transfer_save", GetLocalizedText("UI-Menus-ExportSave"));
+    };
+    this.InitCrossProgression();
+    this.PlayLoadingAnimation();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.ShowCompatibilityLimitationPopup();
+    this.m_isEp1Enabled = IsEP1();
+    this.m_isUserUGCRestricted = false;
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") || Equals(platformName, "windowsGDK") {
+      Modio.RequestRestrictionStatus(this, n"OnRequestRestrictionStatusCallBack", false);
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if IsDefined(GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame())) {
+      inkWidgetRef.UnregisterFromCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+    };
+    if IsDefined(this.m_gogContainerController) {
+      this.m_gogContainerController.UnregisterFromCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+    };
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"next_menu") && inkWidgetRef.IsVisible(this.m_gogButtonWidgetRef) {
+      this.PlaySound(n"Button", n"OnPress");
+      this.GogLogin(false);
+      evt.Handle();
+    };
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+      this.m_pendingRegistration = true;
+    } else {
+      if this.m_pendingRegistration && Equals(evt.status, GOGRewardsSystemStatus.Registered) {
+        this.m_pendingRegistration = false;
+        this.m_saveFilesReady = false;
+        this.m_cloudSynced = false;
+        this.PlayLoadingAnimation();
+        this.m_handler.RequestSavesForSave();
+      };
+    };
+  }
+
+  protected cb func OnRequestRestrictionStatusCallBack(status: Int32) -> Bool {
+    if status == 0 {
+      this.m_isUserUGCRestricted = false;
+    } else {
+      this.m_isUserUGCRestricted = true;
+      this.RefreshUGCRestrictedThumbnails();
+    };
+  }
+
+  private final func RefreshUGCRestrictedThumbnails() -> Void {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_list) {
+      button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+      controller = button.GetController() as LoadListItem;
+      controller.CheckThumbnailCensorship(false, this.m_isUserUGCRestricted);
+      i += 1;
+    };
+  }
+
+  private final func InitCrossProgression() -> Void {
+    let gameInst: GameInstance = this.GetPlayerControlledObject().GetGame();
+    let hudGroup: ref<ConfigGroup> = GameInstance.GetSettingsSystem(gameInst).GetGroup(n"/gameplay/misc");
+    let settingsVar: ref<ConfigVarBool> = hudGroup.GetVar(n"EnableCloudSaves") as ConfigVarBool;
+    if IsDefined(GameInstance.GetOnlineSystem(gameInst)) && settingsVar.GetValue() && settingsVar.IsVisible() {
+      inkWidgetRef.RegisterToCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, true);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, true);
+      this.m_gogContainerController = inkWidgetRef.GetController(this.m_gogContainer) as GogContainerController;
+      if IsDefined(this.m_gogContainerController) {
+        this.m_gogContainerController.RegisterToCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, false);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, false);
+    };
+  }
+
+  private final func TryToCreateEmptySlot() -> Void {
+    let currButton: wref<inkCompoundWidget>;
+    let allSlotsTaken: Bool = !this.m_handler.HasFreeSaveSlot("ManualSave-");
+    if this.m_hasEmptySlot {
+      this.m_emptySlotController.SetData(-1, true, allSlotsTaken);
+      return;
+    };
+    currButton = this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListItem") as inkCompoundWidget;
+    currButton.RegisterToCallback(n"OnRelease", this, n"OnSaveFile");
+    inkCompoundRef.ReorderChild(this.m_list, currButton, 0);
+    this.m_emptySlotController = currButton.GetController() as LoadListItem;
+    this.m_emptySlotController.SetData(-1, true, allSlotsTaken);
+    this.m_hasEmptySlot = true;
+  }
+
+  private final func SetupLoadItems(const saves: script_ref<[String]>) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(saves)) {
+      this.CreateLoadItem(i);
+      i += 1;
+    };
+  }
+
+  private final func CreateLoadItem(index: Int32) -> Void {
+    let currLogic: wref<LoadListItem>;
+    let currButton: wref<inkCompoundWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListItem") as inkCompoundWidget;
+    currButton.RegisterToCallback(n"OnRelease", this, n"OnSaveFile");
+    currLogic = currButton.GetController() as LoadListItem;
+    currLogic.SetData(index);
+    this.GetSystemRequestsHandler().RequestSavedGameScreenshot(index, currLogic.GetPreviewImageWidget());
+  }
+
+  protected cb func OnSaveFile(e: ref<inkPointerEvent>) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let showXbCompatWarning: Bool;
+    let transferSaveData: ref<TransferSaveData>;
+    if !this.m_loadComplete || this.m_saveInProgress || this.IsSaveFailedNotificationActive() || this.IsGameSavedNotificationActive() {
+      this.PlaySound(n"Button", n"OnPress");
+      return false;
+    };
+    button = e.GetCurrentTarget();
+    controller = button.GetController() as LoadListItem;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      if controller.EmptySlot() && this.m_handler.HasFreeSaveSlot("ManualSave-") {
+        this.m_saveInProgress = true;
+        this.GetSystemRequestsHandler().ManualSave("ManualSave-");
+      } else {
+        showXbCompatWarning = false;
+        if Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "xseriess") {
+          if Equals(controller.GetPlatform(), "xbox1") {
+            showXbCompatWarning = true;
+          };
+        };
+        this.OverrideSavedGame(controller.SaveIndex(), showXbCompatWarning);
+      };
+      return true;
+    };
+    if e.IsAction(n"transfer_save") && this.IsTransferSavedExportSupported() {
+      if !controller.EmptySlot() {
+        transferSaveData = new TransferSaveData();
+        transferSaveData.saveIndex = controller.SaveIndex();
+        transferSaveData.action = TransferSaveAction.Export;
+        this.TransferSavedGame(transferSaveData);
+      };
+    };
+    if e.IsAction(n"delete_save") {
+      if !controller.EmptySlot() {
+        this.PlaySound(n"SaveDeleteButton", n"OnPress");
+        if controller.IsCloud() {
+          this.m_handler.RequestSystemNotificationGeneric(n"UI-CrossProgression-Title", n"UI-CrossProgression-DeleteSaveRestriction");
+        } else {
+          this.DeleteSavedGame(controller.SaveIndex());
+        };
+      } else {
+        this.PlaySound(n"SaveDeleteButton", n"OnPress");
+      };
+      return true;
+    };
+  }
+
+  private final func GogLogin(isReload: Bool) -> Void {
+    let container: wref<inkCompoundWidget> = inkWidgetRef.Get(this.m_gogContainer) as inkCompoundWidget;
+    if isReload {
+      container.RemoveAllChildren();
+      this.SpawnGogPopupWidget(container);
+      return;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    if Cast<Bool>(container.GetNumChildren()) {
+      container.RemoveAllChildren();
+    } else {
+      this.SpawnGogPopupWidget(container);
+    };
+  }
+
+  private final func SpawnGogPopupWidget(gogContainer: wref<inkCompoundWidget>) -> Void {
+    let gogPopupController: wref<GOGProfileLogicController>;
+    let gogPopupWidget: ref<inkWidget> = this.SpawnFromExternal(gogContainer, r"base\\gameplay\\gui\\fullscreen\\main_menu\\gog_popup.inkwidget", n"Root");
+    if gogPopupWidget != null {
+      gogPopupController = gogPopupWidget.GetController() as GOGProfileLogicController;
+      if gogPopupController != null {
+        gogPopupController.SetMenuState(EGOGMenuState.LoadGame);
+        gogPopupController.SetGogContainer(gogContainer);
+      };
+    };
+  }
+
+  protected cb func OnSaveDeleted(result: Bool, idx: Int32) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32;
+    if result {
+      i = 0;
+      while i < inkCompoundRef.GetNumChildren(this.m_list) {
+        button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+        controller = button.GetController() as LoadListItem;
+        if controller.SaveIndex() == idx {
+          inkCompoundRef.RemoveChild(this.m_list, button);
+          break;
+        };
+        i += 1;
+      };
+      this.TryToCreateEmptySlot();
+    };
+  }
+
+  protected cb func OnGogLoginStatusChanged(bIsSignedIn: Bool) -> Bool {
+    let handler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    if bIsSignedIn {
+      handler.RequestSavesForSave();
+    };
+  }
+
+  protected cb func OnGogReloadEmporium(evt: ref<GogReloadEmporium>) -> Bool {
+    this.GogLogin(true);
+  }
+
+  protected cb func OnOverrideSaveAccepted() -> Bool {
+    this.m_saveInProgress = true;
+  }
+
+  protected cb func OnSavingComplete(success: Bool, locks: [gameSaveLock]) -> Bool {
+    if success {
+      this.m_handler.RequestSavesForSave();
+      this.RequestGameSavedNotification();
+    } else {
+      this.ShowSavingLockedNotification(locks);
+      this.RequestSaveFailedNotification();
+    };
+    this.m_saveInProgress = false;
+  }
+
+  protected cb func OnSavesForSaveReady(saves: [String]) -> Bool {
+    this.m_saves = saves;
+    this.m_saveFilesReady = true;
+    this.UpdateSavesList();
+  }
+
+  protected cb func OnCloudSavesQueryStatusChanged(status: CloudSavesQueryStatus) -> Bool {
+    this.m_cloudSynced = true;
+    this.UpdateSavesList();
+  }
+
+  protected cb func OnCloudSaveUploadFinish(success: Bool) -> Bool {
+    this.m_handler.RequestSavesForSave();
+  }
+
+  private final func UpdateSavesList() -> Void {
+    if this.m_saveFilesReady && this.m_cloudSynced {
+      this.m_saveFilesReady = false;
+      this.m_cloudSynced = false;
+      inkCompoundRef.RemoveAllChildren(this.m_list);
+      this.m_hasEmptySlot = false;
+      this.m_emptySlotController = null;
+      this.TryToCreateEmptySlot();
+      this.SetupLoadItems(this.m_saves);
+      this.m_loadComplete = true;
+      this.StopLoadingAnimation();
+    };
+  }
+
+  protected cb func OnSaveMetadataReady(info: ref<SaveMetadataInfo>) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_list) {
+      button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+      controller = button.GetController() as LoadListItem;
+      if controller.SaveIndex() == info.saveIndex {
+        if info.isValid {
+          controller.SetMetadata(info, true, this.m_isEp1Enabled);
+          controller.CheckThumbnailCensorship(false, this.m_isUserUGCRestricted);
+        } else {
+          controller.SetInvalid(info.internalName, true);
+        };
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnGogPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.GogLogin(false);
+      evt.Handle();
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = menuEventDispatcher;
+  }
+
+  private final func PlayLoadingAnimation() -> Void {
+    let i: Int32;
+    inkCompoundRef.RemoveAllChildren(this.m_list);
+    i = 0;
+    while i < 7 {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListItemPlaceholder");
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_scrollbar, false);
+  }
+
+  private final func StopLoadingAnimation() -> Void {
+    inkWidgetRef.SetVisible(this.m_scrollbar, true);
+  }
+
+  private final func ShowCompatibilityLimitationPopup() -> Void {
+    let uiSystem: ref<UISystem>;
+    if Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "xseriess") {
+      uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      if !uiSystem.GetOneTimeMessageSeen(gameuiOneTimeMessage.XboxCompatibilityLimitation) {
+        this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Wardrobe-LabelWarning", n"UI-Menus-Saving-XboxCompatibilityLimitation");
+        uiSystem.SetOneTimeMessageSeen(gameuiOneTimeMessage.XboxCompatibilityLimitation, true);
+      };
+    };
+  }
+}

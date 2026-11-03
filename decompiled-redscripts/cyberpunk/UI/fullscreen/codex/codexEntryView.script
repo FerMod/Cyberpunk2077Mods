@@ -1,0 +1,90 @@
+
+public class CodexEntryViewController extends inkLogicController {
+
+  private edit let m_titleText: inkTextRef;
+
+  private edit let m_descriptionText: inkTextRef;
+
+  private edit let m_imageWidget: inkImageRef;
+
+  private edit let m_imageWidgetFallback: inkWidgetRef;
+
+  private edit let m_imageWidgetWrapper: inkWidgetRef;
+
+  private edit let m_expansionWidget: inkWidgetRef;
+
+  private edit let m_scrollWidget: inkWidgetRef;
+
+  private edit let m_contentWrapper: inkWidgetRef;
+
+  private edit let m_noEntrySelectedWidget: inkWidgetRef;
+
+  private let m_data: ref<GenericCodexEntryData>;
+
+  private let m_scroll: wref<inkScrollController>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_scroll = inkWidgetRef.GetControllerByType(this.m_scrollWidget, n"inkScrollController") as inkScrollController;
+    inkWidgetRef.SetVisible(this.m_noEntrySelectedWidget, true);
+    inkWidgetRef.SetVisible(this.m_contentWrapper, false);
+    inkWidgetRef.SetVisible(this.m_imageWidgetFallback, false);
+  }
+
+  protected cb func OnIconCallback(evt: ref<iconAtlasCallbackData>) -> Bool {
+    if NotEquals(evt.loadResult, inkIconResult.Success) {
+      inkWidgetRef.SetVisible(this.m_imageWidget, false);
+      inkWidgetRef.SetVisible(this.m_imageWidgetWrapper, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_imageWidget, true);
+      inkWidgetRef.SetVisible(this.m_imageWidgetWrapper, true);
+    };
+  }
+
+  public final func ShowEntry(data: ref<GenericCodexEntryData>, inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    let iconRecord: ref<UIIcon_Record>;
+    this.m_data = data;
+    this.m_scroll.SetScrollPosition(0.00);
+    if inkWidgetRef.IsValid(this.m_titleText) {
+      inkTextRef.SetText(this.m_titleText, data.m_title);
+    };
+    this.UpdateDescription(inputDevice, inputScheme);
+    if inkWidgetRef.IsValid(this.m_imageWidget) {
+      if TDBID.IsValid(this.m_data.m_imageId) {
+        iconRecord = TweakDBInterface.GetUIIconRecord(this.m_data.m_imageId);
+        inkWidgetRef.SetVisible(this.m_imageWidget, true);
+        inkImageRef.SetAtlasResource(this.m_imageWidget, iconRecord.AtlasResourcePath());
+        inkImageRef.SetTexturePart(this.m_imageWidget, iconRecord.AtlasPartName());
+        inkWidgetRef.SetVisible(this.m_imageWidgetWrapper, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_imageWidget, false);
+        inkWidgetRef.SetVisible(this.m_imageWidgetWrapper, false);
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_noEntrySelectedWidget, false);
+    inkWidgetRef.SetVisible(this.m_contentWrapper, true);
+    inkWidgetRef.SetVisible(this.m_expansionWidget, data.m_isEp1);
+  }
+
+  public final func Refresh(inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    this.UpdateDescription(inputDevice, inputScheme);
+  }
+
+  private final func UpdateDescription(inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    let i: Int32;
+    let isEntryDescriptionOverridden: Bool;
+    if inkWidgetRef.IsValid(this.m_descriptionText) {
+      i = 0;
+      while i < ArraySize(this.m_data.m_journalEntryOverrideDataList) {
+        if Equals(this.m_data.m_journalEntryOverrideDataList[i].inputDevice, inputDevice) && (Equals(this.m_data.m_journalEntryOverrideDataList[i].inputDevice, InputDevice.KBM) || Equals(this.m_data.m_journalEntryOverrideDataList[i].inputDevice, InputDevice.TOUCH) || Equals(this.m_data.m_journalEntryOverrideDataList[i].inputScheme, inputScheme)) {
+          inkTextRef.SetText(this.m_descriptionText, this.m_data.m_journalEntryOverrideDataList[i].GetOverriddenLocalizedText());
+          isEntryDescriptionOverridden = true;
+          break;
+        };
+        i += 1;
+      };
+      if !isEntryDescriptionOverridden {
+        inkTextRef.SetText(this.m_descriptionText, this.m_data.m_description);
+      };
+    };
+  }
+}

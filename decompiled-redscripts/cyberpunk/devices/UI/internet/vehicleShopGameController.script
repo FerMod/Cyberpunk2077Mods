@@ -1,0 +1,504 @@
+
+public native class gameuiVehicleShopGameController extends inkGameController {
+
+  private edit let m_homePage: inkWidgetRef;
+
+  private edit let m_homePageMainText: inkTextRef;
+
+  private edit let m_rightSidePanel: inkWidgetRef;
+
+  private edit let m_headerImage: inkWidgetRef;
+
+  private edit let m_offersCanvas: inkWidgetRef;
+
+  private edit let m_detailsCanvas: inkWidgetRef;
+
+  private edit let m_brandsListWidget: inkCompoundRef;
+
+  private edit let m_offersGridWidget: inkCompoundRef;
+
+  private edit let m_headerText: inkTextRef;
+
+  private edit let m_scrollControllerWidget: inkWidgetRef;
+
+  private edit let m_playerBalanceText: inkTextRef;
+
+  private let m_playerBalanceAnimator: wref<MoneyLabelController>;
+
+  private let m_callback: ref<VehicleShopPlayerBalanceCallback>;
+
+  private let m_inventoryListener: ref<InventoryScriptListener>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_brandButtons: [wref<VehicleBrandFilterLogicController>];
+
+  private let m_offerButtons: [wref<VehicleOfferLogicController>];
+
+  private let m_detailsController: wref<VehicleDetailsLogicController>;
+
+  private let m_currentBrandController: wref<VehicleBrandFilterLogicController>;
+
+  private let m_discount: Float;
+
+  @default(gameuiVehicleShopGameController, RTDB.VehicleDiscountSettings.discountFact)
+  private const let c_discountFactTDBID: TweakDBID;
+
+  @default(gameuiVehicleShopGameController, RTDB.VehicleDiscountSettings.discountValues)
+  private const let c_discountValuesTDBID: TweakDBID;
+
+  public final native func GetCarBrands(brands: script_ref<[CName]>) -> Void;
+
+  public final native func GetCarOffersByBrand(brand: CName, offers: script_ref<[wref<VehicleOffer_Record>]>) -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    let brands: array<CName>;
+    let player: ref<PlayerPuppet> = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.GetGame());
+    this.m_currentBrandController = null;
+    this.m_detailsController = inkWidgetRef.GetController(this.m_detailsCanvas) as VehicleDetailsLogicController;
+    inkWidgetRef.RegisterToCallback(this.m_headerImage, n"OnRelease", this, n"OnHeaderClick");
+    this.m_playerBalanceAnimator = inkWidgetRef.GetController(this.m_playerBalanceText) as MoneyLabelController;
+    this.m_callback = new VehicleShopPlayerBalanceCallback();
+    this.m_callback.m_owner = this;
+    this.m_inventoryListener = GameInstance.GetTransactionSystem(player.GetGame()).RegisterInventoryListener(player, this.m_callback);
+    this.UpdatePlayerBalance();
+    this.UpdateDiscount();
+    this.GetCarBrands(brands);
+    this.SortBrands(brands);
+    this.SetUpBrands(brands);
+    this.OpenHomeScreen();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let player: ref<PlayerPuppet> = this.GetPlayerControlledObject() as PlayerPuppet;
+    GameInstance.GetTransactionSystem(player.GetGame()).UnregisterInventoryListener(player, this.m_inventoryListener);
+    this.m_inventoryListener = null;
+    inkWidgetRef.UnregisterFromCallback(this.m_headerImage, n"OnRelease", this, n"OnHeaderClick");
+    this.ClearBrands();
+    this.ClearOffers();
+  }
+
+  public final func UpdatePlayerBalance() -> Void {
+    let playerMoney: Int32 = this.GetPlayerMoney();
+    if playerMoney != StringToInt(inkTextRef.GetText(this.m_playerBalanceText)) {
+      this.m_playerBalanceAnimator.SetMoney(playerMoney, 0.10, 0.25);
+    };
+  }
+
+  private final func SetUpHomeScreen() -> Void {
+    if GetFact(this.GetGame(), n"vehicle_metaquest_discounts_active") > 0 {
+      inkTextRef.SetText(this.m_homePageMainText, GetLocalizedText("LocKey#93536"));
+    } else {
+      inkTextRef.SetText(this.m_homePageMainText, GetLocalizedText("LocKey#87458"));
+    };
+  }
+
+  private final func SetUpBrands(brands: script_ref<[CName]>) -> Void {
+    let brandState: EVehicleBrandState;
+    let controller: wref<VehicleBrandFilterLogicController>;
+    let i: Int32;
+    let widget: wref<inkWidget>;
+    this.ClearBrands();
+    i = 0;
+    while i < ArraySize(Deref(brands)) {
+      brandState = EVehicleBrandState.Default;
+      if this.DoesBrandHaveNewOffers(Deref(brands)[i]) {
+        brandState = EVehicleBrandState.New;
+      };
+      widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_brandsListWidget), n"brandFilter");
+      controller = widget.GetController() as VehicleBrandFilterLogicController;
+      controller.RegisterToCallback(n"OnRelease", this, n"OnBrandClick");
+      controller.RegisterToCallback(n"OnHoverOver", this, n"OnBrandHoverOver");
+      controller.RegisterToCallback(n"OnHoverOut", this, n"OnBrandHoverOut");
+      controller.SetUp(Deref(brands)[i], brandState);
+      ArrayPush(this.m_brandButtons, controller);
+      i += 1;
+    };
+  }
+
+  private final func SetUpOffers(brandController: wref<VehicleBrandFilterLogicController>) -> Void {
+    let controller: wref<VehicleOfferLogicController>;
+    let i: Int32;
+    let offerState: EVehicleOfferState;
+    let offers: array<wref<VehicleOffer_Record>>;
+    let widget: wref<inkWidget>;
+    let brand: CName = brandController.GetBrand();
+    inkWidgetRef.SetVisible(this.m_detailsCanvas, false);
+    inkWidgetRef.SetVisible(this.m_offersCanvas, true);
+    this.ClearOffers();
+    this.GetCarOffersByBrand(brand, offers);
+    this.SortOffersByState(offers);
+    i = 0;
+    while i < ArraySize(offers) {
+      offerState = EVehicleOfferState.Default;
+      if this.CheckFact(offers[i].OwnershipFact()) {
+        offerState = EVehicleOfferState.Owned;
+      } else {
+        if !this.CheckFact(offers[i].AvailabilityFact()) {
+          offerState = EVehicleOfferState.Locked;
+        } else {
+          if this.CheckVehicleNew(offers[i]) {
+            offerState = EVehicleOfferState.New;
+            brandController.AddNewOffer(offers[i].AvailabilityFact());
+          };
+        };
+      };
+      widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_offersGridWidget), n"offer");
+      controller = widget.GetController() as VehicleOfferLogicController;
+      controller.RegisterToCallback(n"OnRelease", this, n"OnOfferClick");
+      controller.RegisterToCallback(n"OnHoverOver", this, n"OnOfferHoverOver");
+      controller.RegisterToCallback(n"OnHoverOut", this, n"OnOfferHoverOut");
+      controller.SetUp(offers[i], offerState, this.m_discount);
+      ArrayPush(this.m_offerButtons, controller);
+      i += 1;
+    };
+  }
+
+  private final func ClearBrands() -> Void {
+    let controller: wref<VehicleBrandFilterLogicController>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_brandButtons) {
+      controller = this.m_brandButtons[i];
+      controller.UnregisterFromCallback(n"OnRelease", this, n"OnBrandClick");
+      controller.UnregisterFromCallback(n"OnHoverOver", this, n"OnBrandHoverOver");
+      controller.UnregisterFromCallback(n"OnHoverOut", this, n"OnBrandHoverOut");
+      i += 1;
+    };
+    ArrayClear(this.m_brandButtons);
+    inkCompoundRef.RemoveAllChildren(this.m_brandsListWidget);
+  }
+
+  private final func ClearOffers() -> Void {
+    let controller: wref<VehicleOfferLogicController>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_offerButtons) {
+      controller = this.m_offerButtons[i];
+      controller.UnregisterFromCallback(n"OnRelease", this, n"OnOfferClick");
+      controller.UnregisterFromCallback(n"OnHoverOver", this, n"OnOfferHoverOver");
+      controller.UnregisterFromCallback(n"OnHoverOut", this, n"OnOfferHoverOut");
+      i += 1;
+    };
+    ArrayClear(this.m_offerButtons);
+    inkCompoundRef.RemoveAllChildren(this.m_offersGridWidget);
+  }
+
+  private final func DoesBrandHaveNewOffers(brand: CName) -> Bool {
+    let i: Int32;
+    let offers: array<wref<VehicleOffer_Record>>;
+    this.GetCarOffersByBrand(brand, offers);
+    i = 0;
+    while i < ArraySize(offers) {
+      if this.CheckVehicleNew(offers[i]) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func ShowBrandOffers(brandController: wref<VehicleBrandFilterLogicController>) -> Void {
+    if this.m_currentBrandController == brandController && !inkWidgetRef.IsVisible(this.m_detailsCanvas) {
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_homePage, false);
+    inkWidgetRef.SetVisible(this.m_rightSidePanel, true);
+    if this.m_currentBrandController != brandController {
+      this.m_currentBrandController.UpdateState(this.m_currentBrandController.HasNewOffers() ? EVehicleBrandState.New : EVehicleBrandState.Default);
+      brandController.UpdateState(EVehicleBrandState.Selected);
+      this.m_currentBrandController = brandController;
+      inkTextRef.SetText(this.m_headerText, GetLocalizedText(VehicleShopUtils.BrandToLocKey(brandController.GetBrand())));
+    };
+    (inkWidgetRef.GetController(this.m_scrollControllerWidget) as inkScrollController).SetScrollPosition(0.00);
+    this.SetUpOffers(this.m_currentBrandController);
+    brandController.RefreshState();
+  }
+
+  private final func OpenHomeScreen() -> Void {
+    if this.m_currentBrandController != null {
+      this.m_currentBrandController.UpdateState(this.m_currentBrandController.HasNewOffers() ? EVehicleBrandState.New : EVehicleBrandState.Default);
+      this.m_currentBrandController = null;
+    };
+    this.SetUpHomeScreen();
+    inkWidgetRef.SetVisible(this.m_homePage, true);
+    inkWidgetRef.SetVisible(this.m_rightSidePanel, false);
+  }
+
+  private final func ShowOfferDetails(offerController: script_ref<wref<VehicleOfferLogicController>>) -> Void {
+    inkWidgetRef.SetVisible(this.m_detailsCanvas, true);
+    inkWidgetRef.SetVisible(this.m_offersCanvas, false);
+    this.m_detailsController.SetUp(Deref(offerController).GetOfferRecord(), Deref(offerController).GetState(), this.GetPlayerMoney(), this.m_discount);
+  }
+
+  protected cb func OnHeaderClick(e: ref<inkPointerEvent>) -> Bool {
+    this.OpenHomeScreen();
+  }
+
+  protected cb func OnBrandClick(e: ref<inkPointerEvent>) -> Bool {
+    let brandController: wref<VehicleBrandFilterLogicController> = e.GetCurrentTarget().GetController() as VehicleBrandFilterLogicController;
+    let actionName: ref<inkActionName> = e.GetActionName();
+    if actionName.IsAction(n"click") || actionName.IsAction(n"tap") {
+      this.ShowBrandOffers(brandController);
+    };
+  }
+
+  protected cb func OnBrandHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    let brandController: wref<VehicleBrandFilterLogicController> = e.GetCurrentTarget().GetController() as VehicleBrandFilterLogicController;
+    brandController.SetHoverState(true);
+  }
+
+  protected cb func OnBrandHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    let brandController: wref<VehicleBrandFilterLogicController> = e.GetCurrentTarget().GetController() as VehicleBrandFilterLogicController;
+    brandController.SetHoverState(false);
+  }
+
+  protected cb func OnOfferClick(e: ref<inkPointerEvent>) -> Bool {
+    let offerController: wref<VehicleOfferLogicController> = e.GetCurrentTarget().GetController() as VehicleOfferLogicController;
+    let actionName: ref<inkActionName> = e.GetActionName();
+    if actionName.IsAction(n"click") || actionName.IsAction(n"tap") {
+      this.ShowOfferDetails(offerController);
+    };
+  }
+
+  protected cb func OnOfferHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    let offerController: wref<VehicleOfferLogicController> = e.GetCurrentTarget().GetController() as VehicleOfferLogicController;
+    offerController.SetHoverState(true);
+  }
+
+  protected cb func OnOfferHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    let offerController: wref<VehicleOfferLogicController> = e.GetCurrentTarget().GetController() as VehicleOfferLogicController;
+    let availabilityFact: CName = offerController.GetOfferRecord().AvailabilityFact();
+    if Equals(offerController.GetState(), EVehicleOfferState.New) {
+      this.MarkNewCarViewed(availabilityFact);
+      this.m_currentBrandController.RemoveNewOffer(availabilityFact);
+    };
+    offerController.SetHoverState(false);
+  }
+
+  protected cb func OnVehicleShopBackEventEvent(evt: ref<VehicleShopBackEvent>) -> Bool {
+    if inkWidgetRef.IsVisible(this.m_detailsCanvas) {
+      this.SetUpOffers(this.m_currentBrandController);
+    };
+  }
+
+  protected cb func OnVehicleShopPurchaseEventEvent(evt: ref<VehicleShopPurchaseEvent>) -> Bool {
+    let playerMoney: Int32 = this.GetPlayerMoney();
+    let discounted: Bool = evt.m_offerRecord.DiscountApplicable();
+    let basePrice: Int32 = evt.m_offerRecord.Price().OverrideValue();
+    let price: Int32 = discounted ? this.GetDiscountedPrice(basePrice) : basePrice;
+    if playerMoney >= price && this.CheckFact(evt.m_offerRecord.AvailabilityFact()) && !this.CheckFact(evt.m_offerRecord.OwnershipFact()) {
+      if this.RemovePlayerMoney(price) {
+        this.ResetDiscount();
+        this.SetFact(evt.m_offerRecord.OwnershipFact(), 1);
+        this.m_detailsController.UpdateState(EVehicleOfferState.Owned, playerMoney);
+        this.ShowNotification();
+      };
+    };
+  }
+
+  private final func SortBrands(sortedBrands: script_ref<[CName]>) -> Void {
+    let j: Int32;
+    let tempVar: CName;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(sortedBrands)) - 1 {
+      j = i + 1;
+      while j < ArraySize(Deref(sortedBrands)) {
+        if this.GetBrandWeight(Deref(sortedBrands)[i]) < this.GetBrandWeight(Deref(sortedBrands)[j]) {
+          tempVar = Deref(sortedBrands)[j];
+          Deref(sortedBrands)[j] = Deref(sortedBrands)[i];
+          Deref(sortedBrands)[i] = tempVar;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  private final func SortOffersByState(sortedOffers: script_ref<[wref<VehicleOffer_Record>]>) -> Void {
+    let j: Int32;
+    let tempVar: wref<VehicleOffer_Record>;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(sortedOffers)) - 1 {
+      j = i + 1;
+      while j < ArraySize(Deref(sortedOffers)) {
+        if this.GetOfferWeight(Deref(sortedOffers)[i]) < this.GetOfferWeight(Deref(sortedOffers)[j]) {
+          tempVar = Deref(sortedOffers)[j];
+          Deref(sortedOffers)[j] = Deref(sortedOffers)[i];
+          Deref(sortedOffers)[i] = tempVar;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  private final func GetBrandWeight(brand: CName) -> Int32 {
+    switch brand {
+      case n"Archer":
+        return 12;
+      case n"Chevillion":
+        return 11;
+      case n"Quadra":
+        return 10;
+      case n"Mizutani":
+        return 9;
+      case n"Makigai":
+        return 8;
+      case n"Thorton":
+        return 7;
+      case n"Villefort":
+        return 6;
+      case n"Rayfield":
+        return 5;
+      case n"Mahir":
+        return 4;
+      case n"Herrera":
+        return 3;
+      case n"Motorcycles":
+        return 1;
+      case n"Other":
+        return 0;
+      default:
+        return 2;
+    };
+  }
+
+  private final func GetOfferWeight(offer: wref<VehicleOffer_Record>) -> Int32 {
+    if this.CheckVehicleNew(offer) {
+      return 3;
+    };
+    if this.CheckFact(offer.OwnershipFact()) {
+      return 1;
+    };
+    if !this.CheckFact(offer.AvailabilityFact()) {
+      return 0;
+    };
+    return 2;
+  }
+
+  private final func GetPlayerMoney() -> Int32 {
+    let gi: GameInstance = this.GetGame();
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(gi);
+    return transactionSystem.GetItemQuantity(player, MarketSystem.Money());
+  }
+
+  private final func RemovePlayerMoney(amount: Int32) -> Bool {
+    let gi: GameInstance = this.GetGame();
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(gi);
+    return transactionSystem.RemoveItem(player, MarketSystem.Money(), amount);
+  }
+
+  private final func UpdateDiscount() -> Void {
+    let factValue: Int32 = GetFact(this.GetGame(), TweakDBInterface.GetCNameDefault(this.c_discountFactTDBID));
+    let discounts: array<Float> = TweakDBInterface.GetFloatArrayDefault(this.c_discountValuesTDBID);
+    factValue = Clamp(factValue, 0, ArraySize(discounts) - 1);
+    this.m_discount = discounts[factValue];
+  }
+
+  private final func ResetDiscount() -> Void {
+    let factValue: Int32 = GetFact(this.GetGame(), TweakDBInterface.GetCNameDefault(this.c_discountFactTDBID));
+    factValue -= 25;
+    if factValue < 0 {
+      factValue = 0;
+    };
+    SetFactValue(this.GetGame(), TweakDBInterface.GetCNameDefault(this.c_discountFactTDBID), factValue);
+    this.UpdateDiscount();
+  }
+
+  private final func GetDiscountedPrice(price: Int32) -> Int32 {
+    return VehicleShopUtils.GetDiscountedPrice(price, this.m_discount);
+  }
+
+  public final func CheckFact(factName: CName) -> Bool {
+    return GetFact(this.GetGame(), factName) > 0;
+  }
+
+  public final func SetFact(factName: CName, factCount: Int32) -> Bool {
+    return SetFactValue(this.GetGame(), factName, factCount);
+  }
+
+  public final func CheckVehicleNew(vehicleRecord: wref<VehicleOffer_Record>) -> Bool {
+    return this.CheckFact(vehicleRecord.AvailabilityFact()) && this.m_uiScriptableSystem.IsAvailableCarNew(vehicleRecord.AvailabilityFact());
+  }
+
+  private final func MarkNewCarViewed(carFact: CName) -> Void {
+    let request: ref<UIScriptableSystemAddAvailableCar> = new UIScriptableSystemAddAvailableCar();
+    request.carFact = carFact;
+    UIScriptableSystem.GetInstance(this.GetGame()).QueueRequest(request);
+  }
+
+  protected final func GetGame() -> GameInstance {
+    let gameInstance: GameInstance;
+    let gameObject: ref<GameObject> = this.GetOwnerEntity() as GameObject;
+    if IsDefined(gameObject) {
+      gameInstance = gameObject.GetGame();
+    };
+    return gameInstance;
+  }
+
+  private final func ShowNotification() -> Void {
+    this.PlayLibraryAnimation(n"notification_anim");
+  }
+}
+
+public class VehicleShopUtils extends IScriptable {
+
+  public final static func BrandToTexturePartString(carBrand: CName) -> String {
+    switch carBrand {
+      case n"Motorcycles":
+        return "bikes";
+      case n"Other":
+        return "others";
+      case n"Chevillion":
+        return "chevillon";
+      default:
+        return StrLower(NameToString(carBrand));
+    };
+  }
+
+  public final static func BrandToLocKey(carBrand: CName) -> String {
+    switch carBrand {
+      case n"Archer":
+        return "LocKey#86989";
+      case n"Chevillion":
+        return "LocKey#86992";
+      case n"Quadra":
+        return "LocKey#86996";
+      case n"Mizutani":
+        return "LocKey#86994";
+      case n"Makigai":
+        return "LocKey#86993";
+      case n"Thorton":
+        return "LocKey#86990";
+      case n"Villefort":
+        return "LocKey#86998";
+      case n"Rayfield":
+        return "LocKey#86997";
+      case n"Mahir":
+        return "LocKey#94093";
+      case n"Herrera":
+        return "LocKey#94094";
+      case n"Motorcycles":
+        return "LocKey#86991";
+      default:
+        return "LocKey#86995";
+    };
+  }
+
+  public final static func GetDiscountedPrice(price: Int32, discount: Float) -> Int32 {
+    return price - Cast<Int32>(Cast<Float>(price) * discount);
+  }
+}
+
+public class VehicleShopPlayerBalanceCallback extends InventoryScriptCallback {
+
+  public let m_owner: wref<gameuiVehicleShopGameController>;
+
+  public func OnItemQuantityChanged(item: ItemID, diff: Int32, total: Uint32, flaggedAsSilent: Bool) -> Void {
+    if item == MarketSystem.Money() {
+      this.m_owner.UpdatePlayerBalance();
+    };
+  }
+}

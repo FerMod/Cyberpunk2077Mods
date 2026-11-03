@@ -1,0 +1,1336 @@
+
+public native class SaveMetadataInfo extends IScriptable {
+
+  public native let saveIndex: Int32;
+
+  public native let saveID: Uint32;
+
+  public native let internalName: String;
+
+  public native let locationName: String;
+
+  public native let trackedQuest: String;
+
+  public native let gameVersion: String;
+
+  public native let lifePath: inkLifePath;
+
+  public native let saveType: inkSaveType;
+
+  public native let saveStatus: inkSaveStatus;
+
+  public native let timestamp: Uint64;
+
+  public native let playTime: Double;
+
+  public native let playthroughTime: Double;
+
+  public native let initialLoadingScreenID: Uint64;
+
+  public native let level: Double;
+
+  public native let isValid: Bool;
+
+  public native let isModded: Bool;
+
+  public native let platform: String;
+
+  public native let playthroughID: String;
+
+  public native let additionalContentIds: [CName];
+
+  public native let fileSize: Uint64;
+
+  public final func IsEp1Save() -> Bool {
+    return ArrayContains(this.additionalContentIds, n"EP1");
+  }
+}
+
+public class SaveGroupInfo extends IScriptable {
+
+  public let lifePath: inkLifePath;
+
+  public let timestamp: Uint64;
+
+  public let playTime: Double;
+
+  public let playthroughTime: Double;
+
+  public let level: Double;
+
+  public let isValid: Bool;
+
+  public let playthroughID: String;
+
+  public let additionalContentIds: [CName];
+
+  public final func IsEp1Save() -> Bool {
+    return ArrayContains(this.additionalContentIds, n"EP1");
+  }
+
+  public final func CopySaveMetaData(info: ref<SaveMetadataInfo>) -> Void {
+    this.timestamp = info.timestamp;
+    this.playthroughID = info.playthroughID;
+    this.playthroughTime = info.playthroughTime;
+    this.playTime = info.playTime;
+    this.level = info.level;
+    this.lifePath = info.lifePath;
+  }
+}
+
+public class LoadGameMenuGameController extends gameuiSaveHandlingController {
+
+  private edit let m_list: inkCompoundRef;
+
+  private edit let m_noSavedGamesLabel: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_transitToLoadingAnimName: CName;
+
+  private edit let m_transitToLoadingSlotAnimName: CName;
+
+  private edit let m_animDelayBetweenSlots: Float;
+
+  private edit let m_animDelayForMainSlot: Float;
+
+  @default(LoadGameMenuGameController, true)
+  private edit let m_enableLoadingTransition: Bool;
+
+  private edit let m_gogButtonWidgetRef: inkWidgetRef;
+
+  private edit let m_gogContainer: inkWidgetRef;
+
+  private edit let m_loadingSpinner: inkWidgetRef;
+
+  private edit let m_scrollbar: inkWidgetRef;
+
+  private edit let m_tooltipManagerRef: inkWidgetRef;
+
+  private edit let m_disableModVerificationLabel: inkWidgetRef;
+
+  private let m_tooltipManager: wref<gameuiTooltipsManager>;
+
+  private let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_loadComplete: Bool;
+
+  private let m_saveInfo: ref<SaveMetadataInfo>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_saveToLoadIndex: Int32;
+
+  private let m_saveToLoadID: Uint64;
+
+  private let m_isInputDisabled: Bool;
+
+  private let m_saveTransferPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_saves: [String];
+
+  private let m_saveFilesReady: Bool;
+
+  private let m_cloudSynced: Bool;
+
+  private let m_onlineSystem: wref<IOnlineSystem>;
+
+  private let m_systemHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_pendingRegistration: Bool;
+
+  private let m_isEp1Enabled: Bool;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  private let m_sourceIndex: Int32;
+
+  private let m_playthroughIDs: [String];
+
+  private let m_saveWidgetsMap: [[wref<inkWidget>]];
+
+  private let m_saveGroupHeaderWidgets: [wref<inkWidget>];
+
+  private let m_saveGroupInfos: [ref<SaveGroupInfo>];
+
+  private let m_buttonList: [wref<LoadListItem>];
+
+  private let m_buttonListFinalized: Bool;
+
+  private let m_gogContainerController: wref<GogContainerController>;
+
+  @default(LoadGameMenuGameController, false)
+  private let m_isUserUGCRestricted: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let platformName: String;
+    this.m_onlineSystem = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame());
+    this.m_systemHandler = this.GetSystemRequestsHandler();
+    this.m_systemHandler.RegisterToCallback(n"OnSavesForLoadReady", this, n"OnSavesForLoadReady");
+    this.m_systemHandler.RegisterToCallback(n"OnSaveMetadataReady", this, n"OnSaveMetadataReady");
+    this.m_systemHandler.RegisterToCallback(n"OnSaveDeleted", this, n"OnSaveDeleted");
+    this.m_systemHandler.RegisterToCallback(n"OnGogLoginStatusChanged", this, n"OnGogLoginStatusChanged");
+    this.m_systemHandler.RegisterToCallback(n"OnCloudSavesQueryStatusChanged", this, n"OnCloudSavesQueryStatusChanged");
+    this.m_systemHandler.RegisterToCallback(n"OnCloudSaveUploadFinish", this, n"OnCloudSaveUploadFinish");
+    this.RegisterToCallback(n"OnNeedToDisplayLoadMenuUpdateModsPopup", this, n"OpenUpdateModsPopup");
+    this.m_systemHandler.RequestSavesForLoad();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.PlayLibraryAnimation(n"intro");
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.UpdateButtonHints(1);
+    this.m_isInputDisabled = false;
+    this.InitCrossProgression();
+    this.PlayLoadingAnimation();
+    this.m_isEp1Enabled = IsEP1();
+    this.m_tooltipManager = inkWidgetRef.GetControllerByType(this.m_tooltipManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_tooltipManager.Setup(ETooltipsStyle.Menus);
+    inkWidgetRef.SetVisible(this.m_disableModVerificationLabel, !this.IsEnableModVerification());
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") || Equals(platformName, "windowsGDK") {
+      Modio.RequestRestrictionStatus(this, n"OnRequestRestrictionStatusCallBack", false);
+    };
+  }
+
+  protected cb func OnRequestRestrictionStatusCallBack(status: Int32) -> Bool {
+    if status == 0 {
+      this.m_isUserUGCRestricted = false;
+    } else {
+      this.m_isUserUGCRestricted = true;
+      this.RefreshUGCRestrictedThumbnails();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.UnregisterFromCallback(n"OnNeedToDisplayLoadMenuUpdateModsPopup", this, n"OpenUpdateModsPopup");
+    if IsDefined(GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame())) {
+      inkWidgetRef.UnregisterFromCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+    };
+    if IsDefined(this.m_gogContainerController) {
+      this.m_gogContainerController.UnregisterFromCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+    };
+  }
+
+  protected cb func OnTrophyIconHoveredOver(e: ref<inkPointerEvent>) -> Bool {
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    if Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-TrophiesUnavailablePlaystation");
+    } else {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-AchievementsUnavailableXbox");
+    };
+    this.m_tooltipManager.ShowTooltipAtWidget(0, e.GetTarget(), tooltipData, gameuiETooltipPlacement.RightTop, true);
+  }
+
+  protected cb func OnModIconHovered(e: ref<inkPointerEvent>) -> Bool {
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    tooltipData.Title = GetLocalizedText("UI-Modio-SavesModded");
+    this.m_tooltipManager.ShowTooltipAtWidget(0, e.GetTarget(), tooltipData, gameuiETooltipPlacement.RightTop, true);
+  }
+
+  protected cb func OnIconHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.m_tooltipManager.HideTooltips();
+  }
+
+  private final func OpenUpdateModsPopup(modInfoList: [ModToUpdateInfo], deprecatedCount: Int32, bDoesNumberExceedModLimit: Bool, bHaveDeletedModsBeenRemoved: Bool, bShouldDisplayThumbnail: Bool, bShouldDisplayModName: Bool, bModsDefaultSelected: Bool) -> Void {
+    let updateModRequestEvt: ref<UpdateModsPopupEvent> = new UpdateModsPopupEvent();
+    updateModRequestEvt.modInfoList = modInfoList;
+    updateModRequestEvt.bHaveModsBeenDeleted = bHaveDeletedModsBeenRemoved;
+    updateModRequestEvt.bShouldShowThumbnail = bShouldDisplayThumbnail;
+    updateModRequestEvt.bShouldShowModNames = bShouldDisplayModName;
+    updateModRequestEvt.bDoesNumberExceedModLimit = bDoesNumberExceedModLimit;
+    updateModRequestEvt.bDefaultModsSelected = bModsDefaultSelected;
+    updateModRequestEvt.bShouldShowConfirmButton = false;
+    updateModRequestEvt.deprecatedModsCount = deprecatedCount;
+    this.QueueBroadcastEvent(updateModRequestEvt);
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+      this.m_pendingRegistration = true;
+    } else {
+      if this.m_pendingRegistration && Equals(evt.status, GOGRewardsSystemStatus.Registered) {
+        this.m_pendingRegistration = false;
+        this.m_saveFilesReady = false;
+        this.m_cloudSynced = false;
+        this.PlayLoadingAnimation();
+        this.m_systemHandler.RequestSavesForLoad();
+      };
+    };
+  }
+
+  private final func InitCrossProgression() -> Void {
+    let gameInst: GameInstance = this.GetPlayerControlledObject().GetGame();
+    let hudGroup: ref<ConfigGroup> = GameInstance.GetSettingsSystem(gameInst).GetGroup(n"/gameplay/misc");
+    let settingsVar: ref<ConfigVarBool> = hudGroup.GetVar(n"EnableCloudSaves") as ConfigVarBool;
+    if IsDefined(GameInstance.GetOnlineSystem(gameInst)) && settingsVar.GetValue() && settingsVar.IsVisible() {
+      inkWidgetRef.RegisterToCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, true);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, true);
+      this.m_gogContainerController = inkWidgetRef.GetController(this.m_gogContainer) as GogContainerController;
+      if IsDefined(this.m_gogContainerController) {
+        this.m_gogContainerController.RegisterToCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, false);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, false);
+    };
+  }
+
+  private final func PlayLoadingAnimation() -> Void {
+    let i: Int32;
+    inkCompoundRef.RemoveAllChildren(this.m_list);
+    i = 0;
+    while i < 7 {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListItemPlaceholder");
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_scrollbar, false);
+  }
+
+  private final func StopLoadingAnimation() -> Void {
+    inkWidgetRef.SetVisible(this.m_scrollbar, true);
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let transferSaveData: ref<TransferSaveData>;
+    if evt.IsAction(n"back") {
+      this.m_eventDispatcher.SpawnEvent(n"OnMainMenuBack");
+    } else {
+      if evt.IsAction(n"transfer_save") && this.IsTransferSavedImportSupported() {
+        transferSaveData = new TransferSaveData();
+        transferSaveData.action = TransferSaveAction.Import;
+        this.TransferSavedGame(transferSaveData);
+      } else {
+        if evt.IsAction(n"next_menu") && inkWidgetRef.IsVisible(this.m_gogButtonWidgetRef) {
+          this.GogLogin(false);
+          evt.Handle();
+        } else {
+          if evt.IsAction(n"thumb_press_right") {
+            this.SetAllGroupsExpandedState(true);
+          } else {
+            if evt.IsAction(n"thumb_press_left") {
+              this.SetAllGroupsExpandedState(false);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func SetAllGroupsExpandedState(expandedState: Bool) -> Void {
+    let groupController: wref<LoadListGroup>;
+    let playthroughIndex: Int32 = 0;
+    while playthroughIndex < ArraySize(this.m_saveGroupHeaderWidgets) {
+      groupController = this.m_saveGroupHeaderWidgets[playthroughIndex].GetController() as LoadListGroup;
+      groupController.SetExpandedState(expandedState);
+      this.SetVisibilityOfSavesInGroup(playthroughIndex, expandedState);
+      playthroughIndex += 1;
+    };
+  }
+
+  private final func SetVisibilityOfSavesInGroup(playthroughIndex: Int32, newVisibility: Bool) -> Void {
+    let buttonList: array<wref<inkWidget>> = this.m_saveWidgetsMap[playthroughIndex];
+    let index: Int32 = 0;
+    while index < ArraySize(buttonList) {
+      buttonList[index].SetVisible(newVisibility);
+      index += 1;
+    };
+  }
+
+  private final func UpdateButtonHints(savesCount: Int32) -> Void {
+    this.m_buttonHintsController.ClearButtonHints();
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    if this.IsTransferSavedImportSupported() {
+      this.m_buttonHintsController.AddButtonHint(n"transfer_save", "UI-Menus-ImportSave");
+    };
+    if savesCount > 0 {
+      this.m_buttonHintsController.AddButtonHint(n"delete_save", GetLocalizedText("UI-Menus-DeleteSave"));
+      this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("UI-UserActions-Select"));
+      this.m_buttonHintsController.AddButtonHint(n"thumb_press_right", GetLocalizedText("UI-Menus-Saving-SaveFilesGroup-ExpandAll"));
+      this.m_buttonHintsController.AddButtonHint(n"thumb_press_left", GetLocalizedText("UI-Menus-Saving-SaveFilesGroup-CollapseAll"));
+    };
+  }
+
+  private final func SetupLoadItems(const saves: script_ref<[String]>) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(saves)) {
+      this.CreateLoadItem(i);
+      i += 1;
+    };
+  }
+
+  private final func RefreshUGCRestrictedThumbnails() -> Void {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let characterCustomizationSystem: ref<gameuiICharacterCustomizationSystem> = GameInstance.GetCharacterCustomizationSystem(this.GetPlayerControlledObject().GetGame());
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_list) {
+      button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+      controller = button.GetController() as LoadListItem;
+      if IsDefined(controller) && controller.IsModded() {
+        controller.CheckThumbnailCensorship(!characterCustomizationSystem.IsNudityAllowed(), this.m_isUserUGCRestricted);
+      };
+      i += 1;
+    };
+  }
+
+  private final func RefreshUnfinishedItemLoads() -> Void {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_list) {
+      button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+      controller = button.GetController() as LoadListItem;
+      if IsDefined(controller) && !controller.IsMetadataSet() {
+        this.GetSystemRequestsHandler().RequestSavedGameScreenshot(controller.SaveIndex(), controller.GetPreviewImageWidget());
+      };
+      i += 1;
+    };
+  }
+
+  private final func CreateLoadItem(index: Int32) -> Void {
+    let currLogic: wref<LoadListItem>;
+    let currButton: wref<inkCompoundWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListItem") as inkCompoundWidget;
+    currButton.RegisterToCallback(n"OnRelease", this, n"OnReleaseLoadListItem");
+    currLogic = currButton.GetController() as LoadListItem;
+    currLogic.SetData(index);
+    this.GetSystemRequestsHandler().RequestSavedGameScreenshot(index, currLogic.GetPreviewImageWidget());
+  }
+
+  protected cb func OnReleaseLoadListGroup(e: ref<inkPointerEvent>) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListGroup>;
+    let isExpanded: Bool;
+    let playthroughIndex: Int32;
+    if !this.m_isInputDisabled {
+      button = e.GetCurrentTarget();
+      controller = button.GetController() as LoadListGroup;
+      if (e.IsAction(n"click") || e.IsAction(n"tap")) && Equals(this.m_loadComplete, true) {
+        playthroughIndex = ArrayFindFirst(this.m_playthroughIDs, controller.GetPlaythroughID());
+        if playthroughIndex == -1 {
+          return false;
+        };
+        isExpanded = controller.SwitchExpandedState();
+        this.SetVisibilityOfSavesInGroup(playthroughIndex, isExpanded);
+        controller.Refocus(button);
+      };
+    };
+  }
+
+  protected cb func OnReleaseLoadListItem(e: ref<inkPointerEvent>) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    if !this.m_isInputDisabled {
+      button = e.GetCurrentTarget();
+      controller = button.GetController() as LoadListItem;
+      if (e.IsAction(n"click") || e.IsAction(n"tap") && Equals(controller.GetTapped(), true)) && Equals(this.m_loadComplete, true) {
+        if controller.ValidSlot() {
+          this.LoadGame(controller);
+        };
+        this.PlaySound(n"Button", n"OnPress");
+      };
+      if e.IsAction(n"tap") {
+        controller.SetTapped(!controller.GetTapped());
+      };
+      if e.IsAction(n"delete_save") && Equals(this.m_loadComplete, true) {
+        this.PlaySound(n"SaveDeleteButton", n"OnPress");
+        if controller.IsCloud() {
+          this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-CrossProgression-Title", n"UI-CrossProgression-DeleteSaveRestriction");
+        } else {
+          this.DeleteSavedGame(controller.SaveIndex());
+          this.m_systemHandler.CancelSavedGameScreenshotRequests();
+        };
+      };
+    };
+  }
+
+  private final func LoadGame(controller: ref<LoadListItem>) -> Void {
+    let animOptions: inkAnimOptions;
+    if controller.IsModded() {
+      this.m_animProxy = this.PlayLibraryAnimation(this.m_transitToLoadingAnimName, animOptions);
+      this.LoadModdedSave(controller.SaveIndex());
+      if this.m_enableLoadingTransition {
+        this.PlayTransitionAnimOnButtons(controller.ButtonIndex(), false);
+      };
+    } else {
+      if this.GetSystemRequestsHandler().IsPreGame() {
+        this.PreSpawnInitialLoadingScreen(controller.GetInitialLoadingID());
+        this.m_animProxy = this.PlayLibraryAnimation(this.m_transitToLoadingAnimName, animOptions);
+        if this.m_enableLoadingTransition {
+          this.PlayTransitionAnimOnButtons(controller.ButtonIndex(), false);
+          this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnTransitionFinishedPreGame");
+          this.m_saveToLoadIndex = controller.SaveIndex();
+          this.m_saveToLoadID = controller.GetInitialLoadingID();
+          this.m_isInputDisabled = true;
+        } else {
+          this.LoadSaveInGame(controller.SaveIndex());
+        };
+      } else {
+        this.m_animProxy = this.PlayLibraryAnimation(this.m_transitToLoadingAnimName, animOptions);
+        this.LoadSaveInGame(controller.SaveIndex());
+        if this.m_enableLoadingTransition {
+          this.PlayTransitionAnimOnButtons(controller.ButtonIndex(), false);
+        };
+      };
+    };
+  }
+
+  private final func PlayTransitionAnimOnButtons(sourceIndex: Int32, reverse: Bool) -> Void {
+    let numVisibleButtonsBefore: Int32;
+    this.m_sourceIndex = sourceIndex;
+    let i: Int32 = sourceIndex - 1;
+    while i >= 0 {
+      if this.m_buttonList[i].IsVisible() {
+        this.PlayTransitionAnimOnButton(i, numVisibleButtonsBefore, reverse);
+        numVisibleButtonsBefore += 1;
+      };
+      i -= 1;
+    };
+    numVisibleButtonsBefore = 0;
+    i = sourceIndex + 1;
+    while i < ArraySize(this.m_buttonList) {
+      if this.m_buttonList[i].IsVisible() {
+        this.PlayTransitionAnimOnButton(i, numVisibleButtonsBefore, reverse);
+        numVisibleButtonsBefore += 1;
+      };
+      i += 1;
+    };
+  }
+
+  private final func PlayTransitionAnimOnButton(index: Int32, distanceFromSource: Int32, reverse: Bool) -> Void {
+    this.PlayTransitionAnimOnButton(index, this.m_animDelayBetweenSlots * Cast<Float>(distanceFromSource), reverse);
+  }
+
+  protected cb func OnLoadSaveInGameCanceled() -> Bool {
+    this.PlayTransitionAnimOnButtons(this.m_sourceIndex, true);
+  }
+
+  private final func PlayTransitionAnimOnButton(index: Int32, delay: Float, reverse: Bool) -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.executionDelay = delay;
+    animOptions.playReversed = reverse;
+    let targetWidget: wref<inkWidget> = this.m_buttonList[index].GetRootWidget();
+    let targetController: wref<LoadListItem> = targetWidget.GetController() as LoadListItem;
+    targetController.PlayTransitionAnimation(this.m_transitToLoadingSlotAnimName, animOptions);
+  }
+
+  private final func GogLogin(isReload: Bool) -> Void {
+    let container: wref<inkCompoundWidget>;
+    let gameInst: GameInstance = this.GetPlayerControlledObject().GetGame();
+    let hudGroup: ref<ConfigGroup> = GameInstance.GetSettingsSystem(gameInst).GetGroup(n"/gameplay/misc");
+    let settingsVar: ref<ConfigVarBool> = hudGroup.GetVar(n"EnableCloudSaves") as ConfigVarBool;
+    if !settingsVar.GetValue() || !settingsVar.IsVisible() {
+      return;
+    };
+    container = inkWidgetRef.Get(this.m_gogContainer) as inkCompoundWidget;
+    if isReload {
+      container.RemoveAllChildren();
+      this.SpawnGogPopupWidget(container);
+      return;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    if Cast<Bool>(container.GetNumChildren()) {
+      container.RemoveAllChildren();
+    } else {
+      this.SpawnGogPopupWidget(container);
+    };
+  }
+
+  private final func SpawnGogPopupWidget(gogContainer: wref<inkCompoundWidget>) -> Void {
+    let gogPopupController: wref<GOGProfileLogicController>;
+    let gogPopupWidget: ref<inkWidget> = this.SpawnFromExternal(gogContainer, r"base\\gameplay\\gui\\fullscreen\\main_menu\\gog_popup.inkwidget", n"Root");
+    if gogPopupWidget != null {
+      gogPopupController = gogPopupWidget.GetController() as GOGProfileLogicController;
+      if gogPopupController != null {
+        gogPopupController.SetMenuState(EGOGMenuState.LoadGame);
+        gogPopupController.SetGogContainer(gogContainer);
+      };
+    };
+  }
+
+  protected cb func OnTransitionFinished(anim: ref<inkAnimProxy>) -> Bool {
+    this.LoadSaveInGame(this.m_saveToLoadIndex);
+  }
+
+  protected cb func OnTransitionFinishedPreGame(anim: ref<inkAnimProxy>) -> Bool {
+    this.PreSpawnInitialLoadingScreen(this.m_saveToLoadID);
+    this.LoadSaveInGame(this.m_saveToLoadIndex);
+  }
+
+  protected cb func OnSaveDeleted(result: Bool, idx: Int32) -> Bool {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32;
+    let index: Int32;
+    let savesCount: Int32;
+    if result {
+      i = 0;
+      while i < inkCompoundRef.GetNumChildren(this.m_list) {
+        button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+        controller = button.GetController() as LoadListItem;
+        if IsDefined(controller) && controller.SaveIndex() == idx {
+          index = ArrayFindFirst(this.m_playthroughIDs, controller.GetPlaythroughID());
+          inkCompoundRef.RemoveChild(this.m_list, button);
+          if index != -1 {
+            ArrayRemove(this.m_saveWidgetsMap[index], button);
+            if ArraySize(this.m_saveWidgetsMap[index]) == 0 {
+              inkCompoundRef.RemoveChild(this.m_list, this.m_saveGroupHeaderWidgets[index]);
+            };
+          };
+          break;
+        };
+        i += 1;
+      };
+    };
+    savesCount = inkCompoundRef.GetNumChildren(this.m_list);
+    inkWidgetRef.SetVisible(this.m_noSavedGamesLabel, savesCount == 0);
+    this.UpdateButtonHints(savesCount);
+    this.RefreshUnfinishedItemLoads();
+  }
+
+  protected cb func OnGogLoginStatusChanged(bIsSignedIn: Bool) -> Bool {
+    let handler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    handler.RequestSavesForLoad();
+  }
+
+  protected cb func OnGogReloadEmporium(evt: ref<GogReloadEmporium>) -> Bool {
+    this.GogLogin(true);
+  }
+
+  protected cb func OnSavesForLoadReady(saves: [String]) -> Bool {
+    this.m_saves = saves;
+    this.m_saveFilesReady = true;
+    this.UpdateSavesList();
+  }
+
+  protected cb func OnCloudSavesQueryStatusChanged(status: CloudSavesQueryStatus) -> Bool {
+    this.m_cloudSynced = true;
+    this.UpdateSavesList();
+  }
+
+  protected cb func OnCloudSaveUploadFinish(success: Bool) -> Bool {
+    let handler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    handler.RequestSavesForLoad();
+  }
+
+  private final func UpdateSavesList() -> Void {
+    let savesCount: Int32;
+    if this.m_saveFilesReady && this.m_cloudSynced {
+      this.m_saveFilesReady = false;
+      this.m_cloudSynced = false;
+      this.StopLoadingAnimation();
+      inkCompoundRef.RemoveAllChildren(this.m_list);
+      this.ResetSaveMetaData();
+      this.SetupLoadItems(this.m_saves);
+      savesCount = ArraySize(this.m_saves);
+      if savesCount > 0 {
+        inkWidgetRef.SetVisible(this.m_loadingSpinner, true);
+      };
+      inkWidgetRef.SetVisible(this.m_noSavedGamesLabel, savesCount == 0);
+      this.UpdateButtonHints(savesCount);
+      this.m_loadComplete = true;
+    };
+  }
+
+  private final func ResetSaveMetaData() -> Void {
+    ArrayClear(this.m_playthroughIDs);
+    ArrayClear(this.m_saveGroupInfos);
+    ArrayClear(this.m_saveWidgetsMap);
+    ArrayClear(this.m_saveGroupHeaderWidgets);
+    ArrayClear(this.m_saveWidgetsMap);
+    ArrayClear(this.m_buttonList);
+    this.m_buttonListFinalized = false;
+  }
+
+  protected cb func OnSaveMetadataReady(info: ref<SaveMetadataInfo>) -> Bool {
+    let characterCustomizationSystem: ref<gameuiICharacterCustomizationSystem>;
+    let controller: wref<LoadListItem>;
+    let groupController: wref<LoadListGroup>;
+    let playthroughIndex: Int32;
+    let saveWidgets: array<wref<inkWidget>>;
+    let saveWidget: wref<inkWidget> = this.FindSaveWidget(info.saveIndex);
+    if saveWidget == null {
+      return false;
+    };
+    characterCustomizationSystem = GameInstance.GetCharacterCustomizationSystem(this.GetPlayerControlledObject().GetGame());
+    playthroughIndex = ArrayFindFirst(this.m_playthroughIDs, info.playthroughID);
+    if playthroughIndex == -1 {
+      playthroughIndex = this.CreateNewSaveGroup(info);
+    };
+    groupController = this.m_saveGroupHeaderWidgets[playthroughIndex].GetController() as LoadListGroup;
+    saveWidgets = this.m_saveWidgetsMap[playthroughIndex];
+    ArrayPush(saveWidgets, saveWidget);
+    this.m_saveWidgetsMap[playthroughIndex] = saveWidgets;
+    this.ReorderListItem(saveWidget, playthroughIndex, false);
+    controller = saveWidget.GetController() as LoadListItem;
+    if info.isValid {
+      controller.SetOwnerMenuCallbacks(this);
+      controller.SetMetadata(info, groupController.GetExpandedState(), this.m_isEp1Enabled);
+      controller.CheckThumbnailCensorship(!characterCustomizationSystem.IsNudityAllowed(), this.m_isUserUGCRestricted);
+    } else {
+      controller.SetInvalid(info.internalName, groupController.GetExpandedState());
+    };
+    if !this.m_buttonListFinalized {
+      this.PopulateButtonList();
+      if this.CountSaveWidgetsInGroups() == ArraySize(this.m_saves) {
+        this.m_buttonListFinalized = true;
+        inkWidgetRef.SetVisible(this.m_loadingSpinner, false);
+      };
+    };
+  }
+
+  private final func CreateNewSaveGroup(info: ref<SaveMetadataInfo>) -> Int32 {
+    let groupController: wref<LoadListGroup>;
+    let groupHeader: wref<inkWidget>;
+    let saveGroupInfo: ref<SaveGroupInfo>;
+    let saveWidgets: array<wref<inkWidget>>;
+    let playthroughIndex: Int32 = ArraySize(this.m_playthroughIDs);
+    ArrayPush(this.m_playthroughIDs, info.playthroughID);
+    ArrayClear(saveWidgets);
+    ArrayPush(this.m_saveWidgetsMap, saveWidgets);
+    saveGroupInfo = new SaveGroupInfo();
+    saveGroupInfo.CopySaveMetaData(info);
+    ArrayPush(this.m_saveGroupInfos, saveGroupInfo);
+    groupHeader = this.SpawnFromLocal(inkWidgetRef.Get(this.m_list), n"LoadListExpandableGroup");
+    groupHeader.RegisterToCallback(n"OnRelease", this, n"OnReleaseLoadListGroup");
+    ArrayPush(this.m_saveGroupHeaderWidgets, groupHeader);
+    groupController = groupHeader.GetController() as LoadListGroup;
+    groupController.SetPlaythroughID(info.playthroughID);
+    groupController.SetGameController(this);
+    groupController.SetMetadata(saveGroupInfo);
+    this.ReorderListItem(groupHeader, playthroughIndex, true);
+    if playthroughIndex == 0 {
+      groupController.SwitchExpandedState();
+    };
+    return playthroughIndex;
+  }
+
+  private final func ReorderListItem(item: wref<inkWidget>, playthroughIndex: Int32, isHeader: Bool) -> Void {
+    let count: Int32;
+    let i: Int32;
+    if !isHeader {
+      playthroughIndex += 1;
+      count = -1;
+    };
+    i = 0;
+    while i < playthroughIndex {
+      count += ArraySize(this.m_saveWidgetsMap[i]);
+      count += 1;
+      i += 1;
+    };
+    inkCompoundRef.ReorderChild(this.m_list, item, count);
+  }
+
+  private final func FindSaveWidget(index: Int32) -> wref<inkWidget> {
+    let button: wref<inkWidget>;
+    let controller: wref<LoadListItem>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_list) {
+      button = inkCompoundRef.GetWidgetByIndex(this.m_list, i);
+      controller = button.GetController() as LoadListItem;
+      if IsDefined(controller) && controller.SaveIndex() == index {
+        return button;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func CountSaveWidgetsInGroups() -> Int32 {
+    let count: Int32 = 0;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_saveWidgetsMap) {
+      count += ArraySize(this.m_saveWidgetsMap[i]);
+      i += 1;
+    };
+    return count;
+  }
+
+  public final func PopulateButtonList() -> Void {
+    let index: Int32;
+    let itemController: wref<LoadListItem>;
+    ArrayClear(this.m_buttonList);
+    index = 0;
+    while index < inkCompoundRef.GetNumChildren(this.m_list) {
+      itemController = inkCompoundRef.GetWidgetByIndex(this.m_list, index).GetController() as LoadListItem;
+      if IsDefined(itemController) {
+        itemController.SetButtonIndex(ArraySize(this.m_buttonList));
+        ArrayPush(this.m_buttonList, itemController);
+      };
+      index += 1;
+    };
+  }
+
+  protected cb func OnGogPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.GogLogin(false);
+      evt.Handle();
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = menuEventDispatcher;
+  }
+
+  public final func EnsureGroupHeaderIsVisible(widgetToEnsureVisiblity: wref<inkWidget>) -> Void {
+    let scrollController: wref<inkScrollController> = this.GetRootWidget().GetControllerByType(n"inkScrollController") as inkScrollController;
+    if IsDefined(scrollController) {
+      scrollController.EnsureVisible(widgetToEnsureVisiblity);
+    };
+  }
+
+  public final func EnsureSelectionIsOverGroup(widgetToSelect: wref<inkWidget>) -> Void {
+    this.SetCursorOverWidget(widgetToSelect);
+  }
+}
+
+public class LoadListItem extends AnimatedListItemController {
+
+  private edit let m_imageReplacement: inkImageRef;
+
+  private edit let m_label: inkTextRef;
+
+  private edit let m_labelDate: inkTextRef;
+
+  private edit let m_type: inkTextRef;
+
+  private edit let m_quest: inkTextRef;
+
+  private edit let m_lifePathText: inkTextRef;
+
+  private edit let m_lifepath: inkImageRef;
+
+  private edit let m_cloudStatus: inkImageRef;
+
+  private edit let m_playTime: inkTextRef;
+
+  private edit let m_characterLevel: inkTextRef;
+
+  private edit let m_characterLevelLabel: inkTextRef;
+
+  private edit let m_gameVersion: inkTextRef;
+
+  private edit let m_fileSize: inkTextRef;
+
+  private edit let m_trophyIcon: inkImageRef;
+
+  private edit let m_modIcon: inkImageRef;
+
+  private edit let m_emptySlotWrapper: inkWidgetRef;
+
+  private edit let m_wrapper: inkWidgetRef;
+
+  private let m_versionParams: ref<inkTextParams>;
+
+  private let m_SaveIndex: Int32;
+
+  private let m_buttonIndex: Int32;
+
+  private let m_emptySlot: Bool;
+
+  private let m_validSlot: Bool;
+
+  private let m_initialLoadingID: Uint64;
+
+  private let m_metadata: ref<SaveMetadataInfo>;
+
+  @default(LoadListItem, false)
+  private let m_isMetadataSet: Bool;
+
+  @default(LoadListItem, base\gameplay\gui\fullscreen\load_game\save_game.inkatlas)
+  private const let m_defaultAtlasPath: ResRef;
+
+  private let m_tranistionAnimProxy: ref<inkAnimProxy>;
+
+  @default(LoadListItem, false)
+  private let m_tapped: Bool;
+
+  private let m_ownerMenu: wref<LoadGameMenuGameController>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    super.OnInitialize();
+    this.m_validSlot = true;
+    inkWidgetRef.SetVisible(this.m_emptySlotWrapper, false);
+    inkWidgetRef.SetVisible(this.m_wrapper, false);
+    inkWidgetRef.SetVisible(this.m_label, false);
+    inkWidgetRef.SetVisible(this.m_labelDate, false);
+    inkWidgetRef.SetVisible(this.m_type, false);
+    inkWidgetRef.SetVisible(this.m_playTime, false);
+    inkWidgetRef.SetVisible(this.m_lifepath, false);
+    inkWidgetRef.SetVisible(this.m_cloudStatus, false);
+    inkWidgetRef.SetVisible(this.m_lifePathText, false);
+    inkWidgetRef.SetVisible(this.m_quest, false);
+    inkWidgetRef.SetVisible(this.m_characterLevel, false);
+    inkWidgetRef.SetVisible(this.m_characterLevelLabel, false);
+    inkWidgetRef.SetVisible(this.m_gameVersion, false);
+    inkWidgetRef.SetVisible(this.m_fileSize, false);
+    inkWidgetRef.SetVisible(this.m_trophyIcon, false);
+    inkWidgetRef.SetVisible(this.m_modIcon, false);
+    this.m_versionParams = new inkTextParams();
+    this.m_versionParams.AddString("version_num", "--");
+    inkTextRef.SetLocalizedText(this.m_gameVersion, n"UI-Settings-Audio-GameVersion", this.m_versionParams);
+  }
+
+  public final func PlayTransitionAnimation(animName: CName, animOptions: inkAnimOptions) -> Void {
+    if this.m_tranistionAnimProxy.IsPlaying() {
+      this.m_tranistionAnimProxy.GotoEndAndStop();
+    };
+    this.m_tranistionAnimProxy = this.PlayLibraryAnimation(animName, animOptions);
+  }
+
+  public final func SetTapped(tapped: Bool) -> Void {
+    this.m_tapped = tapped;
+  }
+
+  public final func GetTapped() -> Bool {
+    return this.m_tapped;
+  }
+
+  public final func SetOwnerMenuCallbacks(inOwnerMenu: wref<LoadGameMenuGameController>) -> Void {
+    this.m_ownerMenu = inOwnerMenu;
+    inkWidgetRef.RegisterToCallback(this.m_trophyIcon, n"OnHoverOver", this.m_ownerMenu, n"OnTrophyIconHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_trophyIcon, n"OnHoverOut", this.m_ownerMenu, n"OnIconHoveredOut");
+    inkWidgetRef.RegisterToCallback(this.m_modIcon, n"OnHoverOver", this.m_ownerMenu, n"OnModIconHovered");
+    inkWidgetRef.RegisterToCallback(this.m_modIcon, n"OnHoverOut", this.m_ownerMenu, n"OnIconHoveredOut");
+  }
+
+  public final func SetMetadata(metadata: ref<SaveMetadataInfo>, isVisible: Bool, opt isEp1Enabled: Bool) -> Void {
+    let fileSizeMB: String;
+    let finalString: String;
+    let hrs: Int32;
+    let lvl: Int32;
+    let mins: Int32;
+    let playthroughTime: Float;
+    let shrs: String;
+    let smins: String;
+    this.m_metadata = metadata;
+    this.m_isMetadataSet = true;
+    inkWidgetRef.SetVisible(this.m_wrapper, isVisible);
+    inkWidgetRef.SetVisible(this.m_label, true);
+    inkWidgetRef.SetVisible(this.m_labelDate, true);
+    inkWidgetRef.SetVisible(this.m_type, true);
+    inkWidgetRef.SetVisible(this.m_playTime, true);
+    inkWidgetRef.SetVisible(this.m_imageReplacement, true);
+    inkWidgetRef.SetVisible(this.m_lifepath, true);
+    inkWidgetRef.SetVisible(this.m_cloudStatus, true);
+    inkWidgetRef.SetVisible(this.m_lifePathText, true);
+    inkWidgetRef.SetVisible(this.m_quest, true);
+    inkWidgetRef.SetVisible(this.m_characterLevel, true);
+    inkWidgetRef.SetVisible(this.m_characterLevelLabel, true);
+    inkWidgetRef.SetVisible(this.m_gameVersion, true);
+    inkWidgetRef.SetVisible(this.m_fileSize, true);
+    if !isEp1Enabled && metadata.IsEp1Save() {
+      inkTextRef.SetText(this.m_label, "LocKey#92500");
+      inkWidgetRef.SetVisible(this.m_quest, false);
+      inkWidgetRef.SetVisible(this.m_type, false);
+      this.SetEnabled(false);
+    } else {
+      inkTextRef.SetText(this.m_label, metadata.trackedQuest);
+      inkTextRef.SetText(this.m_quest, metadata.internalName);
+      inkTextRef.SetText(this.m_type, metadata.locationName);
+      this.SetEnabled(true);
+    };
+    this.m_versionParams.UpdateString("version_num", metadata.gameVersion);
+    this.m_initialLoadingID = metadata.initialLoadingScreenID;
+    playthroughTime = MaxF(Cast<Float>(metadata.playthroughTime), Cast<Float>(metadata.playTime));
+    hrs = RoundF(playthroughTime / 3600.00);
+    mins = RoundF((playthroughTime % 3600.00) / 60.00);
+    if hrs > 9 {
+      shrs = ToString(hrs);
+    } else {
+      shrs = ToString(hrs);
+    };
+    if mins > 9 {
+      smins = ToString(mins);
+    } else {
+      smins = ToString(mins);
+    };
+    if hrs != 0 {
+      finalString = shrs + GetLocalizedText("UI-Labels-Units-Hours");
+    };
+    if mins != 0 {
+      finalString = hrs != 0 ? finalString + " " : finalString;
+      finalString = finalString + smins + GetLocalizedText("UI-Labels-Units-Minutes");
+    };
+    inkTextRef.SetText(this.m_playTime, finalString);
+    inkTextRef.SetDateTimeByTimestamp(this.m_labelDate, metadata.timestamp);
+    lvl = RoundF(Cast<Float>(metadata.level));
+    inkTextRef.SetText(this.m_characterLevel, ToString(lvl));
+    if lvl == 0 {
+      inkWidgetRef.SetVisible(this.m_characterLevel, false);
+      inkWidgetRef.SetVisible(this.m_characterLevelLabel, false);
+    };
+    if Equals(metadata.lifePath, inkLifePath.Corporate) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathCorpo1");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Corporate");
+    };
+    if Equals(metadata.lifePath, inkLifePath.Nomad) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathNomad1");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Nomad");
+    };
+    if Equals(metadata.lifePath, inkLifePath.StreetKid) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathStreetKid1");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Streetkid");
+    };
+    switch metadata.saveStatus {
+      case inkSaveStatus.Local:
+      case inkSaveStatus.Invalid:
+        inkWidgetRef.SetVisible(this.m_cloudStatus, false);
+        break;
+      case inkSaveStatus.Upload:
+        inkImageRef.SetTexturePart(this.m_cloudStatus, n"icon_cloud_upload");
+        inkWidgetRef.SetVisible(this.m_cloudStatus, true);
+        break;
+      case inkSaveStatus.Cloud:
+        inkImageRef.SetTexturePart(this.m_cloudStatus, n"icon_cloud");
+        inkWidgetRef.SetVisible(this.m_cloudStatus, true);
+        break;
+      case inkSaveStatus.InSync:
+        inkImageRef.SetTexturePart(this.m_cloudStatus, n"icon_cloud_insync");
+        inkWidgetRef.SetVisible(this.m_cloudStatus, true);
+    };
+    fileSizeMB = ToString((Cast<Float>(metadata.fileSize) / 1024.00) / 1024.00);
+    fileSizeMB = StrBeforeFirst(fileSizeMB, ".") + "." + StrLeft(StrAfterFirst(fileSizeMB, "."), 2);
+    inkTextRef.SetText(this.m_fileSize, fileSizeMB + " MB");
+    if metadata.isModded {
+      inkWidgetRef.SetVisible(this.m_modIcon, true);
+      inkWidgetRef.SetVisible(this.m_trophyIcon, this.isAbleToDisplayBrokenTrophyIconAndTooltip());
+    };
+  }
+
+  private final func isAbleToDisplayBrokenTrophyIconAndTooltip() -> Bool {
+    return Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") || Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "xseriess");
+  }
+
+  public final func SetInvalid(const label: script_ref<String>, isVisible: Bool) -> Void {
+    this.m_validSlot = false;
+    this.m_isMetadataSet = true;
+    inkWidgetRef.SetVisible(this.m_wrapper, isVisible);
+    inkWidgetRef.SetVisible(this.m_label, true);
+    inkWidgetRef.SetVisible(this.m_quest, true);
+    inkTextRef.SetText(this.m_label, "UI-Menus-Saving-CorruptedSaveTitle");
+    inkTextRef.SetText(this.m_quest, Deref(label));
+  }
+
+  public final func SetData(index: Int32, opt emptySlot: Bool, opt allSlotsTaken: Bool) -> Void {
+    this.m_SaveIndex = index;
+    inkWidgetRef.SetVisible(this.m_wrapper, false);
+    if emptySlot {
+      this.m_emptySlot = true;
+      inkWidgetRef.SetVisible(this.m_emptySlotWrapper, true);
+      inkWidgetRef.SetState(this.m_emptySlotWrapper, allSlotsTaken ? n"Unavailable" : n"Default");
+    } else {
+      inkWidgetRef.SetVisible(this.m_emptySlotWrapper, false);
+    };
+    this.m_isMetadataSet = false;
+  }
+
+  public final func SetButtonIndex(index: Int32) -> Void {
+    this.m_buttonIndex = index;
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.PlayLibraryAnimation(n"pause_button_hover_over_anim");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.PlayLibraryAnimation(n"pause_button_hover_out_anim");
+    this.m_tapped = false;
+  }
+
+  public final func IsCloud() -> Bool {
+    return Equals(this.m_metadata.saveStatus, inkSaveStatus.Upload) || Equals(this.m_metadata.saveStatus, inkSaveStatus.Cloud) || Equals(this.m_metadata.saveStatus, inkSaveStatus.InSync);
+  }
+
+  public final func IsModded() -> Bool {
+    return this.m_metadata.isModded;
+  }
+
+  public final func GetPlaythroughID() -> String {
+    return this.m_metadata.playthroughID;
+  }
+
+  public final func GetPlatform() -> String {
+    return this.m_metadata.platform;
+  }
+
+  public final func SaveIndex() -> Int32 {
+    return this.m_SaveIndex;
+  }
+
+  public final func ButtonIndex() -> Int32 {
+    return this.m_buttonIndex;
+  }
+
+  public final func EmptySlot() -> Bool {
+    return this.m_emptySlot;
+  }
+
+  public final func ValidSlot() -> Bool {
+    return this.m_validSlot;
+  }
+
+  public final func IsMetadataSet() -> Bool {
+    return this.m_isMetadataSet;
+  }
+
+  public final func GetInitialLoadingID() -> Uint64 {
+    return this.m_initialLoadingID;
+  }
+
+  public final func GetPreviewImageWidget() -> wref<inkImage> {
+    return inkWidgetRef.Get(this.m_imageReplacement) as inkImage;
+  }
+
+  public final func IsVisible() -> Bool {
+    return inkWidgetRef.IsVisible(this.m_wrapper);
+  }
+
+  public final func CheckThumbnailCensorship(IsBuildCensored: Bool, isUserUGCRestricted: Bool) -> Void {
+    if isUserUGCRestricted && this.IsModded() {
+      inkImageRef.SetAtlasResource(this.m_imageReplacement, this.m_defaultAtlasPath);
+      inkImageRef.SetActiveTextureType(this.m_imageReplacement, inkTextureType.StaticTexture);
+      inkImageRef.SetTexturePart(this.m_imageReplacement, n"save_img");
+    };
+    if IsBuildCensored && this.IsCloud() {
+      inkImageRef.SetAtlasResource(this.m_imageReplacement, this.m_defaultAtlasPath);
+      inkImageRef.SetActiveTextureType(this.m_imageReplacement, inkTextureType.StaticTexture);
+      inkImageRef.SetTexturePart(this.m_imageReplacement, n"cross_prog_icon");
+    };
+  }
+
+  public final func SetVisible(isVisible: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_wrapper, isVisible);
+  }
+}
+
+public class LoadListGroup extends AnimatedListItemController {
+
+  private edit let m_lifepath: inkImageRef;
+
+  private edit let m_playTime: inkTextRef;
+
+  private edit let m_playTimeLabel: inkTextRef;
+
+  private edit let m_labelDate: inkTextRef;
+
+  private edit let m_lastSaveLabel: inkTextRef;
+
+  private edit let m_lifePathText: inkTextRef;
+
+  private edit let m_characterLevel: inkTextRef;
+
+  private edit let m_characterLevelLabel: inkTextRef;
+
+  private edit let m_wrapper: inkWidgetRef;
+
+  private edit let m_expandIcon: inkImageRef;
+
+  private edit let m_expandIconBackground: inkImageRef;
+
+  private edit let m_frame: inkImageRef;
+
+  private edit let m_sep1: inkWidgetRef;
+
+  private edit let m_sep2: inkWidgetRef;
+
+  private edit let m_background: inkImageRef;
+
+  private let m_metadata: ref<SaveGroupInfo>;
+
+  @default(LoadListGroup, base\gameplay\gui\fullscreen\load_game\save_game.inkatlas)
+  private const let m_defaultAtlasPath: ResRef;
+
+  @default(LoadListGroup, false)
+  private let m_isExpanded: Bool;
+
+  private let m_tranistionAnimProxy: ref<inkAnimProxy>;
+
+  private let m_playthroughID: String;
+
+  private let m_refocus: Bool;
+
+  private let m_ensuredVisiblitiy: Bool;
+
+  private let m_loadGameMenuController: wref<LoadGameMenuGameController>;
+
+  private let m_buttonToRefocus: wref<inkWidget>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    super.OnInitialize();
+    inkWidgetRef.SetVisible(this.m_wrapper, false);
+    inkWidgetRef.SetVisible(this.m_playTime, false);
+    inkWidgetRef.SetVisible(this.m_playTimeLabel, false);
+    inkWidgetRef.SetVisible(this.m_lifepath, false);
+    inkWidgetRef.SetVisible(this.m_characterLevel, false);
+    inkWidgetRef.SetVisible(this.m_characterLevelLabel, false);
+    inkWidgetRef.SetVisible(this.m_lastSaveLabel, false);
+    inkWidgetRef.SetVisible(this.m_expandIcon, false);
+    inkImageRef.SetTexturePart(this.m_expandIcon, n"arrow_down_fg");
+    inkImageRef.SetTexturePart(this.m_expandIconBackground, n"arrow_down_bg");
+  }
+
+  protected cb func OnArrangeChildrenComplete() -> Bool {
+    if this.m_refocus {
+      if !this.m_ensuredVisiblitiy {
+        this.m_loadGameMenuController.EnsureGroupHeaderIsVisible(this.m_buttonToRefocus);
+        this.m_ensuredVisiblitiy = true;
+      } else {
+        this.m_loadGameMenuController.EnsureSelectionIsOverGroup(this.m_buttonToRefocus);
+        this.m_refocus = false;
+      };
+    };
+  }
+
+  public final func PlayTransitionAnimation(animName: CName, animOptions: inkAnimOptions) -> Void {
+    if this.m_tranistionAnimProxy.IsPlaying() {
+      this.m_tranistionAnimProxy.GotoEndAndStop();
+    };
+    this.m_tranistionAnimProxy = this.PlayLibraryAnimation(animName, animOptions);
+  }
+
+  public final func SetMetadata(metadata: ref<SaveGroupInfo>) -> Void {
+    let finalString: String;
+    let hrs: Int32;
+    let lvl: Int32;
+    let mins: Int32;
+    let playthroughTime: Float;
+    let shrs: String;
+    let smins: String;
+    this.m_metadata = metadata;
+    inkWidgetRef.SetVisible(this.m_wrapper, true);
+    inkWidgetRef.SetVisible(this.m_playTime, true);
+    inkWidgetRef.SetVisible(this.m_playTimeLabel, true);
+    inkWidgetRef.SetVisible(this.m_lifepath, true);
+    inkWidgetRef.SetVisible(this.m_characterLevel, true);
+    inkWidgetRef.SetVisible(this.m_characterLevelLabel, true);
+    inkWidgetRef.SetVisible(this.m_lastSaveLabel, true);
+    inkWidgetRef.SetVisible(this.m_expandIcon, true);
+    this.SetEnabled(true);
+    playthroughTime = MaxF(Cast<Float>(metadata.playthroughTime), Cast<Float>(metadata.playTime));
+    hrs = RoundF(playthroughTime / 3600.00);
+    mins = RoundF((playthroughTime % 3600.00) / 60.00);
+    if hrs > 9 {
+      shrs = ToString(hrs);
+    } else {
+      shrs = ToString(hrs);
+    };
+    if mins > 9 {
+      smins = ToString(mins);
+    } else {
+      smins = ToString(mins);
+    };
+    if hrs != 0 {
+      finalString = shrs + GetLocalizedText("UI-Labels-Units-Hours");
+    };
+    if mins != 0 {
+      finalString = hrs != 0 ? finalString + " " : finalString;
+      finalString = finalString + smins + GetLocalizedText("UI-Labels-Units-Minutes");
+    };
+    inkTextRef.SetText(this.m_playTime, finalString);
+    if metadata.timestamp > 0u {
+      inkTextRef.SetDateTimeByTimestamp(this.m_labelDate, metadata.timestamp);
+    } else {
+      inkTextRef.SetText(this.m_playTimeLabel, "UI-Menus-Saving-CorruptedSaveTitle");
+      inkWidgetRef.SetVisible(this.m_labelDate, false);
+      inkWidgetRef.SetVisible(this.m_lastSaveLabel, false);
+      inkWidgetRef.SetVisible(this.m_characterLevel, false);
+      inkWidgetRef.SetVisible(this.m_characterLevelLabel, false);
+      inkImageRef.SetTexturePart(this.m_lifepath, n"CorruptedGroup_Big");
+      inkWidgetRef.SetVisible(this.m_lifePathText, false);
+      return;
+    };
+    lvl = RoundF(Cast<Float>(metadata.level));
+    inkTextRef.SetText(this.m_characterLevel, ToString(lvl));
+    if lvl == 0 {
+      inkWidgetRef.SetVisible(this.m_characterLevel, false);
+      inkWidgetRef.SetVisible(this.m_characterLevelLabel, false);
+    };
+    if Equals(metadata.lifePath, inkLifePath.Corporate) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathCorpo_Big");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Corporate");
+    };
+    if Equals(metadata.lifePath, inkLifePath.Nomad) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathNomad_Big");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Nomad");
+    };
+    if Equals(metadata.lifePath, inkLifePath.StreetKid) {
+      inkImageRef.SetTexturePart(this.m_lifepath, n"LifepathStreetKid_Big");
+      inkTextRef.SetText(this.m_lifePathText, "Gameplay-LifePaths-Streetkid");
+    };
+  }
+
+  public final func GetMetadata() -> ref<SaveGroupInfo> {
+    return this.m_metadata;
+  }
+
+  public final func Refocus(widgetToFocus: wref<inkWidget>) -> Void {
+    this.m_refocus = true;
+    this.m_ensuredVisiblitiy = false;
+    this.m_buttonToRefocus = widgetToFocus;
+  }
+
+  public final func SetGameController(gameController: wref<LoadGameMenuGameController>) -> Void {
+    this.m_loadGameMenuController = gameController;
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_frame).BindProperty(n"tintColor", n"MainColors.Blue");
+    inkWidgetRef.Get(this.m_sep1).BindProperty(n"tintColor", n"MainColors.Blue");
+    inkWidgetRef.Get(this.m_sep2).BindProperty(n"tintColor", n"MainColors.Blue");
+    inkWidgetRef.Get(this.m_background).BindProperty(n"tintColor", n"MainColors.FaintBlue");
+    this.PlayLibraryAnimation(n"pause_button_hover_over_anim");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_frame).BindProperty(n"tintColor", n"MainColors.MildBlue");
+    inkWidgetRef.Get(this.m_sep1).BindProperty(n"tintColor", n"MainColors.MildBlue");
+    inkWidgetRef.Get(this.m_sep2).BindProperty(n"tintColor", n"MainColors.MildBlue");
+    inkWidgetRef.Get(this.m_background).BindProperty(n"tintColor", n"ListItem.backgroundColor");
+    this.PlayLibraryAnimation(n"pause_button_hover_out_anim");
+  }
+
+  public final func IsVisible() -> Bool {
+    return inkWidgetRef.IsVisible(this.m_wrapper);
+  }
+
+  public final func SetVisible(isVisible: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_wrapper, isVisible);
+  }
+
+  public final func SwitchExpandedState() -> Bool {
+    this.m_isExpanded = !this.m_isExpanded;
+    if this.m_isExpanded {
+      inkImageRef.SetTexturePart(this.m_expandIcon, n"arrow_rect_fg");
+      inkImageRef.SetTexturePart(this.m_expandIconBackground, n"arrow_rect_bg");
+    } else {
+      inkImageRef.SetTexturePart(this.m_expandIcon, n"arrow_down_fg");
+      inkImageRef.SetTexturePart(this.m_expandIconBackground, n"arrow_down_bg");
+    };
+    return this.m_isExpanded;
+  }
+
+  public final func GetExpandedState() -> Bool {
+    return this.m_isExpanded;
+  }
+
+  public final func SetExpandedState(newExpandedState: Bool) -> Bool {
+    if NotEquals(this.m_isExpanded, newExpandedState) {
+      this.SwitchExpandedState();
+      return true;
+    };
+    return false;
+  }
+
+  public final func SetPlaythroughID(playthroughID: String) -> Void {
+    this.m_playthroughID = playthroughID;
+  }
+
+  public final func GetPlaythroughID() -> String {
+    return this.m_playthroughID;
+  }
+}

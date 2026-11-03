@@ -1,0 +1,831 @@
+
+public struct CinematicCameraData {
+
+  public let cameraComponent: ref<vehicleCinematicCameraComponent>;
+
+  public let currentShot: ref<vehicleCinematicCameraShot>;
+
+  public let shotInitialTransform: WorldTransform;
+
+  public let vehicleInitialTransform: WorldTransform;
+
+  public let referenceLocalBoundingBox: Box;
+
+  public let currentLocalBoundingBox: Box;
+
+  public let shotStartTime: Float;
+
+  public let shotRootTransform: WorldTransform;
+
+  public let shotSpaceTransform: WorldTransform;
+
+  public let vehicleTransform: WorldTransform;
+
+  public let vehicleSpeed: Float;
+
+  public let currentTime: Float;
+
+  public let deltaTime: Float;
+
+  public final static func GetShotScaleRatios(data: CinematicCameraData) -> Vector4 {
+    let logAmplitude: Float;
+    let logSteepness: Float;
+    let scaleRatio: Vector4;
+    if data.currentShot.scaleForVehicle {
+      scaleRatio = Box.GetSize(data.currentLocalBoundingBox) / Box.GetSize(data.referenceLocalBoundingBox);
+      logAmplitude = 1.10;
+      logSteepness = 1.44;
+      scaleRatio.X = LogF(PowF(scaleRatio.X, logAmplitude) + 1.00) * logSteepness;
+      scaleRatio.Y = LogF(PowF(scaleRatio.Y, logAmplitude) + 1.00) * logSteepness;
+      scaleRatio.Z = LogF(PowF(scaleRatio.Z, logAmplitude) + 1.00) * logSteepness;
+      return scaleRatio;
+    };
+    return new Vector4(1.00, 1.00, 1.00, 1.00);
+  }
+
+  public final static func ScaleTransformForVehicle(data: CinematicCameraData, transform: Transform) -> Transform {
+    if data.currentShot.scaleForVehicle {
+      Transform.SetPosition(transform, Transform.GetPosition(transform) * CinematicCameraData.GetShotScaleRatios(data));
+    };
+    return transform;
+  }
+}
+
+public native class vehicleCinematicCameraShotEffect extends IScriptable {
+
+  public final native func GetValueFromCurve(curve: CName, input: Float, opt min: Float, opt max: Float) -> Float;
+
+  public func GetExecutionTime(data: CinematicCameraData) -> Float {
+    return data.currentTime - data.shotStartTime;
+  }
+
+  public func Reset() -> Void;
+
+  public func Start(data: CinematicCameraData) -> Void;
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void;
+}
+
+public native class vehicleTimedCinematicCameraShotEffect extends vehicleCinematicCameraShotEffect {
+
+  public native let startDelay: Float;
+
+  public native let duration: Float;
+
+  @default(vehicleTimedCinematicCameraShotEffect, false)
+  private let hasStarted: Bool;
+
+  public final const func HasStarted() -> Bool {
+    return this.hasStarted;
+  }
+
+  public func GetExecutionTime(data: CinematicCameraData) -> Float {
+    return MaxF(data.currentTime - data.shotStartTime + this.startDelay, 0.00);
+  }
+
+  public func Reset() -> Void {
+    this.hasStarted = false;
+  }
+
+  public func Start(data: CinematicCameraData) -> Void {
+    this.hasStarted = true;
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    this.hasStarted = true;
+  }
+}
+
+public native class vehicleCinematicCameraShot extends IScriptable {
+
+  public native let name: String;
+
+  public native let enabled: Bool;
+
+  public native let probability: Int32;
+
+  public native let duration: Float;
+
+  public native let scaleForVehicle: Bool;
+
+  public native let root: ref<vehicleCinematicCameraShotRoot>;
+
+  public native let effects: [ref<vehicleCinematicCameraShotEffect>];
+
+  public native let stopConditions: [ref<vehicleCinematicCameraShotStopCondition>];
+
+  private let runtimeData: CinematicCameraData;
+
+  public final const func IsStaticCameraShot() -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.effects) {
+      if IsDefined(this.effects[i] as cameraShotEffect_Translation) {
+        return false;
+      };
+      i += 1;
+    };
+    return true;
+  }
+
+  public final const func GetCanBeSelectedFromContext(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    let cameraPosition: WorldPosition = context.cameraComponent.GetWorldPosition();
+    let shotStartPosition: WorldPosition = WorldTransform.GetWorldPosition(this.GetRootTransformFromContext(context));
+    let currentZone: ZoneRelativeToVehicle = this.GetZoneRelativeToVehicle(cameraPosition, context);
+    let shotZone: ZoneRelativeToVehicle = this.GetZoneRelativeToVehicle(shotStartPosition, context);
+    return Equals(currentZone, shotZone) || Equals(shotZone, ZoneRelativeToVehicle.Middle) || Equals(currentZone, ZoneRelativeToVehicle.Middle);
+  }
+
+  private final const func GetZoneRelativeToVehicle(worldPosition: WorldPosition, context: vehicleCinematicCameraShotUpdateContext) -> ZoneRelativeToVehicle {
+    let localShotPosition: Vector4 = WorldTransform.TransformInvPoint(context.vehicleTransform, WorldPosition.ToVector4(worldPosition));
+    if AbsF(localShotPosition.X) < context.cameraComponent.middleZoneSizeForShotSelection / 2.00 {
+      return ZoneRelativeToVehicle.Middle;
+    };
+    return Vector4.Dot2D(localShotPosition, Vector4.RIGHT()) >= 0.00 ? ZoneRelativeToVehicle.Right : ZoneRelativeToVehicle.Left;
+  }
+
+  public final const func GetShotProbabilityFromContext(context: vehicleCinematicCameraShotUpdateContext) -> Int32 {
+    let shotDistanceFromCamera: Float;
+    let finalProbability: Int32 = this.probability;
+    let cc: ref<vehicleCinematicCameraComponent> = context.cameraComponent;
+    let isShotStatic: Bool = this.IsStaticCameraShot();
+    let wasLastShotStatic: Bool = cc.GetLastShot().IsStaticCameraShot();
+    let shotStartPosition: WorldTransform = this.GetRootTransformFromContext(context);
+    if isShotStatic && wasLastShotStatic {
+      finalProbability += cc.consecutiveStaticShotsProbabilityBonus;
+    } else {
+      if !isShotStatic && !wasLastShotStatic {
+        finalProbability += cc.consecutiveDynamicShotsProbabilityBonus;
+      };
+    };
+    shotDistanceFromCamera = Vector4.Distance(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(shotStartPosition)), WorldPosition.ToVector4(cc.GetWorldPosition()));
+    finalProbability += FloorF(ProportionalClampF(0.00, cc.maxDistanceFromCameraToHaveProbabilityBonusForShot, shotDistanceFromCamera, cc.maxProbabilityBonusFromCameraProximityToShot, 0.00));
+    return finalProbability;
+  }
+
+  public final func Reset() -> Void {
+    let i: Int32;
+    this.runtimeData = new CinematicCameraData();
+    this.root.Reset();
+    i = 0;
+    while i < ArraySize(this.effects) {
+      this.effects[i].Reset();
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.stopConditions) {
+      this.stopConditions[i].Reset();
+      i += 1;
+    };
+  }
+
+  public final const func GetRootTransformFromContext(context: vehicleCinematicCameraShotUpdateContext) -> WorldTransform {
+    return this.root.GetRootTransform(this.CreateCinematicCameraDataFromContext(context));
+  }
+
+  public final func Start(context: vehicleCinematicCameraShotUpdateContext) -> Void {
+    let effect: ref<vehicleCinematicCameraShotEffect>;
+    let timedEffect: ref<vehicleTimedCinematicCameraShotEffect>;
+    this.runtimeData = this.CreateCinematicCameraDataFromContext(context);
+    let i: Int32 = 0;
+    while i < ArraySize(this.effects) {
+      effect = this.effects[i];
+      if IsDefined(timedEffect = effect as vehicleTimedCinematicCameraShotEffect) {
+        if timedEffect.startDelay <= 0.00 {
+          timedEffect.Start(this.runtimeData);
+        };
+      } else {
+        effect.Start(this.runtimeData);
+      };
+      i += 1;
+    };
+  }
+
+  public final func Update(context: vehicleCinematicCameraShotUpdateContext) -> WorldTransform {
+    let effect: ref<vehicleCinematicCameraShotEffect>;
+    let i: Int32;
+    let resultTransform: WorldTransform;
+    let timedEffect: ref<vehicleTimedCinematicCameraShotEffect>;
+    this.UpdateCinematicCameraData(this.runtimeData, context);
+    resultTransform = this.runtimeData.shotRootTransform;
+    i = 0;
+    while i < ArraySize(this.effects) {
+      effect = this.effects[i];
+      if IsDefined(timedEffect = effect as vehicleTimedCinematicCameraShotEffect) {
+        if this.runtimeData.currentTime - this.runtimeData.shotStartTime >= timedEffect.startDelay {
+          if !timedEffect.HasStarted() {
+            timedEffect.StartDelayed(this.runtimeData, resultTransform);
+          };
+          timedEffect.Update(this.runtimeData, resultTransform);
+        };
+      } else {
+        effect.Update(this.runtimeData, resultTransform);
+      };
+      i += 1;
+    };
+    return resultTransform;
+  }
+
+  public final func ShouldStop(const finalTransform: WorldTransform) -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.stopConditions) {
+      if this.stopConditions[i].Evaluate(this.runtimeData, finalTransform) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final const func CreateCinematicCameraDataFromContext(context: vehicleCinematicCameraShotUpdateContext) -> CinematicCameraData {
+    let data: CinematicCameraData;
+    data.cameraComponent = context.cameraComponent;
+    data.currentShot = this;
+    data.vehicleTransform = context.vehicleTransform;
+    data.vehicleInitialTransform = data.vehicleTransform;
+    data.vehicleSpeed = context.vehicleSpeed;
+    data.referenceLocalBoundingBox = new Box(new Vector4(-1.16, -2.46, -0.30, 1.00), new Vector4(1.16, 2.54, 0.82, 1.00));
+    data.currentLocalBoundingBox = context.vehicleBoundingBox;
+    data.shotStartTime = context.engineTime;
+    data.currentTime = context.engineTime;
+    data.deltaTime = context.deltaTime;
+    data.shotRootTransform = this.root.GetRootTransform(data);
+    data.shotSpaceTransform = this.root.GetShotSpaceTransform(data);
+    data.shotInitialTransform = data.shotRootTransform;
+    return data;
+  }
+
+  private final const func UpdateCinematicCameraData(data: script_ref<CinematicCameraData>, context: vehicleCinematicCameraShotUpdateContext) -> Void {
+    Deref(data).vehicleTransform = context.vehicleTransform;
+    Deref(data).vehicleSpeed = context.vehicleSpeed;
+    Deref(data).currentTime = context.engineTime;
+    Deref(data).deltaTime = context.deltaTime;
+    Deref(data).shotRootTransform = this.root.GetRootTransform(Deref(data));
+    Deref(data).shotSpaceTransform = this.root.GetShotSpaceTransform(Deref(data));
+  }
+}
+
+public native class vehicleCinematicCameraShotGroup extends IScriptable {
+
+  public edit let enabled: Bool;
+
+  public native let name: String;
+
+  public final native func GetShot(index: Int32) -> ref<vehicleCinematicCameraShot>;
+
+  public final native func GetShotCount() -> Int32;
+
+  public final native func GetCondition(index: Int32) -> ref<vehicleCinematicCameraShotStartCondition>;
+
+  public final native func GetConditionCount() -> Int32;
+
+  public final func CanBeSelected(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    let i: Int32;
+    if !this.enabled {
+      return false;
+    };
+    i = 0;
+    while i < this.GetConditionCount() {
+      if !this.GetCondition(i).Evaluate(context) {
+        return false;
+      };
+      i += 1;
+    };
+    return true;
+  }
+}
+
+public native class vehicleCinematicCameraShotStartCondition extends IScriptable {
+
+  public func Evaluate(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    return true;
+  }
+}
+
+public class vehicleCinematicCameraShotStartCondition_VehicleType extends vehicleCinematicCameraShotStartCondition {
+
+  public edit let vehicleType: gamedataVehicleType;
+
+  public func Evaluate(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    return Equals(this.vehicleType, context.vehicleType);
+  }
+}
+
+public class vehicleCinematicCameraShotStartCondition_MinSpeed extends vehicleCinematicCameraShotStartCondition {
+
+  public edit let minSpeed: Float;
+
+  public func Evaluate(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    return context.vehicleSpeed >= this.minSpeed * 0.28;
+  }
+}
+
+public class vehicleCinematicCameraShotStartCondition_MaxSpeed extends vehicleCinematicCameraShotStartCondition {
+
+  public edit let maxSpeed: Float;
+
+  public func Evaluate(context: vehicleCinematicCameraShotUpdateContext) -> Bool {
+    return context.vehicleSpeed < this.maxSpeed * 0.28;
+  }
+}
+
+public native class vehicleCinematicCameraShotStopCondition extends IScriptable {
+
+  public func Reset() -> Void;
+
+  public func Evaluate(const data: CinematicCameraData, const finalTransform: WorldTransform) -> Bool {
+    return false;
+  }
+}
+
+public native class vehicleCinematicCameraShotStopCondition_VehicleNotVisible extends vehicleCinematicCameraShotStopCondition {
+
+  @default(vehicleCinematicCameraShotStopCondition_VehicleNotVisible, 0.75f)
+  public edit let timeOutOfSightBeforeStop: Float;
+
+  private let counter: Float;
+
+  public func Reset() -> Void {
+    this.counter = 0.00;
+  }
+
+  public func Evaluate(const data: CinematicCameraData, const finalTransform: WorldTransform) -> Bool {
+    if !data.cameraComponent.CheckIfVehicleIsInFrustum() || !data.cameraComponent.CheckIfHasLineOfSightWithVehicle(Vector4.Vector4To3(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(finalTransform)))) {
+      this.counter += data.deltaTime;
+      if this.counter >= this.timeOutOfSightBeforeStop {
+        return true;
+      };
+    } else {
+      this.counter = 0.00;
+    };
+    return false;
+  }
+}
+
+public native class vehicleCinematicCameraShotStopCondition_VehicleDistanceFromCamera extends vehicleCinematicCameraShotStopCondition {
+
+  @default(vehicleCinematicCameraShotStopCondition_VehicleDistanceFromCamera, 30f)
+  public edit let maxDistanceFromCamera: Float;
+
+  public func Evaluate(const data: CinematicCameraData, const finalTransform: WorldTransform) -> Bool {
+    let distanceToCameraSquared: Float = Vector4.DistanceSquared(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(data.vehicleTransform)), WorldPosition.ToVector4(WorldTransform.GetWorldPosition(finalTransform)));
+    return distanceToCameraSquared >= this.maxDistanceFromCamera * this.maxDistanceFromCamera;
+  }
+}
+
+public native class vehicleCinematicCameraShotStopCondition_CollisionWithEnvironment extends vehicleCinematicCameraShotStopCondition {
+
+  public func Evaluate(const data: CinematicCameraData, const finalTransform: WorldTransform) -> Bool {
+    return data.cameraComponent.CheckCollisionsAtPosition(Vector4.Vector4To3(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(finalTransform))));
+  }
+}
+
+public native class vehicleCinematicCameraShotRoot extends IScriptable {
+
+  public func Reset() -> Void;
+
+  public func GetRootTransform(data: CinematicCameraData) -> WorldTransform {
+    return new WorldTransform();
+  }
+
+  public func GetShotSpaceTransform(data: CinematicCameraData) -> WorldTransform {
+    return new WorldTransform();
+  }
+}
+
+public class cameraShotRoot_FixedOnVehicle extends vehicleCinematicCameraShotRoot {
+
+  public edit let deccelerationAmount: Float;
+
+  @default(cameraShotRoot_FixedOnVehicle, -1.f)
+  public edit let detachToVehicleTime: Float;
+
+  private let detachedFromVehicle: Bool;
+
+  private let detachedDirection: Vector4;
+
+  private let detachedSpeed: Float;
+
+  private let detachedTransform: WorldTransform;
+
+  public func Reset() -> Void {
+    this.detachedFromVehicle = false;
+  }
+
+  public final func GetRootTransform(data: CinematicCameraData) -> WorldTransform {
+    if !this.detachedFromVehicle && this.detachToVehicleTime >= 0.00 && data.currentTime > data.shotStartTime + this.detachToVehicleTime {
+      this.detachedFromVehicle = true;
+      this.detachedTransform = this.GetRootTransform_Internal(data);
+      this.detachedSpeed = data.vehicleSpeed;
+      this.detachedDirection = WorldTransform.GetForward(data.vehicleTransform);
+      return this.detachedTransform;
+    };
+    if this.detachedFromVehicle {
+      WorldTransform.SetWorldPosition(this.detachedTransform, WorldTransform.GetWorldPosition(this.detachedTransform) + this.detachedDirection * this.detachedSpeed * data.deltaTime);
+      this.detachedSpeed = MaxF(0.00, this.detachedSpeed - this.deccelerationAmount * data.deltaTime);
+      return this.detachedTransform;
+    };
+    return this.GetRootTransform_Internal(data);
+  }
+
+  protected func GetRootTransform_Internal(data: CinematicCameraData) -> WorldTransform {
+    return new WorldTransform();
+  }
+}
+
+public class cameraShotRoot_FixedOnVehicleNonSuspensionTracking extends cameraShotRoot_FixedOnVehicle {
+
+  public edit let offsetFromCar: Transform;
+
+  protected func GetRootTransform_Internal(data: CinematicCameraData) -> WorldTransform {
+    return WorldTransform.TransformXForm(this.GetShotSpaceTransform(data), CinematicCameraData.ScaleTransformForVehicle(data, this.offsetFromCar));
+  }
+
+  public func GetShotSpaceTransform(data: CinematicCameraData) -> WorldTransform {
+    let carStabilizedDirection: Vector4 = Vector4.Cross(Vector4.UP(), Quaternion.GetRight(WorldTransform.GetOrientation(data.vehicleTransform)));
+    let shotSpaceTransform: WorldTransform = data.vehicleTransform;
+    WorldTransform.SetOrientationFromDir(shotSpaceTransform, carStabilizedDirection);
+    return shotSpaceTransform;
+  }
+}
+
+public class cameraShotRoot_FixedOnVehicleSuspensionTracking extends cameraShotRoot_FixedOnVehicle {
+
+  public edit let offsetFromChassis: Transform;
+
+  protected func GetRootTransform_Internal(data: CinematicCameraData) -> WorldTransform {
+    return WorldTransform.TransformXForm(this.GetShotSpaceTransform(data), CinematicCameraData.ScaleTransformForVehicle(data, this.offsetFromChassis));
+  }
+
+  public func GetShotSpaceTransform(data: CinematicCameraData) -> WorldTransform {
+    return data.vehicleTransform;
+  }
+}
+
+public class cameraShotRoot_FixedShot extends vehicleCinematicCameraShotRoot {
+
+  public edit let offsetFromInitialPosition: Transform;
+
+  public func GetRootTransform(data: CinematicCameraData) -> WorldTransform {
+    return WorldTransform.TransformXForm(this.GetShotSpaceTransform(data), CinematicCameraData.ScaleTransformForVehicle(data, this.offsetFromInitialPosition));
+  }
+
+  public func GetShotSpaceTransform(data: CinematicCameraData) -> WorldTransform {
+    let fixedShotTransformWorldSpace: WorldTransform = data.vehicleInitialTransform;
+    let vehicleRotationWorldSpace: EulerAngles = Quaternion.ToEulerAngles(WorldTransform.GetOrientation(data.vehicleInitialTransform));
+    vehicleRotationWorldSpace.Pitch = 0.00;
+    vehicleRotationWorldSpace.Roll = 0.00;
+    WorldTransform.SetOrientationEuler(fixedShotTransformWorldSpace, vehicleRotationWorldSpace);
+    return fixedShotTransformWorldSpace;
+  }
+}
+
+public class cameraShotEffect_Translation extends vehicleTimedCinematicCameraShotEffect {
+
+  public edit let movementCurve: CName;
+
+  public edit let targetTransform: Transform;
+
+  public edit let affectedAxisPosition: cameraShotEffect_TranslationAffectedAxis;
+
+  @default(cameraShotEffect_Translation, false)
+  public edit let ignoreRotation: Bool;
+
+  private let startTransformShotSpace: Transform;
+
+  public func Reset() -> Void {
+    super.Reset();
+    this.startTransformShotSpace = new Transform();
+  }
+
+  public func Start(data: CinematicCameraData) -> Void {
+    super.Start(data);
+    this.startTransformShotSpace = WorldTransform.TransformInvWorldXForm(data.shotSpaceTransform, data.shotInitialTransform);
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    super.StartDelayed(data, resultTransform);
+    this.startTransformShotSpace = WorldTransform.TransformInvWorldXForm(data.shotSpaceTransform, Deref(resultTransform));
+  }
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let lerpedPositionShotSpace: Vector4;
+    let translationProgression: Float = this.GetValueFromCurve(this.movementCurve, this.GetExecutionTime(data) / this.duration);
+    let currentTransformShotSpace: Transform = WorldTransform.TransformInvWorldXForm(data.shotSpaceTransform, Deref(resultTransform));
+    let targetTransformShotSpace: Transform = CinematicCameraData.ScaleTransformForVehicle(data, this.targetTransform);
+    let positionAShotSpace: Vector4 = Transform.GetPosition(this.startTransformShotSpace);
+    let positionBShotSpace: Vector4 = Transform.GetPosition(targetTransformShotSpace);
+    let currentPositionShotSpace: Vector4 = Transform.GetPosition(currentTransformShotSpace);
+    lerpedPositionShotSpace.X = this.affectedAxisPosition.X ? LerpF(translationProgression, positionAShotSpace.X, positionBShotSpace.X) : currentPositionShotSpace.X;
+    lerpedPositionShotSpace.Y = this.affectedAxisPosition.Y ? LerpF(translationProgression, positionAShotSpace.Y, positionBShotSpace.Y) : currentPositionShotSpace.Y;
+    lerpedPositionShotSpace.Z = this.affectedAxisPosition.Z ? LerpF(translationProgression, positionAShotSpace.Z, positionBShotSpace.Z) : currentPositionShotSpace.Z;
+    let lerpedRotationShotSpace: Quaternion = !this.ignoreRotation ? Quaternion.Lerp(Transform.GetOrientation(this.startTransformShotSpace), Transform.GetOrientation(targetTransformShotSpace), translationProgression) : Transform.GetOrientation(currentTransformShotSpace);
+    resultTransform = WorldTransform.TransformXForm(data.shotSpaceTransform, Transform.Create(lerpedPositionShotSpace, lerpedRotationShotSpace));
+  }
+}
+
+public class cameraShotEffect_FOV extends vehicleTimedCinematicCameraShotEffect {
+
+  public edit let curve: CName;
+
+  public edit let startFOV: Float;
+
+  public edit let endFOV: Float;
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let lerpedFOV: Float = this.GetValueFromCurve(this.curve, this.GetExecutionTime(data) / this.duration, this.startFOV, this.endFOV);
+    data.cameraComponent.SetFOV(lerpedFOV);
+  }
+}
+
+public class cameraShotEffect_LookAtVehicle extends vehicleTimedCinematicCameraShotEffect {
+
+  public edit let aimOffset: Vector4;
+
+  public edit let ignoreHorizontal: Bool;
+
+  public edit let ignoreVertical: Bool;
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let lookAtAngles: EulerAngles;
+    let cameraToVehicleDirection: Vector4 = WorldPosition.ToVector4(WorldTransform.GetWorldPosition(data.vehicleTransform)) + this.aimOffset * CinematicCameraData.GetShotScaleRatios(data) - WorldPosition.ToVector4(WorldTransform.GetWorldPosition(Deref(resultTransform)));
+    let inputAngles: EulerAngles = Quaternion.ToEulerAngles(WorldTransform.GetOrientation(Deref(resultTransform)));
+    WorldTransform.SetOrientationFromDir(Deref(resultTransform), cameraToVehicleDirection);
+    lookAtAngles = Quaternion.ToEulerAngles(WorldTransform.GetOrientation(Deref(resultTransform)));
+    if this.ignoreHorizontal {
+      lookAtAngles.Yaw = inputAngles.Yaw;
+    };
+    if this.ignoreVertical {
+      lookAtAngles.Pitch = inputAngles.Pitch;
+    };
+    WorldTransform.SetOrientationEuler(Deref(resultTransform), lookAtAngles);
+  }
+}
+
+public class cameraShotEffect_Shake extends CameraShotEffect_EulerAnglesDamper {
+
+  @default(cameraShotEffect_Shake, .01f)
+  public edit let shakeStrength: Float;
+
+  @default(cameraShotEffect_Shake, 1f)
+  public edit let frequency: Float;
+
+  public func Start(data: CinematicCameraData) -> Void {
+    super.Start(data);
+    this.SetDampFactor(this.damping);
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    super.StartDelayed(data, resultTransform);
+    this.SetDampFactor(this.damping);
+  }
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let cameraEulerAngles: EulerAngles;
+    let dampedOffset: EulerAngles;
+    let randomVertical: Float = RandPerlinNoiseF(Cast<Int32>(data.shotStartTime) + 1, data.currentTime * this.frequency) * this.shakeStrength;
+    let randomHorizontal: Float = RandPerlinNoiseF(Cast<Int32>(data.shotStartTime) + 3, data.currentTime * this.frequency) * this.shakeStrength;
+    let cameraOffset: EulerAngles = new EulerAngles(randomHorizontal, randomVertical, 0.00);
+    this.UpdateDamp(cameraOffset, data.deltaTime);
+    dampedOffset = this.GetDampValue();
+    cameraEulerAngles = Quaternion.ToEulerAngles(WorldTransform.GetOrientation(Deref(resultTransform)));
+    cameraEulerAngles.Pitch = cameraEulerAngles.Pitch + dampedOffset.Pitch;
+    cameraEulerAngles.Yaw = cameraEulerAngles.Yaw + dampedOffset.Yaw;
+    WorldTransform.SetOrientationEuler(Deref(resultTransform), cameraEulerAngles);
+  }
+}
+
+public class cameraShotEffect_PositionShake extends CameraShotEffect_VectorDamper {
+
+  @default(cameraShotEffect_PositionShake, .01f)
+  public edit let shakeStrength: Float;
+
+  @default(cameraShotEffect_PositionShake, 1f)
+  public edit let frequency: Float;
+
+  public edit let directionsCoef: Vector3;
+
+  public func Start(data: CinematicCameraData) -> Void {
+    super.Start(data);
+    this.SetDampFactor(this.damping);
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    super.StartDelayed(data, resultTransform);
+    this.SetDampFactor(this.damping);
+  }
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let cameraPosition: Vector4;
+    let dampedOffset: Vector4;
+    let randomVertical: Float = RandPerlinNoiseF(Cast<Int32>(data.shotStartTime) + 100, data.currentTime * this.frequency) * this.shakeStrength;
+    let randomHorizontal: Float = RandPerlinNoiseF(Cast<Int32>(data.shotStartTime) + 200, data.currentTime * this.frequency) * this.shakeStrength;
+    let randomForward: Float = RandPerlinNoiseF(Cast<Int32>(data.shotStartTime) + 300, data.currentTime * this.frequency) * this.shakeStrength;
+    let cameraOffset: Vector4 = new Vector4(randomHorizontal * this.directionsCoef.X, randomForward * this.directionsCoef.Y, randomVertical * this.directionsCoef.Z, 0.00);
+    this.UpdateDamp(cameraOffset, data.deltaTime);
+    dampedOffset = this.GetDampValue();
+    cameraPosition = WorldPosition.ToVector4(WorldTransform.GetWorldPosition(Deref(resultTransform)));
+    cameraPosition += WorldTransform.GetRight(Deref(resultTransform)) * dampedOffset.X;
+    cameraPosition += WorldTransform.GetForward(Deref(resultTransform)) * dampedOffset.Y;
+    cameraPosition += WorldTransform.GetUp(Deref(resultTransform)) * dampedOffset.Z;
+    WorldTransform.SetPosition(Deref(resultTransform), cameraPosition);
+  }
+}
+
+public class CameraShotEffect_PositionDamper extends CameraShotEffect_VectorDamper {
+
+  public func Start(data: CinematicCameraData) -> Void {
+    super.Start(data);
+    this.SetDampFactor(this.damping);
+    this.SetCurrValue(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(data.shotInitialTransform)));
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    super.StartDelayed(data, resultTransform);
+    this.SetDampFactor(this.damping);
+    this.SetCurrValue(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(Deref(resultTransform))));
+  }
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let targetTransform: Vector4 = WorldPosition.ToVector4(WorldTransform.GetWorldPosition(Deref(resultTransform)));
+    let curveDamping: Float = this.GetValueFromCurve(this.dampingCurve, this.GetExecutionTime(data) / this.duration);
+    this.SetDampFactor(curveDamping);
+    this.UpdateDamp(targetTransform, data.deltaTime);
+    WorldTransform.SetPosition(Deref(resultTransform), this.GetDampValue());
+  }
+}
+
+public class CameraShotEffect_RotationDamper extends CameraShotEffect_EulerAnglesDamper {
+
+  public func Start(data: CinematicCameraData) -> Void {
+    super.Start(data);
+    this.SetDampFactor(this.damping);
+    this.SetCurrValue(Quaternion.ToEulerAngles(WorldTransform.GetOrientation(data.shotInitialTransform)));
+  }
+
+  public func StartDelayed(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    super.StartDelayed(data, resultTransform);
+    this.SetDampFactor(this.damping);
+    this.SetCurrValue(Quaternion.ToEulerAngles(WorldTransform.GetOrientation(Deref(resultTransform))));
+  }
+
+  public func Update(data: CinematicCameraData, resultTransform: script_ref<WorldTransform>) -> Void {
+    let targetTransform: EulerAngles = Quaternion.ToEulerAngles(WorldTransform.GetOrientation(Deref(resultTransform)));
+    let curveDamping: Float = this.damping * this.GetValueFromCurve(this.dampingCurve, this.GetExecutionTime(data) / this.duration);
+    this.SetDampFactor(curveDamping);
+    this.UpdateDamp(targetTransform, data.deltaTime);
+    WorldTransform.SetOrientationEuler(Deref(resultTransform), this.GetDampValue());
+  }
+}
+
+public native class vehicleCinematicCameraComponent extends CameraComponent {
+
+  public native let teleportThisFrame: Bool;
+
+  public native let targetTransform: WorldTransform;
+
+  @default(vehicleCinematicCameraComponent, .5f)
+  public edit let middleZoneSizeForShotSelection: Float;
+
+  @default(vehicleCinematicCameraComponent, 2)
+  public edit let consecutiveStaticShotsProbabilityBonus: Int32;
+
+  @default(vehicleCinematicCameraComponent, 1)
+  public edit let consecutiveDynamicShotsProbabilityBonus: Int32;
+
+  @default(vehicleCinematicCameraComponent, 3.f)
+  public edit let maxProbabilityBonusFromCameraProximityToShot: Float;
+
+  @default(vehicleCinematicCameraComponent, 5.f)
+  public edit let maxDistanceFromCameraToHaveProbabilityBonusForShot: Float;
+
+  @default(vehicleCinematicCameraComponent, 0f)
+  private let lastChangeTime: Float;
+
+  @default(vehicleCinematicCameraComponent, false)
+  private let shotChangeRequested: Bool;
+
+  private let currentShot: ref<vehicleCinematicCameraShot>;
+
+  private let lastShot: ref<vehicleCinematicCameraShot>;
+
+  public final native func GetGroup(index: Int32) -> ref<vehicleCinematicCameraShotGroup>;
+
+  public final native func GetGroupCount() -> Int32;
+
+  public final native func GetEngineTime() -> EngineTime;
+
+  public final native func CheckCollisionsAtPosition(position: Vector3) -> Bool;
+
+  public final native func CheckIfShotIsObstructed(position: Vector3, direction: Vector3) -> Bool;
+
+  public final native func CheckIfHasLineOfSightWithVehicle(position: Vector3) -> Bool;
+
+  public final native func CheckIfVehicleIsInFrustum() -> Bool;
+
+  public final const func GetLastShot() -> ref<vehicleCinematicCameraShot> {
+    return this.lastShot;
+  }
+
+  public final const func GetWorldPosition() -> WorldPosition {
+    return WorldTransform.GetWorldPosition(this.targetTransform);
+  }
+
+  public final func UpdateCameraState(context: vehicleCinematicCameraShotUpdateContext) -> Void {
+    if this.shotChangeRequested || context.engineTime > this.lastChangeTime + this.currentShot.duration {
+      this.lastChangeTime = context.engineTime;
+      this.currentShot.Reset();
+      this.lastShot = this.currentShot;
+      this.ChangeCameraShot(context);
+      this.currentShot.Start(context);
+      this.targetTransform = this.currentShot.Update(context);
+      this.teleportThisFrame = true;
+      this.shotChangeRequested = false;
+    } else {
+      this.targetTransform = this.currentShot.Update(context);
+      this.shotChangeRequested = this.currentShot.ShouldStop(this.targetTransform);
+    };
+  }
+
+  private final func ChangeCameraShot(context: vehicleCinematicCameraShotUpdateContext) -> Void {
+    let isNextShotSuitable: Bool;
+    let nextShot: ref<vehicleCinematicCameraShot>;
+    let nextShotDirection: Vector3;
+    let nextShotPosition: Vector3;
+    let nextShotTransform: WorldTransform;
+    let possibleGroups: array<Int32>;
+    let possibleShots: array<ref<vehicleCinematicCameraShot>>;
+    let i: Int32 = 0;
+    while i < this.GetGroupCount() {
+      if this.GetGroup(i).CanBeSelected(context) {
+        ArrayPush(possibleGroups, i);
+      };
+      i += 1;
+    };
+    if ArraySize(possibleGroups) == 0 {
+      return;
+    };
+    i = 0;
+    while i < ArraySize(possibleGroups) {
+      this.ExtractShotsFromGroup(this.GetGroup(possibleGroups[i]), context, possibleShots);
+      i += 1;
+    };
+    if ArraySize(possibleShots) == 0 {
+      return;
+    };
+    if ArraySize(possibleShots) == 1 {
+      this.currentShot = possibleShots[0];
+      return;
+    };
+    isNextShotSuitable = true;
+    nextShot = this.SelectRandomShot(possibleShots, context);
+    if !IsDefined(nextShot) {
+      return;
+    };
+    nextShotTransform = nextShot.GetRootTransformFromContext(context);
+    nextShotPosition = Vector4.Vector4To3(WorldPosition.ToVector4(WorldTransform.GetWorldPosition(nextShotTransform)));
+    nextShotDirection = Vector4.Vector4To3(Quaternion.GetForward(WorldTransform.GetOrientation(nextShotTransform)));
+    if Equals(this.currentShot.name, nextShot.name) || this.CheckIfShotIsObstructed(nextShotPosition, nextShotDirection) || !this.CheckIfHasLineOfSightWithVehicle(nextShotPosition) {
+      ArrayRemove(possibleShots, nextShot);
+      isNextShotSuitable = false;
+    };
+    if !isNextShotSuitable {
+    } else {
+    };
+    this.currentShot = nextShot;
+  }
+
+  private final func ExtractShotsFromGroup(group: ref<vehicleCinematicCameraShotGroup>, context: vehicleCinematicCameraShotUpdateContext, shots: script_ref<[ref<vehicleCinematicCameraShot>]>) -> Void {
+    let shot: ref<vehicleCinematicCameraShot>;
+    let i: Int32 = 0;
+    while i < group.GetShotCount() {
+      shot = group.GetShot(i);
+      if shot.GetCanBeSelectedFromContext(context) {
+        ArrayPush(Deref(shots), shot);
+      };
+      i += 1;
+    };
+  }
+
+  private final func SelectRandomShot(possibleShots: [ref<vehicleCinematicCameraShot>], context: vehicleCinematicCameraShotUpdateContext) -> ref<vehicleCinematicCameraShot> {
+    let random: Int32;
+    let shotsProbability: array<Int32>;
+    let totalWeights: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(possibleShots) {
+      ArrayPush(shotsProbability, possibleShots[i].GetShotProbabilityFromContext(context));
+      totalWeights += ArrayLast(shotsProbability);
+      i += 1;
+    };
+    random = RandRange(0, totalWeights);
+    totalWeights = 0;
+    i = 0;
+    while i < ArraySize(possibleShots) {
+      totalWeights += shotsProbability[i];
+      if totalWeights > random {
+        return possibleShots[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+}

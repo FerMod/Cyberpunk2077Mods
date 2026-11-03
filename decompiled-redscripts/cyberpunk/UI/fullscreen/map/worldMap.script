@@ -1,0 +1,2042 @@
+
+public native class WorldMapMenuGameController extends MappinsContainerController {
+
+  private edit native let entityPreviewSpawnContainer: inkCompoundRef;
+
+  private edit native let tooltipContainer: inkCompoundRef;
+
+  private edit native let tooltipOffset: inkMargin;
+
+  private edit native let districtsContainer: inkCompoundRef;
+
+  private edit native let subdistrictsContainer: inkCompoundRef;
+
+  private edit native const let isZoomToMappinEnabled: Bool;
+
+  private edit let m_preloaderWidget: inkWidgetRef;
+
+  private edit let m_gameTimeText: inkTextRef;
+
+  private edit let m_fastTravelInstructions: inkWidgetRef;
+
+  private edit let m_delamainTaxiInstructions: inkWidgetRef;
+
+  private edit let m_filterSelector: inkWidgetRef;
+
+  private edit let m_filterSelectorWarning: inkWidgetRef;
+
+  private edit let m_filterText: inkTextRef;
+
+  private edit let m_districtIconImageContainer: inkWidgetRef;
+
+  private edit let m_districtIconImage: inkImageRef;
+
+  private edit let m_districtNameText: inkTextRef;
+
+  private edit let m_subdistrictNameText: inkTextRef;
+
+  private edit let m_locationAndGangsContainer: inkWidgetRef;
+
+  private edit let m_gangsInfoContainer: inkWidgetRef;
+
+  private edit let m_gangsList: inkCompoundRef;
+
+  private edit let m_questContainer: inkWidgetRef;
+
+  private edit let m_questName: inkTextRef;
+
+  private edit let m_openInJournalButton: inkWidgetRef;
+
+  private edit let m_objectiveName: inkTextRef;
+
+  private edit let m_objectiveBackground: inkWidgetRef;
+
+  private edit let m_objectiveFrame: inkWidgetRef;
+
+  private edit let m_topShadow: inkWidgetRef;
+
+  @default(WorldMapMenuGameController, 0.8f)
+  private edit let m_rightAxisZoomThreshold: Float;
+
+  private edit let m_customFilters: inkWidgetRef;
+
+  private edit let m_filtersList: inkVerticalPanelRef;
+
+  private edit let m_filterLeftArrow: inkWidgetRef;
+
+  private edit let m_filterRightArrow: inkWidgetRef;
+
+  private edit const let m_quickFilterIndicators: [inkWidgetRef];
+
+  private edit let m_customFiltersListAnimationDelay: Float;
+
+  private native const let districtView: gameuiEWorldMapDistrictView;
+
+  private native const let selectedDistrict: gamedataDistrict;
+
+  private native const let canChangeCustomFilter: Bool;
+
+  private native let selectedMappin: wref<BaseWorldMapMappinController>;
+
+  private native const let delamainTaxiMappinID: NewMappinID;
+
+  private let m_cameraMode: gameuiEWorldMapCameraMode;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_tooltipController: wref<WorldMapTooltipContainer>;
+
+  private let m_gameTimeTextParams: ref<inkTextParams>;
+
+  private let m_previousHoveredDistrict: gamedataDistrict;
+
+  private let m_currentHoveredDistrict: gamedataDistrict;
+
+  private let m_showedSubdistrictGangs: Bool;
+
+  private let m_player: wref<GameObject>;
+
+  private let m_audioSystem: wref<AudioSystem>;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_mappinSystem: wref<MappinSystem>;
+
+  private let m_mapBlackboard: wref<IBlackboard>;
+
+  private let m_mapDefinition: ref<UI_MapDef>;
+
+  private let m_trackedObjective: wref<JournalQuestObjectiveBase>;
+
+  private let m_trackedQuest: wref<JournalQuest>;
+
+  private let m_mappinsPositions: [Vector3];
+
+  @default(WorldMapMenuGameController, 0.f)
+  private let m_lastRightAxisYAmount: Float;
+
+  @default(WorldMapMenuGameController, false)
+  private let m_justOpenedQuestJournal: Bool;
+
+  public let m_initMappinFocus: ref<MapMenuUserData>;
+
+  private let m_currentQuickFilterIndex: Int32;
+
+  private let m_currentCustomFilterIndex: Int32;
+
+  private let m_spawnedCustomFilterIndex: Int32;
+
+  private let m_gangsAsyncSpawnRequests: [wref<inkAsyncSpawnRequest>];
+
+  private let m_customFiltersList: [wref<WorldMapFiltersListItem>];
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_entityAttached: Bool;
+
+  @default(WorldMapMenuGameController, false)
+  private let m_readyToZoom: Bool;
+
+  private let m_isHoveringOverFilters: Bool;
+
+  private let m_isPanning: Bool;
+
+  private let m_isZooming: Bool;
+
+  private let m_pressedRMB: Bool;
+
+  private let m_startedFastTraveling: Bool;
+
+  private let m_inputMouserLayoutBBID: ref<CallbackHandle>;
+
+  private let m_isMouserActive: Bool;
+
+  protected final native func IsEntitySetup() -> Bool;
+
+  protected final native func IsEntityAttachedAndSetup() -> Bool;
+
+  protected final native func GetSettings() -> ref<WorldMapSettings_Record>;
+
+  protected final native func GetEntityPreview() -> wref<inkWorldMapPreviewGameController>;
+
+  protected final native func SetSelectedMappin(mappinController: ref<BaseWorldMapMappinController>) -> Void;
+
+  protected final native func HasCustomFilter(filter: gamedataWorldMapFilter) -> Bool;
+
+  protected final native func GetCustomFilters() -> Uint32;
+
+  protected final native func SetCustomFilter(filter: gamedataWorldMapFilter) -> Void;
+
+  protected final native func ClearCustomFilter(filter: gamedataWorldMapFilter) -> Void;
+
+  protected final native func GetQuickFilter() -> gamedataWorldMapFilter;
+
+  protected final native func SetQuickFilter(filter: gamedataWorldMapFilter) -> Void;
+
+  protected final native func SetQuickFilterFromRecord(filterGroup: wref<MappinUIFilterGroup_Record>) -> Void;
+
+  protected final native func SaveFilters() -> Void;
+
+  protected final native func SetMapCursorEnabled(enabled: Bool) -> Void;
+
+  protected final native func TrackMappin(mappinController: ref<BaseMappinBaseController>) -> Void;
+
+  protected final native func UntrackMappin() -> Void;
+
+  protected final native func TrackCustomPositionMappin() -> Void;
+
+  protected final native func TrackDelamainTaxiMappin() -> Void;
+
+  protected final native func UntrackCustomPositionMappin() -> Void;
+
+  protected final native func UntrackDelamainTaxiMappin() -> Void;
+
+  protected final native func ConfirmDelamainTaxiMappinPosition() -> Void;
+
+  protected final native func CancelDelamainTaxiMappinPosition() -> Void;
+
+  protected final native func GetTravelDistance() -> Float;
+
+  protected final native func SetMappinVisited(mappinController: ref<BaseWorldMapMappinController>) -> Void;
+
+  protected final native func MoveToPlayer() -> Void;
+
+  protected final native func ZoomToMappin(mappinController: ref<BaseWorldMapMappinController>) -> Void;
+
+  protected final native func ZoomWithMouse(zoomIn: Bool) -> Void;
+
+  protected final native func FrameMappinPath(hash: Uint32, transitionTime: Float, opt margin: inkMargin) -> Void;
+
+  protected final native func SetMousePanEnabled(enabled: Bool) -> Void;
+
+  protected final native func SetMouseRotateEnabled(enabled: Bool) -> Void;
+
+  protected final native func AreDistrictsVisible() -> Bool;
+
+  protected final native func GetCurrentZoom() -> Float;
+
+  protected final native func CanDebugTeleport() -> Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorType>;
+    this.m_player = this.GetPlayerControlledObject();
+    this.m_journalManager = GameInstance.GetJournalManager(this.m_player.GetGame());
+    this.m_mappinSystem = GameInstance.GetMappinSystem(this.m_player.GetGame());
+    this.m_audioSystem = GameInstance.GetAudioSystem(this.m_player.GetGame());
+    this.m_tooltipController = inkWidgetRef.GetController(this.tooltipContainer) as WorldMapTooltipContainer;
+    this.m_previousHoveredDistrict = gamedataDistrict.Invalid;
+    this.m_currentHoveredDistrict = gamedataDistrict.Invalid;
+    this.m_showedSubdistrictGangs = false;
+    inkWidgetRef.SetVisible(this.m_fastTravelInstructions, false);
+    inkWidgetRef.SetVisible(this.m_delamainTaxiInstructions, false);
+    inkWidgetRef.SetVisible(this.m_openInJournalButton, false);
+    this.HideAllTooltips();
+    this.m_cameraMode = gameuiEWorldMapCameraMode.TopDown;
+    this.RefreshInputHints();
+    this.UpdateGameTime();
+    this.m_mapDefinition = GetAllBlackboardDefs().UI_Map;
+    this.m_mapBlackboard = this.GetBlackboardSystem().Get(this.m_mapDefinition);
+    this.m_mapBlackboard.SignalString(this.m_mapDefinition.currentLocation);
+    this.m_journalManager.RegisterScriptCallback(this, n"OnTrackedEntryChanges", gameJournalListenerType.Tracked);
+    this.UpdateTrackedQuest();
+    this.m_mapBlackboard.SetString(this.m_mapDefinition.currentState, "Initialized");
+    GameInstance.GetTimeSystem(this.m_player.GetGame()).SetTimeDilation(n"WorldMap", 0.00);
+    GameInstance.GetGodModeSystem(this.m_player.GetGame()).AddGodMode(this.m_player.GetEntityID(), gameGodModeType.Invulnerable, n"WorldMap");
+    this.PlayLibraryAnimation(n"OnShowMenu");
+    this.InitializeQuickFiltersList();
+    this.InitializeCustomFiltersList();
+    inkWidgetRef.SetVisible(this.m_customFilters, Equals(this.GetQuickFilter(), gamedataWorldMapFilter.CustomFilter));
+    inkWidgetRef.RegisterToCallback(this.m_preloaderWidget, n"OnFinished", this, n"OnRemovePreloader");
+    evt = new inkMenuLayer_SetCursorType();
+    evt.Init(n"world_map");
+    this.QueueEvent(evt);
+    inkWidgetRef.SetVisible(this.m_locationAndGangsContainer, false);
+    if IsDefined(this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes)) {
+      this.m_inputMouserLayoutBBID = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).RegisterListenerBool(GetAllBlackboardDefs().InputSchemes.IsMouserActive, this, n"OnMouserActiveChanged");
+      this.m_isMouserActive = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).GetBool(GetAllBlackboardDefs().InputSchemes.IsMouserActive);
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let evt: ref<inkMenuLayer_SetCursorType>;
+    if !this.IsFastTravelEnabled() {
+      this.SaveFilters();
+    };
+    GameInstance.GetTimeSystem(this.m_player.GetGame()).UnsetTimeDilation(n"WorldMap");
+    GameInstance.GetGodModeSystem(this.m_player.GetGame()).RemoveGodMode(this.m_player.GetEntityID(), gameGodModeType.Invulnerable, n"WorldMap");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    this.m_mapBlackboard.SetString(this.m_mapDefinition.currentState, "Uninitialized");
+    this.UninitializeCustomFiltersList();
+    inkWidgetRef.UnregisterFromCallback(this.m_preloaderWidget, n"OnFinished", this, n"OnRemovePreloader");
+    this.m_audioSystem.Play(n"ui_menu_scrolling_stop");
+    if this.m_startedFastTraveling {
+      this.m_audioSystem.Play(n"ui_menu_item_crafting_fail");
+    };
+    evt = new inkMenuLayer_SetCursorType();
+    evt.Init(n"default");
+    this.QueueEvent(evt);
+    this.CancelDelamainTaxiMappinPosition();
+    if IsDefined(this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes)) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).UnregisterDelayedListener(GetAllBlackboardDefs().InputSchemes.IsMouserActive, this.m_inputMouserLayoutBBID);
+    };
+  }
+
+  protected cb func OnMouserActiveChanged(value: Bool) -> Bool {
+    this.m_isMouserActive = value;
+    this.RefreshInputHints();
+  }
+
+  private final func InitializeQuickFiltersList() -> Void {
+    let filterGroup: wref<MappinUIFilterGroup_Record>;
+    this.m_currentQuickFilterIndex = -1;
+    let filterType: gamedataWorldMapFilter = this.GetQuickFilter();
+    let filtersList: wref<WorldMapFiltersList_Record> = TweakDBInterface.GetWorldMapFiltersListRecord(t"WorldMap.WorldMapQuickFiltersList");
+    let count: Int32 = filtersList.GetListCount();
+    let i: Int32 = 0;
+    while i < count {
+      filterGroup = filtersList.GetListItem(i);
+      if Equals(filterGroup.FilterType().Type(), filterType) {
+        this.m_currentQuickFilterIndex = i;
+        this.SetQuickFilterFromRecord(filterGroup);
+        break;
+      };
+      i += 1;
+    };
+    if this.m_currentQuickFilterIndex == -1 && count > 0 {
+      this.m_currentQuickFilterIndex = 0;
+      filterGroup = filtersList.GetListItem(this.m_currentQuickFilterIndex);
+      this.SetQuickFilterFromRecord(filterGroup);
+    };
+    inkWidgetRef.RegisterToCallback(this.m_filterLeftArrow, n"OnRelease", this, n"OnFilterLeftArrowClicked");
+    inkWidgetRef.RegisterToCallback(this.m_filterRightArrow, n"OnRelease", this, n"OnFilterRightArrowClicked");
+    inkWidgetRef.RegisterToCallback(this.m_filterLeftArrow, n"OnEnter", this, n"OnFilterArrowHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_filterLeftArrow, n"OnLeave", this, n"OnFilterArrowHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_filterRightArrow, n"OnEnter", this, n"OnFilterArrowHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_filterRightArrow, n"OnLeave", this, n"OnFilterArrowHoverOut");
+    this.SetQuickFilterIndicator(this.m_currentQuickFilterIndex);
+  }
+
+  protected cb func OnFilterLeftArrowClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      evt.Consume();
+      this.CycleQuickFilterPrev();
+    };
+  }
+
+  protected cb func OnFilterRightArrowClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      evt.Consume();
+      this.CycleQuickFilterNext();
+    };
+  }
+
+  protected cb func OnFilterArrowHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringOverFilters = true;
+  }
+
+  protected cb func OnFilterArrowHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringOverFilters = false;
+  }
+
+  protected cb func OnQuickFilterChanged(filterGroup: wref<MappinUIFilterGroup_Record>) -> Bool {
+    let customFiltersListSize: Int32;
+    let i: Int32;
+    inkTextRef.SetLocalizedTextScript(this.m_filterText, filterGroup.FilterName());
+    if Equals(filterGroup.FilterType().Type(), gamedataWorldMapFilter.CustomFilter) {
+      inkWidgetRef.SetVisible(this.m_customFilters, true);
+      this.PlayCustomFiltersAnimations();
+    } else {
+      customFiltersListSize = ArraySize(this.m_customFiltersList);
+      i = 0;
+      while i < customFiltersListSize {
+        if this.m_customFiltersList[i].IsFilterHovered() && !this.m_customFiltersList[i].IsFilterEnabled() {
+          this.m_customFiltersList[i].SetFilterState(n"Default");
+        } else {
+          if this.m_customFiltersList[i].IsFilterEnabled() {
+            this.m_customFiltersList[i].SetFilterState(n"Selected");
+          };
+        };
+        i += 1;
+      };
+      inkWidgetRef.SetVisible(this.m_customFilters, false);
+    };
+    if Equals(filterGroup.FilterType().Type(), gamedataWorldMapFilter.NoFilter) {
+      inkWidgetRef.SetState(this.m_filterSelector, n"Default");
+      inkWidgetRef.SetVisible(this.m_filterSelectorWarning, false);
+    } else {
+      inkWidgetRef.SetState(this.m_filterSelector, n"Selected");
+      inkWidgetRef.SetVisible(this.m_filterSelectorWarning, true);
+    };
+  }
+
+  private final func InitializeCustomFiltersList() -> Void {
+    let filterGroup: wref<MappinUIFilterGroup_Record>;
+    let i: Int32;
+    this.m_spawnedCustomFilterIndex = 0;
+    let filtersList: wref<WorldMapFiltersList_Record> = TweakDBInterface.GetWorldMapFiltersListRecord(t"WorldMap.WorldMapCustomFiltersList");
+    let count: Int32 = filtersList.GetListCount();
+    ArrayResize(this.m_customFiltersList, count);
+    i = 0;
+    while i < count {
+      filterGroup = filtersList.GetListItem(i);
+      this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_filtersList), n"FiltersListItem", this, n"OnFilterListItemSpawned", filterGroup);
+      i += 1;
+    };
+  }
+
+  private final func UninitializeCustomFiltersList() -> Void {
+    let filterWidget: wref<inkWidget>;
+    let count: Int32 = inkCompoundRef.GetNumChildren(this.m_filtersList);
+    let i: Int32 = 0;
+    while i < count {
+      filterWidget = inkCompoundRef.GetWidgetByIndex(this.m_filtersList, i);
+      filterWidget.UnregisterFromCallback(n"OnRelease", this, n"OnFilterSwitched");
+      i += 1;
+    };
+    inkCompoundRef.RemoveAllChildren(this.m_filtersList);
+    ArrayClear(this.m_customFiltersList);
+  }
+
+  protected cb func OnFilterListItemSpawned(filterWidget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let filterGroup: wref<MappinUIFilterGroup_Record> = userData as MappinUIFilterGroup_Record;
+    let filterLogic: wref<WorldMapFiltersListItem> = filterWidget.GetController() as WorldMapFiltersListItem;
+    filterLogic.SetFilterGroup(filterGroup);
+    filterLogic.SetFilterState(n"Default");
+    filterLogic.EnableFilter(this.HasCustomFilter(filterLogic.GetFilterType()));
+    filterWidget.RegisterToCallback(n"OnRelease", this, n"OnFilterSwitched");
+    this.m_customFiltersList[this.m_spawnedCustomFilterIndex] = filterLogic;
+    this.m_spawnedCustomFilterIndex += 1;
+  }
+
+  protected cb func OnFilterSwitched(evt: ref<inkPointerEvent>) -> Bool {
+    let filterLogic: wref<WorldMapFiltersListItem>;
+    if this.canChangeCustomFilter {
+      filterLogic = evt.GetTarget().GetController() as WorldMapFiltersListItem;
+      if evt.IsAction(n"click") || evt.IsAction(n"tap") && filterLogic.IsFilterHovered() {
+        this.UpdateCustomFilter(filterLogic.GetFilterType(), filterLogic.SwitchFilter());
+      };
+    };
+  }
+
+  protected cb func OnCustomFilterChanged() -> Bool {
+    if IsDefined(this.selectedMappin) && !this.selectedMappin.GetRootWidget().IsInteractive() {
+      this.SetSelectedMappin(null);
+    };
+  }
+
+  protected cb func OnTrackedEntryChanges(hash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    this.UpdateTrackedQuest();
+  }
+
+  private final func PlayCustomFiltersAnimations() -> Void {
+    let delay: Float;
+    let filterListSize: Int32 = ArraySize(this.m_customFiltersList);
+    let i: Int32 = 0;
+    while i < filterListSize {
+      delay = Cast<Float>(i) / this.m_customFiltersListAnimationDelay;
+      this.m_customFiltersList[i].PlayIntroAnimation(delay);
+      i += 1;
+    };
+  }
+
+  private final func UpdateTrackedQuest() -> Void {
+    let hasTrackedQuest: Bool;
+    let isQuestType: Bool;
+    let questType: gameJournalQuestType;
+    let trackedPhase: wref<JournalQuestPhase>;
+    ArrayClear(this.m_mappinsPositions);
+    this.m_trackedObjective = this.m_journalManager.GetTrackedEntry() as JournalQuestObjectiveBase;
+    if this.m_trackedObjective != null {
+      inkTextRef.SetText(this.m_objectiveName, this.m_trackedObjective.GetDescription());
+      this.m_mappinSystem.GetQuestMappinPositionsByObjective(Cast<Uint32>(this.m_journalManager.GetEntryHash(this.m_trackedObjective)), this.m_mappinsPositions);
+      trackedPhase = this.m_journalManager.GetParentEntry(this.m_trackedObjective) as JournalQuestPhase;
+      if trackedPhase != null {
+        this.m_trackedQuest = this.m_journalManager.GetParentEntry(trackedPhase) as JournalQuest;
+        if this.m_trackedQuest != null {
+          inkWidgetRef.SetVisible(this.m_questContainer, true);
+          inkTextRef.SetText(this.m_questName, this.m_trackedQuest.GetTitle(this.m_journalManager));
+          hasTrackedQuest = true;
+          questType = this.m_journalManager.GetQuestType(this.m_trackedQuest);
+          isQuestType = Equals(questType, gameJournalQuestType.MainQuest) || Equals(questType, gameJournalQuestType.SideQuest) || Equals(questType, gameJournalQuestType.CourierSideQuest) || Equals(questType, gameJournalQuestType.MinorQuest);
+          if isQuestType {
+            inkWidgetRef.SetState(this.m_questName, n"Quest");
+            inkWidgetRef.SetState(this.m_objectiveFrame, n"Quest");
+          } else {
+            inkWidgetRef.SetState(this.m_questName, n"Gigs");
+            inkWidgetRef.SetState(this.m_objectiveFrame, n"Gigs");
+          };
+        };
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_questContainer, hasTrackedQuest);
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    this.m_initMappinFocus = userData as MapMenuUserData;
+  }
+
+  protected cb func OnRemovePreloader(widget: wref<inkWidget>) -> Bool {
+    this.GetRootCompoundWidget().RemoveChild(widget);
+    this.m_readyToZoom = true;
+    inkWidgetRef.SetVisible(this.m_locationAndGangsContainer, true);
+    this.RefreshInputHints();
+  }
+
+  protected cb func OnShowSpinner() -> Bool {
+    let preloaderController: wref<WorldMapPreloader> = inkWidgetRef.GetController(this.m_preloaderWidget) as WorldMapPreloader;
+    preloaderController.ShowSpinner();
+  }
+
+  protected cb func OnEntityAttached() -> Bool {
+    let delamainTaxiEnabled: Bool;
+    let delayEvent: ref<MapNavigationDelay>;
+    let fastTravelEnabled: Bool;
+    let preloaderController: wref<WorldMapPreloader>;
+    let mappinSpawnContainer: wref<inkCompoundWidget> = this.GetSpawnContainer();
+    mappinSpawnContainer.RegisterToCallback(n"OnEnter", this, n"OnHoverOverMappin");
+    mappinSpawnContainer.RegisterToCallback(n"OnLeave", this, n"OnHoverOutMappin");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnPressInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnReleaseInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnHoldInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+    this.m_cameraMode = this.GetEntityPreview().GetCameraMode();
+    fastTravelEnabled = this.IsFastTravelEnabled();
+    this.UpdateFastTravelVisiblity(fastTravelEnabled);
+    if fastTravelEnabled {
+      this.SetQuickFilter(gamedataWorldMapFilter.FastTravel);
+    };
+    delamainTaxiEnabled = this.IsDelamainTaxiEnabled();
+    this.UpdateDelamainTaxiVisiblity(delamainTaxiEnabled);
+    if IsDefined(this.m_initMappinFocus) {
+      delayEvent = new MapNavigationDelay();
+      this.QueueEvent(delayEvent);
+    };
+    this.m_mapBlackboard.SetString(this.m_mapDefinition.currentState, "EntityAttached");
+    preloaderController = inkWidgetRef.GetController(this.m_preloaderWidget) as WorldMapPreloader;
+    preloaderController.SetMapLoaded();
+    this.m_entityAttached = true;
+  }
+
+  protected cb func OnMapNavigationDelay(evt: ref<MapNavigationDelay>) -> Bool {
+    if this.m_initMappinFocus.m_isTracked {
+      this.FrameMappinPath(Cast<Uint32>(this.m_initMappinFocus.m_hash), 1.00, new inkMargin(200.00, 200.00, 200.00, 200.00));
+    } else {
+      this.GetEntityPreview().MoveTo(this.m_initMappinFocus.m_moveTo);
+    };
+  }
+
+  protected cb func OnEntityDetached() -> Bool {
+    let mappinSpawnContainer: wref<inkCompoundWidget> = this.GetSpawnContainer();
+    if IsDefined(mappinSpawnContainer) {
+      mappinSpawnContainer.UnregisterFromCallback(n"OnEnter", this, n"OnHoverOverMappin");
+      mappinSpawnContainer.UnregisterFromCallback(n"OnLeave", this, n"OnHoverOutMappin");
+    };
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnPressInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnHoldInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnReleaseInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+  }
+
+  protected cb func OnZoomLevelChanged(oldLevel: Int32, newLevel: Int32) -> Bool {
+    if IsDefined(this.selectedMappin) && !this.selectedMappin.GetRootWidget().IsInteractive() {
+      this.SetSelectedMappin(null);
+    };
+  }
+
+  protected cb func OnZoomTransitionFinished() -> Bool {
+    this.m_isZooming = false;
+    this.UpdateSelectedMappinTooltip();
+  }
+
+  protected cb func OnZoomToMappinEnabledChanged(flag: Bool) -> Bool {
+    this.UpdateSelectedMappinTooltip();
+  }
+
+  protected cb func OnCanChangeCustomFilterChanged(flag: Bool) -> Bool {
+    if flag {
+      inkWidgetRef.SetVisible(this.m_filterText, true);
+      inkWidgetRef.SetVisible(this.m_customFilters, true);
+      this.PlayCustomFiltersAnimations();
+    } else {
+      inkWidgetRef.SetVisible(this.m_filterText, false);
+      inkWidgetRef.SetVisible(this.m_customFilters, false);
+    };
+  }
+
+  protected cb func OnSelectedMappinChanged(oldController: ref<BaseWorldMapMappinController>, newController: ref<BaseWorldMapMappinController>) -> Bool {
+    if IsDefined(oldController) {
+      oldController.UnselectMappin();
+      this.HideMappinTooltip(oldController);
+    };
+    if IsDefined(newController) {
+      newController.SelectMappin();
+      this.SetMappinVisited(newController);
+      this.ShowMappinTooltip(newController);
+    };
+    this.RefreshInputHints();
+  }
+
+  protected cb func OnSetZoomLevelEvent(eventData: ref<SetZoomLevelEvent>) -> Bool {
+    FTLog("OnSetZoomLevelEvent:" + IntToString(eventData.m_value));
+    this.GetEntityPreview().JumpToZoomLevel(eventData.m_value);
+  }
+
+  protected cb func OnHoverOverMappin(e: ref<inkPointerEvent>) -> Bool {
+    let scaleUp: Vector2;
+    let targetedWidget: ref<inkWidget>;
+    scaleUp.X = 1.75;
+    scaleUp.Y = 1.75;
+    let hoveredController: ref<BaseWorldMapMappinController> = e.GetTarget().GetController() as BaseWorldMapMappinController;
+    if IsDefined(hoveredController) && hoveredController.CanSelectMappin() {
+      if this.GetPlayerControlledObject().PlayerLastUsedTouch() {
+        targetedWidget = e.GetTarget();
+        targetedWidget.SetScale(scaleUp);
+      };
+      this.SetSelectedMappin(hoveredController);
+    };
+  }
+
+  protected cb func OnHoverOutMappin(e: ref<inkPointerEvent>) -> Bool {
+    let normalScale: Vector2;
+    let targetedWidget: ref<inkWidget>;
+    normalScale.X = 1.00;
+    normalScale.Y = 1.00;
+    if this.GetPlayerControlledObject().PlayerLastUsedTouch() {
+      targetedWidget = e.GetTarget();
+      targetedWidget.SetScale(normalScale);
+    };
+    this.SetSelectedMappin(null);
+  }
+
+  private final func GetDistrictAnimation(view: gameuiEWorldMapDistrictView, show: Bool) -> CName {
+    switch view {
+      case gameuiEWorldMapDistrictView.Districts:
+        return show ? n"OnShowDistricts" : n"OnHideDistricts";
+      case gameuiEWorldMapDistrictView.SubDistricts:
+        return show ? n"OnShowSubDistricts" : n"OnHideSubDistricts";
+      default:
+        return n"None";
+    };
+  }
+
+  protected cb func OnDistrictViewChanged(oldView: gameuiEWorldMapDistrictView, newView: gameuiEWorldMapDistrictView) -> Bool {
+    if NotEquals(oldView, gameuiEWorldMapDistrictView.None) {
+      this.PlayLibraryAnimation(this.GetDistrictAnimation(oldView, false));
+    };
+    if NotEquals(newView, gameuiEWorldMapDistrictView.None) {
+      this.PlayLibraryAnimation(this.GetDistrictAnimation(newView, true));
+    };
+  }
+
+  protected cb func OnUpdateHoveredDistricts(district: gamedataDistrict, subdistrict: gamedataDistrict) -> Bool {
+    this.m_previousHoveredDistrict = this.m_currentHoveredDistrict;
+    this.m_currentHoveredDistrict = district;
+    let districtRecord: wref<District_Record> = MappinUtils.GetDistrictRecord(district);
+    let subdistrictRecord: wref<District_Record> = MappinUtils.GetDistrictRecord(subdistrict);
+    if Equals(district, gamedataDistrict.Dogtown) {
+      inkTextRef.SetLocalizedTextString(this.m_districtNameText, "LocKey#10946");
+    } else {
+      inkTextRef.SetLocalizedTextString(this.m_districtNameText, IsDefined(districtRecord) ? districtRecord.LocalizedName() : "LocKey#10951");
+    };
+    if Equals(district, gamedataDistrict.Invalid) {
+      inkWidgetRef.SetVisible(this.m_districtIconImageContainer, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_districtIconImageContainer, true);
+      inkImageRef.SetTexturePart(this.m_districtIconImage, districtRecord.UiIcon());
+    };
+    inkTextRef.SetLocalizedTextString(this.m_subdistrictNameText, IsDefined(subdistrictRecord) ? subdistrictRecord.LocalizedName() : "LocKey#10951");
+    inkWidgetRef.SetVisible(this.m_subdistrictNameText, subdistrictRecord != null && NotEquals(subdistrictRecord.LocalizedName(), ""));
+    this.ShowGangsInfo(district, subdistrict);
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    let evt: ref<BackActionCallback>;
+    let request: ref<CancelDelamainRideRequest> = new CancelDelamainRideRequest();
+    this.PlaySound(n"Button", n"OnPress");
+    if this.IsDelamainTaxiEnabled() && !this.m_pressedRMB {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnCancel");
+      request.forceExit = true;
+      this.GetDelamainTaxiSystem().QueueRequest(request);
+      this.UntrackDelamainTaxiMappin();
+    } else {
+      if !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") && !this.m_pressedRMB {
+        evt = new BackActionCallback();
+        this.QueueEvent(evt);
+      };
+    };
+    this.m_pressedRMB = false;
+  }
+
+  private final func CycleQuickFilterPrev() -> Void {
+    this.CycleWorldMapFilter(false);
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func CycleQuickFilterNext() -> Void {
+    this.CycleWorldMapFilter(true);
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func UpdateFastTravelVisiblity(fastTravelEnabled: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_fastTravelInstructions, fastTravelEnabled);
+    inkWidgetRef.SetVisible(this.m_topShadow, !fastTravelEnabled);
+    inkWidgetRef.SetVisible(this.m_openInJournalButton, !fastTravelEnabled);
+  }
+
+  private final func UpdateDelamainTaxiVisiblity(delamainTaxiEnabled: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_delamainTaxiInstructions, delamainTaxiEnabled);
+    inkWidgetRef.SetVisible(this.m_topShadow, !delamainTaxiEnabled);
+    inkWidgetRef.SetVisible(this.m_openInJournalButton, !delamainTaxiEnabled);
+  }
+
+  private final func NavigateCustomFilters(option: ECustomFilterDPadNavigationOption) -> Void {
+    let filtersAmount: Int32;
+    if !this.GetPlayerControlledObject().PlayerLastUsedTouch() {
+      if this.m_customFiltersList[this.m_currentCustomFilterIndex].IsFilterEnabled() {
+        this.m_customFiltersList[this.m_currentCustomFilterIndex].SetFilterState(n"Selected");
+      } else {
+        this.m_customFiltersList[this.m_currentCustomFilterIndex].SetFilterState(n"Default");
+      };
+      filtersAmount = ArraySize(this.m_customFiltersList);
+      switch option {
+        case ECustomFilterDPadNavigationOption.SelectNext:
+          this.m_currentCustomFilterIndex = this.m_currentCustomFilterIndex < filtersAmount - 1 ? this.m_currentCustomFilterIndex + 1 : 0;
+          break;
+        case ECustomFilterDPadNavigationOption.SelectPrev:
+          this.m_currentCustomFilterIndex = this.m_currentCustomFilterIndex > 0 ? this.m_currentCustomFilterIndex - 1 : filtersAmount - 1;
+          break;
+        case ECustomFilterDPadNavigationOption.Toggle:
+          this.UpdateCustomFilter(this.m_customFiltersList[this.m_currentCustomFilterIndex].GetFilterType(), this.m_customFiltersList[this.m_currentCustomFilterIndex].SwitchFilter());
+      };
+      this.m_customFiltersList[this.m_currentCustomFilterIndex].SetFilterState(n"Hover");
+    };
+  }
+
+  private final func CycleWorldMapFilter(cycleNext: Bool) -> Void {
+    let filterGroup: wref<MappinUIFilterGroup_Record>;
+    let filtersList: wref<WorldMapFiltersList_Record> = TweakDBInterface.GetWorldMapFiltersListRecord(t"WorldMap.WorldMapQuickFiltersList");
+    let count: Int32 = filtersList.GetListCount();
+    this.m_currentQuickFilterIndex = this.m_currentQuickFilterIndex + cycleNext ? 1 : -1;
+    if this.m_currentQuickFilterIndex >= count {
+      this.m_currentQuickFilterIndex = 0;
+    } else {
+      if this.m_currentQuickFilterIndex < 0 {
+        this.m_currentQuickFilterIndex = count - 1;
+      };
+    };
+    this.m_currentCustomFilterIndex = -1;
+    filterGroup = filtersList.GetListItem(this.m_currentQuickFilterIndex);
+    this.SetQuickFilterIndicator(this.m_currentQuickFilterIndex);
+    this.SetQuickFilterFromRecord(filterGroup);
+  }
+
+  private final func SetQuickFilterIndicator(index: Int32) -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.loopType = inkanimLoopType.Cycle;
+    animOptions.loopInfinite = true;
+    let arraySize: Int32 = ArraySize(this.m_quickFilterIndicators);
+    let i: Int32 = 0;
+    while i < arraySize {
+      inkWidgetRef.SetState(this.m_quickFilterIndicators[i], n"Default");
+      i += 1;
+    };
+    inkWidgetRef.SetState(this.m_quickFilterIndicators[index], n"Selected");
+    if this.m_currentQuickFilterIndex > 0 {
+      if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+        this.m_animationProxy.Stop();
+      };
+      this.m_animationProxy = this.PlayLibraryAnimation(n"OnFilterWarning", animOptions);
+    };
+  }
+
+  private final func ToggleQuickFilterIndicatorsVsibility(toggle: Bool) -> Void {
+    let arraySize: Int32 = ArraySize(this.m_quickFilterIndicators);
+    let i: Int32 = 0;
+    while i < arraySize {
+      inkWidgetRef.SetVisible(this.m_quickFilterIndicators[i], toggle);
+      i += 1;
+    };
+  }
+
+  private final func OpenSelectedQuest() -> Void {
+    let journalEntry: wref<JournalEntry>;
+    let mappin: wref<IMappin>;
+    if this.HasSelectedMappin() {
+      mappin = this.selectedMappin.GetMappin();
+      if this.CanOpenJournalForMappin(mappin) {
+        journalEntry = this.GetMappinJournalEntry(mappin);
+        this.OpenQuestInJournal(journalEntry);
+        return;
+      };
+      journalEntry = this.GetCodexEntryForMappin(mappin);
+      if journalEntry != null {
+        this.OpenCodexPopup(journalEntry);
+        return;
+      };
+    };
+  }
+
+  private final func CanOpenCodexPopup(mappin: wref<IMappin>) -> Bool {
+    return this.GetCodexEntryForMappin(mappin) != null;
+  }
+
+  private final func GetCodexEntryForMappin(mappin: wref<IMappin>) -> wref<JournalEntry> {
+    let slotName: String;
+    let poiMapPin: ref<PointOfInterestMappin> = mappin as PointOfInterestMappin;
+    if poiMapPin == null {
+      return null;
+    };
+    slotName = NameToString(poiMapPin.GetSlotName());
+    return this.m_journalManager.GetEntryByString("codex/glossary/vehicles/" + slotName, "gameJournalCodexEntry");
+  }
+
+  private final func OpenCodexPopup(jurnalEntry: wref<JournalEntry>) -> Void {
+    let evt: ref<OpenCodexPopupEvent> = new OpenCodexPopupEvent();
+    evt.m_entry = jurnalEntry;
+    this.QueueBroadcastEvent(evt);
+  }
+
+  private final func OpenTrackedQuest() -> Void {
+    if this.m_trackedQuest != null {
+      this.OpenQuestInJournal(this.m_trackedQuest);
+    };
+  }
+
+  private final func OpenQuestInJournal(questEntry: wref<JournalEntry>) -> Void {
+    let userData: ref<MessageMenuAttachmentData> = new MessageMenuAttachmentData();
+    userData.m_entryHash = this.m_journalManager.GetEntryHash(questEntry);
+    let evt: ref<OpenMenuRequest> = new OpenMenuRequest();
+    evt.m_menuName = n"quest_log";
+    evt.m_eventData.userData = userData;
+    evt.m_eventData.m_overrideDefaultUserData = true;
+    evt.m_isMainMenu = true;
+    this.QueueBroadcastEvent(evt);
+    this.m_justOpenedQuestJournal = true;
+  }
+
+  private final func UpdateCustomFilter(filter: gamedataWorldMapFilter, enable: Bool) -> Void {
+    if enable {
+      this.SetCustomFilter(filter);
+      this.m_audioSystem.Play(n"ui_menu_value_up");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Fast, RumblePosition.Left);
+    } else {
+      this.ClearCustomFilter(filter);
+      this.m_audioSystem.Play(n"ui_menu_value_down");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+    };
+  }
+
+  private final func SetMappinIconsVisible(visible: Bool) -> Void {
+    let mappinSpawnContainer: wref<inkCompoundWidget> = this.GetSpawnContainer();
+    mappinSpawnContainer.SetVisible(visible);
+  }
+
+  private final func UpdateGameTime() -> Void {
+    GameTimeUtils.UpdateGameTimeText(GameInstance.GetTimeSystem((this.GetOwnerEntity() as GameObject).GetGame()), this.m_gameTimeText, this.m_gameTimeTextParams);
+  }
+
+  private final func TryFastTravel() -> Void {
+    if this.HasSelectedMappin() && (Equals(this.selectedMappin.GetMappinVariant(), gamedataMappinVariant.FastTravelVariant) || Equals(this.selectedMappin.GetMappinVariant(), gamedataMappinVariant.Zzz17_NCARTVariant)) {
+      this.FastTravel();
+      this.m_audioSystem.Play(n"ui_menu_item_crafting_done");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Slow, RumblePosition.Right);
+    };
+  }
+
+  private final func TryConfirmDelamainTaxi() -> Bool {
+    if this.HasSelectedDelamainTaxiMappin() {
+      return this.CanPay();
+    };
+    return false;
+  }
+
+  private final func PrepFastTravel() -> Void {
+    let mappin: ref<FastTravelMappin>;
+    let player: ref<GameObject>;
+    let pointData: ref<FastTravelPointData>;
+    let request: ref<FastTravelPrefetchRequest>;
+    if !this.IsFastTravelEnabled() {
+      return;
+    };
+    mappin = this.selectedMappin.GetMappin() as FastTravelMappin;
+    player = GameInstance.GetPlayerSystem(this.GetOwner().GetGame()).GetLocalPlayerMainGameObject();
+    if player == null {
+      return;
+    };
+    pointData = mappin.GetPointData();
+    request = new FastTravelPrefetchRequest();
+    request.destinationRef = pointData.GetMarkerRef();
+    this.GetFastTravelSystem().QueueRequest(request);
+    SetFactValue(this.GetOwner().GetGame(), n"ue_metro_ft_system_prefetch_click", 1);
+  }
+
+  private final func TryTrackQuestOrSetWaypoint() -> Void {
+    if this.IsFastTravelEnabled() {
+      return;
+    };
+    if this.IsDelamainTaxiEnabled() {
+      this.TrackDelamainTaxiMappin();
+      this.UpdateTravelDestination();
+      this.UpdateSelectedMappinTooltip();
+    } else {
+      if this.selectedMappin != null {
+        if this.selectedMappin.IsDelamainTaxiTracked() {
+          return;
+        };
+        if this.selectedMappin.IsInCollection() && this.selectedMappin.IsCollection() || !this.selectedMappin.IsInCollection() {
+          if this.CanQuestTrackMappin(this.selectedMappin) {
+            if !this.IsMappinQuestTracked(this.selectedMappin) {
+              this.UntrackCustomPositionMappin();
+              this.TrackQuestMappin(this.selectedMappin);
+              this.PlaySound(n"MapPin", n"OnEnable");
+              this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Slow, RumblePosition.Right);
+            };
+          } else {
+            if this.CanPlayerTrackMappin(this.selectedMappin) {
+              if this.selectedMappin.IsCustomPositionTracked() {
+                this.UntrackCustomPositionMappin();
+                this.SetSelectedMappin(null);
+                this.PlaySound(n"MapPin", n"OnDisable");
+                this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+              } else {
+                if this.selectedMappin.IsPlayerTracked() && this.selectedMappin.IsDelamainTaxiTracked() {
+                  this.UntrackMappin();
+                  this.PlaySound(n"MapPin", n"OnDisable");
+                  this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+                } else {
+                  this.UntrackCustomPositionMappin();
+                  this.TrackMappin(this.selectedMappin);
+                  this.PlaySound(n"MapPin", n"OnEnable");
+                  this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Slow, RumblePosition.Right);
+                };
+              };
+            };
+          };
+          this.UpdateSelectedMappinTooltip();
+        };
+      } else {
+        this.TrackCustomPositionMappin();
+      };
+    };
+    this.PlaySound(n"MapPin", n"OnCreate");
+  }
+
+  private final func TrackQuestMappin(controller: ref<BaseMappinBaseController>) -> Void {
+    let journalEntry: ref<JournalEntry>;
+    if controller == null {
+      return;
+    };
+    journalEntry = this.GetMappinJournalEntry(controller.GetMappin());
+    if journalEntry == null {
+      return;
+    };
+    this.m_journalManager.TrackEntry(journalEntry);
+  }
+
+  private final func UpdateTravelDestination() -> Void {
+    let request: ref<SetTravelDestinationRequest> = new SetTravelDestinationRequest();
+    request.mappinID = this.delamainTaxiMappinID;
+    request.cost = this.GetTravelCost();
+    this.GetDelamainTaxiSystem().QueueRequest(request);
+  }
+
+  private final func GetTravelCost() -> Int32 {
+    return CeilF(this.GetTravelDistance() / 500.00) * 50;
+  }
+
+  private final func FastTravel() -> Void {
+    let mappin: ref<FastTravelMappin>;
+    let nextLoadingTypeEvt: ref<inkSetNextLoadingScreenEvent>;
+    let player: ref<GameObject>;
+    let request: ref<PerformFastTravelRequest>;
+    if !this.IsFastTravelEnabled() {
+      return;
+    };
+    mappin = this.selectedMappin.GetMappin() as FastTravelMappin;
+    player = GameInstance.GetPlayerSystem(this.GetOwner().GetGame()).GetLocalPlayerMainGameObject();
+    if player == null {
+      return;
+    };
+    request = new PerformFastTravelRequest();
+    request.pointData = mappin.GetPointData();
+    request.player = player;
+    this.GetFastTravelSystem().QueueRequest(request);
+    nextLoadingTypeEvt = new inkSetNextLoadingScreenEvent();
+    nextLoadingTypeEvt.SetNextLoadingScreenType(inkLoadingScreenType.FastTravel);
+    this.QueueBroadcastEvent(nextLoadingTypeEvt);
+    this.m_menuEventDispatcher.SpawnEvent(n"OnBack");
+  }
+
+  private final func DEBUG_Teleport() -> Void {
+    let player: ref<GameObject>;
+    if !this.CanDebugTeleport() {
+      return;
+    };
+    if this.selectedMappin != null {
+      player = GameInstance.GetPlayerSystem(this.GetOwner().GetGame()).GetLocalPlayerMainGameObject();
+      GameInstance.GetTeleportationFacility(this.GetOwner().GetGame()).Teleport(player, this.selectedMappin.GetMappin().GetWorldPosition(), Vector4.ToRotation(player.GetWorldForward()));
+      this.m_menuEventDispatcher.SpawnEvent(n"OnCloseHubMenu");
+    };
+  }
+
+  private final func HandleAxisInput(e: ref<inkPointerEvent>) -> Void {
+    let entityPreview: wref<inkWorldMapPreviewGameController> = this.GetEntityPreview();
+    let amount: Float = e.GetAxisData();
+    if e.IsAction(n"world_map_menu_move_horizontal") {
+      entityPreview.Move(new Vector4(1.00, 0.00, 0.00, 0.00), amount);
+    } else {
+      if e.IsAction(n"world_map_menu_move_horizontal_alt") {
+        entityPreview.Move(new Vector4(1.00, 0.00, 0.00, 0.00), amount);
+      } else {
+        if e.IsAction(n"world_map_menu_move_vertical") {
+          entityPreview.Move(new Vector4(0.00, 1.00, 0.00, 0.00), amount);
+        } else {
+          if e.IsAction(n"world_map_menu_move_vertical_alt") {
+            entityPreview.Move(new Vector4(0.00, 1.00, 0.00, 0.00), amount);
+          } else {
+            if e.IsAction(n"left_trigger") {
+              if amount == 0.00 {
+                if this.m_isZooming {
+                  this.m_audioSystem.Play(n"ui_menu_scrolling_stop");
+                  this.m_isZooming = false;
+                };
+                return;
+              };
+              if !this.m_isZooming && amount > 0.00 {
+                this.m_audioSystem.Play(n"ui_menu_scrolling_start");
+                this.m_isZooming = true;
+              };
+              entityPreview.ZoomOut(amount);
+            } else {
+              if e.IsAction(n"right_trigger") {
+                if amount == 0.00 {
+                  if this.m_isZooming {
+                    this.m_audioSystem.Play(n"ui_menu_scrolling_stop");
+                    this.m_isZooming = false;
+                  };
+                  return;
+                };
+                if !this.m_isZooming && amount > 0.00 {
+                  this.m_audioSystem.Play(n"ui_menu_scrolling_start");
+                  this.m_isZooming = true;
+                };
+                entityPreview.ZoomIn(amount);
+              } else {
+                if this.m_isMouserActive && e.IsAction(n"world_map_menu_zoom_Jcms") {
+                  if amount == 0.00 {
+                    if this.m_isZooming {
+                      this.m_audioSystem.Play(n"ui_menu_scrolling_stop");
+                      this.m_isZooming = false;
+                    };
+                    return;
+                  };
+                  if !this.m_isZooming {
+                    this.m_audioSystem.Play(n"ui_menu_scrolling_start");
+                    this.m_isZooming = true;
+                  };
+                  if amount > 0.00 {
+                    entityPreview.ZoomIn(amount);
+                  } else {
+                    entityPreview.ZoomOut(-amount);
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func HandlePressInput(e: ref<inkPointerEvent>) -> Void {
+    if e.IsAction(n"world_map_menu_track_waypoint") {
+      this.m_pressedRMB = true;
+      this.TryTrackQuestOrSetWaypoint();
+    } else {
+      if e.IsAction(n"world_map_menu_jump_to_player") {
+        if !this.m_justOpenedQuestJournal {
+          this.PlaySound(n"Button", n"OnPress");
+          if (this.selectedMappin as WorldMapPlayerMappinController) == null {
+            this.MoveToPlayer();
+          } else {
+            if ArraySize(this.m_mappinsPositions) > 0 {
+              this.GetEntityPreview().MoveTo(this.m_mappinsPositions[0]);
+            };
+          };
+        };
+      } else {
+        if e.IsAction(n"world_map_menu_zoom_to_mappin") {
+          if this.HasSelectedMappin() && this.CanZoomToMappin(this.selectedMappin) {
+            this.PlaySound(n"Button", n"OnPress");
+            this.ZoomToMappin(this.selectedMappin);
+          };
+        } else {
+          if e.IsAction(n"world_map_menu_zoom_in_mouse") {
+            this.ZoomWithMouse(true);
+            if !this.m_isZooming {
+              this.m_audioSystem.Play(n"ui_zooming_in_step_change");
+              this.m_isZooming = true;
+            };
+          } else {
+            if e.IsAction(n"world_map_menu_zoom_out_mouse") {
+              this.ZoomWithMouse(false);
+              if !this.m_isZooming {
+                this.m_audioSystem.Play(n"ui_zooming_in_exit");
+                this.m_isZooming = true;
+              };
+            } else {
+              if e.IsAction(n"world_map_menu_fast_travel") && this.HasSelectedMappin() && (Equals(this.selectedMappin.GetMappinVariant(), gamedataMappinVariant.FastTravelVariant) || Equals(this.selectedMappin.GetMappinVariant(), gamedataMappinVariant.Zzz17_NCARTVariant)) && this.IsFastTravelEnabled() {
+                this.m_audioSystem.Play(n"ui_menu_item_crafting_start");
+                this.PrepFastTravel();
+                SetFactValue(this.GetOwner().GetGame(), n"ue_metro_map_ui_ft_clicked", 1);
+                this.m_startedFastTraveling = true;
+                this.m_isPanning = true;
+              };
+            };
+          };
+        };
+      };
+    };
+    if e.IsAction(n"world_map_menu_move_mouse") && !this.m_isHoveringOverFilters && !this.m_isPanning {
+      this.SetMousePanEnabled(true);
+      this.SetCursorContext(n"Pan");
+      this.m_audioSystem.Play(n"ui_menu_scrolling_start");
+      this.m_isPanning = true;
+    };
+  }
+
+  private final func HandleReleaseInput(e: ref<inkPointerEvent>) -> Void {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent>;
+    if inkWidgetRef.IsVisible(this.m_customFilters) {
+      if e.IsAction(n"world_map_filter_navigation_down") {
+        this.NavigateCustomFilters(ECustomFilterDPadNavigationOption.SelectNext);
+        this.PlaySound(n"Button", n"OnHover");
+      } else {
+        if e.IsAction(n"world_map_filter_navigation_up") {
+          this.NavigateCustomFilters(ECustomFilterDPadNavigationOption.SelectPrev);
+          this.PlaySound(n"Button", n"OnHover");
+        } else {
+          if e.IsAction(n"world_map_menu_toggle_custom_filter") {
+            this.NavigateCustomFilters(ECustomFilterDPadNavigationOption.Toggle);
+          };
+        };
+      };
+    };
+    if this.m_isPanning {
+      this.SetCursorContext(n"Default");
+      this.SetMousePanEnabled(false);
+      this.m_audioSystem.Play(n"ui_menu_scrolling_stop");
+      this.m_isPanning = false;
+    };
+    if e.IsAction(n"world_map_menu_cycle_filter_prev") {
+      if this.canChangeCustomFilter {
+        this.CycleQuickFilterPrev();
+      };
+    } else {
+      if e.IsAction(n"world_map_menu_cycle_filter_next") {
+        if this.canChangeCustomFilter {
+          this.CycleQuickFilterNext();
+        };
+      } else {
+        if this.HasSelectedMappin() && (e.IsAction(n"world_map_menu_open_quest") || e.IsAction(n"open_map_link")) {
+          if !e.IsHandled() || !e.IsConsumed() {
+            e.Handle();
+            e.Consume();
+            this.PlaySound(n"Button", n"OnPress");
+            this.OpenSelectedQuest();
+          };
+        } else {
+          if e.IsAction(n"toggle_journal") || e.IsAction(n"world_map_menu_open_quest_static") || e.IsAction(n"open_map_link") {
+            if !e.IsHandled() || !e.IsConsumed() {
+              menuEvent = new inkMenuInstance_SpawnEvent();
+              menuEvent.Init(n"OnHotkeySwitchToJournal_FastTravel");
+              this.QueueEvent(menuEvent);
+              e.Handle();
+              e.Consume();
+              this.PlaySound(n"Button", n"OnPress");
+              this.OpenTrackedQuest();
+            };
+          } else {
+            if e.IsAction(n"world_map_menu_fast_travel") && this.IsFastTravelEnabled() {
+              if this.m_startedFastTraveling {
+                this.m_audioSystem.Play(n"ui_menu_item_crafting_fail");
+              };
+              this.m_startedFastTraveling = false;
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func HandleHoldInput(e: ref<inkPointerEvent>) -> Void {
+    let holdProgress: Float;
+    let request: ref<StartDelamainTaxiRequest>;
+    if e.IsAction(n"world_map_menu_fast_travel") {
+      holdProgress = e.GetHoldProgress();
+      if holdProgress < 1.00 {
+        return;
+      };
+      this.TryFastTravel();
+    } else {
+      if e.IsAction(n"world_map_menu_confirm_delamain_taxi") {
+        holdProgress = e.GetHoldProgress();
+        if holdProgress < 1.00 {
+          return;
+        };
+        if this.IsDelamainTaxiEnabled() && this.TryConfirmDelamainTaxi() {
+          request = new StartDelamainTaxiRequest();
+          request.m_price = this.GetTravelCost();
+          this.GetDelamainTaxiSystem().QueueRequest(request);
+          this.m_menuEventDispatcher.SpawnEvent(n"OnConfirm");
+          this.ConfirmDelamainTaxiMappinPosition();
+        } else {
+          this.m_tooltipController.PlayPaymentErrorAnimation();
+          this.PlaySound(n"Attributes", n"OnFail");
+        };
+      } else {
+        if e.IsAction(n"world_map_menu_track_waypoint_touch") {
+          holdProgress = e.GetHoldProgress();
+          if holdProgress < 1.00 {
+            return;
+          };
+          this.m_pressedRMB = true;
+          this.TryTrackQuestOrSetWaypoint();
+        };
+      };
+    };
+  }
+
+  protected cb func OnPressInput(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_readyToZoom {
+      this.HandlePressInput(e);
+    };
+  }
+
+  protected cb func OnReleaseInput(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_readyToZoom {
+      this.HandleReleaseInput(e);
+    };
+  }
+
+  protected cb func OnHoldInput(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_readyToZoom {
+      this.HandleHoldInput(e);
+    };
+  }
+
+  protected cb func OnAxisInput(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_readyToZoom {
+      this.HandleAxisInput(e);
+    };
+  }
+
+  protected cb func OnRelativeInput(e: ref<inkPointerEvent>) -> Bool {
+    let entityPreview: wref<inkWorldMapPreviewGameController> = this.GetEntityPreview();
+    let amount: Float = e.GetAxisData();
+    if e.IsAction(n"world_map_menu_move_horizontal_touch") {
+      entityPreview.Move(new Vector4(-1.00, 0.00, 0.00, 0.00), amount);
+    } else {
+      if e.IsAction(n"world_map_menu_move_vertical_touch") {
+        entityPreview.Move(new Vector4(0.00, -1.00, 0.00, 0.00), amount);
+      };
+    };
+  }
+
+  private final func IsPoliceTooltip(mappinVariant: gamedataMappinVariant) -> Bool {
+    switch mappinVariant {
+      case gamedataMappinVariant.FailedCrossingVariant:
+      case gamedataMappinVariant.SmugglersDenVariant:
+      case gamedataMappinVariant.HiddenStashVariant:
+      case gamedataMappinVariant.ResourceVariant:
+      case gamedataMappinVariant.OutpostVariant:
+      case gamedataMappinVariant.GangWatchVariant:
+        return true;
+    };
+    return false;
+  }
+
+  private final func ShouldDisplayInHud(mappinVariant: gamedataMappinVariant) -> Bool {
+    return this.IsPoliceTooltip(mappinVariant);
+  }
+
+  private final func GetTooltipType(mappinVariant: gamedataMappinVariant) -> WorldMapTooltipType {
+    if this.IsPoliceTooltip(mappinVariant) {
+      return WorldMapTooltipType.Police;
+    };
+    return WorldMapTooltipType.Default;
+  }
+
+  private final func ShowMappinTooltip(controller: wref<BaseWorldMapMappinController>) -> Void {
+    let mappinVariant: gamedataMappinVariant;
+    let tooltipType: WorldMapTooltipType;
+    if controller != null {
+      mappinVariant = controller.GetMappinVariant();
+      tooltipType = this.GetTooltipType(mappinVariant);
+      this.UpdateTooltip(tooltipType, controller);
+      this.m_tooltipController.Show(tooltipType);
+    };
+  }
+
+  private final func HideMappinTooltip(controller: wref<BaseWorldMapMappinController>) -> Void {
+    let mappinVariant: gamedataMappinVariant;
+    let tooltipType: WorldMapTooltipType;
+    if controller != null {
+      mappinVariant = controller.GetMappinVariant();
+      tooltipType = this.GetTooltipType(mappinVariant);
+      this.m_tooltipController.Hide(tooltipType);
+    };
+  }
+
+  private final func ShowGangsInfo(district: gamedataDistrict, sub: gamedataDistrict) -> Void {
+    let asyncSpawnRequest: wref<inkAsyncSpawnRequest>;
+    let gangRecord: wref<Affiliation_Record>;
+    let gangsRecords: array<wref<Affiliation_Record>>;
+    let i: Int32;
+    let subRecord: wref<District_Record> = MappinUtils.GetDistrictRecord(sub);
+    let districtRecord: wref<District_Record> = MappinUtils.GetDistrictRecord(district);
+    let subTotalGangs: Int32 = subRecord.GetGangsCount();
+    let totalGangs: Int32 = districtRecord.GetGangsCount();
+    if subTotalGangs > 0 {
+      districtRecord = subRecord;
+      totalGangs = subTotalGangs;
+    } else {
+      if !this.m_showedSubdistrictGangs && Equals(this.m_previousHoveredDistrict, this.m_currentHoveredDistrict) {
+        return;
+      };
+    };
+    this.m_showedSubdistrictGangs = subTotalGangs > 0;
+    this.ClearAllAsyncSpawnRequests();
+    inkWidgetRef.SetVisible(this.m_gangsInfoContainer, false);
+    inkCompoundRef.RemoveAllChildren(this.m_gangsList);
+    if totalGangs > 0 {
+      inkWidgetRef.SetVisible(this.m_gangsInfoContainer, true);
+      districtRecord.Gangs(gangsRecords);
+      i = 0;
+      while i < totalGangs {
+        gangRecord = gangsRecords[i];
+        asyncSpawnRequest = this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_gangsList), n"GangListItem", this, n"OnGangListItemSpawned", gangRecord);
+        ArrayPush(this.m_gangsAsyncSpawnRequests, asyncSpawnRequest);
+        i += 1;
+      };
+    };
+  }
+
+  private final func ClearAllAsyncSpawnRequests() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gangsAsyncSpawnRequests) {
+      this.m_gangsAsyncSpawnRequests[i].Cancel();
+      this.m_gangsAsyncSpawnRequests[i] = null;
+      i += 1;
+    };
+    ArrayClear(this.m_gangsAsyncSpawnRequests);
+  }
+
+  protected cb func OnGangListItemSpawned(gangWidget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let gangRecord: wref<Affiliation_Record> = userData as Affiliation_Record;
+    let gangController: wref<WorldMapGangItemController> = gangWidget.GetController() as WorldMapGangItemController;
+    gangController.SetData(gangRecord);
+  }
+
+  private final func HideAllTooltips() -> Void {
+    this.m_tooltipController.HideAll();
+  }
+
+  private final func UpdateTooltip(tooltipType: WorldMapTooltipType, controller: wref<BaseWorldMapMappinController>) -> Void {
+    let toolTipData: WorldMapTooltipData;
+    let transactionSystem: ref<TransactionSystem>;
+    if controller != null {
+      toolTipData.controller = controller;
+      toolTipData.mappin = controller.GetMappin();
+      toolTipData.journalEntry = this.GetMappinJournalEntry(toolTipData.mappin);
+      toolTipData.readJournal = this.CanOpenJournalForMappin(toolTipData.mappin);
+      toolTipData.moreInfo = this.CanOpenCodexPopup(toolTipData.mappin);
+      toolTipData.isCollection = controller.IsCollection();
+    };
+    toolTipData.fastTravelEnabled = this.IsFastTravelEnabled();
+    if this.IsDelamainTaxiEnabled() {
+      toolTipData.delamainTaxiEnabled = true;
+      toolTipData.travelCost = this.GetTravelCost();
+      transactionSystem = GameInstance.GetTransactionSystem(this.m_player.GetGame());
+      toolTipData.playerMoney = transactionSystem.GetItemQuantity(this.m_player, MarketSystem.Money());
+    };
+    this.m_tooltipController.SetData(tooltipType, toolTipData, this);
+  }
+
+  private final func UpdateSelectedMappinTooltip() -> Void {
+    if IsDefined(this.selectedMappin) {
+      this.UpdateTooltip(this.GetTooltipType(this.selectedMappin.GetMappinVariant()), this.selectedMappin);
+    };
+  }
+
+  private final func CanOpenJournalForMappin(mappin: wref<IMappin>) -> Bool {
+    let mappinQuest: wref<JournalQuest>;
+    if this.HasSelectedMappin() {
+      mappinQuest = questLogGameController.GetTopQuestEntry(this.m_journalManager, this.GetMappinJournalEntry(mappin));
+      return mappinQuest != null;
+    };
+    return false;
+  }
+
+  private final func RefreshInputHints() -> Void {
+    let canTrackWaypoint: Bool;
+    let isFastTravelEnabled: Bool;
+    let priority: Int32 = 1;
+    let evt: ref<UpdateInputHintMultipleEvent> = new UpdateInputHintMultipleEvent();
+    evt.targetHintContainer = n"WorldMapInputHints";
+    if this.IsEntitySetup() {
+      this.AddInputHintUpdate(evt, true, n"CloseMenuSingleKey", "Common-Access-Close", priority);
+      isFastTravelEnabled = this.IsFastTravelEnabled();
+      if (this.selectedMappin as WorldMapPlayerMappinController) == null {
+        this.AddInputHintUpdate(evt, true, n"world_map_menu_jump_to_player", "UI-ScriptExports-JumpToPlayer0", priority);
+      } else {
+        if ArraySize(this.m_mappinsPositions) > 0 {
+          this.AddInputHintUpdate(evt, true, n"world_map_menu_jump_to_player", "UI-UserActions-JumpToObjective", priority);
+        } else {
+          this.AddInputHintUpdate(evt, false, n"world_map_menu_jump_to_player", "UI-UserActions-JumpToObjective", priority);
+        };
+      };
+      if this.m_isMouserActive {
+        this.AddInputHintUpdate(evt, true, n"world_map_menu_zoom_Jcms", "Gameplay-RPG-Stats-WeaponStats-ZoomLevel", priority);
+        this.AddInputHintUpdate(evt, false, n"world_map_menu_zoom_in", "Gameplay-RPG-Stats-WeaponStats-ZoomLevel", priority);
+        this.AddInputHintUpdate(evt, false, n"world_map_menu_zoom_out", "UI-ScriptExports-ZoomOut0", priority);
+      } else {
+        this.AddInputHintUpdate(evt, false, n"world_map_menu_zoom_Jcms", "Gameplay-RPG-Stats-WeaponStats-ZoomLevel", priority);
+        this.AddInputHintUpdate(evt, true, n"world_map_menu_zoom_in", "Gameplay-RPG-Stats-WeaponStats-ZoomLevel", priority);
+        this.AddInputHintUpdate(evt, true, n"world_map_menu_zoom_out", "UI-ScriptExports-ZoomOut0", priority);
+      };
+      this.AddInputHintUpdate(evt, true, n"world_map_fake_move", "Gameplay-Player-ButtonHelper-Move", priority);
+      canTrackWaypoint = !isFastTravelEnabled;
+      this.AddInputHintUpdate(evt, canTrackWaypoint, n"world_map_menu_track_waypoint", "UI-Settings-ButtonMappings-Actions-MapTrack", priority);
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected final func AddInputHintUpdate(out evt: ref<UpdateInputHintMultipleEvent>, show: Bool, action: CName, const locKey: script_ref<String>, out priority: Int32) -> Void {
+    let data: InputHintData;
+    data.action = action;
+    data.source = n"WorldMap";
+    data.localizedLabel = GetLocalizedText(locKey);
+    data.sortingPriority = priority;
+    data.queuePriority = priority;
+    evt.AddInputHint(data, show);
+    priority += 1;
+  }
+
+  public func CreateMappinUIProfile(mappin: wref<IMappin>, mappinVariant: gamedataMappinVariant, customData: ref<MappinControllerCustomData>) -> MappinUIProfile {
+    let widgetResource: ResRef = r"base\\gameplay\\gui\\fullscreen\\world_map\\mappins\\default_mappin.inkwidget";
+    if IsDefined(customData) {
+      if customData.IsA(n"gameuiWorldMapPlayerInitData") {
+        widgetResource = r"base\\gameplay\\gui\\fullscreen\\world_map\\mappins\\player_mappin.inkwidget";
+      };
+    };
+    return MappinUIProfile.Create(widgetResource, t"MappinUISpawnProfile.Always", t"MapMappinUIProfile.Default");
+  }
+
+  public final const func GetPlayer() -> wref<GameObject> {
+    return this.m_player;
+  }
+
+  public final const func GetJournalManager() -> wref<JournalManager> {
+    return this.m_journalManager;
+  }
+
+  private final func GetTotalZoomLevels() -> Int32 {
+    let levels: array<wref<WorldMapZoomLevel_Record>>;
+    let settings: ref<WorldMapSettings_Record> = this.GetSettings();
+    if settings != null {
+      settings.ZoomLevels(levels);
+      return ArraySize(levels);
+    };
+    return 0;
+  }
+
+  private final func GetFastTravelSystem() -> ref<FastTravelSystem> {
+    return GameInstance.GetScriptableSystemsContainer(this.GetOwner().GetGame()).Get(n"FastTravelSystem") as FastTravelSystem;
+  }
+
+  public final func IsFastTravelEnabled() -> Bool {
+    return this.GetFastTravelSystem().IsFastTravelEnabledOnMap();
+  }
+
+  private final func GetDelamainTaxiSystem() -> ref<DelamainTaxiSystem> {
+    return GameInstance.GetScriptableSystemsContainer(this.GetOwner().GetGame()).Get(n"DelamainTaxiSystem") as DelamainTaxiSystem;
+  }
+
+  public final func IsDelamainTaxiEnabled() -> Bool {
+    return this.GetDelamainTaxiSystem().IsDelamainTaxiEnabledOnMap();
+  }
+
+  private final func GetOwner() -> ref<GameObject> {
+    return this.GetOwnerEntity() as GameObject;
+  }
+
+  private final func HasSelectedMappin() -> Bool {
+    return this.selectedMappin != null;
+  }
+
+  private final func HasSelectedDelamainTaxiMappin() -> Bool {
+    return this.delamainTaxiMappinID.value != 0u;
+  }
+
+  private final const func GetMappinJournalEntry(mappin: ref<IMappin>) -> ref<JournalEntry> {
+    let journalPathHash: Uint32 = this.GetMappinJournalPathHash(mappin);
+    if journalPathHash != 0u && IsDefined(this.m_journalManager) {
+      return this.m_journalManager.GetEntry(journalPathHash);
+    };
+    return null;
+  }
+
+  private final const func GetMappinJournalPathHash(mappin: ref<IMappin>) -> Uint32 {
+    let poiMappin: ref<PointOfInterestMappin>;
+    let questMappin: ref<QuestMappin>;
+    if IsDefined(mappin) {
+      questMappin = mappin as QuestMappin;
+      if IsDefined(questMappin) {
+        return questMappin.GetJournalPathHash();
+      };
+      poiMappin = mappin as PointOfInterestMappin;
+      if IsDefined(poiMappin) {
+        return poiMappin.GetJournalPathHash();
+      };
+    };
+    return 0u;
+  }
+
+  public final const func CanQuestTrackMappin(mappin: wref<IMappin>) -> Bool {
+    let groupName: CName;
+    let journalEntry: ref<JournalEntry>;
+    let mappinVariant: gamedataMappinVariant;
+    let mappinsGroup: wref<MappinsGroup_Record>;
+    if mappin != null {
+      mappinVariant = mappin.GetVariant();
+      if Equals(mappinVariant, gamedataMappinVariant.Zzz18_RacingVariant) {
+        return false;
+      };
+      journalEntry = this.GetMappinJournalEntry(mappin);
+      mappinsGroup = MappinUtils.GetMappinsGroup(mappinVariant);
+      if mappinsGroup != null {
+        groupName = mappinsGroup.GroupName();
+        return journalEntry != null && (Equals(groupName, n"Quest") || Equals(groupName, n"SecondaryQuest"));
+      };
+    };
+    return false;
+  }
+
+  public final const func CanQuestTrackMappin(controller: wref<BaseWorldMapMappinController>) -> Bool {
+    if controller != null {
+      return this.CanQuestTrackMappin(controller.GetMappin());
+    };
+    return false;
+  }
+
+  public final const func IsMappinQuestTracked(mappin: wref<IMappin>) -> Bool {
+    let journalEntry: ref<JournalEntry>;
+    if mappin != null {
+      journalEntry = this.GetMappinJournalEntry(mappin);
+      if journalEntry != null {
+        this.m_journalManager.IsEntryTracked(journalEntry);
+      };
+    };
+    return false;
+  }
+
+  public final const func IsMappinQuestTracked(controller: wref<BaseWorldMapMappinController>) -> Bool {
+    return this.IsMappinQuestTracked(controller.GetMappin());
+  }
+
+  public final const func CanPlayerTrackMappin(mappin: wref<IMappin>) -> Bool {
+    return !this.CanQuestTrackMappin(mappin);
+  }
+
+  public final const func CanPlayerTrackMappin(controller: wref<BaseWorldMapMappinController>) -> Bool {
+    return this.CanPlayerTrackMappin(controller.GetMappin());
+  }
+
+  public final func CanZoomToMappin(controller: wref<BaseWorldMapMappinController>) -> Bool {
+    return this.isZoomToMappinEnabled;
+  }
+
+  private final func CanPay() -> Bool {
+    let playerMoney: Int32;
+    let transactionSystem: ref<TransactionSystem>;
+    let gi: GameInstance = this.m_player.GetGame();
+    let autoDriveSystem: ref<AutoDriveSystem> = GameInstance.GetScriptableSystemsContainer(gi).Get(n"AutoDriveSystem") as AutoDriveSystem;
+    let travelCost: Int32 = this.GetTravelCost();
+    if NotEquals(autoDriveSystem.CheckCurrentLaneValidity(), gameAutodriveLaneValidityResult.OnValidLane) {
+      return false;
+    };
+    transactionSystem = GameInstance.GetTransactionSystem(gi);
+    playerMoney = transactionSystem.GetItemQuantity(this.m_player, MarketSystem.Money());
+    if travelCost > playerMoney {
+      return false;
+    };
+    return true;
+  }
+}
+
+public native class BaseWorldMapMappinController extends BaseInteractionMappinController {
+
+  public native let selected: Bool;
+
+  public native let inZoomLevel: Bool;
+
+  public native let inCustomFilter: Bool;
+
+  public native let hasCustomFilter: Bool;
+
+  public native let isFastTravelEnabled: Bool;
+
+  public native let isVisibleInFilterAndZoom: Bool;
+
+  private native const let groupState: gameuiMappinGroupState;
+
+  public native const let collectionCount: Uint8;
+
+  private let m_mappin: wref<IMappin>;
+
+  @default(BaseWorldMapMappinController, false)
+  private let m_isCompletedPhase: Bool;
+
+  @default(BaseWorldMapMappinController, false)
+  private let m_resetStateWhenUntracked: Bool;
+
+  private let m_isNewAnim: ref<inkAnimProxy>;
+
+  private let m_fadeAnim: ref<inkAnimProxy>;
+
+  private let m_selectAnim: ref<inkAnimProxy>;
+
+  private edit let m_fadeInOutDelay: Float;
+
+  public final native func IsGrouped() -> Bool;
+
+  public final native func IsCollection() -> Bool;
+
+  public final native func IsInCollection() -> Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let rootWidget: wref<inkWidget> = this.GetRootWidget();
+    rootWidget.SetOpacity(0.00);
+    rootWidget.SetInteractive(false);
+  }
+
+  protected cb func OnIntro() -> Bool {
+    this.m_mappin = this.GetMappin();
+    this.Update();
+    this.OnFiltersChanged();
+  }
+
+  protected cb func OnUpdate() -> Bool {
+    this.Update();
+  }
+
+  protected final func Update() -> Void {
+    this.UpdateVisibility();
+    this.UpdateIcon();
+    this.UpdateRootState();
+    this.UpdateTrackedState();
+  }
+
+  protected func UpdateVisibility() -> Void {
+    let wasVisible: Bool;
+    let questMappin: ref<QuestMappin> = this.m_mappin as QuestMappin;
+    let rootWidget: wref<inkWidget> = this.GetRootWidget();
+    this.m_isCompletedPhase = Equals(this.m_mappin.GetPhase(), gamedataMappinPhase.CompletedPhase);
+    if IsDefined(questMappin) {
+      wasVisible = rootWidget.IsVisible();
+      rootWidget.SetVisible(questMappin.IsActive());
+      if !wasVisible && questMappin.IsActive() {
+        rootWidget.SetOpacity(0.01);
+      };
+    };
+    if this.IsTracked() {
+      this.SelectMappin();
+      this.m_resetStateWhenUntracked = true;
+    } else {
+      if this.m_resetStateWhenUntracked {
+        this.UnselectMappin();
+      };
+    };
+  }
+
+  protected func UpdateIcon() -> Void {
+    let color: CName;
+    let mappinVariant: gamedataMappinVariant = this.m_mappin.GetVariant();
+    let mappinPhase: gamedataMappinPhase = this.m_mappin.GetPhase();
+    let texturePart: CName = MappinUIUtils.MappinToTexturePart(mappinVariant, mappinPhase);
+    inkImageRef.SetTexturePart(this.iconWidget, texturePart);
+    color = MappinUIUtils.MappinToColor(mappinVariant);
+    if NotEquals(color, n"None") {
+      inkWidgetRef.Get(this.iconWidget).BindProperty(n"tintColor", color);
+    };
+    if inkWidgetRef.IsValid(this.playerTrackedWidget) {
+      inkWidgetRef.SetVisible(this.playerTrackedWidget, this.IsTracked());
+    };
+    this.UpdateIsNew();
+  }
+
+  protected final func UpdateIsNew() -> Void {
+    let isNew: Bool = !this.m_mappin.IsVisited() && !this.IsCollection();
+    if isNew && this.m_isNewAnim == null {
+      this.m_isNewAnim = this.PlayLibraryAnimation(n"OnNew");
+    } else {
+      if !isNew && this.m_isNewAnim != null {
+        this.m_isNewAnim.Stop();
+        this.m_isNewAnim = null;
+      };
+    };
+  }
+
+  public func CanSelectMappin() -> Bool {
+    return true;
+  }
+
+  private final func GetDesiredOpacityAndInteractivity(out opacity: Float, out interactive: Bool) -> Void {
+    let visibleInGroup: Bool;
+    if this.hasCustomFilter {
+      interactive = this.inCustomFilter && !this.m_isCompletedPhase || this.IsTracked();
+    } else {
+      interactive = this.inZoomLevel && !this.m_isCompletedPhase || this.IsTracked();
+    };
+    this.isVisibleInFilterAndZoom = interactive;
+    visibleInGroup = NotEquals(this.groupState, gameuiMappinGroupState.GroupedHidden);
+    if !visibleInGroup {
+      interactive = false;
+    };
+    opacity = interactive ? 1.00 : 0.00;
+  }
+
+  protected cb func OnFiltersChanged() -> Bool {
+    this.PlayHideShowAnim();
+  }
+
+  private final func PlayHideShowAnim() -> Void {
+    let interactive: Bool;
+    let opacity: Float;
+    let rootWidget: wref<inkWidget> = this.GetRootWidget();
+    this.GetDesiredOpacityAndInteractivity(opacity, interactive);
+    this.PlayFadeAnimation(opacity);
+    rootWidget.SetInteractive(interactive);
+  }
+
+  protected func ComputeRootState() -> CName {
+    let mappinsGroup: wref<MappinsGroup_Record>;
+    let stateName: CName;
+    let variant: gamedataMappinVariant;
+    if this.m_isCompletedPhase {
+      stateName = n"QuestComplete";
+    };
+    if Equals(this.m_mappin.GetVariant(), gamedataMappinVariant.Zzz17_NCARTVariant) {
+      stateName = n"FastTravelMetro";
+    } else {
+      if this.m_mappin != null {
+        mappinsGroup = MappinUtils.GetMappinsGroup(this.m_mappin.GetVariant());
+        variant = this.m_mappin.GetVariant();
+        if Equals(variant, gamedataMappinVariant.Zzz16_RelicDeviceBasicVariant) {
+          stateName = n"Relic";
+        } else {
+          if IsDefined(mappinsGroup) {
+            stateName = mappinsGroup.WidgetState();
+          };
+        };
+      };
+    };
+    if Equals(stateName, n"None") {
+      stateName = n"Quest";
+    };
+    return stateName;
+  }
+
+  private final func PlayFadeAnimation(opacity: Float) -> Void {
+    let animDef: ref<inkAnimDef>;
+    let animInterp: ref<inkAnimTransparency>;
+    let widget: wref<inkWidget>;
+    this.StopFadeAnimation();
+    widget = this.GetRootWidget();
+    if widget.GetOpacity() == opacity {
+      return;
+    };
+    animDef = new inkAnimDef();
+    animInterp = new inkAnimTransparency();
+    animInterp.SetEndTransparency(opacity);
+    animInterp.SetDuration(this.m_fadeInOutDelay);
+    animInterp.SetDirection(inkanimInterpolationDirection.To);
+    animInterp.SetUseRelativeDuration(true);
+    animDef.AddInterpolator(animInterp);
+    this.m_fadeAnim = widget.PlayAnimation(animDef);
+  }
+
+  private final func StopFadeAnimation() -> Void {
+    if this.m_fadeAnim != null {
+      this.m_fadeAnim.Stop(true);
+      this.m_fadeAnim = null;
+    };
+  }
+
+  public final func SelectMappin() -> Void {
+    if this.m_isNewAnim != null {
+      this.m_isNewAnim.Stop();
+      this.m_isNewAnim = null;
+    };
+    if this.m_selectAnim != null {
+      this.m_selectAnim.Stop();
+    };
+    this.m_selectAnim = this.PlayLibraryAnimation(n"OnSelect");
+  }
+
+  public final func UnselectMappin() -> Void {
+    if this.m_selectAnim != null {
+      this.m_selectAnim.Stop();
+    };
+    if !this.IsTracked() {
+      this.m_selectAnim = this.PlayLibraryAnimation(n"OnUnselect");
+      this.m_resetStateWhenUntracked = false;
+    };
+  }
+
+  public final func GetMappinVariant() -> gamedataMappinVariant {
+    return this.m_mappin.GetVariant();
+  }
+}
+
+public native class WorldMapPlayerMappinController extends BaseWorldMapMappinController {
+
+  protected cb func OnInitialize() -> Bool {
+    let rootWidget: wref<inkWidget> = this.GetRootWidget();
+    rootWidget.SetVisible(true);
+  }
+
+  protected cb func OnFiltersChanged() -> Bool;
+
+  protected func UpdateIcon() -> Void;
+
+  protected func ComputeRootState() -> CName {
+    return n"Player";
+  }
+
+  public func CanSelectMappin() -> Bool {
+    return false;
+  }
+}
+
+public native class WorldMapDistrictLogicController extends inkLogicController {
+
+  protected native let record: wref<District_Record>;
+
+  protected native let type: gamedataDistrict;
+
+  protected native let iconWidget: inkImageRef;
+
+  protected native let selected: Bool;
+
+  private let m_selectAnim: ref<inkAnimProxy>;
+
+  private let rootWidget: wref<inkWidget>;
+
+  protected cb func OnInitDistrict() -> Bool {
+    this.rootWidget = this.GetRootWidget();
+    if this.IsSubDistrict() {
+      this.rootWidget.SetState(this.GetParentDistrictRecord().UiState());
+      inkWidgetRef.SetVisible(this.iconWidget, false);
+    } else {
+      this.rootWidget.SetState(this.record.UiState());
+      inkImageRef.SetTexturePart(this.iconWidget, this.record.UiIcon());
+    };
+  }
+
+  protected cb func OnSetSelected(inSelected: Bool) -> Bool {
+    if IsDefined(this.m_selectAnim) {
+      this.m_selectAnim.Stop();
+      this.m_selectAnim = null;
+    };
+    if inSelected {
+      this.m_selectAnim = this.PlayLibraryAnimation(n"OnSelectDistrict");
+    } else {
+      this.m_selectAnim = this.PlayLibraryAnimation(n"OnDeselectDistrict");
+    };
+  }
+
+  private final func GetParentDistrictRecord() -> wref<District_Record> {
+    return this.record.ParentDistrict();
+  }
+
+  private final func IsSubDistrict() -> Bool {
+    return this.GetParentDistrictRecord() != null;
+  }
+}
+
+public class WorldMapFiltersList extends inkLogicController {
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnPress", this, n"OnConsumeInput");
+    this.RegisterToCallback(n"OnRelease", this, n"OnConsumeInput");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnPress", this, n"OnConsumeInput");
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnConsumeInput");
+  }
+
+  protected cb func OnConsumeInput(evt: ref<inkPointerEvent>) -> Bool;
+}
+
+public class WorldMapFiltersListItem extends inkLogicController {
+
+  private edit let m_checker: inkWidgetRef;
+
+  private edit let m_filterName: inkTextRef;
+
+  private let m_filterGroup: wref<MappinUIFilterGroup_Record>;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  private let m_isHovered: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverFilter");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOutFilter");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOverFilter");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOutFilter");
+  }
+
+  protected cb func OnHoverOverFilter(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_isHovered = true;
+    this.SetFilterState(n"Hover");
+  }
+
+  protected cb func OnHoverOutFilter(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_isHovered = false;
+    if this.IsFilterEnabled() {
+      this.SetFilterState(n"Selected");
+    } else {
+      this.SetFilterState(n"Default");
+    };
+  }
+
+  public final func PlayIntroAnimation(delay: Float) -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.executionDelay = delay;
+    this.PlayLibraryAnimation(n"OnFiltersListItem", animOptions);
+  }
+
+  public final func SwitchFilter() -> Bool {
+    this.EnableFilter(!inkWidgetRef.IsVisible(this.m_checker));
+    return this.IsFilterEnabled();
+  }
+
+  public final func EnableFilter(enable: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_checker, enable);
+    if this.m_isHovered {
+      this.SetFilterState(n"Hover");
+      return;
+    };
+    if enable {
+      this.SetFilterState(n"Selected");
+    } else {
+      this.SetFilterState(n"Default");
+    };
+  }
+
+  public final func IsFilterEnabled() -> Bool {
+    return inkWidgetRef.IsVisible(this.m_checker);
+  }
+
+  public final func IsFilterHovered() -> Bool {
+    return Equals(this.m_rootWidget.GetState(), n"Hover");
+  }
+
+  public final func SetFilterState(state: CName) -> Void {
+    this.m_rootWidget.SetState(state);
+  }
+
+  public final func SetFilterGroup(filterGroup: wref<MappinUIFilterGroup_Record>) -> Void {
+    this.m_filterGroup = filterGroup;
+    inkTextRef.SetLocalizedTextScript(this.m_filterName, this.m_filterGroup.FilterName());
+  }
+
+  public final func GetFilterType() -> gamedataWorldMapFilter {
+    return this.m_filterGroup.FilterType().Type();
+  }
+}
+
+public class WorldMapPreloader extends inkLogicController {
+
+  private edit let m_splashAnim: CName;
+
+  private edit let m_spinnerAnim: CName;
+
+  private edit let m_spinnerFadeOutAnim: CName;
+
+  private edit let m_spinnerFadeInAnim: CName;
+
+  private edit let m_mapFadeOutAnim: CName;
+
+  @default(WorldMapPreloader, false)
+  public let m_isMapLoaded: Bool;
+
+  @default(WorldMapPreloader, false)
+  public let m_isMapFadeOutStarted: Bool;
+
+  @default(WorldMapPreloader, false)
+  public let m_isSpinnerVisible: Bool;
+
+  public let m_splashProxy: ref<inkAnimProxy>;
+
+  public let m_spinnerFadeOutProxy: ref<inkAnimProxy>;
+
+  public final func ShowSpinner() -> Void {
+    this.m_isSpinnerVisible = true;
+    this.m_spinnerFadeOutProxy = this.PlayLibraryAnimation(this.m_spinnerFadeOutAnim);
+  }
+
+  public final func SetMapLoaded() -> Void {
+    this.m_isMapLoaded = true;
+    if this.m_isSpinnerVisible {
+      this.m_spinnerFadeOutProxy.Stop();
+      this.m_spinnerFadeOutProxy = null;
+      this.PlayLibraryAnimation(this.m_spinnerFadeInAnim);
+    };
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    let loopOpts: inkAnimOptions;
+    loopOpts.loopType = inkanimLoopType.Cycle;
+    loopOpts.loopInfinite = true;
+    this.m_splashProxy = this.PlayLibraryAnimation(this.m_splashAnim, loopOpts);
+    this.m_splashProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnEndLoop");
+    this.PlayLibraryAnimation(this.m_spinnerAnim, loopOpts);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_splashProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnEndLoop");
+    this.m_splashProxy = null;
+  }
+
+  protected cb func OnEndLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    if this.m_isMapLoaded && this.m_isMapFadeOutStarted {
+      this.m_splashProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnEndLoop");
+      this.m_splashProxy.Stop();
+      this.m_splashProxy = null;
+      this.CallCustomCallback(n"OnFinished");
+    };
+  }
+
+  protected cb func OnSplash() -> Bool {
+    if this.m_isMapLoaded {
+      this.PlayLibraryAnimation(this.m_mapFadeOutAnim);
+      this.m_isMapFadeOutStarted = true;
+    };
+  }
+}

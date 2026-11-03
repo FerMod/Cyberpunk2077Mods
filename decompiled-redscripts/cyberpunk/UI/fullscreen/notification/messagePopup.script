@@ -1,0 +1,525 @@
+
+public class PhoneMessagePopupGameController extends gameuiNewPhoneRelatedGameController {
+
+  private edit let m_content: inkWidgetRef;
+
+  private edit let m_title: inkTextRef;
+
+  private edit let m_avatarImage: inkImageRef;
+
+  private edit let m_menuBackgrouns: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintsContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintTrack: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintClose: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintReply: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_scrollReply: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintMessenger: inkWidgetRef;
+
+  @runtimeProperty("category", "Hints")
+  private edit let m_hintCall: inkWidgetRef;
+
+  private edit let m_scrollSlider: inkWidgetRef;
+
+  private edit let m_contactsPath: inkWidgetRef;
+
+  private edit let m_messagesPath: inkWidgetRef;
+
+  private let m_blackboard: wref<IBlackboard>;
+
+  private let m_blackboardDef: ref<UI_ComDeviceDef>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_player: wref<GameObject>;
+
+  private let m_journalMgr: wref<JournalManager>;
+
+  private let m_phoneSystem: wref<PhoneSystem>;
+
+  private let m_data: ref<JournalNotificationData>;
+
+  private let m_entry: wref<JournalPhoneMessage>;
+
+  private let m_contactEntry: wref<JournalContact>;
+
+  private let m_attachment: wref<JournalEntry>;
+
+  private let m_attachmentState: gameJournalEntryState;
+
+  private let m_attachmentHash: Uint32;
+
+  private let m_activeEntry: wref<JournalEntry>;
+
+  private let m_dialogViewController: wref<MessengerDialogViewController>;
+
+  private let m_journalEntryHash: Int32;
+
+  private let m_proxy: ref<inkAnimProxy>;
+
+  @default(PhoneMessagePopupGameController, false)
+  private let m_isFocused: Bool;
+
+  @default(PhoneMessagePopupGameController, false)
+  private let m_isHubVisiale: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_player = this.GetPlayerControlledObject();
+    this.m_journalMgr = GameInstance.GetJournalManager(this.m_player.GetGame());
+    this.m_uiSystem = GameInstance.GetUISystem(this.m_player.GetGame());
+    this.m_phoneSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"PhoneSystem") as PhoneSystem;
+    this.m_blackboardDef = GetAllBlackboardDefs().UI_ComDevice;
+    this.m_blackboard = this.GetBlackboardSystem().Get(this.m_blackboardDef);
+    this.m_blackboard.SetBool(this.m_blackboardDef.isDisplayingMessage, true, true);
+    this.GetRootWidget().SetOpacity(0.00);
+    this.m_dialogViewController = inkWidgetRef.GetController(this.m_content) as MessengerDialogViewController;
+    this.m_dialogViewController.AttachJournalManager(this.m_journalMgr);
+    this.m_dialogViewController.InitDelaySystem(this.GetPlayerControlledObject());
+    this.m_data = this.GetRootWidget().GetUserData(n"JournalNotificationData") as JournalNotificationData;
+    this.SetupData();
+    this.QueueEvent(new SmsMessangerInitalizedEvent());
+    this.m_journalMgr.RegisterScriptCallback(this, n"OnChoiceEntryStateChanged", gameJournalListenerType.ChoiceEntry);
+  }
+
+  protected cb func OnChoiceEntryStateChanged(entryHash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    this.m_dialogViewController.UpdateData(false, false);
+    this.m_dialogViewController.SetFocus(true);
+  }
+
+  protected cb func OnRefresh(evt: ref<RefreshSmsMessagerEvent>) -> Bool {
+    this.m_data = evt.m_data;
+    this.SetupData();
+  }
+
+  private final func SetupData() -> Void {
+    let conversationEntry: wref<JournalEntry>;
+    let messageHash: Uint32;
+    let messageState: gameJournalEntryState;
+    this.m_contactEntry = this.m_data.journalEntry as JournalContact;
+    if this.m_contactEntry == null {
+      conversationEntry = this.m_data.journalEntry as JournalPhoneConversation;
+      this.m_contactEntry = this.m_journalMgr.GetParentEntry(conversationEntry) as JournalContact;
+      this.m_entry = this.FindFirstMessageWithAttachment(this.m_data.journalEntry as JournalContainerEntry);
+      this.m_journalEntryHash = this.m_journalMgr.GetEntryHash(conversationEntry);
+    } else {
+      this.m_journalEntryHash = this.m_journalMgr.GetEntryHash(this.m_contactEntry);
+    };
+    this.m_attachmentHash = this.m_entry.GetAttachmentPathHash();
+    this.m_attachment = this.m_journalMgr.GetEntry(this.m_attachmentHash);
+    inkWidgetRef.SetVisible(this.m_menuBackgrouns, Equals(this.m_data.mode, JournalNotificationMode.Menu));
+    messageState = this.m_journalMgr.GetEntryState(this.m_entry);
+    if NotEquals(messageState, gameJournalEntryState.Active) {
+      messageHash = Cast<Uint32>(this.m_journalMgr.GetEntryHash(this.m_entry));
+      this.m_journalMgr.ChangeEntryStateByHash(messageHash, gameJournalEntryState.Active, JournalNotifyOption.Notify);
+    };
+    this.m_attachmentState = this.m_journalMgr.GetEntryState(this.m_attachment);
+    if NotEquals(this.m_attachmentState, gameJournalEntryState.Active) && NotEquals(this.m_attachmentState, gameJournalEntryState.Succeeded) && NotEquals(this.m_attachmentState, gameJournalEntryState.Failed) {
+      this.m_journalMgr.ChangeEntryStateByHash(this.m_attachmentHash, gameJournalEntryState.Active, JournalNotifyOption.DoNotNotify);
+    };
+    inkWidgetRef.SetVisible(this.m_hintTrack, IsDefined(this.m_attachment) && NotEquals(this.m_attachmentState, gameJournalEntryState.Succeeded) && NotEquals(this.m_attachmentState, gameJournalEntryState.Failed));
+    inkWidgetRef.SetVisible(this.m_contactsPath, Equals(this.m_data.source, PhoneScreenType.Contacts));
+    inkWidgetRef.SetVisible(this.m_messagesPath, Equals(this.m_data.source, PhoneScreenType.Unread));
+    inkWidgetRef.SetVisible(this.m_hintCall, this.m_contactEntry.IsCallable(this.m_journalMgr));
+    inkWidgetRef.SetOpacity(this.m_hintCall, this.m_phoneSystem.IsCallingEnabled() ? 1.00 : 0.10);
+    InkImageUtils.RequestAvatarOrUnknown(this, this.m_avatarImage, this.m_contactEntry.GetAvatarID(this.m_journalMgr));
+    if this.m_data.openedFromPhone {
+      switch this.m_data.type {
+        case MessengerContactType.SingleThread:
+          this.m_activeEntry = this.m_contactEntry;
+          this.m_dialogViewController.ShowDialog(this.m_data.journalEntry, this.m_isFocused);
+          break;
+        case MessengerContactType.MultiThread:
+          this.m_activeEntry = this.m_contactEntry;
+          this.m_dialogViewController.ShowThread(this.m_data.journalEntry, this.m_isFocused);
+          break;
+        default:
+      };
+    } else {
+      if IsDefined(conversationEntry) {
+        this.m_activeEntry = conversationEntry;
+        this.m_dialogViewController.ShowThread(this.m_activeEntry);
+      } else {
+        this.m_activeEntry = this.m_contactEntry;
+        this.m_dialogViewController.ShowDialog(this.m_activeEntry);
+      };
+    };
+    if IsStringValid(this.m_contactEntry.GetLocalizedName(this.m_journalMgr)) {
+      inkTextRef.SetText(this.m_title, this.m_contactEntry.GetLocalizedName(this.m_journalMgr));
+    } else {
+      inkTextRef.SetText(this.m_title, GetLocalizedText(NameToString(this.m_data.contactNameLocKey)));
+    };
+    inkWidgetRef.SetVisible(this.m_hintReply, false);
+    inkWidgetRef.SetVisible(this.m_scrollReply, (this.m_player.PlayerLastUsedKBM() || this.m_player.PlayerLastUsedTouch()) && this.m_dialogViewController.HasReplyOptions() && inkWidgetRef.IsVisible(this.m_scrollSlider));
+    if Equals(this.m_data.mode, JournalNotificationMode.Menu) {
+      this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleMenuInput");
+      inkWidgetRef.SetVisible(this.m_hintMessenger, false);
+    } else {
+      if !this.m_data.openedFromPhone {
+        PopupStateUtils.SetBackgroundBlurBlendTime(this, 0.10);
+        PopupStateUtils.SetBackgroundBlur(this, true);
+        this.m_uiSystem.PushGameContext(UIGameContext.ModalPopup);
+        this.m_uiSystem.RequestNewVisualState(n"inkModalPopupState");
+        this.SetTimeDilatation(true);
+      };
+      inkWidgetRef.SetVisible(this.m_hintMessenger, true);
+    };
+    this.SetFocus(!this.m_data.openedFromPhone);
+    if !this.m_data.openedFromPhone {
+      this.OnGotFocus(null);
+    };
+  }
+
+  private final func SetFocus(isFocused: Bool) -> Void {
+    this.m_isFocused = isFocused;
+    inkWidgetRef.SetVisible(this.m_hintsContainer, isFocused);
+    this.m_dialogViewController.SetFocus(this.m_phoneSystem.IsTextingEnabled());
+  }
+
+  protected cb func OnGotFocus(evt: ref<FocusSmsMessagerEvent>) -> Bool {
+    this.SetFocus(true);
+    GameInstance.GetAudioSystem(this.m_player.GetGame()).Play(n"ui_menu_hover");
+    this.m_dialogViewController.SetCurrentMessagesAsVisited();
+    this.EnableInput();
+  }
+
+  public final func EnableInput() -> Void {
+    this.m_player.RegisterInputListener(this, n"OpenPauseMenu");
+    this.m_player.RegisterInputListener(this, n"cancel");
+    this.m_player.RegisterInputListener(this, n"phone_open_journal");
+    this.m_player.RegisterInputListener(this, n"click");
+    this.m_player.RegisterInputListener(this, n"touch_popup");
+    this.m_player.RegisterInputListener(this, n"double_tap");
+    this.m_player.RegisterInputListener(this, n"long_press");
+    this.m_player.RegisterInputListener(this, n"call");
+    this.m_player.RegisterInputListener(this, n"popup_moveDown");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp_left_stick_up");
+    this.m_player.RegisterInputListener(this, n"popup_moveUp_left_stick_down");
+    this.m_player.RegisterInputListener(this, n"sms_view_scroll_km");
+    this.m_player.RegisterInputListener(this, n"mouse_wheel");
+    this.m_player.RegisterInputListener(this, n"right_stick_y");
+    this.m_player.RegisterInputListener(this, n"touch_y");
+  }
+
+  public final func DisableInput() -> Void {
+    this.m_player.UnregisterInputListener(this, n"OpenPauseMenu");
+    this.m_player.UnregisterInputListener(this, n"cancel");
+    this.m_player.UnregisterInputListener(this, n"phone_open_journal");
+    this.m_player.UnregisterInputListener(this, n"click");
+    this.m_player.UnregisterInputListener(this, n"touch_popup");
+    this.m_player.UnregisterInputListener(this, n"double_tap");
+    this.m_player.UnregisterInputListener(this, n"long_press");
+    this.m_player.UnregisterInputListener(this, n"call");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp_left_stick_up");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp_left_stick_down");
+    this.m_player.UnregisterInputListener(this, n"popup_moveDown");
+    this.m_player.UnregisterInputListener(this, n"popup_moveUp");
+    this.m_player.UnregisterInputListener(this, n"sms_view_scroll_km");
+    this.m_player.UnregisterInputListener(this, n"mouse_wheel");
+    this.m_player.UnregisterInputListener(this, n"right_stick_y");
+    this.m_player.UnregisterInputListener(this, n"touch_y");
+  }
+
+  protected cb func OnLostFocus(evt: ref<UnfocusSmsMessagerEvent>) -> Bool {
+    this.SetFocus(false);
+  }
+
+  protected cb func OnDelayedDotsAnimation(evt: ref<TypingDelayEvent>) -> Bool {
+    if this.m_journalEntryHash == evt.m_conversationHash || evt.m_contactHash == this.m_journalEntryHash {
+      this.m_dialogViewController.PlayDotsAnimation();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_blackboard.SetBool(this.m_blackboardDef.isDisplayingMessage, false, true);
+    this.m_journalMgr.SetEntryVisited(this.m_entry, true);
+    if Equals(this.m_data.mode, JournalNotificationMode.Menu) {
+      this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleMenuInput");
+    } else {
+      if !this.m_data.openedFromPhone {
+        PopupStateUtils.SetBackgroundBlur(this, false);
+        this.m_uiSystem.PopGameContext(UIGameContext.ModalPopup);
+        this.m_uiSystem.RestorePreviousVisualState(n"inkModalPopupState");
+        this.SetTimeDilatation(false);
+      };
+    };
+    this.m_journalMgr.UnregisterScriptCallback(this, n"OnChoiceEntryStateChanged");
+  }
+
+  protected cb func OnShow(evt: ref<ShowSmsMessagerEvent>) -> Bool {
+    let animOptions: inkAnimOptions;
+    if this.m_proxy != null && this.m_proxy.IsPlaying() {
+      this.m_proxy.Stop();
+    };
+    animOptions.customTimeDilation = 2.00;
+    animOptions.applyCustomTimeDilation = true;
+    this.m_proxy = this.PlayLibraryAnimation(n"Intro", animOptions);
+  }
+
+  protected cb func OnHide(evt: ref<HideSmsMessagerEvent>) -> Bool {
+    let animOptions: inkAnimOptions;
+    if this.m_proxy != null && this.m_proxy.IsPlaying() {
+      this.m_proxy.Stop();
+    };
+    this.m_proxy = this.PlayLibraryAnimation(n"Outro", animOptions);
+  }
+
+  protected cb func OnPopupHidden(evt: ref<inkAnimProxy>) -> Bool {
+    let closeEvent: ref<CloseSmsMessengerEvent>;
+    if NotEquals(this.m_data.mode, JournalNotificationMode.HUD) {
+      this.m_data.token.TriggerCallback(this.m_data);
+    } else {
+      closeEvent = new CloseSmsMessengerEvent();
+      this.QueueEvent(closeEvent);
+    };
+  }
+
+  protected cb func OnHandleMenuInput(evt: ref<inkPointerEvent>) -> Bool {
+    let inputHandled: Bool;
+    if evt.IsAction(n"cancel") {
+      inputHandled = this.HandleCommonInputActions(n"cancel");
+    } else {
+      if evt.IsAction(n"phone_open_journal") {
+        inputHandled = this.HandleCommonInputActions(n"phone_open_journal");
+      } else {
+        if evt.IsAction(n"up_button") {
+          this.NavigateChoices(true);
+        } else {
+          if evt.IsAction(n"down_button") {
+            this.NavigateChoices(false);
+          } else {
+            if evt.IsAction(n"click") && evt.IsAction(n"tap") {
+              this.TryActivateChoice();
+            };
+          };
+        };
+      };
+    };
+    if !inputHandled {
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let actionName: CName;
+    let isPressed: Bool = Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_PRESSED);
+    let isAxis: Bool = Equals(ListenerAction.GetType(action), gameinputActionType.AXIS_CHANGE);
+    let isRelative: Bool = Equals(ListenerAction.GetType(action), gameinputActionType.RELATIVE_CHANGE);
+    inkWidgetRef.SetVisible(this.m_scrollReply, (this.m_player.PlayerLastUsedKBM() || this.m_player.PlayerLastUsedTouch()) && this.m_dialogViewController.HasReplyOptions() && inkWidgetRef.IsVisible(this.m_scrollSlider));
+    if this.m_isHubVisiale {
+      return false;
+    };
+    if isPressed || isAxis || isRelative {
+      actionName = ListenerAction.GetName(action);
+      if Equals(actionName, n"OpenPauseMenu") {
+        ListenerActionConsumer.DontSendReleaseEvent(consumer);
+      } else {
+        if !this.HandleCommonInputActions(actionName) {
+          switch actionName {
+            case n"double_tap":
+            case n"call":
+              this.TryCallContact();
+              break;
+            case n"touch_popup":
+            case n"click":
+              this.TryActivateChoice();
+              break;
+            case n"sms_view_scroll_km":
+              this.ScrollMessages(ListenerAction.GetValue(action), true);
+              break;
+            case n"popup_moveUp":
+              this.NavigateChoices(true);
+              break;
+            case n"popup_moveDown":
+              this.NavigateChoices(false);
+              break;
+            case n"popup_moveUp_left_stick_up":
+              this.NavigateChoices(true);
+              break;
+            case n"popup_moveUp_left_stick_down":
+              this.NavigateChoices(false);
+              break;
+            case n"mouse_wheel":
+              if !this.m_dialogViewController.HasReplyOptions() {
+                this.ScrollMessages(ListenerAction.GetValue(action), true);
+              };
+              break;
+            case n"touch_y":
+            case n"right_stick_y":
+              this.ScrollMessages(ListenerAction.GetValue(action), false);
+          };
+        };
+      };
+    };
+  }
+
+  private final func TryCallContact() -> Void {
+    if !this.m_contactEntry.IsCallable(this.m_journalMgr) {
+      return;
+    };
+    if !this.m_phoneSystem.IsCallingEnabled() {
+      this.ShowActionBlockedNotification();
+      return;
+    };
+    this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+    this.CallContact();
+  }
+
+  private final func ShowActionBlockedNotification() -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    this.m_uiSystem.QueueEvent(new UIInGameNotificationRemoveEvent());
+    notificationEvent.m_notificationType = UIInGameNotificationType.CombatRestriction;
+    this.m_uiSystem.QueueEvent(notificationEvent);
+  }
+
+  private final func CallContact() -> Void {
+    let callRequest: ref<questTriggerCallRequest> = new questTriggerCallRequest();
+    callRequest.addressee = StringToName(this.m_contactEntry.GetId());
+    callRequest.caller = n"Player";
+    callRequest.callPhase = questPhoneCallPhase.IncomingCall;
+    callRequest.callMode = questPhoneCallMode.Video;
+    this.m_phoneSystem.QueueRequest(callRequest);
+  }
+
+  private final func TryActivateChoice() -> Void {
+    if !this.m_dialogViewController.HasReplyOptions() {
+      return;
+    };
+    if !this.m_phoneSystem.IsTextingEnabled() {
+      this.ShowActionBlockedNotification();
+      return;
+    };
+    this.m_dialogViewController.ActivateSelectedReplyOption();
+  }
+
+  private final func HandleCommonInputActions(actionName: CName) -> Bool {
+    let res: Bool = true;
+    switch actionName {
+      case n"cancel":
+        this.RequestUnfocus();
+        break;
+      case n"phone_open_journal":
+        if IsDefined(this.m_attachment) && NotEquals(this.m_attachmentState, gameJournalEntryState.Succeeded) && NotEquals(this.m_attachmentState, gameJournalEntryState.Failed) {
+          this.GotoJournalMenu();
+        };
+        break;
+      default:
+        res = false;
+    };
+    return res;
+  }
+
+  private final func RequestUnfocus() -> Void {
+    this.DisableInput();
+    this.QueueEvent(new UnfocusSmsMessagerEvent());
+  }
+
+  protected cb func OnCloseRequest(evt: ref<RequestSmsMessagerCloseEvent>) -> Bool {
+    this.ClosePopup();
+  }
+
+  private final func ClosePopup() -> Void {
+    let animOptions: inkAnimOptions;
+    if this.m_proxy == null || !this.m_proxy.IsPlaying() {
+      this.m_proxy = this.PlayLibraryAnimation(n"Outro", animOptions);
+      this.m_proxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPopupHidden");
+    };
+  }
+
+  private final func TrackQuest() -> Void {
+    let objective: wref<JournalQuestObjective> = this.m_attachment as JournalQuestObjective;
+    if IsDefined(objective) {
+      this.m_journalMgr.TrackEntry(objective);
+    } else {
+      objective = this.GetFirstObjectiveFromQuest(this.m_attachment as JournalQuest);
+      this.m_journalMgr.TrackEntry(objective);
+    };
+  }
+
+  private final func FindFirstMessageWithAttachment(entry: wref<JournalContainerEntry>) -> wref<JournalPhoneMessage> {
+    let i: Int32;
+    let msg: wref<JournalPhoneMessage>;
+    let unpackedData: array<wref<JournalEntry>>;
+    QuestLogUtils.UnpackRecursive(this.m_journalMgr, entry, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      msg = unpackedData[i] as JournalPhoneMessage;
+      if msg != null && msg.GetAttachmentPathHash() != 0u {
+        return msg;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetFirstObjectiveFromQuest(journalQuest: wref<JournalQuest>) -> wref<JournalQuestObjective> {
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    QuestLogUtils.UnpackRecursive(this.m_journalMgr, journalQuest, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      if IsDefined(unpackedData[i] as JournalQuestObjective) {
+        return unpackedData[i] as JournalQuestObjective;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GotoJournalMenu() -> Void {
+    let userData: ref<MessageMenuAttachmentData>;
+    this.QueueEvent(new KeepPhoneOpenWhenInHubMenuEvent());
+    userData = new MessageMenuAttachmentData();
+    userData.m_entryHash = Cast<Int32>(this.m_attachmentHash);
+    this.GotoHubMenu(n"quest_log", userData);
+  }
+
+  protected cb func OnHUBMenuChanged(evt: ref<inkMenuLayer_SetMenuModeEvent>) -> Bool {
+    let mode: inkMenuMode = evt.GetMenuMode();
+    let state: inkMenuState = evt.GetMenuState();
+    this.m_isHubVisiale = Equals(state, inkMenuState.Enabled) && Equals(mode, inkMenuMode.HubMenu);
+  }
+
+  private final func GotoMessengerMenu() -> Void {
+    let userData: ref<MessageMenuAttachmentData> = new MessageMenuAttachmentData();
+    userData.m_entryHash = this.m_journalMgr.GetEntryHash(this.m_activeEntry);
+    this.GotoHubMenu(n"phone", userData);
+  }
+
+  private final func GotoHubMenu(menuName: CName, opt userData: ref<IScriptable>) -> Void {
+    let evt: ref<StartHubMenuEvent> = new StartHubMenuEvent();
+    evt.SetStartMenu(menuName, userData);
+    this.QueueBroadcastEvent(evt);
+  }
+
+  private final func ScrollMessages(value: Float, isMouseWheel: Bool) -> Void {
+    this.m_dialogViewController.ScrollMessages(value, isMouseWheel);
+  }
+
+  private final func NavigateChoices(isUp: Bool) -> Void {
+    this.m_dialogViewController.NavigateReplyOptions(isUp);
+    if this.m_dialogViewController.HasReplyOptions() {
+      GameInstance.GetAudioSystem(this.m_player.GetGame()).Play(n"ui_menu_hover");
+    };
+  }
+
+  protected final func SetTimeDilatation(enable: Bool) -> Void {
+    if enable {
+      TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", true, true);
+      PopupStateUtils.SetBackgroundBlur(this, true);
+    } else {
+      TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, "radialMenu", false, false);
+      PopupStateUtils.SetBackgroundBlur(this, false);
+    };
+  }
+}

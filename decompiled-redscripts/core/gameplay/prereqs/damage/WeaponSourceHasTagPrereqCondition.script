@@ -1,0 +1,15 @@
+
+public class WeaponSourceHasTagPrereqCondition extends BaseHitPrereqCondition {
+
+  public let m_tagToCheck: CName;
+
+  public func SetData(recordID: TweakDBID) -> Void {
+    this.m_tagToCheck = TweakDBInterface.GetCNameDefault(recordID + t".tagToCheck");
+    super.SetData(recordID);
+  }
+
+  public func Evaluate(hitEvent: ref<gameHitEvent>) -> Bool {
+    let hasTag: Bool = hitEvent.attackData.GetWeapon().GetWeaponRecord().TagsContains(this.m_tagToCheck);
+    return hasTag;
+  }
+}

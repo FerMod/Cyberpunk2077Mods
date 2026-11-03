@@ -1,0 +1,645 @@
+
+public class ColorTemplatePreviewVirtualController extends inkVirtualCompoundItemController {
+
+  private edit let m_widgetToSpawn: CName;
+
+  private let m_wrappedData: ref<WrappedTemplateData>;
+
+  private let m_spawnedWidget: wref<inkWidget>;
+
+  private let m_templatePreview: wref<ColorTemplatePreviewDisplayController>;
+
+  private let m_templateToggled: Bool;
+
+  private let m_templateSelected: Bool;
+
+  @default(ColorTemplatePreviewVirtualController, true)
+  private let m_canNavigate: Bool;
+
+  @default(ColorTemplatePreviewVirtualController, false)
+  private let m_colorCorrectionEnabled: Bool;
+
+  public final func GetCurrentData() -> ref<WrappedTemplateData> {
+    return this.m_wrappedData;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.GetRootWidget().SetVAlign(inkEVerticalAlign.Top);
+    this.GetRootWidget().SetHAlign(inkEHorizontalAlign.Left);
+    this.AsyncSpawnFromLocal(this.GetRootCompoundWidget(), this.m_widgetToSpawn, this, n"OnWidgetSpawned");
+    this.RegisterToCallback(n"OnSelected", this, n"OnSelected");
+    this.RegisterToCallback(n"OnDeselected", this, n"OnDeselected");
+    this.RegisterToCallback(n"OnToggledOn", this, n"OnToggledOn");
+    this.RegisterToCallback(n"OnToggledOff", this, n"OnToggledOff");
+    this.SetEnabled(false);
+    this.SetSelectable(false);
+    this.SetVisualSelected(false);
+    this.SetVisualToggled(false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnSelected", this, n"OnSelected");
+    this.UnregisterFromCallback(n"OnDeselected", this, n"OnDeselected");
+    this.UnregisterFromCallback(n"OnToggledOn", this, n"OnToggledOn");
+    this.UnregisterFromCallback(n"OnToggledOff", this, n"OnToggledOff");
+    this.UnregisterFromCallbacks();
+  }
+
+  protected cb func OnWidgetSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_spawnedWidget = widget;
+    this.SetupData();
+  }
+
+  protected cb func OnDataChanged(value: Variant) -> Bool {
+    this.m_wrappedData = FromVariant<ref<IScriptable>>(value) as WrappedTemplateData;
+    this.RegisterToCallbacks();
+    this.SetupData();
+  }
+
+  private final func SetupData() -> Void {
+    if !IsDefined(this.m_wrappedData) || !IsDefined(this.m_spawnedWidget) {
+      return;
+    };
+    this.m_templatePreview = this.m_spawnedWidget.GetController() as ColorTemplatePreviewDisplayController;
+    this.m_templatePreview.SetTemplate(this.m_wrappedData.m_template);
+    this.SetVisualToggled(this.m_templateToggled);
+    this.SetVisualSelected(this.m_templateSelected);
+    this.UpdateNavigationState();
+    this.m_templatePreview.SetToggleable(VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template));
+    this.m_templatePreview.SetCanAdd(this.m_wrappedData.m_canAcceptSave);
+    this.m_templatePreview.SetColorCorrectionEnabled(this.m_colorCorrectionEnabled);
+  }
+
+  public final func UpdateData(wrappedData: ref<WrappedTemplateData>) -> Void {
+    this.UnregisterFromCallbacks();
+    this.m_wrappedData = wrappedData;
+    this.RegisterToCallbacks();
+    this.SetupData();
+  }
+
+  protected cb func OnSelected(itemController: wref<inkVirtualCompoundItemController>, discreteNav: Bool) -> Bool {
+    if !this.m_wrappedData.m_parentGridController.IsEnabled() || !this.m_canNavigate || !VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template) {
+      return false;
+    };
+    if discreteNav {
+      this.m_wrappedData.SelectInParentGrid();
+    };
+    this.SetVisualSelected(true);
+    this.m_templateSelected = true;
+    if IsDefined(this.m_wrappedData.m_parentGridController) {
+      this.m_wrappedData.m_parentGridController.SetSelectedController(this);
+    };
+  }
+
+  protected cb func OnDeselected(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    if !this.m_wrappedData.m_parentGridController.IsEnabled() || !this.m_canNavigate {
+      return false;
+    };
+    this.SetVisualSelected(false);
+    this.m_templateSelected = false;
+    if IsDefined(this.m_wrappedData.m_parentGridController) && this.m_wrappedData.m_parentGridController.GetSelectedController() == this {
+      this.m_wrappedData.m_parentGridController.SetSelectedController(null);
+    };
+  }
+
+  protected cb func OnToggledOn(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    if !this.m_canNavigate {
+      return false;
+    };
+    if !VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template) {
+      return false;
+    };
+    if !this.m_wrappedData.m_parentGridController.IsEnabled() {
+      return false;
+    };
+    this.HandleToggleOn();
+  }
+
+  public final func HandleToggleOn() -> Void {
+    this.SetVisualToggled(true);
+    this.m_templateToggled = true;
+    if IsDefined(this.m_wrappedData.m_parentGridController) {
+      this.m_wrappedData.m_parentGridController.SetToggledController(this);
+    };
+  }
+
+  protected cb func OnTemplateToggled(widget: wref<inkWidget>) -> Bool {
+    if !IsDefined(this.m_wrappedData.m_parentGridController) {
+      return false;
+    };
+    if !IsDefined(this.m_wrappedData.m_parentGridController.GetToggledController()) || !VehicleVisualCustomizationTemplate.Equals(this.m_wrappedData.m_parentGridController.GetToggledController().GetCurrentData().m_template, this.m_wrappedData.m_template) {
+      this.HandleToggleOff();
+    };
+  }
+
+  protected cb func OnToggledOff(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    if !this.m_wrappedData.m_parentGridController.IsEnabled() || !VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template) {
+      return false;
+    };
+    this.HandleToggleOff();
+  }
+
+  public final func HandleToggleOff() -> Void {
+    this.SetVisualToggled(false);
+    this.m_templateToggled = false;
+  }
+
+  protected cb func OnNavigationEnabled(widget: wref<inkWidget>) -> Bool {
+    this.m_canNavigate = true;
+    this.UpdateNavigationState();
+  }
+
+  protected cb func OnNavigationDisabled(widget: wref<inkWidget>) -> Bool {
+    this.m_canNavigate = false;
+    this.UpdateNavigationState();
+  }
+
+  protected cb func OnColorCorrectionEnabled(widget: wref<inkWidget>) -> Bool {
+    this.m_templatePreview.SetColorCorrectionEnabled(true);
+    this.m_colorCorrectionEnabled = true;
+  }
+
+  protected cb func OnColorCorrectionDisabled(widget: wref<inkWidget>) -> Bool {
+    this.m_templatePreview.SetColorCorrectionEnabled(false);
+    this.m_colorCorrectionEnabled = false;
+  }
+
+  public final func SetVisualSelected(value: Bool) -> Void {
+    if IsDefined(this.m_templatePreview) {
+      this.m_templatePreview.SetSelected(value);
+    };
+  }
+
+  public final func SetVisualToggled(value: Bool) -> Void {
+    if IsDefined(this.m_templatePreview) {
+      this.m_templatePreview.SetToggled(value);
+    };
+  }
+
+  private final func RegisterToCallbacks() -> Void {
+    if IsDefined(this.m_wrappedData.m_parentGridController) {
+      this.m_wrappedData.m_parentGridController.RegisterToCallback(n"OnTemplateToggled", this, n"OnTemplateToggled");
+      this.m_wrappedData.m_parentGridController.RegisterToCallback(n"OnNavigationEnabled", this, n"OnNavigationEnabled");
+      this.m_wrappedData.m_parentGridController.RegisterToCallback(n"OnNavigationDisabled", this, n"OnNavigationDisabled");
+      this.m_wrappedData.m_parentGridController.RegisterToCallback(n"OnColorCorrectionEnabled", this, n"OnColorCorrectionEnabled");
+      this.m_wrappedData.m_parentGridController.RegisterToCallback(n"OnColorCorrectionDisabled", this, n"OnColorCorrectionDisabled");
+    };
+  }
+
+  private final func UnregisterFromCallbacks() -> Void {
+    if IsDefined(this.m_wrappedData.m_parentGridController) {
+      this.m_wrappedData.m_parentGridController.UnregisterFromCallback(n"OnTemplateToggled", this, n"OnTemplateToggled");
+      this.m_wrappedData.m_parentGridController.UnregisterFromCallback(n"OnNavigationEnabled", this, n"OnNavigationEnabled");
+      this.m_wrappedData.m_parentGridController.UnregisterFromCallback(n"OnNavigationDisabled", this, n"OnNavigationDisabled");
+      this.m_wrappedData.m_parentGridController.UnregisterFromCallback(n"OnColorCorrectionEnabled", this, n"OnColorCorrectionEnabled");
+      this.m_wrappedData.m_parentGridController.UnregisterFromCallback(n"OnColorCorrectionDisabled", this, n"OnColorCorrectionDisabled");
+    };
+  }
+
+  private final func UpdateNavigationState() -> Void {
+    this.SetEnabled(this.m_canNavigate && VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template));
+    this.SetSelectable(this.m_canNavigate && VehicleVisualCustomizationTemplate.IsValid(this.m_wrappedData.m_template));
+  }
+}
+
+public class ColorTemplatePreviewDisplayController extends BaseButtonView {
+
+  private edit let m_primaryColorMask: inkImageRef;
+
+  private edit let m_primaryColorMaskGroup: inkWidgetRef;
+
+  private edit let m_secondaryColorMask: inkImageRef;
+
+  private edit let m_secondaryColorMaskGroup: inkWidgetRef;
+
+  private edit let m_lightColorMask: inkImageRef;
+
+  private edit let m_lightColorMaskGroup: inkWidgetRef;
+
+  private edit let m_frame: inkFlexRef;
+
+  private edit let m_noTemplate: inkFlexRef;
+
+  private edit let m_checkbox: inkFlexRef;
+
+  private edit let m_templateType: inkImageRef;
+
+  private edit let m_checkboxSquare: inkRectangleRef;
+
+  private edit let m_addIcon: inkImageRef;
+
+  private edit let m_lightsColorGrey: inkImageRef;
+
+  private edit let m_uniqueTemplateImage: inkImageRef;
+
+  private edit let m_frameSelected: inkImageRef;
+
+  private edit let m_genericColor: HDRColor;
+
+  private edit let m_uniqueColor: HDRColor;
+
+  private let m_currentTemplate: VehicleVisualCustomizationTemplate;
+
+  private let m_canAdd: Bool;
+
+  private let m_lightsColorAvailable: Bool;
+
+  public final func SetToggleable(selectable: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_checkbox, selectable);
+  }
+
+  public final func SetCanAdd(canAdd: Bool) -> Void {
+    this.m_canAdd = canAdd;
+    if !VehicleVisualCustomizationTemplate.IsValid(this.m_currentTemplate) || NotEquals(VehicleVisualCustomizationTemplate.GetType(this.m_currentTemplate), VehicleVisualCustomizationType.Generic) {
+      inkWidgetRef.SetVisible(this.m_addIcon, canAdd);
+    };
+  }
+
+  public final func SetToggled(toggled: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_checkboxSquare, toggled);
+    if toggled {
+      inkWidgetRef.SetVisible(this.m_checkbox, true);
+    };
+  }
+
+  public final func SetLightsColorAvailability(available: Bool) -> Void {
+    this.m_lightsColorAvailable = available;
+    inkWidgetRef.SetVisible(this.m_lightsColorGrey, !this.m_lightsColorAvailable && this.m_currentTemplate.genericData.lightsColorDefined);
+  }
+
+  public final func SetSelected(selected: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_frameSelected, selected);
+  }
+
+  public final func SetTemplate(template: VehicleVisualCustomizationTemplate) -> Void {
+    this.m_currentTemplate = template;
+    if VehicleVisualCustomizationTemplate.IsValid(template) {
+      inkWidgetRef.SetVisible(this.m_frame, true);
+      inkWidgetRef.SetVisible(this.m_templateType, true);
+      if Equals(VehicleVisualCustomizationTemplate.GetType(template), VehicleVisualCustomizationType.Generic) {
+        inkWidgetRef.SetVisible(this.m_uniqueTemplateImage, false);
+        inkWidgetRef.SetVisible(this.m_noTemplate, true);
+        inkWidgetRef.SetVisible(this.m_addIcon, false);
+        inkWidgetRef.SetVisible(this.m_primaryColorMaskGroup, template.genericData.primaryColorDefined);
+        inkWidgetRef.SetVisible(this.m_secondaryColorMaskGroup, template.genericData.primaryColorDefined || template.genericData.secondaryColorDefined);
+        inkWidgetRef.SetVisible(this.m_lightColorMaskGroup, template.genericData.lightsColorDefined);
+        inkWidgetRef.SetTintColor(this.m_templateType, this.m_genericColor);
+        inkWidgetRef.SetVisible(this.m_lightsColorGrey, !this.m_lightsColorAvailable && template.genericData.lightsColorDefined);
+        if template.genericData.primaryColorDefined {
+          inkWidgetRef.SetTintColor(this.m_primaryColorMask, Color.ToSRGB(GenericTemplatePersistentData.GetPrimaryColor(template.genericData)));
+        };
+        if template.genericData.secondaryColorDefined {
+          inkWidgetRef.SetTintColor(this.m_secondaryColorMask, Color.ToSRGB(GenericTemplatePersistentData.GetSecondaryColor(template.genericData)));
+        } else {
+          if template.genericData.primaryColorDefined {
+            inkWidgetRef.SetTintColor(this.m_secondaryColorMask, Color.ToSRGB(GenericTemplatePersistentData.GetPrimaryColor(template.genericData)));
+          };
+        };
+        if template.genericData.lightsColorDefined {
+          inkWidgetRef.SetTintColor(this.m_lightColorMask, Color.ToSRGB(Color.HSBToColor(template.genericData.lightsColorHue, true)));
+        };
+      } else {
+        inkWidgetRef.SetVisible(this.m_primaryColorMaskGroup, false);
+        inkWidgetRef.SetVisible(this.m_secondaryColorMaskGroup, false);
+        inkWidgetRef.SetVisible(this.m_lightColorMaskGroup, false);
+        inkWidgetRef.SetVisible(this.m_uniqueTemplateImage, true);
+        inkWidgetRef.SetVisible(this.m_noTemplate, false);
+        inkWidgetRef.SetVisible(this.m_lightsColorGrey, false);
+        inkWidgetRef.SetTintColor(this.m_templateType, this.m_uniqueColor);
+        InkImageUtils.RequestSetImage(this, this.m_uniqueTemplateImage, template.uniqueData.customIcon.GetID());
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_primaryColorMaskGroup, false);
+      inkWidgetRef.SetVisible(this.m_secondaryColorMaskGroup, false);
+      inkWidgetRef.SetVisible(this.m_lightColorMaskGroup, false);
+      inkWidgetRef.SetVisible(this.m_uniqueTemplateImage, false);
+      inkWidgetRef.SetVisible(this.m_templateType, false);
+      inkWidgetRef.SetVisible(this.m_frame, false);
+      inkWidgetRef.SetVisible(this.m_addIcon, this.m_canAdd);
+      inkWidgetRef.SetVisible(this.m_lightsColorGrey, false);
+      inkWidgetRef.SetVisible(this.m_noTemplate, true);
+    };
+  }
+
+  public final func SetColorCorrectionEnabled(enabled: Bool) -> Void {
+    this.GetRootWidget().SetEffectEnabled(inkEffectType.ColorCorrection, n"srgbCorrection", enabled);
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.SetToggleable(false);
+    this.SetToggled(false);
+    this.SetCanAdd(false);
+    this.SetColorCorrectionEnabled(false);
+    this.SetLightsColorAvailability(true);
+    inkWidgetRef.SetVisible(this.m_primaryColorMaskGroup, false);
+    inkWidgetRef.SetVisible(this.m_secondaryColorMaskGroup, false);
+    inkWidgetRef.SetVisible(this.m_lightColorMaskGroup, false);
+  }
+}
+
+public class TwintoneTemplateGridController extends inkGridController {
+
+  private let m_templatesDataSource: ref<ScriptableDataSource>;
+
+  private let m_templatesDataView: ref<ScriptableDataView>;
+
+  private let m_templatesDataClassifier: ref<VehicleVisualCustomizationTemplateClassifier>;
+
+  private let m_templatePositionProvider: ref<VehicleVisualCustomizationTemplatePositionProvider>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_toggledController: wref<ColorTemplatePreviewVirtualController>;
+
+  private let m_selectedController: wref<ColorTemplatePreviewVirtualController>;
+
+  @default(TwintoneTemplateGridController, true)
+  private let m_canNavigate: Bool;
+
+  @default(TwintoneTemplateGridController, false)
+  private let m_colorCorrectionEnabled: Bool;
+
+  @default(TwintoneTemplateGridController, true)
+  private let m_enabled: Bool;
+
+  public final func SetEnabled(enabled: Bool) -> Void {
+    this.m_enabled = enabled;
+  }
+
+  public final const func IsEnabled() -> Bool {
+    return this.m_enabled;
+  }
+
+  public final func GetSelectedController() -> wref<ColorTemplatePreviewVirtualController> {
+    return this.m_selectedController;
+  }
+
+  public final func GetToggledController() -> wref<ColorTemplatePreviewVirtualController> {
+    return this.m_toggledController;
+  }
+
+  public final func GetFirstEmptyIndex() -> Uint32 {
+    let controller: ref<ColorTemplatePreviewVirtualController>;
+    let i: Uint32 = 0u;
+    while i < this.m_templatesDataSource.GetArraySize() {
+      controller = this.GetControllerAtIndex(i);
+      if !VehicleVisualCustomizationTemplate.IsValid(controller.GetCurrentData().m_template) {
+        return i;
+      };
+      i += 1u;
+    };
+    return 4294967295u;
+  }
+
+  public final func GetControllerAtIndex(index: Uint32) -> ref<ColorTemplatePreviewVirtualController> {
+    return this.GetItemWidget(index).GetControllerByType(n"ColorTemplatePreviewVirtualController") as ColorTemplatePreviewVirtualController;
+  }
+
+  public func CanNavigateToItem(item: wref<inkVirtualCompoundItemController>) -> Bool {
+    let wrappedData: ref<WrappedTemplateData> = (item as ColorTemplatePreviewVirtualController).GetCurrentData();
+    return IsDefined(wrappedData) && VehicleVisualCustomizationTemplate.IsValid(wrappedData.m_template);
+  }
+
+  public final func SetupTemplatesGrid(templateType: VehicleVisualCustomizationType, component: ref<vehicleVisualCustomizationComponent>, opt modelName: CName) -> Void {
+    this.SetupVirtualGrid();
+    this.PopulateData(templateType, component, modelName);
+    this.RegisterToCallback(n"OnAllElementsSpawned", this, n"OnAllElementsSpawned");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.ResetTemplatesGrid();
+  }
+
+  public final func TryToFocusElement(onlyIfPreviouslySelected: Bool) -> Bool {
+    if IsDefined(this.GetSelectedController()) {
+      this.SelectItem(this.GetSelectedController().GetCurrentData().m_indexInList);
+      return true;
+    };
+    if !onlyIfPreviouslySelected && this.GetFirstEmptyIndex() != 0u {
+      this.SelectItem(0u);
+      return true;
+    };
+    return false;
+  }
+
+  public final func UpdateTemplateInGrid(wrappedData: ref<WrappedTemplateData>) -> Void {
+    let controller: ref<ColorTemplatePreviewVirtualController> = this.GetControllerAtIndex(wrappedData.m_indexInList);
+    if !IsDefined(controller) {
+      return;
+    };
+    controller.UpdateData(wrappedData);
+  }
+
+  public final func DeleteSelectedTemplateInGrid(canChangeCurrentlySelectedIndex: Bool) -> VehicleVisualCustomizationTemplate {
+    let deletedTemplate: VehicleVisualCustomizationTemplate;
+    if IsDefined(this.GetSelectedController()) {
+      deletedTemplate = this.DeleteTemplateInGrid(this.GetSelectedController().GetCurrentData(), canChangeCurrentlySelectedIndex);
+    };
+    return deletedTemplate;
+  }
+
+  public final func DeleteTemplateInGrid(targetWrappedData: ref<WrappedTemplateData>, canChangeCurrentlySelectedIndex: Bool) -> VehicleVisualCustomizationTemplate {
+    let previousNavigationState: Bool;
+    let emptyWrappedData: ref<WrappedTemplateData> = new WrappedTemplateData();
+    let deleteIndex: Uint32 = targetWrappedData.m_indexInList;
+    emptyWrappedData.m_parentGridController = this;
+    emptyWrappedData.m_indexInList = deleteIndex;
+    emptyWrappedData.m_canAcceptSave = targetWrappedData.m_canAcceptSave;
+    let deletedTemplate: VehicleVisualCustomizationTemplate = targetWrappedData.m_template;
+    this.UpdateTemplateInGrid(emptyWrappedData);
+    previousNavigationState = this.m_canNavigate;
+    this.SetCanNavigateInGrid(true);
+    this.UnSelectCurrentItem();
+    this.PackListToTheLeft();
+    if this.GetFirstEmptyIndex() > 0u {
+      if this.GetFirstEmptyIndex() > deleteIndex {
+        this.SelectItem(deleteIndex);
+      } else {
+        if canChangeCurrentlySelectedIndex {
+          this.SelectItem(Cast<Uint32>(Max(Cast<Int32>(deleteIndex) - 1, 0)));
+        };
+      };
+    };
+    this.SetCanNavigateInGrid(previousNavigationState);
+    return deletedTemplate;
+  }
+
+  private final func PackListToTheLeft() -> Void {
+    let controllerA: ref<ColorTemplatePreviewVirtualController>;
+    let controllerB: ref<ColorTemplatePreviewVirtualController>;
+    let savedWrappedData: ref<WrappedTemplateData>;
+    let wrappedData: ref<WrappedTemplateData>;
+    let i: Uint32 = 0u;
+    while i < this.m_templatesDataSource.GetArraySize() - 1u {
+      controllerA = this.GetControllerAtIndex(i);
+      controllerB = this.GetControllerAtIndex(i + 1u);
+      if !VehicleVisualCustomizationTemplate.IsValid(controllerA.GetCurrentData().m_template) && VehicleVisualCustomizationTemplate.IsValid(controllerB.GetCurrentData().m_template) {
+        savedWrappedData = controllerA.GetCurrentData();
+        wrappedData = controllerB.GetCurrentData();
+        wrappedData.m_indexInList = i;
+        this.UpdateTemplateInGrid(wrappedData);
+        savedWrappedData.m_indexInList = i + 1u;
+        this.UpdateTemplateInGrid(savedWrappedData);
+      };
+      i += 1u;
+    };
+  }
+
+  public final func ResetTemplatesGrid() -> Void {
+    this.ResetVirtualGrid();
+    this.UnregisterFromCallback(n"OnAllElementsSpawned", this, n"OnAllElementsSpawned");
+  }
+
+  public final func GetCanNavigateInGrid() -> Bool {
+    return this.m_canNavigate;
+  }
+
+  public final func SetCanNavigateInGrid(canNavigate: Bool) -> Void {
+    this.SetNavigable(canNavigate);
+    this.m_canNavigate = canNavigate;
+    if this.m_canNavigate {
+      this.CallCustomCallback(n"OnNavigationEnabled");
+    } else {
+      this.CallCustomCallback(n"OnNavigationDisabled");
+    };
+  }
+
+  public final func SetColorCorrectionEnabled(enabled: Bool) -> Void {
+    this.m_colorCorrectionEnabled = enabled;
+    if this.m_colorCorrectionEnabled {
+      this.CallCustomCallback(n"OnColorCorrectionEnabled");
+    } else {
+      this.CallCustomCallback(n"OnColorCorrectionDisabled");
+    };
+  }
+
+  public final func MoveDiscreteNavigation(direction: inkDiscreteNavigationDirection) -> Void {
+    if !IsDefined(this.m_selectedController) {
+      this.SelectItem(0u, true);
+    } else {
+      this.Navigate(direction);
+    };
+  }
+
+  public final func SetSelectedController(itemController: wref<ColorTemplatePreviewVirtualController>) -> Void {
+    this.m_selectedController = itemController;
+    this.CallCustomCallback(n"OnControllerSelected");
+  }
+
+  public final func SetToggledController(itemController: wref<ColorTemplatePreviewVirtualController>) -> Void {
+    this.m_toggledController = itemController;
+    this.CallCustomCallback(n"OnTemplateToggled");
+  }
+
+  public final func ToggleTemplateInGrid(template: VehicleVisualCustomizationTemplate, selectTemplate: Bool) -> Void {
+    let controller: ref<ColorTemplatePreviewVirtualController>;
+    let i: Uint32 = 0u;
+    while i < this.m_templatesDataSource.GetArraySize() {
+      controller = this.GetControllerAtIndex(i);
+      if !IsDefined(controller) {
+      } else {
+        if VehicleVisualCustomizationTemplate.Equals(controller.GetCurrentData().m_template, template) {
+          this.ToggleItem(i);
+          if selectTemplate {
+            this.SelectItem(i);
+          };
+          return;
+        };
+      };
+      i += 1u;
+    };
+  }
+
+  private final func SetupVirtualGrid() -> Void {
+    this.m_templatesDataClassifier = new VehicleVisualCustomizationTemplateClassifier();
+    this.m_templatePositionProvider = new VehicleVisualCustomizationTemplatePositionProvider();
+    this.m_templatesDataSource = new ScriptableDataSource();
+    this.m_templatesDataView = new ScriptableDataView();
+    this.m_templatesDataView.SetSource(this.m_templatesDataSource);
+    this.m_templatesDataView.DisableSorting();
+    this.SetClassifier(this.m_templatesDataClassifier);
+    this.SetProvider(this.m_templatePositionProvider);
+    this.SetSource(this.m_templatesDataView);
+  }
+
+  private final func ResetVirtualGrid() -> Void {
+    this.SetSource(null);
+    this.SetClassifier(null);
+    this.SetProvider(null);
+    this.m_templatesDataView.SetSource(null);
+    this.m_templatesDataView = null;
+    this.m_templatesDataSource = null;
+    this.m_templatesDataClassifier = null;
+    this.m_templatePositionProvider = null;
+  }
+
+  private final func PopulateData(templateType: VehicleVisualCustomizationType, component: ref<vehicleVisualCustomizationComponent>, opt modelName: CName) -> Void {
+    let wrappedTemplate: ref<WrappedTemplateData>;
+    let wrappedTemplates: array<ref<IScriptable>>;
+    let i: Int32 = 0;
+    while i < component.GetMaxNumberOfVisualCustomizationTemplates(templateType) {
+      wrappedTemplate = new WrappedTemplateData();
+      wrappedTemplate.m_parentGridController = this;
+      wrappedTemplate.m_indexInList = Cast<Uint32>(i);
+      if i < component.GetNumberOfStoredVisualCustomizationTemplates(templateType, modelName) {
+        wrappedTemplate.m_template = component.GetStoredVisualCustomizationTemplate(templateType, i, modelName);
+      };
+      wrappedTemplate.m_canAcceptSave = Equals(templateType, VehicleVisualCustomizationType.Generic);
+      ArrayPush(wrappedTemplates, wrappedTemplate);
+      i += 1;
+    };
+    this.m_templatesDataSource.Reset(wrappedTemplates);
+  }
+
+  protected cb func OnAllElementsSpawned() -> Bool {
+    this.UnregisterFromCallback(n"OnAllElementsSpawned", this, n"OnAllElementsSpawned");
+    if this.m_canNavigate {
+      this.CallCustomCallback(n"OnNavigationEnabled");
+    } else {
+      this.CallCustomCallback(n"OnNavigationDisabled");
+    };
+    if this.m_colorCorrectionEnabled {
+      this.CallCustomCallback(n"OnColorCorrectionEnabled");
+    } else {
+      this.CallCustomCallback(n"OnColorCorrectionDisabled");
+    };
+  }
+}
+
+public class WrappedTemplateData extends IScriptable {
+
+  public let m_parentGridController: wref<TwintoneTemplateGridController>;
+
+  public let m_template: VehicleVisualCustomizationTemplate;
+
+  public let m_indexInList: Uint32;
+
+  public let m_canAcceptSave: Bool;
+
+  public final func SelectInParentGrid() -> Void {
+    if IsDefined(this.m_parentGridController) {
+      this.m_parentGridController.SelectItem(this.m_indexInList);
+    };
+  }
+}
+
+public class VehicleVisualCustomizationTemplateClassifier extends inkVirtualItemTemplateClassifier {
+
+  public func ClassifyItem(data: Variant) -> Uint32 {
+    return 0u;
+  }
+}
+
+public class VehicleVisualCustomizationTemplatePositionProvider extends inkItemPositionProvider {
+
+  public func GetItemPosition(data: Variant) -> Uint32 {
+    let wrappedData: ref<WrappedTemplateData> = FromVariant<ref<IScriptable>>(data) as WrappedTemplateData;
+    if !IsDefined(wrappedData) {
+      return 4294967295u;
+    };
+    return wrappedData.m_indexInList;
+  }
+
+  public func SaveItemPosition(data: Variant, position: Uint32) -> Void;
+}

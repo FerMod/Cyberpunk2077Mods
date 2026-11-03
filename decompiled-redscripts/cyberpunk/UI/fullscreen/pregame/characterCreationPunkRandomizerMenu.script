@@ -1,0 +1,453 @@
+
+public class RandomizationLockListItem extends inkLogicController {
+
+  private edit let m_checker: inkWidgetRef;
+
+  private edit let m_lockIcon: inkWidgetRef;
+
+  private edit let m_hitArea: inkWidgetRef;
+
+  private edit let m_lockName: inkTextRef;
+
+  private let m_navigationController: wref<inkDiscreteNavigationController>;
+
+  private let m_lockCategory: wref<CharacterRandomizationCategory_Record>;
+
+  @default(RandomizationLockListItem, false)
+  private let m_isHovered: Bool;
+
+  @default(RandomizationLockListItem, true)
+  private let m_isInteractable: Bool;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  protected cb func OnInitialize() -> Bool {
+    if inkWidgetRef.IsValid(this.m_hitArea) {
+      inkWidgetRef.RegisterToCallback(this.m_hitArea, n"OnHoverOver", this, n"OnHoverOver");
+      inkWidgetRef.RegisterToCallback(this.m_hitArea, n"OnHoverOut", this, n"OnHoverOut");
+    };
+    this.m_rootWidget = this.GetRootWidget();
+    this.m_navigationController = inkWidgetRef.GetController(this.m_hitArea) as inkDiscreteNavigationController;
+    this.EnableLock(false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_hitArea, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hitArea, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func SwitchLock() -> Bool {
+    this.EnableLock(!inkWidgetRef.IsVisible(this.m_checker));
+    return this.IsLockEnabled();
+  }
+
+  public final func EnableLock(enable: Bool) -> Void {
+    if this.m_isInteractable {
+      inkWidgetRef.SetVisible(this.m_checker, enable);
+      inkWidgetRef.SetVisible(this.m_lockIcon, enable);
+      if this.m_isHovered {
+        this.SetLockState(n"Hover");
+        return;
+      };
+      if enable {
+        this.SetLockState(n"Disabled");
+      } else {
+        this.SetLockState(n"Default");
+      };
+    };
+  }
+
+  public final func SetLockInteractable(interactable: Bool) -> Void {
+    this.m_navigationController.SetInputDisabled(interactable);
+    this.m_navigationController.SetNavigable(interactable);
+    this.m_isInteractable = interactable;
+  }
+
+  public final func IsLockEnabled() -> Bool {
+    return inkWidgetRef.IsVisible(this.m_checker);
+  }
+
+  public final func IsLockHovered() -> Bool {
+    return Equals(this.m_rootWidget.GetState(), n"Hover");
+  }
+
+  public final func SetLockState(state: CName) -> Void {
+    this.m_rootWidget.SetState(state);
+  }
+
+  public final func SetLockCategory(lockCategory: wref<CharacterRandomizationCategoryUI_Record>) -> Void {
+    this.m_lockCategory = lockCategory.CategoryType();
+    inkTextRef.SetLocalizedText(this.m_lockName, lockCategory.CategoryName());
+  }
+
+  public final func GetLockCategory() -> ref<CharacterRandomizationCategory_Record> {
+    return this.m_lockCategory;
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInteractable {
+      this.SetLockState(n"Hover");
+    };
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInteractable {
+      this.SetLockState(this.IsLockEnabled() ? n"Disabled" : n"Default");
+    };
+  }
+}
+
+public class PunkScoreSelectorControllerInt extends inkLogicController {
+
+  private edit let m_sliderWidget: inkWidgetRef;
+
+  private edit let m_labelMinWidget: inkWidgetRef;
+
+  private edit let m_labelMaxWidget: inkWidgetRef;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  @default(PunkScoreSelectorControllerInt, 5f)
+  private let m_newValue: Int32;
+
+  private let m_localValue: Int32;
+
+  @default(PunkScoreSelectorControllerInt, false)
+  private let m_inputDisabled: Bool;
+
+  private let m_sliderController: wref<inkSliderController>;
+
+  private let m_sliderButtonController: wref<inkButtonController>;
+
+  private let m_sliderAreaWidget: inkWidgetRef;
+
+  private let m_sliderHandleWidget: inkWidgetRef;
+
+  protected edit let m_ValueText: inkTextRef;
+
+  protected edit let m_LeftArrow: inkWidgetRef;
+
+  protected edit let m_RightArrow: inkWidgetRef;
+
+  private edit let m_HintsContainer: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    if inkWidgetRef.IsValid(this.m_LeftArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_LeftArrow, n"OnRelease", this, n"OnLeft");
+    };
+    if inkWidgetRef.IsValid(this.m_RightArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_RightArrow, n"OnRelease", this, n"OnRight");
+    };
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.RegisterToCallback(n"OnRelease", this, n"OnShortcutPress");
+    this.RegisterToCallback(n"OnRepeat", this, n"OnShortcutRepeat");
+    this.m_localValue = 0;
+    this.m_sliderController = inkWidgetRef.GetControllerByType(this.m_sliderWidget, n"inkSliderController") as inkSliderController;
+    this.m_sliderController.Setup(1.00, 10.00, Cast<Float>(this.m_newValue), 1.00);
+    this.m_sliderController.RegisterToCallback(n"OnSliderValueChanged", this, n"OnSliderValueChanged");
+    this.m_sliderButtonController = inkWidgetRef.GetControllerByType(this.m_sliderWidget, n"inkButtonController") as inkButtonController;
+    this.m_sliderAreaWidget = this.m_sliderController.GetSlidingAreaRef();
+    this.m_sliderHandleWidget = this.m_sliderController.GetHandleRef();
+    inkWidgetRef.SetVisible(this.m_HintsContainer, false);
+    this.Refresh();
+    this.UpdateDisabledInputState();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnShortcutPress");
+    this.UnregisterFromCallback(n"OnRepeat", this, n"OnShortcutRepeat");
+    this.m_sliderController.UnregisterFromCallback(n"OnSliderValueChanged", this, n"OnSliderValueChanged");
+    inkWidgetRef.UnregisterFromCallback(this.m_LeftArrow, n"OnRelease", this, n"OnLeft");
+    inkWidgetRef.UnregisterFromCallback(this.m_RightArrow, n"OnRelease", this, n"OnRight");
+  }
+
+  protected final func UpdateValueTextLanguageResources() -> Void {
+    let languageProvider: ref<inkLanguageOverrideProvider> = inkWidgetRef.GetUserData(this.m_ValueText, n"inkLanguageOverrideProvider") as inkLanguageOverrideProvider;
+    languageProvider.SetLanguage(scnDialogLineLanguage.Origin);
+    inkTextRef.UpdateLanguageResources(this.m_ValueText, false);
+  }
+
+  public final func SetDisabledInputState(inputDisabled: Bool) -> Void {
+    this.m_inputDisabled = inputDisabled;
+    this.UpdateDisabledInputState();
+  }
+
+  private final func UpdateDisabledInputState() -> Void {
+    inkWidgetRef.SetInteractive(this.m_LeftArrow, !this.m_inputDisabled);
+    inkWidgetRef.SetInteractive(this.m_RightArrow, !this.m_inputDisabled);
+    inkWidgetRef.SetInteractive(this.m_sliderWidget, !this.m_inputDisabled);
+    inkWidgetRef.SetInteractive(this.m_sliderAreaWidget, !this.m_inputDisabled);
+    inkWidgetRef.SetInteractive(this.m_sliderHandleWidget, !this.m_inputDisabled);
+    this.m_sliderButtonController.SetNavigable(!this.m_inputDisabled);
+    this.m_sliderButtonController.SetSelectable(!this.m_inputDisabled);
+    this.m_sliderController.SetInputDisabled(this.m_inputDisabled);
+    this.m_sliderButtonController.SetInputDisabled(this.m_inputDisabled);
+    if this.m_inputDisabled {
+      this.m_sliderButtonController.SetSelected(false);
+      inkWidgetRef.SetState(this.m_labelMinWidget, n"Default");
+      inkWidgetRef.SetState(this.m_labelMaxWidget, n"Default");
+      inkWidgetRef.SetVisible(this.m_HintsContainer, false);
+    };
+  }
+
+  protected cb func OnLeft(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && (e.IsAction(n"click") || e.IsAction(n"tap")) && !e.IsHandled() {
+      this.PlaySound(n"ButtonValueDown", n"OnPress");
+      this.ChangeValue(false);
+      e.Handle();
+    };
+  }
+
+  protected cb func OnRight(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && (e.IsAction(n"click") || e.IsAction(n"tap")) && !e.IsHandled() {
+      this.PlaySound(n"ButtonValueDown", n"OnPress");
+      this.ChangeValue(true);
+      e.Handle();
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkWidgetRef.SetState(this.m_labelMinWidget, n"Hover");
+      inkWidgetRef.SetState(this.m_labelMaxWidget, n"Hover");
+      inkWidgetRef.SetVisible(this.m_HintsContainer, true);
+    };
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkWidgetRef.SetState(this.m_labelMinWidget, n"Default");
+      inkWidgetRef.SetState(this.m_labelMaxWidget, n"Default");
+      inkWidgetRef.SetVisible(this.m_HintsContainer, false);
+    };
+  }
+
+  protected cb func OnSliderValueChanged(sliderController: wref<inkSliderController>, progress: Float, value: Float) -> Bool {
+    this.m_newValue = Cast<Int32>(ClampF(value, this.m_sliderController.GetMinValue(), this.m_sliderController.GetMaxValue()));
+    this.Refresh();
+  }
+
+  protected cb func OnShortcutRepeat(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && !e.IsHandled() {
+      if e.IsAction(n"option_switch_prev") {
+        this.ChangeValue(false);
+        e.Handle();
+      } else {
+        if e.IsAction(n"option_switch_next") {
+          this.ChangeValue(true);
+          e.Handle();
+        };
+      };
+    };
+  }
+
+  protected cb func OnShortcutPress(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && !e.IsHandled() {
+      if e.IsAction(n"option_switch_prev") {
+        this.PlaySound(n"Button", n"OnPress");
+        this.AcceptValue(false);
+        e.Handle();
+      } else {
+        if e.IsAction(n"option_switch_next") {
+          this.PlaySound(n"Button", n"OnPress");
+          this.AcceptValue(true);
+          e.Handle();
+        };
+      };
+    };
+  }
+
+  private final func ChangeValue(forward: Bool) -> Void {
+    let step: Int32 = forward ? 1 : -1;
+    this.m_newValue = Clamp(this.m_newValue + step, 1, 10);
+    this.Refresh();
+  }
+
+  private final func AcceptValue(forward: Bool) -> Void {
+    if this.m_localValue == this.m_newValue {
+      this.ChangeValue(forward);
+    };
+  }
+
+  public final func Refresh() -> Void {
+    this.UpdateValueTextLanguageResources();
+    inkTextRef.SetText(this.m_ValueText, IntToString(this.m_newValue));
+    this.m_sliderController.ChangeValue(Cast<Float>(this.m_newValue));
+    this.m_localValue = this.m_newValue;
+    this.CallCustomCallback(n"OnValueUpdated");
+  }
+
+  public final func SetValue(value: Int32) -> Void {
+    this.m_newValue = value;
+    this.Refresh();
+  }
+
+  public final func GetValue() -> Int32 {
+    return this.m_localValue;
+  }
+}
+
+public class gameuiCharacterRandomizationController extends inkLogicController {
+
+  private edit let m_punkSlider: inkWidgetRef;
+
+  private edit let m_locksGrid: inkGridRef;
+
+  @default(gameuiCharacterRandomizationController, gameuiCharacterCustomizationEditTag.NewGame)
+  private edit let m_editMode: gameuiCharacterCustomizationEditTag;
+
+  @default(gameuiCharacterRandomizationController, false)
+  private edit let m_inputDisabled: Bool;
+
+  private let m_lockedCategories: [gamedataCharacterRandomizationCategory];
+
+  private let m_excludedCatergoriesMirror: [gamedataCharacterRandomizationCategory];
+
+  private let m_lockWidgets: [wref<inkWidget>];
+
+  private let m_lockLogics: [wref<RandomizationLockListItem>];
+
+  private let m_lockDatas: [ref<CharacterRandomizationCategoryUI_Record>];
+
+  private let m_data: ref<gameuiCharacterRandomizationParametersData>;
+
+  private let m_customizationSystem: wref<gameuiICharacterCustomizationSystem>;
+
+  private let m_punkSliderController: wref<PunkScoreSelectorControllerInt>;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_punkSlider, n"OnValueUpdated", this, n"OnPunkScoreUpdateValue");
+    this.m_punkSliderController = inkWidgetRef.GetController(this.m_punkSlider) as PunkScoreSelectorControllerInt;
+    this.m_data = new gameuiCharacterRandomizationParametersData();
+    this.InitializeExclusionArrays();
+    if inkWidgetRef.IsValid(this.m_punkSlider) {
+      this.OnPunkScoreUpdateValue(inkWidgetRef.Get(this.m_punkSlider));
+    };
+    this.InitializeRandomizerLocksList();
+    this.UpdateDisabledInputState();
+  }
+
+  protected cb func OnPunkScoreUpdateValue(widget: wref<inkWidget>) -> Bool {
+    let slider: wref<PunkScoreSelectorControllerInt> = widget.GetController() as PunkScoreSelectorControllerInt;
+    this.m_data.SetRating(slider.GetValue());
+  }
+
+  public final func GetRandomizerData() -> ref<gameuiCharacterRandomizationParametersData> {
+    return this.m_data;
+  }
+
+  public final func UpdateEditMode(editMode: gameuiCharacterCustomizationEditTag) -> Void {
+    this.m_editMode = editMode;
+    this.ApplyEditModeFilter();
+  }
+
+  public final func UpdateRandomizationSettingsFromData() -> Void {
+    this.m_data = this.m_customizationSystem.GetRandomizationParameters();
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_lockLogics) {
+      this.m_lockLogics[i].EnableLock(this.m_data.IsCategoryLocked(this.m_lockLogics[i].GetLockCategory().Type()));
+      i += 1;
+    };
+    this.m_punkSliderController.SetValue(this.m_data.GetRating());
+  }
+
+  public final func SetCustomizationSystem(customizationSystem: wref<gameuiICharacterCustomizationSystem>) -> Void {
+    this.m_customizationSystem = customizationSystem;
+  }
+
+  public final func SetDisabledInputState(inputDisabled: Bool) -> Void {
+    let slider: wref<PunkScoreSelectorControllerInt> = inkWidgetRef.Get(this.m_punkSlider).GetController() as PunkScoreSelectorControllerInt;
+    slider.SetDisabledInputState(inputDisabled);
+    inkWidgetRef.Get(this.m_punkSlider).SetInteractive(!inputDisabled);
+    this.m_inputDisabled = inputDisabled;
+    this.UpdateDisabledInputState();
+  }
+
+  private final func InitializeExclusionArrays() -> Void {
+    ArrayPush(this.m_excludedCatergoriesMirror, gamedataCharacterRandomizationCategory.Skin);
+    ArrayPush(this.m_excludedCatergoriesMirror, gamedataCharacterRandomizationCategory.Face);
+    ArrayPush(this.m_excludedCatergoriesMirror, gamedataCharacterRandomizationCategory.Body);
+    ArrayPush(this.m_excludedCatergoriesMirror, gamedataCharacterRandomizationCategory.Tattoos);
+  }
+
+  private final func ShouldDisplayLockCategory(testedCategory: gamedataCharacterRandomizationCategory) -> Bool {
+    let shouldDisplay: Bool = true;
+    if ArrayContains(this.m_excludedCatergoriesMirror, testedCategory) {
+      shouldDisplay = shouldDisplay && NotEquals(this.m_editMode, gameuiCharacterCustomizationEditTag.HairDresser);
+    };
+    if Equals(testedCategory, gamedataCharacterRandomizationCategory.Body) {
+      shouldDisplay = shouldDisplay && this.m_customizationSystem.IsNudityAllowed();
+      shouldDisplay = shouldDisplay && !this.m_customizationSystem.GetState().IsBodyGenderMale();
+    };
+    return shouldDisplay;
+  }
+
+  private final func ApplyEditModeFilter() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_lockWidgets) {
+      this.m_lockWidgets[i].SetVisible(this.ShouldDisplayLockCategory(this.m_lockDatas[i].CategoryTypeHandle().Type()));
+      i += 1;
+    };
+  }
+
+  private final func UpdateDisabledInputState() -> Void {
+    let i: Int32;
+    if ArraySize(this.m_lockWidgets) == ArraySize(this.m_lockLogics) {
+      i = 0;
+      while i < ArraySize(this.m_lockWidgets) {
+        this.m_lockWidgets[i].SetInteractive(!this.m_inputDisabled);
+        this.m_lockLogics[i].SetLockInteractable(!this.m_inputDisabled);
+        i += 1;
+      };
+    };
+  }
+
+  private final func InitializeRandomizerLocksList() -> Void {
+    let locksList: ref<CharacterRandomizationCategoriesList_Record> = TweakDBInterface.GetCharacterRandomizationCategoriesListRecord(t"CharacterRandomization.CharacterRandomizationCategories");
+    let count: Int32 = locksList.GetListCount();
+    let i: Int32 = 0;
+    while i < count {
+      this.OnLockListItemSpawned(this.SpawnFromLocal(inkWidgetRef.Get(this.m_locksGrid), n"random_lock_element"), locksList.GetListItem(i));
+      i += 1;
+    };
+  }
+
+  public final func OnLockListItemSpawned(lockWidget: ref<inkWidget>, lockData: ref<CharacterRandomizationCategoryUI_Record>) -> Void {
+    let lockLogic: wref<RandomizationLockListItem> = lockWidget.GetController() as RandomizationLockListItem;
+    lockLogic.SetLockState(n"Default");
+    lockLogic.SetLockCategory(lockData);
+    lockWidget.SetVisible(this.ShouldDisplayLockCategory(lockData.CategoryTypeHandle().Type()));
+    lockWidget.RegisterToCallback(n"OnRelease", this, n"OnLockSwitched");
+    lockLogic.EnableLock(this.m_data.IsCategoryLocked(lockData.CategoryType().Type()));
+    ArrayPush(this.m_lockWidgets, lockWidget);
+    ArrayPush(this.m_lockLogics, lockLogic);
+    ArrayPush(this.m_lockDatas, lockData);
+  }
+
+  protected cb func OnLockSwitched(evt: ref<inkPointerEvent>) -> Bool {
+    let lockLogic: wref<RandomizationLockListItem>;
+    if !this.m_inputDisabled {
+      if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+        lockLogic = evt.GetCurrentTarget().GetController() as RandomizationLockListItem;
+        this.UpdateLock(lockLogic.GetLockCategory(), lockLogic.SwitchLock());
+      };
+    };
+  }
+
+  private final func UpdateLock(lock: ref<CharacterRandomizationCategory_Record>, enable: Bool) -> Void {
+    if enable {
+      if Equals(ArrayContains(this.m_lockedCategories, lock.Type()), false) {
+        ArrayPush(this.m_lockedCategories, lock.Type());
+      };
+    } else {
+      if Equals(ArrayContains(this.m_lockedCategories, lock.Type()), true) {
+        ArrayRemove(this.m_lockedCategories, lock.Type());
+      };
+    };
+    this.m_data.SetLockedCategories(this.m_lockedCategories);
+  }
+}

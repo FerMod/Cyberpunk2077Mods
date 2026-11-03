@@ -1,0 +1,442 @@
+
+public class SniperNest extends SensorDevice {
+
+  private let m_animFeature: ref<AnimFeature_SecurityTurretData>;
+
+  @default(SniperNest, SecurityTurretData)
+  private let m_animFeatureName: CName;
+
+  protected let m_weapon: wref<WeaponObject>;
+
+  protected let itemID: ItemID;
+
+  @runtimeProperty("category", "Teleport Node")
+  private let m_teleportAfterEnter: NodeRef;
+
+  private let m_burstDelayEvtID: DelayID;
+
+  private let m_isBurstDelayOngoing: Bool;
+
+  private let m_nextShootCycleDelayEvtID: DelayID;
+
+  private let m_isShootingOngoing: Bool;
+
+  private let m_timeToNextShot: Float;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  @default(SniperNest, 1.f)
+  private let m_targetZoom: Float;
+
+  @default(SniperNest, 1.f)
+  private let m_startZoom: Float;
+
+  @default(SniperNest, -1.f)
+  private let m_zoomLerpTimeStamp: Float;
+
+  @default(SniperNest, 0.2f)
+  private let m_zoomLerpDuration: Float;
+
+  protected func HandlePlayerStateMachineZoom(value: Float) -> Void {
+    if value != this.m_targetZoom {
+      this.m_targetZoom = value > 1.00 ? value : 1.00;
+      this.m_startZoom = this.m_cameraComponent.GetZoom();
+      this.m_zoomLerpTimeStamp = EngineTime.ToFloat(GameInstance.GetEngineTime(this.GetGame()));
+      this.m_zoomLerpDuration = 0.20;
+    };
+  }
+
+  protected func DeviceUpdate() -> Void {
+    let timeCurrent: Float;
+    let zoomCurrent: Float;
+    if this.m_cameraComponent.GetZoom() != this.m_targetZoom {
+      timeCurrent = EngineTime.ToFloat(GameInstance.GetEngineTime(this.GetGame()));
+      zoomCurrent = ProportionalClampF(this.m_zoomLerpTimeStamp, this.m_zoomLerpTimeStamp + this.m_zoomLerpDuration, timeCurrent, this.m_startZoom, this.m_targetZoom);
+      this.m_cameraComponent.SetZoom(zoomCurrent);
+    };
+  }
+
+  protected final func GetFirerate() -> Float {
+    return this.m_timeToNextShot;
+  }
+
+  private final func SetFirerate(value: Float) -> Void {
+    this.m_timeToNextShot = value;
+  }
+
+  protected cb func OnRequestComponents(ri: EntityRequestComponentsInterface) -> Bool {
+    super.OnRequestComponents(ri);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"updateComponent", n"UpdateComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"slot", n"SlotComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"laserMesh", n"MeshComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"targeting", n"gameTargetingComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"light_guns", n"gameLightComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"light_arm", n"gameLightComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"light_cam", n"gameLightComponent", false);
+  }
+
+  protected cb func OnTakeControl(ri: EntityResolveComponentsInterface) -> Bool {
+    ArrayPush(this.m_lightScanRefs, EntityResolveComponentsInterface.GetComponent(ri, n"light_guns") as gameLightComponent);
+    ArrayPush(this.m_lightScanRefs, EntityResolveComponentsInterface.GetComponent(ri, n"light_arm") as gameLightComponent);
+    ArrayPush(this.m_lightScanRefs, EntityResolveComponentsInterface.GetComponent(ri, n"light_cam") as gameLightComponent);
+    this.m_animFeature = new AnimFeature_SecurityTurretData();
+    this.m_player = GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    super.OnTakeControl(ri);
+    this.m_controller = EntityResolveComponentsInterface.GetComponent(ri, n"controller") as SniperNestController;
+  }
+
+  protected cb func OnGameAttached() -> Bool {
+    super.OnGameAttached();
+    if this.GetDevicePS().GetRippedOff() {
+      this.DeactivateDevice();
+      this.m_animFeature.isRippedOff = true;
+      AnimationControllerComponent.ApplyFeature(this, n"SecurityTurretData", this.m_animFeature);
+    } else {
+      this.GiveWeaponToTurret();
+      this.SetSenseObjectType(gamedataSenseObjectType.Turret);
+    };
+  }
+
+  protected cb func OnDetach() -> Bool {
+    super.OnDetach();
+    this.EnableUpdate(false);
+    GameInstance.GetTransactionSystem(this.GetGame()).RemoveItemFromSlot(this, t"AttachmentSlots.WeaponRight");
+  }
+
+  protected const func GetScannerName() -> String {
+    return "LocKey#91723";
+  }
+
+  protected func PushPersistentData() -> Void {
+    this.GetDevicePS().PushPersistentData();
+    super.PushPersistentData();
+  }
+
+  private const func GetController() -> ref<SniperNestController> {
+    return this.m_controller as SniperNestController;
+  }
+
+  public const func GetDevicePS() -> ref<SniperNestControllerPS> {
+    return this.GetController().GetPS();
+  }
+
+  protected cb func OnTCSTakeOverControlActivate(evt: ref<TCSTakeOverControlActivate>) -> Bool {
+    super.OnTCSTakeOverControlActivate(evt);
+    GameInstance.GetAudioSystem(this.GetGame()).AddTriggerEffect(n"te_wea_turret_pre_shoot", n"Sniper_Sequence_Pre_Shot");
+    this.m_targetZoom = 1.00;
+    this.m_startZoom = 1.00;
+    this.EnableUpdate(true);
+  }
+
+  protected cb func OnTCSTakeOverControlDeactivate(evt: ref<TCSTakeOverControlDeactivate>) -> Bool {
+    super.OnTCSTakeOverControlDeactivate(evt);
+    this.ShootStop();
+    GameInstance.GetAudioSystem(this.GetGame()).RemoveTriggerEffect(n"Sniper_Sequence_Shot");
+    GameInstance.GetAudioSystem(this.GetGame()).RemoveTriggerEffect(n"Sniper_Sequence_Pre_Shot");
+    GameInstance.GetAudioSystem(this.GetGame()).RemoveTriggerEffect(n"TCS_Shoot");
+    GameInstance.GetAudioSystem(this.GetGame()).Play(n"motion_loop_heavy_stop");
+    this.EnableUpdate(false);
+  }
+
+  protected final func GetWeapon() -> wref<WeaponObject> {
+    this.GrabReferenceToWeapon();
+    return this.m_weapon;
+  }
+
+  protected final func GiveWeaponToTurret() -> Void {
+    let grabWeaponEvent: ref<GrabReferenceToWeaponEvent>;
+    let slotsIDs: array<TweakDBID>;
+    let transactionSystem: ref<TransactionSystem>;
+    if !IsDefined(this.m_weapon) && !this.GetDevicePS().GetRippedOff() {
+      transactionSystem = GameInstance.GetTransactionSystem(this.GetGame());
+      this.itemID = ItemID.FromTDBID(t"Items.Sniper_Nest_Version_Tech_Sniper_Rifle");
+      if transactionSystem.GiveItem(this, this.itemID, 1) {
+        ArrayPush(slotsIDs, t"AttachmentSlots.WeaponRight");
+        transactionSystem.InitializeSlots(this, slotsIDs);
+        if transactionSystem.CanPlaceItemInSlot(this, slotsIDs[0], this.itemID) {
+          transactionSystem.AddItemToSlot(this, slotsIDs[0], this.itemID);
+          grabWeaponEvent = new GrabReferenceToWeaponEvent();
+          GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, grabWeaponEvent, 0.50);
+        };
+      };
+    };
+  }
+
+  protected cb func OnGrabReferenceToWeaponEvent(evt: ref<GrabReferenceToWeaponEvent>) -> Bool {
+    this.GrabReferenceToWeapon();
+  }
+
+  protected final func GrabReferenceToWeapon() -> Void {
+    if !IsDefined(this.m_weapon) {
+      this.m_weapon = GameInstance.GetTransactionSystem(this.GetGame()).GetItemInSlot(this, t"AttachmentSlots.WeaponRight") as WeaponObject;
+    };
+  }
+
+  public func ControlledDeviceInputAction(isPressed: Bool) -> Void {
+    if isPressed {
+      this.ShootStart();
+      if this.IsTemporaryAttitudeChanged() {
+        this.ChangeTemporaryAttitude();
+      };
+    } else {
+      GameInstance.GetAudioSystem(this.GetGame()).RemoveTriggerEffect(n"Sniper_Sequence_Shot");
+      this.ShootStop();
+    };
+  }
+
+  protected final func SelectShootingPattern(weapon: wref<WeaponObject>, weaponOwner: wref<GameObject>, opt forceReselection: Bool) -> Void {
+    let chosenPackage: wref<AIPatternsPackage_Record>;
+    let patternsList: array<wref<AIPattern_Record>>;
+    let selectedPattern: wref<AIPattern_Record>;
+    if this.GetDevicePS().IsPartOfPrevention() || this.GetDevicePS().IsControlledByPlayer() {
+      return;
+    };
+    chosenPackage = TweakDBInterface.GetAIPatternsPackageRecord(t"ShootingPatterns.SemiAutoSniperShootingPackage");
+    if AIWeapon.GetShootingPatternsList(weaponOwner, weapon, chosenPackage, patternsList) || forceReselection {
+      if ArraySize(patternsList) > 0 {
+        AIWeapon.SelectShootingPatternFromList(weapon, patternsList, selectedPattern);
+      };
+    };
+    if IsDefined(selectedPattern) {
+      AIWeapon.SetShootingPattern(weapon, selectedPattern);
+      AIWeapon.SetShootingPatternPackage(weapon, chosenPackage);
+      AIWeapon.SetPatternRange(weapon, patternsList);
+    };
+  }
+
+  private final func ShootStart() -> Void {
+    if !IsDefined(this.GetWeapon()) {
+      return;
+    };
+    if this.m_player.IsAimingAtFriendly() {
+      return;
+    };
+    this.m_animFeature.Shoot = true;
+    AnimationControllerComponent.ApplyFeature(this, n"SecurityTurretData", this.m_animFeature);
+    this.ShootAttachedWeapon(true);
+  }
+
+  private final func ShootStop() -> Void {
+    this.m_animFeature.Shoot = false;
+    AnimationControllerComponent.ApplyFeature(this, n"SecurityTurretData", this.m_animFeature);
+    if this.m_isShootingOngoing {
+      GameInstance.GetDelaySystem(this.GetGame()).CancelDelay(this.m_nextShootCycleDelayEvtID);
+      this.m_isShootingOngoing = false;
+    };
+  }
+
+  private final func ShootAttachedWeapon(opt shootStart: Bool) -> Void {
+    let simTime: Float;
+    let timeToNextShot: Float;
+    let weaponRecord: wref<WeaponItem_Record>;
+    if !this.m_animFeature.Shoot {
+      return;
+    };
+    simTime = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame()));
+    if shootStart {
+      timeToNextShot = AIWeapon.GetNextShotTimeStamp(this.GetWeapon()) - simTime;
+      if timeToNextShot > 0.00 {
+        this.QueueNextShot(timeToNextShot);
+        GameInstance.GetAudioSystem(this.GetGame()).RemoveTriggerEffect(n"Sniper_Sequence_Shot");
+        return;
+      };
+    };
+    weaponRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.GetWeapon().GetItemID())) as WeaponItem_Record;
+    this.SelectShootingPattern(this.GetWeapon(), this);
+    AIWeapon.Fire(this.m_player, this.GetWeapon(), simTime, 1.00, weaponRecord.PrimaryTriggerMode().Type());
+    AnimationControllerComponent.PushEvent(this, n"Shoot");
+    GameInstance.GetAudioSystem(this.GetGame()).Play(n"w_gun_sniper_tech_rasetsu_suppersor_fire");
+    GameInstance.GetAudioSystem(this.GetGame()).Play(n"w_tail_sniper_tech_rasetsu_suppersor_ext_enclosed");
+    GameInstance.GetAudioSystem(this.GetGame()).AddTriggerEffect(n"te_wea_turret_shoot", n"Sniper_Sequence_Shot");
+    AIWeapon.QueueNextShot(this.GetWeapon(), weaponRecord.PrimaryTriggerMode().Type(), simTime);
+    this.SetFirerate(AIWeapon.GetNextShotTimeStamp(this.GetWeapon()) - simTime);
+    this.ApplyShootingInterval();
+    GameObjectEffectHelper.StartEffectEvent(this, StringToName(this.GetDevicePS().GetVfxNameOnShoot()));
+  }
+
+  private final func ApplyShootingInterval() -> Void {
+    let intervalDelay: ref<TurretBurstShootingDelayEvent>;
+    let pattern: wref<AIPattern_Record> = AIWeapon.GetShootingPattern(this.GetWeapon());
+    let delay: Float = AIWeapon.GetShootingPatternDelayBetweenShots(AIWeapon.GetTotalNumberOfShots(this.GetWeapon()), pattern);
+    if delay > 0.00 {
+      this.ShootStop();
+      intervalDelay = new TurretBurstShootingDelayEvent();
+      this.m_burstDelayEvtID = GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, intervalDelay, delay);
+      this.m_isBurstDelayOngoing = true;
+    } else {
+      this.QueueNextShot(this.GetFirerate());
+    };
+  }
+
+  private final func QueueNextShot(delay: Float) -> Void {
+    let interval: ref<TurretShootingIntervalEvent>;
+    if this.m_nextShootCycleDelayEvtID != GetInvalidDelayID() {
+      GameInstance.GetDelaySystem(this.GetGame()).CancelDelay(this.m_nextShootCycleDelayEvtID);
+    };
+    interval = new TurretShootingIntervalEvent();
+    this.m_nextShootCycleDelayEvtID = GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, interval, this.GetFirerate());
+    this.m_isShootingOngoing = true;
+  }
+
+  protected cb func OnTurretShootingIntervalEvent(evt: ref<TurretShootingIntervalEvent>) -> Bool {
+    if !this.m_player.IsAimingAtFriendly() {
+      this.ShootAttachedWeapon();
+    };
+  }
+
+  protected cb func OnToggleTakeOverControl(evt: ref<ToggleTakeOverControl>) -> Bool {
+    this.EnterWorkspot(this.m_player, true, n"playerEnterWorkspot", n"deviceEnterWorkspot");
+  }
+
+  protected func EnterWorkspot(activator: ref<GameObject>, opt freeCamera: Bool, opt componentName: CName, opt deviceData: CName) -> Void {
+    super.EnterWorkspot(activator, freeCamera, componentName, deviceData);
+    if Equals(componentName, n"playerLeaveWorkspot") {
+      GameInstance.GetTransactionSystem(this.GetGame()).RemoveItemFromSlot(this, t"AttachmentSlots.WeaponRight");
+    };
+    this.m_interaction.Toggle(false);
+  }
+
+  private final func AddHeadshotModifier() -> Void {
+    let modifier: ref<gameStatModifierData> = RPGManager.CreateStatModifier(gamedataStatType.HeadshotDamageMultiplier, gameStatModifierType.Additive, 5.00) as gameConstantStatModifierData;
+    GameInstance.GetStatsSystem(this.GetGame()).AddModifier(Cast<StatsObjectID>(this.m_player.GetEntityID()), modifier);
+  }
+
+  private final func RemoveHeadshotModifier() -> Void {
+    let modifier: ref<gameStatModifierData> = RPGManager.CreateStatModifier(gamedataStatType.HeadshotDamageMultiplier, gameStatModifierType.Additive, 5.00) as gameConstantStatModifierData;
+    GameInstance.GetStatsSystem(this.GetGame()).RemoveModifier(Cast<StatsObjectID>(this.m_player.GetEntityID()), modifier);
+  }
+
+  protected cb func OnWorkspotFinished(componentName: CName) -> Bool {
+    super.OnWorkspotFinished(componentName);
+    if Equals(componentName, n"playerEnterWorkspot") {
+      this.SetUpSniperNestOnEnter();
+    } else {
+      if Equals(componentName, n"playerLeaveWorkspot") {
+        this.LeaveSniperNest();
+      };
+    };
+  }
+
+  private final func TeleportToNode(activator: ref<GameObject>) -> Void {
+    let nodeTransform: Transform;
+    let position: Vector4;
+    let rotation: EulerAngles;
+    let globalRef: GlobalNodeRef = ResolveNodeRefWithEntityID(this.m_teleportAfterEnter, this.GetEntityID());
+    if GlobalNodeRef.IsDefined(globalRef) {
+      GameInstance.GetNodeTransform(this.GetGame(), globalRef, nodeTransform);
+      position = Transform.GetPosition(nodeTransform);
+      rotation = Quaternion.ToEulerAngles(Transform.GetOrientation(nodeTransform));
+      GameInstance.GetTeleportationFacility(this.GetGame()).Teleport(activator, position, rotation);
+    };
+  }
+
+  private final func SetUpSniperNestOnEnter() -> Void {
+    let blackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame()).Get(GetAllBlackboardDefs().SniperNestDeviceBlackboard);
+    let eventTakeOver: ref<ToggleTakeOverControl> = new ToggleTakeOverControl();
+    eventTakeOver.SetProperties(false, false);
+    TakeOverControlSystem.RequestTakeControl(this, eventTakeOver);
+    blackboard.SetBool(GetAllBlackboardDefs().SniperNestDeviceBlackboard.IsInTheSniperNest, true);
+    blackboard.SetBool(GetAllBlackboardDefs().SniperNestDeviceBlackboard.FastForwardToZoom4, true);
+    blackboard.SetFloat(GetAllBlackboardDefs().SniperNestDeviceBlackboard.SniperNestDefaultSpeedMultiplier, 1.00);
+    blackboard.SetFloat(GetAllBlackboardDefs().SniperNestDeviceBlackboard.SniperNestZoomedSpeedMultiplier, 0.50);
+    this.BlockSniperNestFunctionalities(true);
+    this.TeleportToNode(this.m_player);
+    this.AddHeadshotModifier();
+    this.m_interaction.Toggle(true);
+    StatusEffectHelper.ApplyStatusEffect(this.m_player, t"GameplayRestriction.ForceCrouch");
+  }
+
+  private final func LeaveSniperNest() -> Void {
+    let blackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame()).Get(GetAllBlackboardDefs().SniperNestDeviceBlackboard);
+    blackboard.SetBool(GetAllBlackboardDefs().SniperNestDeviceBlackboard.IsInTheSniperNest, false);
+    this.BlockSniperNestFunctionalities(false);
+    this.RemoveHeadshotModifier();
+    this.UpdateDeviceState();
+    this.GetDevicePS().SetRippedOff(true);
+    this.m_animFeature.isRippedOff = true;
+    AnimationControllerComponent.ApplyFeature(this, n"SecurityTurretData", this.m_animFeature);
+    this.m_interaction.Toggle(false);
+    StatusEffectHelper.RemoveStatusEffect(this.m_player, t"GameplayRestriction.ForceCrouch");
+  }
+
+  private final func BlockSniperNestFunctionalities(blocked: Bool) -> Void {
+    let lockCameraJumping: ref<LockDeviceChainCreation>;
+    let lockReleaseOnGettingHit: ref<LockReleaseOnHit>;
+    let lockShooting: ref<LockTakeControlAction>;
+    let inputLockRequest: ref<RequestQuestTakeControlInputLock> = new RequestQuestTakeControlInputLock();
+    inputLockRequest.isLocked = blocked;
+    inputLockRequest.isChainForced = blocked;
+    (GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem).QueueRequest(inputLockRequest);
+    lockShooting = new LockTakeControlAction();
+    lockShooting.isLocked = blocked;
+    (GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem).QueueRequest(lockShooting);
+    lockReleaseOnGettingHit = new LockReleaseOnHit();
+    lockReleaseOnGettingHit.isLocked = blocked;
+    (GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem).QueueRequest(lockReleaseOnGettingHit);
+    lockCameraJumping = new LockDeviceChainCreation();
+    lockCameraJumping.isLocked = blocked;
+    lockCameraJumping.source = this.m_controllerTypeName;
+    (GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem).QueueRequest(lockCameraJumping);
+  }
+
+  protected cb func OnHit(evt: ref<gameHitEvent>) -> Bool {
+    super.OnHit(evt);
+    GameInstance.GetDamageSystem(this.GetGame()).QueueHitEvent(evt, this.m_player);
+    GameObject.PlayVoiceOver(this.m_player, n"onPlayerHit", n"Scripts:OnHitSounds");
+  }
+
+  protected cb func OnDamageReceived(evt: ref<gameDamageReceivedEvent>) -> Bool {
+    this.ProcessDamageReceived(evt);
+  }
+
+  public const func ShouldShowDamageNumber() -> Bool {
+    return true;
+  }
+
+  private final func GiveSniperRifleToThePlayer() -> Void {
+    let gameData: wref<gameItemData>;
+    let itemIDvar: ItemID = ItemID.FromTDBID(t"Items.Preset_Rasetsu_Prototype");
+    GameInstance.GetTransactionSystem(this.GetGame()).GiveItem(this.m_player, itemIDvar, 1);
+    gameData = GameInstance.GetTransactionSystem(this.GetGame()).GetItemData(this, itemIDvar);
+    GameInstance.GetAudioSystem(this.GetGame()).PlayItemActionSound(n"Loot", gameData);
+  }
+
+  public final static func CreateInputHint(context: GameInstance, isVisible: Bool) -> Void {
+    let data: InputHintData;
+    data.action = n"DeviceAttack";
+    data.source = n"SecurityTurret";
+    data.localizedLabel = "LocKey#36197";
+    data.sortingPriority = 0;
+    SendInputHintData(context, isVisible, data);
+  }
+
+  protected cb func OnQuestEjectPlayer(evt: ref<QuestEjectPlayer>) -> Bool {
+    (GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem).QueueRequest(new RequestReleaseControl());
+    this.EnterWorkspot(this.m_player, true, n"playerLeaveWorkspot", n"deviceLeaveWorkspot");
+  }
+
+  protected cb func OnQuestEnterPlayer(evt: ref<QuestEnterPlayer>) -> Bool {
+    this.EnterWorkspot(this.m_player, true, n"playerEnterWorkspot", n"deviceEnterWorkspot");
+  }
+
+  protected cb func OnQuestEnterNoAnimation(evt: ref<QuestEnterNoAnimation>) -> Bool {
+    let eventTakeOver: ref<ToggleTakeOverControl> = new ToggleTakeOverControl();
+    eventTakeOver.SetProperties(false, false);
+    this.SetUpSniperNestOnEnter();
+  }
+
+  protected cb func OnQuestExitNoAnimation(evt: ref<QuestExitNoAnimation>) -> Bool {
+    TakeOverControlSystem.ReleaseControl(this.GetGame());
+    this.LeaveSniperNest();
+  }
+
+  public const func DeterminGameplayRole() -> EGameplayRole {
+    if this.GetDevicePS().IsPartOfPrevention() {
+      if this.GetDevicePS().IsON() {
+        return EGameplayRole.Shoot;
+      };
+      return EGameplayRole.None;
+    };
+    return EGameplayRole.Shoot;
+  }
+}

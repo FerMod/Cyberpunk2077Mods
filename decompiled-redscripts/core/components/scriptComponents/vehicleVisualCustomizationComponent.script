@@ -1,0 +1,337 @@
+
+public struct VehicleUniqueTemplatePersistentData {
+
+  public persistent let modelName: CName;
+
+  public persistent let templatesID: [TweakDBID];
+
+  public final static func ToTemplate(data: VehicleUniqueTemplatePersistentData, index: Int32) -> VehicleVisualCustomizationTemplate {
+    return VehicleVisualCustomizationTemplate.FromRecord(TweakDBInterface.GetVehicleColorTemplateRecord(data.templatesID[index]), data.modelName);
+  }
+}
+
+public class vehicleVisualCustomizationComponent extends GameComponent {
+
+  private let m_questSystem: ref<QuestsSystem>;
+
+  private let m_twitchDropFactNames: [CName];
+
+  private let m_twitchDropListenerIDs: [Uint32];
+
+  public final func OnGameAttach() -> Void {
+    this.UpdateStoredLegacyTemplates();
+    this.RemoveCorruptedTemplates();
+    this.m_questSystem = GameInstance.GetQuestsSystem(GetGameInstance());
+    this.RegisterTwitchDropsFactListeners();
+    this.CheckForTwitchDropsFacts(1);
+  }
+
+  public final func OnGameDetach() -> Void {
+    this.UnregisterTwitchDropsFactListeners();
+  }
+
+  public final const func HasVisualCustomizationTemplateStored(visualCustomization: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Bool {
+    return this.GetMyPS().HasVisualCustomizationTemplateStored(visualCustomization, modelName);
+  }
+
+  public final const func GetNumberOfStoredVisualCustomizationTemplates(type: VehicleVisualCustomizationType, opt modelName: CName) -> Int32 {
+    return this.GetMyPS().GetNumberOfStoredVisualCustomizationTemplates(type, modelName);
+  }
+
+  public final func GetMaxNumberOfVisualCustomizationTemplates(type: VehicleVisualCustomizationType) -> Int32 {
+    return this.GetMyPS().GetMaxNumberOfVisualCustomizationTemplates(type);
+  }
+
+  public final const func CanStoreVisualCustomizationTemplateType(type: VehicleVisualCustomizationType, opt modelName: CName) -> Bool {
+    return this.GetMyPS().CanStoreVisualCustomizationTemplateType(type, modelName);
+  }
+
+  public final const func GetStoredVisualCustomizationTemplate(type: VehicleVisualCustomizationType, index: Int32, opt modelName: CName) -> VehicleVisualCustomizationTemplate {
+    return this.GetMyPS().GetStoredVisualCustomizationTemplate(type, index, modelName);
+  }
+
+  public final func StoreVisualCustomizationTemplate(template: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Void {
+    this.GetMyPS().StoreVisualCustomizationTemplate(template, modelName);
+  }
+
+  public final func FindAndStoreUniqueTemplate(modelName: CName, templateTweakDBID: TweakDBID) -> Void {
+    let template: VehicleVisualCustomizationTemplate = VehicleVisualCustomizationTemplate.FromRecord(TweakDBInterface.GetVehicleColorTemplateRecord(templateTweakDBID), modelName);
+    this.StoreVisualCustomizationTemplate(template, modelName);
+  }
+
+  public final func DeleteVisualCustomizationTemplate(template: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Void {
+    this.GetMyPS().DeleteVisualCustomizationTemplate(template, modelName);
+  }
+
+  public final func RemoveAllUniqueTemplatesForVehicle(modelName: CName) -> Void {
+    this.GetMyPS().RemoveAllUniqueTemplatesForVehicle(modelName);
+  }
+
+  public final const func RetrieveVisualCustomizationForVehicle(vehicleID: TweakDBID) -> VehicleVisualCustomizationTemplate {
+    let template: VehicleVisualCustomizationTemplate;
+    this.GetMyPS().GetAppliedCustomizationDataForVehicle(vehicleID, template);
+    return template;
+  }
+
+  protected cb func OnStoreVisualCustomizationDataForIDEvent(evt: ref<StoreVisualCustomizationDataForIDEvent>) -> Bool {
+    this.GetMyPS().StoreAppliedCustomizationDataForVehicle(evt.vehicleID, evt.template);
+  }
+
+  private final const func GetOwner() -> ref<GameObject> {
+    return this.GetEntity() as GameObject;
+  }
+
+  private final const func GetMyPS() -> ref<vehicleVisualCustomizationComponentPS> {
+    return this.GetPS() as vehicleVisualCustomizationComponentPS;
+  }
+
+  private final func UpdateStoredLegacyTemplates() -> Void {
+    let updatedTemplate: VehicleVisualCustomizationTemplate;
+    let legacyData: array<vehicleVisualCustomizationPersistentData> = this.GetMyPS().GetLegacyVisualCustomizationData();
+    let index: Int32 = 0;
+    while index < ArraySize(legacyData) {
+      updatedTemplate = vehicleVisualModdingDefinition.UpdateToNewFormat(legacyData[index].visualCustomizationData);
+      this.GetMyPS().StoreAppliedCustomizationDataForVehicle(legacyData[index].ID, updatedTemplate);
+      index += 1;
+    };
+    this.GetMyPS().DeleteLegacyVisualCustomizationData();
+  }
+
+  private final func RemoveCorruptedTemplates() -> Void {
+    this.GetMyPS().RemoveCorruptedTemplates();
+  }
+
+  private final func RegisterTwitchDropsFactListeners() -> Void {
+    let index: Int32;
+    ArrayPush(this.m_twitchDropFactNames, n"patch2400_twitch_drop_unlock_quadra_turbo_unique_paintjobs");
+    index = 0;
+    while index < ArraySize(this.m_twitchDropFactNames) {
+      ArrayPush(this.m_twitchDropListenerIDs, this.m_questSystem.RegisterListener(this.m_twitchDropFactNames[index], this, n"CheckForTwitchDropsFacts"));
+      index += 1;
+    };
+  }
+
+  private final func CheckForTwitchDropsFacts(value: Int32) -> Void {
+    if value == 0 {
+      return;
+    };
+    if Cast<Bool>(this.m_questSystem.GetFact(n"patch2400_twitch_drop_unlock_quadra_turbo_unique_paintjobs")) {
+      this.RemoveAllUniqueTemplatesForVehicle(n"quadra.turbo");
+      this.FindAndStoreUniqueTemplate(n"quadra.turbo", t"Vehicle.vcc_paintjob_quadra_turbo_basic_entropism");
+      this.FindAndStoreUniqueTemplate(n"quadra.turbo", t"Vehicle.vcc_paintjob_quadra_turbo_basic_neokitsch");
+      this.FindAndStoreUniqueTemplate(n"quadra.turbo", t"Vehicle.vcc_paintjob_quadra_turbo_basic_neomilitarism");
+      this.FindAndStoreUniqueTemplate(n"quadra.turbo", t"Vehicle.vcc_paintjob_quadra_turbo_basic_rebecca");
+      this.m_questSystem.SetFact(n"patch2400_twitch_drop_unlock_quadra_turbo_unique_paintjobs", 0);
+    };
+  }
+
+  private final func UnregisterTwitchDropsFactListeners() -> Void {
+    let index: Int32 = 0;
+    while index < ArraySize(this.m_twitchDropFactNames) && index < ArraySize(this.m_twitchDropListenerIDs) {
+      this.m_questSystem.UnregisterListener(this.m_twitchDropFactNames[index], this.m_twitchDropListenerIDs[index]);
+      index += 1;
+    };
+  }
+}
+
+public class vehicleVisualCustomizationComponentPS extends GameComponentPS {
+
+  private persistent let m_storedAppliedVisualCustomization: [VehicleCustomTemplatePersistentData];
+
+  private persistent let m_storedGenericVisualCustomizationTemplates: [GenericTemplatePersistentData];
+
+  private persistent let m_storedUniqueVisualCustomizationTemplates: [VehicleUniqueTemplatePersistentData];
+
+  private persistent let m_storedVisualCustomizationData: [vehicleVisualCustomizationPersistentData];
+
+  public final const func GetNumberOfStoredVisualCustomizationTemplates(type: VehicleVisualCustomizationType, opt modelName: CName) -> Int32 {
+    let uniqueTemplateIndex: Int32;
+    if Equals(type, VehicleVisualCustomizationType.Generic) {
+      return ArraySize(this.m_storedGenericVisualCustomizationTemplates);
+    };
+    uniqueTemplateIndex = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+    if uniqueTemplateIndex == -1 {
+      return 0;
+    };
+    return ArraySize(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID);
+  }
+
+  public final func GetMaxNumberOfVisualCustomizationTemplates(type: VehicleVisualCustomizationType) -> Int32 {
+    return Equals(type, VehicleVisualCustomizationType.Unique) ? TDB.GetInt(t"player.vehicle.maxNumberOfStoredUniquePatterns") : TDB.GetInt(t"player.vehicle.maxNumberOfStoredGenericPatterns");
+  }
+
+  public final func CanStoreVisualCustomizationTemplateType(type: VehicleVisualCustomizationType, opt modelName: CName) -> Bool {
+    return this.GetNumberOfStoredVisualCustomizationTemplates(type, modelName) < this.GetMaxNumberOfVisualCustomizationTemplates(type);
+  }
+
+  public final func HasVisualCustomizationTemplateStored(template: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Bool {
+    let i: Int32;
+    let uniqueTemplateIndex: Int32;
+    if Equals(VehicleVisualCustomizationTemplate.GetType(template), VehicleVisualCustomizationType.Generic) {
+      i = 0;
+      while i < ArraySize(this.m_storedGenericVisualCustomizationTemplates) {
+        if GenericTemplatePersistentData.Equals(this.m_storedGenericVisualCustomizationTemplates[i], template.genericData) {
+          return true;
+        };
+        i += 1;
+      };
+      return false;
+    };
+    uniqueTemplateIndex = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+    if uniqueTemplateIndex == -1 {
+      return false;
+    };
+    i = 0;
+    while i < ArraySize(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID) {
+      if VehicleVisualCustomizationTemplate.Equals(VehicleUniqueTemplatePersistentData.ToTemplate(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex], i), template) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final func GetStoredVisualCustomizationTemplate(type: VehicleVisualCustomizationType, index: Int32, opt modelName: CName) -> VehicleVisualCustomizationTemplate {
+    let ret: VehicleVisualCustomizationTemplate;
+    let uniqueTemplateIndex: Int32;
+    if Equals(type, VehicleVisualCustomizationType.Unique) {
+      uniqueTemplateIndex = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+      if uniqueTemplateIndex == -1 {
+        return ret;
+      };
+      if index < ArraySize(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID) {
+        ret = VehicleUniqueTemplatePersistentData.ToTemplate(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex], index);
+      };
+    } else {
+      if Equals(type, VehicleVisualCustomizationType.Generic) && index < ArraySize(this.m_storedGenericVisualCustomizationTemplates) {
+        ret.hasUniqueTemplate = false;
+        ret.genericData = this.m_storedGenericVisualCustomizationTemplates[index];
+      };
+    };
+    return ret;
+  }
+
+  public final func StoreVisualCustomizationTemplate(template: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Void {
+    let newPersistentData: VehicleUniqueTemplatePersistentData;
+    let uniqueTemplateIndex: Int32;
+    if this.CanStoreVisualCustomizationTemplateType(VehicleVisualCustomizationTemplate.GetType(template), modelName) && !this.HasVisualCustomizationTemplateStored(template, modelName) {
+      if Equals(VehicleVisualCustomizationTemplate.GetType(template), VehicleVisualCustomizationType.Generic) {
+        ArrayPush(this.m_storedGenericVisualCustomizationTemplates, template.genericData);
+      } else {
+        if Equals(modelName, n"None") {
+          return;
+        };
+        uniqueTemplateIndex = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+        if uniqueTemplateIndex == -1 {
+          newPersistentData.modelName = modelName;
+          ArrayPush(this.m_storedUniqueVisualCustomizationTemplates, newPersistentData);
+          uniqueTemplateIndex = ArraySize(this.m_storedUniqueVisualCustomizationTemplates) - 1;
+        };
+        ArrayPush(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID, template.uniqueData.recordId);
+      };
+    };
+  }
+
+  public final func DeleteVisualCustomizationTemplate(template: VehicleVisualCustomizationTemplate, opt modelName: CName) -> Void {
+    let templateIndex: Int32;
+    let uniqueTemplateIndex: Int32;
+    if Equals(VehicleVisualCustomizationTemplate.GetType(template), VehicleVisualCustomizationType.Generic) {
+      templateIndex = ArrayFindFirst(this.m_storedGenericVisualCustomizationTemplates, template.genericData);
+      ArrayErase(this.m_storedGenericVisualCustomizationTemplates, templateIndex);
+    } else {
+      uniqueTemplateIndex = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+      if uniqueTemplateIndex == -1 {
+        return;
+      };
+      templateIndex = ArrayFindFirst(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID, template.uniqueData.recordId);
+      ArrayErase(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID, templateIndex);
+    };
+  }
+
+  public final func RemoveAllUniqueTemplatesForVehicle(modelName: CName) -> Void {
+    let uniqueTemplateIndex: Int32 = this.GetStoredUniqueTemplatesIndexForVehicle(modelName);
+    if uniqueTemplateIndex == -1 {
+      return;
+    };
+    ArrayClear(this.m_storedUniqueVisualCustomizationTemplates[uniqueTemplateIndex].templatesID);
+  }
+
+  public final func StoreAppliedCustomizationDataForVehicle(vehicleID: TweakDBID, template: VehicleVisualCustomizationTemplate) -> Void {
+    let checkedID: TweakDBID;
+    let dataPackage: VehicleCustomTemplatePersistentData;
+    let i: Int32;
+    while i < ArraySize(this.m_storedAppliedVisualCustomization) {
+      checkedID = this.m_storedAppliedVisualCustomization[i].vehicleID;
+      if checkedID == vehicleID {
+        this.m_storedAppliedVisualCustomization[i].template = SavedVehicleVisualCustomizationTemplate.FromVehicleVisualCustomizationTemplate(template);
+        return;
+      };
+      i += 1;
+    };
+    dataPackage.vehicleID = vehicleID;
+    dataPackage.template = SavedVehicleVisualCustomizationTemplate.FromVehicleVisualCustomizationTemplate(template);
+    ArrayPush(this.m_storedAppliedVisualCustomization, dataPackage);
+  }
+
+  public final const func GetAppliedCustomizationDataForVehicle(vehicleID: TweakDBID, out template: VehicleVisualCustomizationTemplate) -> Bool {
+    let checkedID: TweakDBID;
+    let i: Int32;
+    if ArraySize(this.m_storedAppliedVisualCustomization) == 0 {
+      return false;
+    };
+    while i < ArraySize(this.m_storedAppliedVisualCustomization) {
+      checkedID = this.m_storedAppliedVisualCustomization[i].vehicleID;
+      if checkedID == vehicleID {
+        template = SavedVehicleVisualCustomizationTemplate.ToVehicleVisualCustomizationTemplate(this.m_storedAppliedVisualCustomization[i].template);
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final const func GetLegacyVisualCustomizationData() -> [vehicleVisualCustomizationPersistentData] {
+    return this.m_storedVisualCustomizationData;
+  }
+
+  public final func DeleteLegacyVisualCustomizationData() -> Void {
+    ArrayClear(this.m_storedVisualCustomizationData);
+  }
+
+  public final func RemoveCorruptedTemplates() -> Void {
+    let j: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_storedUniqueVisualCustomizationTemplates) {
+      j = ArraySize(this.m_storedUniqueVisualCustomizationTemplates[i].templatesID) - 1;
+      while j >= 0 {
+        if !VehicleVisualCustomizationTemplate.IsValid(VehicleUniqueTemplatePersistentData.ToTemplate(this.m_storedUniqueVisualCustomizationTemplates[i], j)) {
+          ArrayErase(this.m_storedUniqueVisualCustomizationTemplates[i].templatesID, j);
+        };
+        j -= 1;
+      };
+      i += 1;
+    };
+    i = ArraySize(this.m_storedAppliedVisualCustomization) - 1;
+    while i >= 0 {
+      if !VehicleVisualCustomizationTemplate.IsValid(SavedVehicleVisualCustomizationTemplate.ToVehicleVisualCustomizationTemplate(this.m_storedAppliedVisualCustomization[i].template)) {
+        ArrayErase(this.m_storedAppliedVisualCustomization, i);
+      };
+      i -= 1;
+    };
+  }
+
+  private final const func GetStoredUniqueTemplatesIndexForVehicle(modelName: CName) -> Int32 {
+    let i: Int32;
+    if Equals(modelName, n"None") {
+      return -1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_storedUniqueVisualCustomizationTemplates) {
+      if Equals(this.m_storedUniqueVisualCustomizationTemplates[i].modelName, modelName) {
+        return i;
+      };
+      i += 1;
+    };
+    return -1;
+  }
+}

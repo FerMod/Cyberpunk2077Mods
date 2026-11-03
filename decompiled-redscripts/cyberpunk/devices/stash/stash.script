@@ -1,0 +1,870 @@
+
+public class OpenStash extends ActionBool {
+
+  public final func SetProperties() -> Void {
+    this.actionName = n"OpenStash";
+    this.prop = DeviceActionPropertyFunctions.SetUpProperty_Bool(this.actionName, true, n"LocKey#15799", n"LocKey#15799");
+  }
+
+  public final static func IsDefaultConditionMet(device: ref<ScriptableDeviceComponentPS>, const context: script_ref<GetActionsContext>) -> Bool {
+    if OpenStash.IsAvailable(device) && OpenStash.IsClearanceValid(Deref(context).clearance) {
+      return true;
+    };
+    return false;
+  }
+
+  public final static func IsAvailable(device: ref<ScriptableDeviceComponentPS>) -> Bool {
+    if device.IsUnpowered() || device.IsDisabled() {
+      return false;
+    };
+    return true;
+  }
+
+  public final static func IsClearanceValid(clearance: ref<Clearance>) -> Bool {
+    if Clearance.IsInRange(clearance, 2) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class Stash extends InteractiveDevice {
+
+  protected cb func OnRequestComponents(ri: EntityRequestComponentsInterface) -> Bool {
+    EntityRequestComponentsInterface.RequestComponent(ri, n"inventory", n"Inventory", false);
+    super.OnRequestComponents(ri);
+  }
+
+  protected cb func OnTakeControl(ri: EntityResolveComponentsInterface) -> Bool {
+    super.OnTakeControl(ri);
+    this.m_controller = EntityResolveComponentsInterface.GetComponent(ri, n"controller") as StashController;
+  }
+
+  protected cb func OnInteractionActivated(evt: ref<InteractionActivationEvent>) -> Bool {
+    let actorUpdateData: ref<HUDActorUpdateData>;
+    super.OnInteractionActivated(evt);
+    if Equals(evt.eventType, gameinteractionsEInteractionEventType.EIET_activate) {
+      if Equals(evt.layerData.tag, n"LogicArea") {
+        actorUpdateData = new HUDActorUpdateData();
+        actorUpdateData.updateIsInIconForcedVisibilityRange = true;
+        actorUpdateData.isInIconForcedVisibilityRangeValue = true;
+        this.RequestHUDRefresh(actorUpdateData);
+      };
+    } else {
+      if Equals(evt.layerData.tag, n"LogicArea") {
+        actorUpdateData = new HUDActorUpdateData();
+        actorUpdateData.updateIsInIconForcedVisibilityRange = true;
+        actorUpdateData.isInIconForcedVisibilityRangeValue = false;
+        this.RequestHUDRefresh(actorUpdateData);
+      };
+    };
+  }
+
+  public const func DeterminGameplayRoleMappinVisuaState(const data: script_ref<SDeviceMappinData>) -> EMappinVisualState {
+    if this.GetDevicePS().IsDisabled() {
+      return EMappinVisualState.Inactive;
+    };
+    return EMappinVisualState.Default;
+  }
+
+  public const func GetDevicePS() -> ref<StashControllerPS> {
+    return this.GetController().GetPS();
+  }
+
+  private const func GetController() -> ref<StashController> {
+    return this.m_controller as StashController;
+  }
+
+  public const func DeterminGameplayRole() -> EGameplayRole {
+    return EGameplayRole.PlayerStash;
+  }
+
+  protected cb func OnOpenStash(evt: ref<OpenStash>) -> Bool {
+    let storageBB: ref<IBlackboard>;
+    let storageData: ref<StorageUserData>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.GetGame());
+    let player: ref<GameObject> = GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerMainGameObject();
+    if IsDefined(transactionSystem) && IsDefined(player) {
+      Stash.ProcessStashRetroFixes(this);
+      storageData = new StorageUserData();
+      storageData.storageObject = this;
+      storageBB = GameInstance.GetBlackboardSystem(this.GetGame()).Get(GetAllBlackboardDefs().StorageBlackboard);
+      if IsDefined(storageBB) {
+        storageBB.SetVariant(GetAllBlackboardDefs().StorageBlackboard.StorageData, ToVariant(storageData), true);
+      };
+    };
+  }
+
+  public const func IsPlayerStash() -> Bool {
+    return true;
+  }
+
+  public final static func IsInStash(stashObj: ref<GameObject>, item: ItemID) -> Bool {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem>;
+    if !IsDefined(stashObj) {
+      return false;
+    };
+    transactionSystem = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].GetID() == item {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final static func ProcessStashRetroFixes(stashObj: ref<GameObject>) -> Void {
+    let factVal: Int32;
+    let game: GameInstance;
+    if !IsDefined(stashObj) {
+      return;
+    };
+    game = stashObj.GetGame();
+    Stash.ScaleStashIconicsToPlayerLevel(stashObj);
+    factVal = GetFact(game, n"ClothingModsRemovedStash");
+    if factVal <= 0 && true {
+      SetFactValue(game, n"ClothingModsRemovedStash", 1);
+    };
+    factVal = GetFact(game, n"DLCPlayerStashItemsRevamp");
+    if factVal <= 0 && true {
+      SetFactValue(game, n"DLCPlayerStashItemsRevamp", 1);
+    };
+    factVal = GetFact(game, n"CYBMETA1695");
+    if factVal <= 0 {
+      SetFactValue(game, n"CYBMETA1695", 1);
+    };
+    factVal = GetFact(game, n"BuckGradScopeStashFix");
+    if factVal <= 0 && true {
+      SetFactValue(game, n"BuckGradScopeStashFix", 1);
+    };
+    factVal = GetFact(game, n"IconicReworkCompletedInStash");
+    if factVal <= 0 && true {
+      Stash.IconicsReworkCompensateInStash(stashObj);
+      SetFactValue(game, n"IconicReworkCompletedInStash", 1);
+    };
+    factVal = GetFact(game, n"WeaponAndClothingModsInStashAdjusted");
+    if factVal <= 0 && true {
+      Stash.ProcessWeaponsAndClothingModsPurgeInStash(stashObj);
+      SetFactValue(game, n"WeaponAndClothingModsInStashAdjusted", 1);
+    };
+    factVal = GetFact(game, n"ConsumablesPlayerStashRetroFix");
+    if factVal <= 0 && true {
+      Stash.ConsumablesRetrofix(stashObj);
+      SetFactValue(game, n"ConsumablesPlayerStashRetroFix", 1);
+    };
+    factVal = GetFact(game, n"IconicsFactsForBlackMarketerAddedInStash");
+    if factVal <= 0 && true {
+      Stash.ProcessIconicsFactsForBlackMarketerInStash(stashObj);
+      SetFactValue(game, n"IconicsFactsForBlackMarketerAddedInStash", 1);
+    };
+    factVal = GetFact(game, n"LeftHandWeaponsCompensatedInStash");
+    if factVal <= 0 && true {
+      Stash.ReplaceLeftHandVariantWeaponsWithRegularInStash(stashObj);
+      Stash.ScaleAndLockLeftHandWeaponsCompensateInStash(stashObj);
+      SetFactValue(game, n"LeftHandWeaponsCompensatedInStash", 1);
+    };
+    factVal = GetFact(game, n"WeaponAndClothingModsInStashAdjusted_201");
+    if factVal <= 0 && true {
+      Stash.ProcessWeaponsModsCompensateInStash(stashObj);
+      Stash.InstallModsToRedesignedItems(stashObj);
+      SetFactValue(game, n"WeaponAndClothingModsInStashAdjusted_201", 1);
+    };
+    factVal = GetFact(game, n"NonIconicWeaponsRescaledInStash");
+    if factVal <= 0 && true {
+      Stash.ProcessNonIconicWeaponsRescaleInStash(stashObj);
+      SetFactValue(game, n"NonIconicWeaponsRescaledInStash", 1);
+    };
+    factVal = GetFact(game, n"ReginaRewardCompensatedInStash");
+    if factVal <= 0 && true {
+      if GetFact(game, n"wat_sts_counter") >= 23 && GetFact(game, n"regina_iconic_subdermalcoprocessor_acquired") <= 0 {
+        Stash.CheckReginaRewardsPresenceInStash(stashObj);
+      };
+      Stash.RemoveDeprecatedReginaCWRewardInStash(stashObj);
+      SetFactValue(game, n"ReginaRewardCompensatedInStash", 1);
+    };
+    factVal = GetFact(game, n"GritModsInStashPurged");
+    if factVal <= 0 && true {
+      Stash.ProcessGritModsPurgeInStash(stashObj);
+      SetFactValue(game, n"GritModsInStashPurged", 1);
+    };
+    factVal = GetFact(game, n"RasetsuRescaledandLockedInStash");
+    if factVal <= 0 && true {
+      Stash.RasetsuItemPlayerScalingInStash(stashObj);
+      SetFactValue(game, n"RasetsuRescaledandLockedInStash", 1);
+    };
+    factVal = GetFact(game, n"IconicsUpgradeCountWithEffectiveTierUnifiedInStash");
+    if factVal <= 0 && true {
+      Stash.UnifyIconicsUpgradeCountWithEffectiveTierInStash(stashObj);
+      SetFactValue(game, n"IconicsUpgradeCountWithEffectiveTierUnifiedInStash", 1);
+    };
+    factVal = GetFact(game, n"KurtMetelFactRetrofixedInStash");
+    if factVal <= 0 && true {
+      Stash.ProcessIconicsFactsForBlackMarketerInStash(stashObj);
+      SetFactValue(game, n"KurtMetelFactRetrofixedInStash", 1);
+    };
+    factVal = GetFact(game, n"AmazonGritAttachmentsInStashPurged");
+    if factVal <= 0 && true {
+      Stash.ProcessAmazonGritAttachmentsPurgeInStash(stashObj);
+      SetFactValue(game, n"AmazonGritAttachmentsInStashPurged", 1);
+    };
+    factVal = GetFact(game, n"JackieGunsDuplicateFix");
+    if factVal <= 0 && true {
+      Stash.FixJackieGunDuplicateIDs(stashObj);
+      SetFactValue(game, n"JackieGunsDuplicateFix", 1);
+    };
+  }
+
+  private final static func InstallModsToRedesignedItems(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let itemData: ref<gameItemData>;
+    let partItemID: ItemID;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    let itemModificationSystem: wref<ItemModificationSystem> = GameInstance.GetScriptableSystemsContainer(stashObj.GetGame()).Get(n"ItemModificationSystem") as ItemModificationSystem;
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      itemData = storageItems[i];
+      if IsDefined(itemData) && itemData.HasTag(n"Gog_Katana") {
+        partItemID = ItemID.FromTDBID(t"Items.GogKatanaWeaponMod");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Buck_Grad") {
+        partItemID = ItemID.FromTDBID(t"Items.Buck_scope");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Attachment(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Tactician_Headsman") {
+        partItemID = ItemID.FromTDBID(t"Items.Headsman_scope");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Attachment(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Sasquatch_Hammer") {
+        partItemID = ItemID.FromTDBID(t"Items.Hammer_Sasquatch_Mod");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Nekomata_Breakthrough") {
+        partItemID = ItemID.FromTDBID(t"Items.Breakthrough_scope");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Attachment(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Competition_Lexington") {
+        partItemID = ItemID.FromTDBID(t"Items.Lexington_Shooting_Competition_scope");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Attachment(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Competition_Lexington") {
+        partItemID = ItemID.FromTDBID(t"Items.CollectibleIconicWeaponMod");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"Grad_Panam") {
+        partItemID = ItemID.FromTDBID(t"Items.Panam_scope");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Attachment(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"ChemResMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer12");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"ZoomMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer07a");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"QuickhackUploadMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer10");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"VisibilityMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer05");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"MeleeDmgRedMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer09");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"QuickhackDmgRedMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer11");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"ArmorMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer01");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      if IsDefined(itemData) && itemData.HasTag(n"ReloadMod") {
+        partItemID = ItemID.FromTDBID(t"Items.IntrinsicFabricEnhancer08");
+        transactionSystem.GiveItem(stashObj, partItemID, 1);
+        itemModificationSystem.QueueRequest(Stash.CreateInstallPartRequest_Mod(stashObj, itemData, partItemID));
+      };
+      i += 1;
+    };
+  }
+
+  private final static func CreateInstallPartRequest_Mod(stashObj: ref<GameObject>, itemData: ref<gameItemData>, part: ItemID) -> ref<InstallItemPart> {
+    let installPartRequest: ref<InstallItemPart>;
+    let slotID: TweakDBID;
+    switch itemData.GetItemType() {
+      case gamedataItemType.Wea_Hammer:
+      case gamedataItemType.Wea_Katana:
+        slotID = t"AttachmentSlots.IconicMeleeWeaponMod1";
+        break;
+      case gamedataItemType.Wea_Handgun:
+        slotID = t"AttachmentSlots.IconicWeaponModLegendary";
+        break;
+      case gamedataItemType.Clo_InnerChest:
+        slotID = t"AttachmentSlots.InnerChestFabricEnhancer1";
+        break;
+      case gamedataItemType.Clo_OuterChest:
+        slotID = t"AttachmentSlots.OuterChestFabricEnhancer1";
+        break;
+      case gamedataItemType.Clo_Head:
+        slotID = t"AttachmentSlots.HeadFabricEnhancer1";
+        break;
+      case gamedataItemType.Clo_Face:
+        slotID = t"AttachmentSlots.FaceFabricEnhancer1";
+        break;
+      default:
+    };
+    installPartRequest = new InstallItemPart();
+    installPartRequest.Set(stashObj, itemData.GetID(), part, slotID);
+    return installPartRequest;
+  }
+
+  private final static func ConsumablesRetrofix(stashObj: ref<GameObject>) -> Void {
+    let chargedConsumables: array<wref<gameItemData>>;
+    let i: Int32;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemListByTag(stashObj, n"ChargedConsumable", chargedConsumables);
+    i = 0;
+    while i < ArraySize(chargedConsumables) {
+      transactionSystem.RemoveItem(stashObj, chargedConsumables[i].GetID(), chargedConsumables[i].GetQuantity());
+      i += 1;
+    };
+  }
+
+  private final static func CreateInstallPartRequest_Attachment(stashObj: ref<GameObject>, itemData: ref<gameItemData>, part: ItemID) -> ref<InstallItemPart> {
+    let installPartRequest: ref<InstallItemPart>;
+    let slotID: TweakDBID;
+    switch itemData.GetItemType() {
+      case gamedataItemType.Wea_Shotgun:
+      case gamedataItemType.Wea_SniperRifle:
+      case gamedataItemType.Wea_Handgun:
+        slotID = t"AttachmentSlots.Scope";
+        break;
+      default:
+    };
+    installPartRequest = new InstallItemPart();
+    installPartRequest.Set(stashObj, itemData.GetID(), part, slotID);
+    return installPartRequest;
+  }
+
+  private final static func RemoveAllModsFromClothing(stashObj: ref<GameObject>) -> Void {
+    let currentItem: ItemID;
+    let i: Int32;
+    let itemData: ref<gameItemData>;
+    let j: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let usedSlots: array<TweakDBID>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    let itemModificationSystem: wref<ItemModificationSystem> = GameInstance.GetScriptableSystemsContainer(stashObj.GetGame()).Get(n"ItemModificationSystem") as ItemModificationSystem;
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      itemData = storageItems[i];
+      if IsDefined(itemData) {
+        currentItem = itemData.GetID();
+        if RPGManager.IsItemClothing(currentItem) {
+          ArrayClear(usedSlots);
+          transactionSystem.GetUsedSlotsOnItem(stashObj, currentItem, usedSlots);
+          j = 0;
+          while j < ArraySize(usedSlots) {
+            itemModificationSystem.QueueRequest(Stash.CreateRemovePartRequest(stashObj, currentItem, usedSlots[j]));
+            j += 1;
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final static func ProcessWeaponsAndClothingModsPurgeInStash(stashObj: ref<GameObject>) -> Void {
+    let currentItem: ItemID;
+    let i: Int32;
+    let itemData: ref<gameItemData>;
+    let j: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let usedSlots: array<TweakDBID>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      itemData = storageItems[i];
+      if IsDefined(itemData) {
+        currentItem = itemData.GetID();
+        if RPGManager.IsItemClothing(currentItem) || RPGManager.IsItemWeapon(currentItem) {
+          ArrayClear(usedSlots);
+          usedSlots = RPGManager.GetModsSlotIDs(itemData.GetItemType());
+          j = 0;
+          while j < ArraySize(usedSlots) {
+            transactionSystem.RemovePart(stashObj, currentItem, usedSlots[j]);
+            j += 1;
+          };
+        };
+        if RPGManager.IsItemWeapon(currentItem) {
+          ArrayClear(usedSlots);
+          usedSlots = RPGManager.GetAttachmentSlotIDs();
+          j = 0;
+          while j < ArraySize(usedSlots) {
+            transactionSystem.RemovePart(stashObj, currentItem, usedSlots[j]);
+            j += 1;
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final static func ProcessWeaponsModsCompensateInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let statSys: ref<StatsSystem> = GameInstance.GetStatsSystem(stashObj.GetGame());
+    let playerLevel: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.PowerLevel);
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"DeprecatedWeaponMod") && !storageItems[i].HasTag(n"DummyWeaponMod") {
+        if playerLevel < 17.00 {
+          transactionSystem.GiveItemByItemQuery(stashObj, t"Query.CommonWeaponModsQuery");
+        } else {
+          if playerLevel < 33.00 {
+            transactionSystem.GiveItemByItemQuery(stashObj, t"Query.UncommonWeaponModsQuery");
+          } else {
+            transactionSystem.GiveItemByItemQuery(stashObj, t"Query.RareWeaponModsQuery");
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final static func RemoveRedundantScopesFromAchillesRifles(stashObj: ref<GameObject>) -> Void {
+    let stashItems: array<wref<gameItemData>>;
+    let ts: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    let ims: ref<ItemModificationSystem> = GameInstance.GetScriptableSystemsContainer(stashObj.GetGame()).Get(n"ItemModificationSystem") as ItemModificationSystem;
+    if !IsDefined(ts) || !IsDefined(ims) {
+      return;
+    };
+    ts.GetItemList(stashObj, stashItems);
+    ims.RemoveRedundantScopesFromAchillesRifles(stashItems);
+  }
+
+  private final static func CreateRemovePartRequest(stashObj: ref<GameObject>, item: ItemID, slotID: TweakDBID) -> ref<RemoveItemPart> {
+    let removePartRequest: ref<RemoveItemPart> = new RemoveItemPart();
+    removePartRequest.Set(stashObj, item, slotID);
+    return removePartRequest;
+  }
+
+  private final static func IconicsReworkCompensateInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"IconicWeapon") && !storageItems[i].HasTag(n"StashScaling_Iconic") {
+        Stash.RescaleStashedIconicsToPlayerLevel(stashObj, storageItems[i]);
+      };
+      i += 1;
+    };
+  }
+
+  public final static func RescaleStashedIconicsToPlayerLevel(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let itemLeveltier5LimiterMod: ref<gameStatModifierData>;
+    let plusToUpgradeMod: ref<gameStatModifierData>;
+    let qualityToUpgradeMod: ref<gameStatModifierData>;
+    let upgradeToPlusMod: ref<gameStatModifierData>;
+    let upgradeToQualityMod: ref<gameStatModifierData>;
+    let statSys: ref<StatsSystem> = GameInstance.GetStatsSystem(stashObj.GetGame());
+    let playerLevel: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.Level);
+    let lootLevelMod: ref<gameStatModifierData> = RPGManager.CreateStatModifier(gamedataStatType.LootLevel, gameStatModifierType.Additive, playerLevel);
+    let zeroUpgradeMod: ref<gameStatModifierData> = RPGManager.CreateStatModifier(gamedataStatType.WasItemUpgraded, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.WasItemUpgraded) * -1.00);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.PowerLevel, true);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.LootLevel, true);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.ItemLevel, true);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), zeroUpgradeMod);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), lootLevelMod);
+    itemLeveltier5LimiterMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.ItemLevel, gameStatModifierType.Additive, gamedataStatType.LootLevel, n"quality_curves", n"iconic_weapon_level_tier5_limiter_retrofix");
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), itemLeveltier5LimiterMod);
+    lootLevelMod = RPGManager.CreateStatModifier(gamedataStatType.LootLevel, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.ItemLevel));
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), lootLevelMod);
+    qualityToUpgradeMod = RPGManager.CreateStatModifier(gamedataStatType.WasItemUpgraded, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.Quality) * 2.00);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), qualityToUpgradeMod);
+    upgradeToQualityMod = RPGManager.CreateStatModifier(gamedataStatType.Quality, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.WasItemUpgraded) * -0.50);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), upgradeToQualityMod);
+    plusToUpgradeMod = RPGManager.CreateStatModifier(gamedataStatType.WasItemUpgraded, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.IsItemPlus));
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), plusToUpgradeMod);
+    GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.IsItemPlus, true);
+    upgradeToPlusMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.IsItemPlus, gameStatModifierType.Additive, gamedataStatType.WasItemUpgraded, n"quality_curves", n"iconic_upgrades_amount_to_plus");
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), upgradeToPlusMod);
+  }
+
+  private final static func ProcessIconicsFactsForBlackMarketerInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"IconicWeapon") {
+        RPGManager.ProcessOnLootedPackages(stashObj, storageItems[i].GetID());
+      };
+      i += 1;
+    };
+  }
+
+  public final static func ScaleStashIconicsToPlayerLevel(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"StashScaling_Iconic") && storageItems[i].GetStatValueByType(gamedataStatType.ScalingBlocked) < 1.00 {
+        Stash.RescaleStashedIconicsToPlayerLevel(stashObj, storageItems[i]);
+        Stash.BlockScalingInStash(stashObj, storageItems[i]);
+      };
+      i += 1;
+    };
+  }
+
+  public final static func ScaleLeftHandCompensateWeaponsToPlayerLevelInStash(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let scalingBlocker: ref<gameStatModifierData>;
+    let scalingMod: ref<gameStatModifierData>;
+    let statSys: ref<StatsSystem> = GameInstance.GetStatsSystem(stashObj.GetGame());
+    let playerLevel: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.PowerLevel);
+    if TweakDBInterface.GetBool(ItemID.GetTDBID(itemData.GetID()) + t".scaleToPlayerInStash", false) && itemData.GetStatValueByType(gamedataStatType.ScalingBlocked) < 1.00 {
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.LootLevel, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.PowerLevel, true);
+      scalingMod = RPGManager.CreateStatModifier(gamedataStatType.LootLevel, gameStatModifierType.Additive, playerLevel);
+      scalingBlocker = RPGManager.CreateStatModifier(gamedataStatType.ScalingBlocked, gameStatModifierType.Additive, 1.00);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingMod);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingBlocker);
+    };
+  }
+
+  private final static func BlockScalingInStash(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let scalingBlocker: ref<gameStatModifierData>;
+    if TweakDBInterface.GetBool(ItemID.GetTDBID(itemData.GetID()) + t".scaleToPlayerInStash", false) {
+      scalingBlocker = RPGManager.CreateStatModifier(gamedataStatType.ScalingBlocked, gameStatModifierType.Additive, 1.00);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingBlocker);
+    };
+  }
+
+  private final static func ReplaceLeftHandVariantWeaponsWithRegularInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"Left_Hand") {
+        RPGManager.ProcessOnLootedPackages(stashObj, storageItems[i].GetID());
+      };
+      i += 1;
+    };
+  }
+
+  private final static func ScaleAndLockLeftHandWeaponsCompensateInStash(stashObj: ref<GameObject>) -> Void {
+    let evt: ref<ScaleAndLockLeftHandWeaponsCompensateInStashEvent>;
+    let player: wref<PlayerPuppet> = GetMainPlayer(stashObj.GetGame());
+    if IsDefined(player) {
+      evt = new ScaleAndLockLeftHandWeaponsCompensateInStashEvent();
+      GameInstance.GetDelaySystem(stashObj.GetGame()).DelayEvent(stashObj, evt, 1.00);
+    };
+  }
+
+  public final static func ProcessNonIconicWeaponsRescaleInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if !RPGManager.IsItemIconic(storageItems[i]) && RPGManager.IsItemWeapon(storageItems[i].GetID()) {
+        Stash.RetroScaleNonIconicWeaponsInStash(stashObj, storageItems[i]);
+      };
+      i += 1;
+    };
+  }
+
+  public final static func RetroScaleNonIconicWeaponsInStash(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let lootLevelMod: ref<gameStatModifierData>;
+    let qualityMod: ref<gameStatModifierData>;
+    let randomCurveMod: ref<gameStatModifierData>;
+    let randomizerMod: ref<gameStatModifierData>;
+    let scalingBlocker: ref<gameStatModifierData>;
+    let statSys: ref<StatsSystem> = GameInstance.GetStatsSystem(stashObj.GetGame());
+    let playerLevel: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.Level);
+    let playerMaxQualtity: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.MaxQuality);
+    let weaponQuality: Float = itemData.GetStatValueByType(gamedataStatType.Quality);
+    if itemData.GetStatValueByType(gamedataStatType.ScalingBlocked) < 1.00 && (itemData.GetStatValueByType(gamedataStatType.LootLevel) < 1.00 || itemData.GetStatValueByType(gamedataStatType.LootLevel) > playerLevel) && itemData.GetStatValueByType(gamedataStatType.IsItemCrafted) < 1.00 && itemData.GetStatValueByType(gamedataStatType.ItemPurchasedAtVendor) < 1.00 && itemData.GetStatValueByType(gamedataStatType.IsItemIconic) < 1.00 {
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.PowerLevel, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.LootLevel, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.RandomCurveInput, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.Quality, true);
+      lootLevelMod = RPGManager.CreateStatModifier(gamedataStatType.LootLevel, gameStatModifierType.Additive, playerLevel);
+      scalingBlocker = RPGManager.CreateStatModifier(gamedataStatType.ScalingBlocked, gameStatModifierType.Additive, 1.00);
+      randomizerMod = RPGManager.CreateStatModifier(gamedataStatType.NPCWeaponDropRandomizer, gameStatModifierType.Additive, RandRangeF(-0.80, 0.20));
+      randomCurveMod = RPGManager.CreateStatModifier(gamedataStatType.RandomCurveInput, gameStatModifierType.Additive, RandRangeF(0.01, 0.99));
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), lootLevelMod);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingBlocker);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), randomizerMod);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), randomCurveMod);
+      lootLevelMod = RPGManager.CreateCombinedStatModifier(gamedataStatType.LootLevel, gameStatModifierType.AdditiveMultiplier, gamedataStatType.NPCWeaponDropRandomizer, gameCombinedStatOperation.Multiplication, 1.00, gameStatObjectsRelation.Self);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), lootLevelMod);
+      randomCurveMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.RandomCurveInput, gameStatModifierType.Additive, gamedataStatType.LootLevel, n"quality_curves", n"level_to_random_range_mult_new");
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), randomCurveMod);
+      qualityMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.Quality, gameStatModifierType.Additive, gamedataStatType.RandomCurveInput, n"random_distributions", n"quality_distribution_new");
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), qualityMod);
+    } else {
+      if itemData.GetStatValueByType(gamedataStatType.ScalingBlocked) < 1.00 && itemData.GetStatValueByType(gamedataStatType.IsItemCrafted) >= 1.00 && itemData.GetStatValueByType(gamedataStatType.IsItemIconic) < 1.00 && weaponQuality - playerMaxQualtity >= 2.00 {
+        GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.Quality, true);
+        qualityMod = RPGManager.CreateStatModifier(gamedataStatType.Quality, gameStatModifierType.Additive, playerMaxQualtity);
+        GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), qualityMod);
+        scalingBlocker = RPGManager.CreateStatModifier(gamedataStatType.ScalingBlocked, gameStatModifierType.Additive, 1.00);
+        GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingBlocker);
+      };
+    };
+  }
+
+  public final static func CheckReginaRewardsPresenceInStash(stashObj: ref<GameObject>) -> Void {
+    let coprocessorCounter: Float;
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    coprocessorCounter = 0.00;
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if storageItems[i].HasTag(n"AdvancedSubdermalCoProcessor_Regina") {
+        coprocessorCounter += 1.00;
+      };
+      i += 1;
+    };
+    if coprocessorCounter <= 0.00 {
+      Stash.GiveReginaRefinedCWRewardInStash(stashObj);
+    };
+  }
+
+  private final static func GiveReginaRefinedCWRewardInStash(stashObj: ref<GameObject>) -> Void {
+    let item: ItemID;
+    let statSys: ref<StatsSystem> = GameInstance.GetStatsSystem(stashObj.GetGame());
+    let playerLevel: Float = statSys.GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.PowerLevel);
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    if playerLevel >= 33.00 {
+      item = ItemID.FromTDBID(t"Items.IconicAdvancedSubdermalCoProcessorLegendary_Regina");
+    } else {
+      item = ItemID.FromTDBID(t"Items.IconicAdvancedSubdermalCoProcessorEpic_Regina");
+    };
+    transactionSystem.GiveItem(stashObj, item, 1);
+  }
+
+  private final static func RemoveDeprecatedReginaCWRewardInStash(stashObj: ref<GameObject>) -> Void {
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.RemoveItemByTDBID(stashObj, t"Items.NeoFiberLegendary", 1);
+  }
+
+  private final static func ProcessGritModsPurgeInStash(stashObj: ref<GameObject>) -> Void {
+    let currentItem: ItemID;
+    let i: Int32;
+    let itemData: ref<gameItemData>;
+    let j: Int32;
+    let partData: InnerItemData;
+    let staticData: wref<Item_Record>;
+    let storageItems: array<wref<gameItemData>>;
+    let usedSlots: array<TweakDBID>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      itemData = storageItems[i];
+      if IsDefined(itemData) && itemData.HasTag(n"Grit") {
+        currentItem = itemData.GetID();
+        ArrayClear(usedSlots);
+        usedSlots = RPGManager.GetModsSlotIDs(itemData.GetItemType());
+        j = 0;
+        while j < ArraySize(usedSlots) {
+          itemData.GetItemPart(partData, usedSlots[j]);
+          staticData = InnerItemData.GetStaticData(partData);
+          if IsDefined(staticData) && staticData.TagsContains(n"DummyPart") {
+          } else {
+            transactionSystem.RemovePart(stashObj, currentItem, usedSlots[j]);
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final static func ProcessAmazonGritAttachmentsPurgeInStash(stashObj: ref<GameObject>) -> Void {
+    let currentItem: ItemID;
+    let i: Int32;
+    let itemData: ref<gameItemData>;
+    let j: Int32;
+    let partData: InnerItemData;
+    let staticData: wref<Item_Record>;
+    let storageItems: array<wref<gameItemData>>;
+    let usedSlots: array<TweakDBID>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      itemData = storageItems[i];
+      if IsDefined(itemData) && itemData.HasTag(n"Grit") && itemData.HasTag(n"IconicWeapon") {
+        currentItem = itemData.GetID();
+        ArrayClear(usedSlots);
+        usedSlots = RPGManager.GetAttachmentSlotIDs();
+        j = 0;
+        while j < ArraySize(usedSlots) {
+          itemData.GetItemPart(partData, usedSlots[j]);
+          staticData = InnerItemData.GetStaticData(partData);
+          if IsDefined(staticData) && staticData.TagsContains(n"DummyPart") {
+          } else {
+            transactionSystem.RemovePart(stashObj, currentItem, usedSlots[j]);
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final static func FixJackieGunDuplicateIDs(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let jackieGuns: array<ref<gameItemData>>;
+    let storageItems: array<wref<gameItemData>>;
+    let player: ref<GameObject> = GameInstance.GetPlayerSystem(stashObj.GetGame()).GetLocalPlayerMainGameObject();
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(player, storageItems);
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if ItemID.GetTDBID(storageItems[i].GetID()) == t"Items.Preset_Nue_Jackie" {
+        ArrayPush(jackieGuns, storageItems[i]);
+      };
+      i += 1;
+    };
+    if ArraySize(jackieGuns) == 2 {
+      if ItemID.GetRngSeed(jackieGuns[0].GetID()) == ItemID.GetRngSeed(jackieGuns[1].GetID()) {
+        transactionSystem.RemoveItem(stashObj, jackieGuns[0].GetID(), 1);
+        transactionSystem.GiveItemByTDBID(stashObj, t"Items.Preset_Nue_Jackie_Iconic", 1);
+      };
+    };
+  }
+
+  public final static func RasetsuItemPlayerScalingInStash(stashObj: ref<GameObject>) -> Void {
+    let i: Int32;
+    let storageItems: array<wref<gameItemData>>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(stashObj.GetGame());
+    transactionSystem.GetItemList(stashObj, storageItems);
+    i = 0;
+    while i < ArraySize(storageItems) {
+      if RPGManager.IsItemIconic(storageItems[i]) && storageItems[i].HasTag(n"Rasetsu") {
+        Stash.ScaleRasetsuToProperTierInStash(stashObj, storageItems[i]);
+      };
+      i += 1;
+    };
+  }
+
+  public final static func ScaleRasetsuToProperTierInStash(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let scalingBlocker: ref<gameStatModifierData>;
+    let scalingMod: ref<gameStatModifierData>;
+    if TweakDBInterface.GetBool(ItemID.GetTDBID(itemData.GetID()) + t".scaleToPlayer", false) && itemData.GetStatValueByType(gamedataStatType.ScalingBlocked) < 1.00 && (itemData.GetStatValueByType(gamedataStatType.PowerLevel) <= 1.00 || itemData.HasTag(n"DLCStashItem") || itemData.HasTag(n"AutoScalingItem") || itemData.HasTag(n"StashScaling_Iconic") || itemData.HasTag(n"Left_Hand_Retrofix")) {
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.LootLevel, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.PowerLevel, true);
+      scalingMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.LootLevel, gameStatModifierType.Additive, gamedataStatType.WasItemUpgraded, n"quality_curves", n"iconic_upgrades_amount_to_level");
+      scalingBlocker = RPGManager.CreateStatModifier(gamedataStatType.ScalingBlocked, gameStatModifierType.Additive, 1.00);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingMod);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingBlocker);
+      scalingMod = RPGManager.CreateStatModifier(gamedataStatType.LootLevel, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.LootLevel));
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.LootLevel, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), scalingMod);
+    };
+  }
+
+  private final static func UnifyIconicsUpgradeCountWithEffectiveTierInStash(stashObj: ref<GameObject>) -> Void {
+    let evt: ref<UnifyIconicsUpgradeCountWithEffectiveTierInStashEvent>;
+    let player: wref<PlayerPuppet> = GetMainPlayer(stashObj.GetGame());
+    if IsDefined(player) {
+      evt = new UnifyIconicsUpgradeCountWithEffectiveTierInStashEvent();
+      GameInstance.GetDelaySystem(stashObj.GetGame()).DelayEvent(stashObj, evt, 0.10);
+    };
+  }
+
+  public final static func UnifyIconicWeaponsUpgradesCountWithEffectiveTierInStash(stashObj: ref<GameObject>, itemData: ref<gameItemData>) -> Void {
+    let plusMod: ref<gameStatModifierData>;
+    let upgradeMod: ref<gameStatModifierData>;
+    let effectiveTier: Float = itemData.GetStatValueByType(gamedataStatType.EffectiveTier);
+    let upgradeCount: Float = itemData.GetStatValueByType(gamedataStatType.WasItemUpgraded);
+    if upgradeCount < effectiveTier {
+      upgradeMod = RPGManager.CreateStatModifier(gamedataStatType.WasItemUpgraded, gameStatModifierType.Additive, itemData.GetStatValueByType(gamedataStatType.EffectiveTier));
+      GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.WasItemUpgraded, true);
+      GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), upgradeMod);
+    };
+    GameInstance.GetStatsSystem(stashObj.GetGame()).RemoveAllModifiers(itemData.GetStatsObjectID(), gamedataStatType.IsItemPlus, true);
+    plusMod = RPGManager.CreateStatModifierUsingCurve(gamedataStatType.IsItemPlus, gameStatModifierType.Additive, gamedataStatType.WasItemUpgraded, n"quality_curves", n"iconic_upgrades_amount_to_plus");
+    GameInstance.GetStatsSystem(stashObj.GetGame()).AddSavedModifier(itemData.GetStatsObjectID(), plusMod);
+  }
+}
+
+public class StashController extends ScriptableDeviceComponent {
+
+  public const func GetPS() -> ref<StashControllerPS> {
+    return this.GetBasePS() as StashControllerPS;
+  }
+}
+
+public class StashControllerPS extends ScriptableDeviceComponentPS {
+
+  private final const func ActionOpenStash() -> ref<OpenStash> {
+    let action: ref<OpenStash> = new OpenStash();
+    action.clearanceLevel = 2;
+    action.SetUp(this);
+    action.SetProperties();
+    action.AddDeviceName(this.m_deviceName);
+    action.CreateInteraction();
+    return action;
+  }
+
+  private final func OnOpenStash(evt: ref<OpenStash>) -> EntityNotificationType {
+    this.UseNotifier(evt);
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  public func GetActions(out outActions: [ref<DeviceAction>], context: GetActionsContext) -> Bool {
+    if !super.GetActions(outActions, context) {
+      return false;
+    };
+    if OpenStash.IsDefaultConditionMet(this, context) {
+      ArrayPush(outActions, this.ActionOpenStash());
+    };
+    this.SetActionIllegality(outActions, this.m_illegalActions.regularActions);
+    return true;
+  }
+}

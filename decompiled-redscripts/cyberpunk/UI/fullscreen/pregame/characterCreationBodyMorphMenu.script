@@ -1,0 +1,1172 @@
+
+public class characterCreationBodyMorphMenu extends BaseCharacterCreationController {
+
+  @default(characterCreationBodyMorphMenu, UI_Skin)
+  public edit let m_defaultPreviewSlot: CName;
+
+  public edit let m_optionsList: inkCompoundRef;
+
+  public edit let m_colorPicker: inkWidgetRef;
+
+  public edit let m_colorPickerContentWrapper: inkWidgetRef;
+
+  public edit let m_colorPickerBG: inkWidgetRef;
+
+  public edit let m_colorPickerClose: inkWidgetRef;
+
+  public edit let m_scrollWidget: inkWidgetRef;
+
+  public edit let m_scrollArea: inkScrollAreaRef;
+
+  public edit let m_optionList: wref<inkCompoundWidget>;
+
+  public edit let m_slider: inkWidgetRef;
+
+  public edit let m_previousPageBtn: inkWidgetRef;
+
+  public edit let m_previousPageBtnBg: inkImageRef;
+
+  public edit let m_previousPageBtnText: inkTextRef;
+
+  public edit let m_nextPageBtnBg: inkImageRef;
+
+  public edit let m_nextPageBtnText: inkTextRef;
+
+  public edit let m_backConfirmation: inkWidgetRef;
+
+  public edit let m_backConfirmationWidget: inkWidgetRef;
+
+  public edit let m_ConfirmationConfirmBtn: inkWidgetRef;
+
+  public edit let m_ConfirmationCloseBtn: inkWidgetRef;
+
+  public edit let m_preset1Group: inkWidgetRef;
+
+  public edit let m_preset2Group: inkWidgetRef;
+
+  public edit let m_preset3Group: inkWidgetRef;
+
+  public edit let m_randomizeGroup: inkWidgetRef;
+
+  public edit let m_presetsLabel: inkWidgetRef;
+
+  public edit let m_preset1: inkWidgetRef;
+
+  public edit let m_preset2: inkWidgetRef;
+
+  public edit let m_preset3: inkWidgetRef;
+
+  public edit let m_randomize: inkWidgetRef;
+
+  public edit let m_randomizeBg: inkImageRef;
+
+  public edit let m_randomizationSettingsButton: inkWidgetRef;
+
+  public edit let m_randomizationSettingsWidget: inkWidgetRef;
+
+  public edit let m_randomizationSettingsController: wref<gameuiCharacterRandomizationController>;
+
+  public edit let m_randomizationSettingsButtonBg: inkImageRef;
+
+  public edit let m_preset1Thumbnail: inkImageRef;
+
+  public edit let m_preset2Thumbnail: inkImageRef;
+
+  public edit let m_preset3Thumbnail: inkImageRef;
+
+  public edit let m_preset1Bg: inkImageRef;
+
+  public edit let m_preset2Bg: inkImageRef;
+
+  public edit let m_preset3Bg: inkImageRef;
+
+  public edit let m_navigationButtons: inkWidgetRef;
+
+  @default(characterCreationBodyMorphMenu, false)
+  public let m_hideColorPickerNextFrame: Bool;
+
+  public let m_colorPickerOwner: wref<inkWidget>;
+
+  public let m_animationProxy: ref<inkAnimProxy>;
+
+  public let m_confirmAnimationProxy: ref<inkAnimProxy>;
+
+  public let m_optionListAnimationProxy: ref<inkAnimProxy>;
+
+  @default(characterCreationBodyMorphMenu, false)
+  public let m_optionsListInitialized: Bool;
+
+  @default(characterCreationBodyMorphMenu, false)
+  public let m_introPlayed: Bool;
+
+  public let m_navigationControllers: [wref<inkDiscreteNavigationController>];
+
+  public let m_presetsNavigationControllers: [wref<inkDiscreteNavigationController>];
+
+  public let m_menuListController: wref<ListController>;
+
+  public let m_cachedCursor: wref<inkWidget>;
+
+  @default(characterCreationBodyMorphMenu, false)
+  public let m_updatingFinalizedState: Bool;
+
+  @default(characterCreationBodyMorphMenu, gameuiCharacterCustomizationEditTag.NewGame)
+  public let m_editMode: gameuiCharacterCustomizationEditTag;
+
+  @default(characterCreationBodyMorphMenu, BusySwitchingReason.AVAILABLE)
+  public let m_busySwitchingAppearance: BusySwitchingReason;
+
+  private let m_scrollController: wref<inkScrollController>;
+
+  private let m_sliderController: wref<inkSliderController>;
+
+  private let m_inputDisabled: Bool;
+
+  private let m_introComplete: Bool;
+
+  private let m_isPresetHoveredOver: Bool;
+
+  private let m_randomizationSettingsNavController: wref<inkDiscreteNavigationController>;
+
+  private let m_randomizationNavController: wref<inkDiscreteNavigationController>;
+
+  @default(characterCreationBodyMorphMenu, 1400.0f)
+  private const let m_maxColorPickerHeight: Float;
+
+  @default(characterCreationBodyMorphMenu, 200.000000f)
+  private const let m_minColorPickerHeight: Float;
+
+  @default(characterCreationBodyMorphMenu, 200.000000f)
+  private const let m_colorPickerHeightPerRow: Float;
+
+  private let m_delayRandomizeProxy: ref<inkAnimProxy>;
+
+  private let m_delayRandomizeAnimation: ref<inkAnimDef>;
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let morphMenuUserData: ref<MorphMenuUserData> = userData as MorphMenuUserData;
+    this.m_optionsListInitialized = IsDefined(morphMenuUserData) && morphMenuUserData.m_optionsListInitialized;
+    this.m_updatingFinalizedState = morphMenuUserData.m_updatingFinalizedState;
+    this.m_editMode = morphMenuUserData.m_editMode;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    if !this.m_updatingFinalizedState {
+      inkTextRef.SetLocalizedTextString(this.m_previousPageBtnText, "LocKey#35476");
+      inkTextRef.SetLocalizedTextString(this.m_nextPageBtnText, "LocKey#23407");
+      inkWidgetRef.RegisterToCallback(this.m_preset1, n"OnRelease", this, n"OnPreset1");
+      inkWidgetRef.RegisterToCallback(this.m_preset2, n"OnRelease", this, n"OnPreset2");
+      inkWidgetRef.RegisterToCallback(this.m_preset3, n"OnRelease", this, n"OnPreset3");
+      inkWidgetRef.RegisterToCallback(this.m_preset1, n"OnHoverOver", this, n"OnHoverOverPreset1");
+      inkWidgetRef.RegisterToCallback(this.m_preset1, n"OnHoverOut", this, n"OnHoverOutPreset1");
+      inkWidgetRef.RegisterToCallback(this.m_preset2, n"OnHoverOver", this, n"OnHoverOverPreset2");
+      inkWidgetRef.RegisterToCallback(this.m_preset2, n"OnHoverOut", this, n"OnHoverOutPreset2");
+      inkWidgetRef.RegisterToCallback(this.m_preset3, n"OnHoverOver", this, n"OnHoverOverPreset3");
+      inkWidgetRef.RegisterToCallback(this.m_preset3, n"OnHoverOut", this, n"OnHoverOutPreset3");
+    } else {
+      inkTextRef.SetLocalizedTextString(this.m_previousPageBtnText, "LocKey#35476");
+      inkTextRef.SetLocalizedTextString(this.m_nextPageBtnText, "LocKey#23123");
+      inkWidgetRef.SetVisible(this.m_presetsLabel, false);
+      inkWidgetRef.SetVisible(this.m_preset1, false);
+      inkWidgetRef.SetVisible(this.m_preset2, false);
+      inkWidgetRef.SetVisible(this.m_preset3, false);
+      inkWidgetRef.SetInteractive(this.m_preset1, false);
+      inkWidgetRef.SetInteractive(this.m_preset2, false);
+      inkWidgetRef.SetInteractive(this.m_preset3, false);
+      inkWidgetRef.SetVisible(this.m_preset1Thumbnail, false);
+      inkWidgetRef.SetVisible(this.m_preset2Thumbnail, false);
+      inkWidgetRef.SetVisible(this.m_preset3Thumbnail, false);
+      inkWidgetRef.SetVisible(this.m_preset1Bg, false);
+      inkWidgetRef.SetVisible(this.m_preset2Bg, false);
+      inkWidgetRef.SetVisible(this.m_preset3Bg, false);
+    };
+    inkWidgetRef.RegisterToCallback(this.m_randomize, n"OnRelease", this, n"OnRandomize");
+    inkWidgetRef.RegisterToCallback(this.m_randomize, n"OnPress", this, n"OnRandomizePress");
+    inkWidgetRef.RegisterToCallback(this.m_randomize, n"OnHoverOver", this, n"OnHoverOverRandomize");
+    inkWidgetRef.RegisterToCallback(this.m_randomize, n"OnHoverOut", this, n"OnHoverOutRandomize");
+    inkWidgetRef.RegisterToCallback(this.m_randomizationSettingsButton, n"OnRelease", this, n"OnOpenRandomizationSettings");
+    inkWidgetRef.RegisterToCallback(this.m_randomizationSettingsButton, n"OnHoverOver", this, n"OnHoverOverRandomizationSettings");
+    inkWidgetRef.RegisterToCallback(this.m_randomizationSettingsButton, n"OnHoverOut", this, n"OnHoverOutRandomizationSettings");
+    this.m_optionList.RegisterToCallback(n"OnRelease", this, n"OnListRelease");
+    inkWidgetRef.RegisterToCallback(this.m_colorPickerClose, n"OnRelease", this, n"OnColorPickerClose");
+    inkWidgetRef.RegisterToCallback(this.m_previousPageBtn, n"OnRelease", this, n"OnPrevious");
+    inkWidgetRef.RegisterToCallback(this.m_previousPageBtn, n"OnHoverOver", this, n"OnHoverOverPreviousPageBtn");
+    inkWidgetRef.RegisterToCallback(this.m_previousPageBtn, n"OnHoverOut", this, n"OnHoverOutPreviousPageBtn");
+    inkWidgetRef.RegisterToCallback(this.m_nextPageHitArea, n"OnHoverOver", this, n"OnHoverOverNextPageBtn");
+    inkWidgetRef.RegisterToCallback(this.m_nextPageHitArea, n"OnHoverOut", this, n"OnHoverOutNextPageBtn");
+    inkWidgetRef.RegisterToCallback(this.m_ConfirmationConfirmBtn, n"OnRelease", this, n"OnConfirmationConfirm");
+    inkWidgetRef.RegisterToCallback(this.m_ConfirmationCloseBtn, n"OnRelease", this, n"OnConfirmationClose");
+    inkWidgetRef.SetVisible(this.m_colorPicker, false);
+    inkWidgetRef.SetVisible(this.m_colorPickerBG, false);
+    inkWidgetRef.RegisterToCallback(this.m_colorPicker, n"OnHoverOver", this, n"OnHoverOverColorPicker");
+    inkWidgetRef.RegisterToCallback(this.m_colorPicker, n"OnColorSelected", this, n"OnColorSelected");
+    this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.Customizations);
+    if this.m_optionsListInitialized {
+      this.InitializeList();
+      this.OnIntro();
+    };
+    this.m_menuListController = inkWidgetRef.GetController(this.m_optionsList) as ListController;
+    this.m_scrollController = inkWidgetRef.GetControllerByType(this.m_scrollWidget, n"inkScrollController") as inkScrollController;
+    this.m_sliderController = inkWidgetRef.GetControllerByType(this.m_slider, n"inkSliderController") as inkSliderController;
+    this.m_randomizationNavController = inkWidgetRef.GetControllerByType(this.m_randomize, n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+    this.m_randomizationSettingsNavController = inkWidgetRef.GetControllerByType(this.m_randomizationSettingsButton, n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+    this.m_randomizationSettingsController = inkWidgetRef.GetControllerByType(this.m_randomizationSettingsWidget, n"gameuiCharacterRandomizationController") as gameuiCharacterRandomizationController;
+    this.m_randomizationSettingsController.SetCustomizationSystem(this.GetCharacterCustomizationSystem());
+    this.m_randomizationSettingsController.UpdateEditMode(this.m_editMode);
+    this.m_randomizationSettingsController.UpdateRandomizationSettingsFromData();
+    ArrayPush(this.m_navigationControllers, inkWidgetRef.GetController(this.m_preset1Group) as inkDiscreteNavigationController);
+    ArrayPush(this.m_navigationControllers, inkWidgetRef.GetController(this.m_preset2Group) as inkDiscreteNavigationController);
+    ArrayPush(this.m_navigationControllers, inkWidgetRef.GetController(this.m_preset3Group) as inkDiscreteNavigationController);
+    ArrayPush(this.m_navigationControllers, inkWidgetRef.GetController(this.m_randomize) as inkDiscreteNavigationController);
+    ArrayPush(this.m_navigationControllers, inkWidgetRef.GetController(this.m_randomizationSettingsButton) as inkDiscreteNavigationController);
+    ArrayPush(this.m_presetsNavigationControllers, inkWidgetRef.GetController(this.m_preset1Group) as inkDiscreteNavigationController);
+    ArrayPush(this.m_presetsNavigationControllers, inkWidgetRef.GetController(this.m_preset2Group) as inkDiscreteNavigationController);
+    ArrayPush(this.m_presetsNavigationControllers, inkWidgetRef.GetController(this.m_preset3Group) as inkDiscreteNavigationController);
+    if NotEquals(this.m_editMode, gameuiCharacterCustomizationEditTag.NewGame) {
+      this.SetTimeDilatation(true);
+    };
+    this.m_inputDisabled = false;
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let uiSystem: ref<UISystem>;
+    super.OnUninitialize();
+    if !this.m_updatingFinalizedState {
+      inkWidgetRef.UnregisterFromCallback(this.m_preset1, n"OnRelease", this, n"OnPreset1");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset2, n"OnRelease", this, n"OnPreset2");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset3, n"OnRelease", this, n"OnPreset3");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset1, n"OnHoverOver", this, n"OnHoverOverPreset1");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset1, n"OnHoverOut", this, n"OnHoverOutPreset1");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset2, n"OnHoverOver", this, n"OnHoverOverPreset2");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset2, n"OnHoverOut", this, n"OnHoverOutPreset2");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset3, n"OnHoverOver", this, n"OnHoverOverPreset3");
+      inkWidgetRef.UnregisterFromCallback(this.m_preset3, n"OnHoverOut", this, n"OnHoverOutPreset3");
+    } else {
+      uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      uiSystem.RestorePreviousVisualState(n"inkInGameMenuStateSolid");
+    };
+    inkWidgetRef.UnregisterFromCallback(this.m_randomize, n"OnRelease", this, n"OnRandomize");
+    inkWidgetRef.UnregisterFromCallback(this.m_randomize, n"OnHoverOver", this, n"OnHoverOverRandomize");
+    inkWidgetRef.UnregisterFromCallback(this.m_randomize, n"OnHoverOut", this, n"OnHoverOutRandomize");
+    inkWidgetRef.UnregisterFromCallback(this.m_randomizationSettingsButton, n"OnRelease", this, n"OnOpenRandomizationSettings");
+    inkWidgetRef.UnregisterFromCallback(this.m_randomizationSettingsButton, n"OnHoverOver", this, n"OnHoverOverRandomizationSettings");
+    inkWidgetRef.UnregisterFromCallback(this.m_randomizationSettingsButton, n"OnHoverOut", this, n"OnHoverOutRandomizationSettings");
+    this.m_optionList.UnregisterFromCallback(n"OnRelease", this, n"OnListRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_colorPickerClose, n"OnRelease", this, n"OnColorPickerClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_previousPageBtn, n"OnRelease", this, n"OnPrevious");
+    inkWidgetRef.UnregisterFromCallback(this.m_previousPageBtn, n"OnHoverOver", this, n"OnHoverOverPreviousPageBtn");
+    inkWidgetRef.UnregisterFromCallback(this.m_previousPageBtn, n"OnHoverOut", this, n"OnHoverOutPreviousPageBtn");
+    inkWidgetRef.UnregisterFromCallback(this.m_nextPageHitArea, n"OnHoverOver", this, n"OnHoverOverNextPageBtn");
+    inkWidgetRef.UnregisterFromCallback(this.m_nextPageHitArea, n"OnHoverOut", this, n"OnHoverOutNextPageBtn");
+    inkWidgetRef.UnregisterFromCallback(this.m_ConfirmationConfirmBtn, n"OnRelease", this, n"OnConfirmationConfirm");
+    inkWidgetRef.UnregisterFromCallback(this.m_ConfirmationCloseBtn, n"OnRelease", this, n"OnConfirmationClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_colorPicker, n"OnHoverOver", this, n"OnHoverOverColorPicker");
+    inkWidgetRef.UnregisterFromCallback(this.m_colorPicker, n"OnColorSelected", this, n"OnColorSelected");
+    if NotEquals(this.m_editMode, gameuiCharacterCustomizationEditTag.NewGame) {
+      this.SetTimeDilatation(false);
+    };
+    this.OnOutro();
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let target: wref<inkWidget> = e.GetTarget();
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      if target == inkWidgetRef.Get(this.m_nextPageHitArea) && Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+        this.ConfirmCustomizedCharacter();
+      };
+    };
+  }
+
+  protected cb func OnInitializeOptionsList(evt: ref<gameuiCharacterCustomizationSystem_OnInitializeOptionsListEvent>) -> Bool {
+    let uiSystem: ref<UISystem>;
+    if this.m_updatingFinalizedState {
+      this.GetCharacterCustomizationSystem().InitializeOptionsFromFinalizedState();
+      this.ReInitializeOptionsList();
+      uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      uiSystem.RequestNewVisualState(n"inkInGameMenuStateSolid");
+    } else {
+      if this.m_characterCustomizationState.GetLifePath() == t"LifePaths.Nomad" {
+        this.ApplyUIPreset(n"nomad", true);
+      } else {
+        if this.m_characterCustomizationState.GetLifePath() == t"LifePaths.StreetKid" {
+          this.ApplyUIPreset(n"street", true);
+        } else {
+          if this.m_characterCustomizationState.GetLifePath() == t"LifePaths.Corporate" {
+            this.ApplyUIPreset(n"corpo", true);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnPresetAppliedEvent(evt: ref<gameuiCharacterCustomizationSystem_OnPresetAppliedEvent>) -> Bool {
+    this.ReInitializeOptionsList();
+    inkWidgetRef.SetState(this.m_randomize, n"Default");
+    this.m_busySwitchingAppearance = BusySwitchingReason.AVAILABLE;
+  }
+
+  protected cb func OnAppearanceAppliedEvent(evt: ref<gameuiCharacterCustomizationSystem_OnAppearanceAppliedEvent>) -> Bool {
+    if Equals(this.m_busySwitchingAppearance, BusySwitchingReason.SWAPPING) {
+      this.m_busySwitchingAppearance = BusySwitchingReason.AVAILABLE;
+    };
+  }
+
+  public final func ReInitializeOptionsList() -> Void {
+    if !this.m_introPlayed {
+      this.InitializeList();
+      this.OnIntro();
+      this.m_introPlayed = true;
+    } else {
+      this.RefreshList();
+    };
+  }
+
+  public final func RefreshList() -> Void {
+    let i: Int32;
+    let j: Int32;
+    let option: ref<CharacterCustomizationOption>;
+    let options: array<ref<CharacterCustomizationOption>>;
+    let system: ref<gameuiICharacterCustomizationSystem>;
+    this.RequestCameraChange(this.m_defaultPreviewSlot);
+    system = this.GetCharacterCustomizationSystem();
+    options = system.GetUnitedOptions(true, true, true);
+    this.UpdateVoiceOverWidget();
+    i = this.UpdateVoiceOverWidget() ? 1 : 0;
+    j = 0;
+    while j < ArraySize(options) {
+      option = options[j];
+      if option.isEditable && option.isActive && !option.isCensored {
+        this.UpdateOption(i, option, option);
+        i = i + 1;
+      };
+      j += 1;
+    };
+  }
+
+  public final func UpdateVoiceOverWidget() -> Bool {
+    let switcherController: wref<characterCreationVoiceOverSwitcher> = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, 0).GetController() as characterCreationVoiceOverSwitcher;
+    if IsDefined(switcherController) {
+      switcherController.SetIsBrainGenderMale(this.m_characterCustomizationState.IsBrainGenderMale());
+      return true;
+    };
+    return false;
+  }
+
+  private final func ResetRandomizerNavOverride() -> Void {
+    this.m_randomizationNavController.SetNavigable(false);
+    this.m_randomizationSettingsNavController.SetNavigable(false);
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_preset3));
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Down, inkWidgetRef.Get(this.m_preset1));
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Right, inkWidgetRef.Get(this.m_randomize));
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Left, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_preset3));
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Down, inkWidgetRef.Get(this.m_preset1));
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Right, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Left, inkWidgetRef.Get(this.m_randomizationSettingsButton));
+  }
+
+  private final func ClearRandomizerNavOverride() -> Void {
+    this.m_randomizationNavController.SetNavigable(true);
+    this.m_randomizationSettingsNavController.SetNavigable(true);
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Up, null);
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Down, null);
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Right, null);
+    this.m_randomizationSettingsNavController.OverrideNavigation(inkDiscreteNavigationDirection.Left, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Up, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Down, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Right, null);
+    this.m_randomizationNavController.OverrideNavigation(inkDiscreteNavigationDirection.Left, null);
+  }
+
+  private final func GetDelayAnimation() -> ref<inkAnimDef> {
+    let delayAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.50);
+    transparencyInterpolator.SetStartTransparency(1.00);
+    transparencyInterpolator.SetEndTransparency(1.00);
+    delayAnimation.AddInterpolator(transparencyInterpolator);
+    return delayAnimation;
+  }
+
+  protected cb func OnRandomizeComplete(evt: ref<gameuiCharacterCustomizationSystem_OnRandomizeCompleteEvent>) -> Bool {
+    this.RequestCameraChange(this.m_defaultPreviewSlot);
+    if IsDefined(this.m_delayRandomizeProxy) {
+      this.m_delayRandomizeProxy.Stop(true);
+      this.m_delayRandomizeProxy = null;
+    };
+    if !IsDefined(this.m_delayRandomizeAnimation) {
+      this.m_delayRandomizeAnimation = this.GetDelayAnimation();
+    };
+    this.m_delayRandomizeProxy = this.GetRootWidget().PlayAnimation(this.m_delayRandomizeAnimation);
+    this.m_delayRandomizeProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnRandomizeCompleteDelayed");
+  }
+
+  protected cb func OnRandomizeCompleteDelayed(proxy: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetState(this.m_randomize, n"Default");
+    this.m_busySwitchingAppearance = BusySwitchingReason.AVAILABLE;
+    this.DisableInputDuringRandomization(false);
+  }
+
+  protected cb func OnAppearanceSwitched(evt: ref<gameuiCharacterCustomizationSystem_OnAppearanceSwitchedEvent>) -> Bool {
+    let i: Int32;
+    let pair: gameuiSwitchPair;
+    let j: Int32 = 0;
+    while j < ArraySize(evt.pairs) {
+      pair = evt.pairs[j];
+      if IsDefined(pair.prevOption) {
+        i = 0;
+        while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+          if this.UpdateOption(i, pair.prevOption, pair.currOption) {
+            break;
+          };
+          i += 1;
+        };
+      } else {
+        if IsDefined(pair.currOption) {
+          i = 0;
+          while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+            if this.UpdateOption(i, pair.currOption, pair.currOption) {
+              break;
+            };
+            i += 1;
+          };
+        };
+      };
+      j += 1;
+    };
+  }
+
+  protected cb func OnOptionUpdated(evt: ref<gameuiCharacterCustomizationSystem_OnOptionUpdatedEvent>) -> Bool {
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+      if this.UpdateOption(i, evt.option, evt.option) {
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnReFinalizeComplete(evt: ref<gameuiCharacterCustomizationSystem_OnReFinalizeStateCompleteEvent>) -> Bool {
+    this.NextMenu();
+  }
+
+  protected cb func OnCancelFinalizedStateUpdate(evt: ref<gameuiCharacterCustomizationSystem_OnCancelFinalizedStateUpdateEvent>) -> Bool {
+    this.OnOutro();
+    this.m_eventDispatcher.SpawnEvent(n"OnCancel");
+  }
+
+  public final func UpdateOption(i: Int32, const lookupOption: wref<CharacterCustomizationOption>, const newOption: wref<CharacterCustomizationOption>) -> Bool {
+    let colorOptionController: ref<characterCreationBodyMorphColorOption>;
+    let option: wref<CharacterCustomizationOption>;
+    let optionController: ref<characterCreationBodyMorphOption> = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphOption;
+    if IsDefined(optionController) {
+      option = optionController.GetSelectorOption();
+      if Equals(lookupOption.info.uiSlot, option.info.uiSlot) {
+        if IsDefined(newOption) && newOption.isActive && !newOption.isCensored {
+          optionController.SetOption(newOption);
+        } else {
+          optionController.ResetOption();
+        };
+        return true;
+      };
+    };
+    colorOptionController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphColorOption;
+    if IsDefined(colorOptionController) {
+      option = colorOptionController.GetColorPickerOption();
+      if Equals(lookupOption.info.uiSlot, option.info.uiSlot) {
+        if IsDefined(newOption) && newOption.isActive && !newOption.isCensored {
+          colorOptionController.SetOption(newOption);
+        } else {
+          colorOptionController.ResetOption();
+        };
+        return true;
+      };
+    };
+    return false;
+  }
+
+  protected cb func OnNextFrame(evt: ref<NextFrameEvent>) -> Bool {
+    if this.m_hideColorPickerNextFrame {
+      this.HideColorPicker(-1);
+      this.m_scrollController.SetInputDisabled(false);
+    };
+  }
+
+  protected cb func OnSliderChange(widget: wref<inkWidget>) -> Bool {
+    let optionController: wref<characterCreationBodyMorphOption> = widget.GetController() as characterCreationBodyMorphOption;
+    let option: ref<CharacterCustomizationOption> = optionController.GetSelectorOption();
+    let index: Uint32 = optionController.GetSelectorIndex();
+    if Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+      this.RequestCameraChange(this.GetSlotName(option));
+      this.m_busySwitchingAppearance = BusySwitchingReason.SWAPPING;
+    };
+    this.GetCharacterCustomizationSystem().ApplyChangeToOption(option, index);
+    this.GetTelemetrySystem().LogInitialChoiceOptionSelected(option, index);
+  }
+
+  protected cb func OnColorPickerTriggered(widget: wref<inkWidget>) -> Bool {
+    let appearanceInfo: ref<gameuiAppearanceInfo>;
+    let pickerController: wref<characterCreationBodyMorphOptionColorPicker>;
+    let rowCount: Int32;
+    let colorOptionController: wref<characterCreationBodyMorphColorOption> = widget.GetController() as characterCreationBodyMorphColorOption;
+    if colorOptionController.IsColorPickerTriggered() {
+      this.m_colorPickerOwner = widget;
+      this.m_colorPickerOwner.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverColorPickerOwner");
+      pickerController = inkWidgetRef.GetController(this.m_colorPicker) as characterCreationBodyMorphOptionColorPicker;
+      pickerController.FillGrid(colorOptionController.GetColorPickerOption());
+      appearanceInfo = colorOptionController.GetColorPickerOption().info as gameuiAppearanceInfo;
+      pickerController.SetTitle(appearanceInfo.localizedName);
+      inkWidgetRef.SetVisible(this.m_colorPicker, true);
+      inkWidgetRef.SetVisible(this.m_colorPickerBG, true);
+      rowCount = (ArraySize(appearanceInfo.definitions) - 1) / 6 + 1;
+      inkWidgetRef.SetHeight(this.m_colorPickerContentWrapper, ClampF(Cast<Float>(rowCount) * this.m_colorPickerHeightPerRow, this.m_minColorPickerHeight, this.m_maxColorPickerHeight));
+      this.m_animationProxy = inkWidgetRef.GetController(this.m_colorPickerBG).PlayLibraryAnimation(n"color_picker_panel_intro");
+      this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPanelIntroAnimFinished");
+      this.m_confirmAnimationProxy = this.PlayLibraryAnimation(n"color_picker_bg_intro");
+      this.m_inputDisabled = true;
+      this.m_optionListAnimationProxy = this.PlayLibraryAnimation(n"option_list_hide");
+      this.PlaySound(n"CharacterCreationConfirmationAnimation", n"OnClose");
+      this.m_cachedCursor = widget;
+      this.RequestCameraChange(this.GetSlotName(colorOptionController.GetColorPickerOption()));
+    };
+    this.m_scrollController.SetInputDisabled(true);
+  }
+
+  protected cb func OnPanelIntroAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let pickerController: wref<characterCreationBodyMorphOptionColorPicker>;
+    if this.GetPlayerControlledObject().PlayerLastUsedPad() || this.GetPlayerControlledObject().PlayerLastUsedPS5Pad() {
+      pickerController = inkWidgetRef.GetController(this.m_colorPicker) as characterCreationBodyMorphOptionColorPicker;
+      pickerController.MoveCursorToSelected();
+    };
+    this.m_inputDisabled = false;
+  }
+
+  protected cb func OnPreset1(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        this.ApplyUIPreset(n"nomad");
+        inkWidgetRef.SetState(this.m_randomize, n"Disabled");
+        this.m_busySwitchingAppearance = BusySwitchingReason.SWAPPING;
+      };
+    };
+  }
+
+  protected cb func OnPreset2(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        this.ApplyUIPreset(n"street");
+        inkWidgetRef.SetState(this.m_randomize, n"Disabled");
+        this.m_busySwitchingAppearance = BusySwitchingReason.SWAPPING;
+      };
+    };
+  }
+
+  protected cb func OnPreset3(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled && Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        this.ApplyUIPreset(n"corpo");
+        inkWidgetRef.SetState(this.m_randomize, n"Disabled");
+        this.m_busySwitchingAppearance = BusySwitchingReason.SWAPPING;
+      };
+    };
+  }
+
+  protected cb func OnRandomize(e: ref<inkPointerEvent>) -> Bool {
+    let data: ref<gameuiCharacterRandomizationParametersData>;
+    if !this.m_inputDisabled && this.m_introComplete {
+      if e.IsAction(n"click") || e.IsAction(n"tap") || e.IsAction(n"character_preview_randomize") {
+        if e.IsAction(n"character_preview_randomize") {
+          this.PlaySound(n"Button", n"OnPress");
+        };
+        if Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+          data = this.m_randomizationSettingsController.GetRandomizerData();
+          this.GetCharacterCustomizationSystem().RandomizeOptions(data);
+          this.GetTelemetrySystem().LogInitialChoicePresetSelected(n"random");
+          inkWidgetRef.SetState(this.m_randomize, n"Disabled");
+          this.m_busySwitchingAppearance = BusySwitchingReason.RANDOMIZING;
+          this.DisableInputDuringRandomization(true);
+          if inkWidgetRef.IsVisible(this.m_colorPicker) {
+            this.HideColorPicker(-1);
+            this.m_scrollController.SetInputDisabled(false);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnRandomizePress(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      if e.IsAction(n"click") || e.IsAction(n"tap") || e.IsAction(n"character_preview_randomize") {
+        if Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+          inkWidgetRef.SetState(this.m_randomize, n"Press");
+        };
+      };
+    };
+  }
+
+  protected cb func OnOpenRandomizationSettings(e: ref<inkPointerEvent>) -> Bool {
+    let newVisibility: Bool;
+    if !this.m_inputDisabled {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        newVisibility = !inkWidgetRef.IsVisible(this.m_randomizationSettingsWidget);
+        inkWidgetRef.SetVisible(this.m_randomizationSettingsWidget, newVisibility);
+        if newVisibility {
+          this.ClearRandomizerNavOverride();
+        } else {
+          this.ResetRandomizerNavOverride();
+        };
+        this.DisablePresetsBelowRandomizerSettings(newVisibility);
+      };
+    };
+  }
+
+  protected cb func OnHoverOverRandomizationSettings(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_randomizationSettingsButtonBg, n"settingsbutton_background_active");
+      this.m_isPresetHoveredOver = true;
+    };
+  }
+
+  protected cb func OnHoverOverPreset1(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset1Bg, n"preset_active");
+      this.m_isPresetHoveredOver = true;
+    };
+  }
+
+  protected cb func OnHoverOverPreset2(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset2Bg, n"preset_active");
+      this.m_isPresetHoveredOver = true;
+    };
+  }
+
+  protected cb func OnHoverOverPreset3(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset3Bg, n"preset_active");
+      this.m_isPresetHoveredOver = true;
+    };
+  }
+
+  protected cb func OnHoverOverRandomize(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_randomizeBg, n"button_next_active");
+      inkWidgetRef.SetState(this.m_randomize, n"Hover");
+      this.m_isPresetHoveredOver = true;
+    };
+  }
+
+  protected cb func OnHoverOutPreset1(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset1Bg, n"preset_idle");
+    };
+    this.m_isPresetHoveredOver = false;
+  }
+
+  protected cb func OnHoverOutPreset2(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset2Bg, n"preset_idle");
+    };
+    this.m_isPresetHoveredOver = false;
+  }
+
+  protected cb func OnHoverOutPreset3(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_preset3Bg, n"preset_idle");
+    };
+    this.m_isPresetHoveredOver = false;
+  }
+
+  protected cb func OnHoverOutRandomize(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkWidgetRef.SetState(this.m_randomize, n"Default");
+      inkImageRef.SetTexturePart(this.m_randomizeBg, n"button_next_idle");
+    };
+    this.m_isPresetHoveredOver = false;
+  }
+
+  protected cb func OnHoverOutRandomizationSettings(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      inkImageRef.SetTexturePart(this.m_randomizationSettingsButtonBg, n"settingsbutton_background_idle");
+    };
+    this.m_isPresetHoveredOver = false;
+  }
+
+  protected cb func OnColorPickerClose(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_hideColorPickerNextFrame = true;
+      this.QueueEvent(new NextFrameEvent());
+    };
+  }
+
+  protected cb func OnConfirmationClose(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.HideConfirmation();
+    };
+  }
+
+  protected cb func OnConfirmationConfirm(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.ConfirmBackConfirmation();
+    };
+  }
+
+  public final func ConfirmBackConfirmation() -> Void {
+    let system: ref<gameuiICharacterCustomizationSystem>;
+    if this.m_updatingFinalizedState {
+      this.PlaySound(n"Button", n"OnPress");
+      this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.None);
+      this.GetTelemetrySystem().LogCharacterCustomizationCancelled();
+      system = this.GetCharacterCustomizationSystem();
+      system.CancelFinalizedStateUpdate();
+    } else {
+      this.PriorMenu();
+    };
+  }
+
+  public final func ConfirmCustomizedCharacter() -> Void {
+    let system: ref<gameuiICharacterCustomizationSystem>;
+    if this.m_updatingFinalizedState {
+      this.PlaySound(n"Button", n"OnPress");
+      this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.Finished);
+      this.GetTelemetrySystem().LogCharacterCustomizationChanged();
+      system = this.GetCharacterCustomizationSystem();
+      system.ReFinalizeState();
+    } else {
+      this.NextMenu();
+    };
+  }
+
+  protected cb func OnPrevious(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      if !inkWidgetRef.IsVisible(this.m_backConfirmation) {
+        this.ShowConfirmation();
+      } else {
+        this.PriorMenu();
+      };
+    };
+  }
+
+  protected cb func OnListRelease(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsHandled() {
+      return false;
+    };
+    this.m_menuListController.HandleInput(e, this);
+  }
+
+  protected cb func OnHoverOutPreviousPageBtn(e: ref<inkPointerEvent>) -> Bool {
+    inkImageRef.SetTexturePart(this.m_previousPageBtnBg, n"button_prev_idle");
+  }
+
+  protected cb func OnHoverOverPreviousPageBtn(e: ref<inkPointerEvent>) -> Bool {
+    inkImageRef.SetTexturePart(this.m_previousPageBtnBg, n"button_prev_active");
+  }
+
+  protected cb func OnHoverOutNextPageBtn(e: ref<inkPointerEvent>) -> Bool {
+    inkImageRef.SetTexturePart(this.m_nextPageBtnBg, n"button_next_idle");
+  }
+
+  protected cb func OnHoverOverNextPageBtn(e: ref<inkPointerEvent>) -> Bool {
+    inkImageRef.SetTexturePart(this.m_nextPageBtnBg, n"button_next_active");
+  }
+
+  protected cb func OnHoverOverColorPickerOwner(e: ref<inkPointerEvent>) -> Bool {
+    if e.GetTarget() == this.m_colorPickerOwner {
+      this.m_hideColorPickerNextFrame = false;
+    };
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() {
+      if evt.IsAction(n"back") && !this.m_animationProxy.IsPlaying() {
+        if inkWidgetRef.IsVisible(this.m_colorPicker) {
+          this.m_hideColorPickerNextFrame = true;
+          this.QueueEvent(new NextFrameEvent());
+        } else {
+          if inkWidgetRef.IsVisible(this.m_backConfirmation) {
+            this.PlaySound(n"Button", n"OnPress");
+            this.HideConfirmation();
+          } else {
+            this.ShowConfirmation();
+          };
+        };
+      } else {
+        if evt.IsAction(n"system_notification_confirm") && inkWidgetRef.IsVisible(this.m_backConfirmation) {
+          this.ConfirmBackConfirmation();
+        } else {
+          if evt.IsAction(n"one_click_confirm") && !inkWidgetRef.IsVisible(this.m_colorPicker) && !inkWidgetRef.IsVisible(this.m_backConfirmation) && !this.IsOptionHoveredOver() {
+            this.ConfirmCustomizedCharacter();
+          } else {
+            if evt.IsAction(n"character_preview_randomize") {
+              this.OnRandomize(evt);
+            } else {
+              return false;
+            };
+          };
+        };
+      };
+      evt.Handle();
+    };
+  }
+
+  private final func IsOptionHoveredOver() -> Bool {
+    let controller: ref<CharacterCreationBodyMorphBaseOption>;
+    let i: Int32;
+    if !this.GetPlayerControlledObject().PlayerLastUsedKBM() {
+      return false;
+    };
+    if this.m_isPresetHoveredOver {
+      return true;
+    };
+    i = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+      controller = inkCompoundRef.GetWidget(this.m_optionsList, i).GetController() as CharacterCreationBodyMorphBaseOption;
+      if IsDefined(controller) && controller.IsPrevOrNextBtnHoveredOver() {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  protected cb func OnHoverOverColorPicker(e: ref<inkPointerEvent>) -> Bool {
+    if e.GetTarget() == inkWidgetRef.Get(this.m_colorPicker) {
+      this.m_hideColorPickerNextFrame = false;
+    };
+  }
+
+  protected cb func OnColorSelected(widget: wref<inkWidget>) -> Bool {
+    let colorOptionController: wref<characterCreationBodyMorphColorOption>;
+    let pickerController: wref<characterCreationBodyMorphOptionColorPicker> = inkWidgetRef.GetController(this.m_colorPicker) as characterCreationBodyMorphOptionColorPicker;
+    let option: ref<CharacterCustomizationOption> = pickerController.GetOption();
+    let index: Uint32 = Cast<Uint32>(pickerController.GetSelectedIndex());
+    this.GetCharacterCustomizationSystem().ApplyChangeToOption(option, index);
+    this.RequestCameraChange(this.GetSlotName(option));
+    this.GetTelemetrySystem().LogInitialChoiceOptionSelected(option, index);
+    colorOptionController = this.m_colorPickerOwner.GetController() as characterCreationBodyMorphColorOption;
+    colorOptionController.RefreshColorPicker(Cast<Int32>(index), false);
+  }
+
+  protected cb func OnColorChange(widget: wref<inkWidget>) -> Bool {
+    let optionController: wref<characterCreationBodyMorphColorOption> = widget.GetController() as characterCreationBodyMorphColorOption;
+    let option: ref<CharacterCustomizationOption> = optionController.GetColorPickerOption();
+    let index: Uint32 = optionController.GetColorIndex();
+    if Equals(this.m_busySwitchingAppearance, BusySwitchingReason.AVAILABLE) {
+      this.RequestCameraChange(this.GetSlotName(option));
+    };
+    this.GetCharacterCustomizationSystem().ApplyChangeToOption(option, index);
+    this.GetTelemetrySystem().LogInitialChoiceOptionSelected(option, index);
+  }
+
+  protected cb func OnVoiceOverSwitched(widget: wref<inkWidget>) -> Bool {
+    let switcherController: wref<characterCreationVoiceOverSwitcher> = widget.GetController() as characterCreationVoiceOverSwitcher;
+    let isMale: Bool = switcherController.IsBrainGenderMale();
+    if NotEquals(isMale, this.m_characterCustomizationState.IsBrainGenderMale()) {
+      this.m_characterCustomizationState.SetIsBrainGenderMale(isMale);
+      this.GetCharacterCustomizationSystem().TriggerVoiceToneSample();
+      this.GetTelemetrySystem().LogInitialChoiceBrainGenderSelected(isMale);
+    };
+  }
+
+  protected cb func OnHoverOverOption(e: ref<inkPointerEvent>) -> Bool {
+    let colorOptionController: wref<characterCreationBodyMorphColorOption>;
+    let optionController: wref<characterCreationBodyMorphOption>;
+    let voiceOverSwitcher: wref<characterCreationVoiceOverSwitcher>;
+    if !IsDefined(this.m_colorPickerOwner) {
+      voiceOverSwitcher = e.GetTarget().GetController() as characterCreationVoiceOverSwitcher;
+      if IsDefined(voiceOverSwitcher) {
+        this.RequestCameraChange(n"UI_Skin", true);
+      };
+      optionController = e.GetTarget().GetController() as characterCreationBodyMorphOption;
+      if IsDefined(optionController) {
+        this.RequestCameraChange(this.GetSlotName(optionController.GetSelectorOption()), true);
+      };
+      colorOptionController = e.GetTarget().GetController() as characterCreationBodyMorphColorOption;
+      if IsDefined(colorOptionController) {
+        this.RequestCameraChange(this.GetSlotName(colorOptionController.GetColorPickerOption()), true);
+      };
+    };
+  }
+
+  public final func InitializeList() -> Void {
+    let i: Int32;
+    let option: ref<CharacterCustomizationOption>;
+    let options: array<ref<CharacterCustomizationOption>>;
+    let system: ref<gameuiICharacterCustomizationSystem>;
+    if this.m_characterCustomizationState.IsBodyGenderMale() {
+      inkImageRef.SetTexturePart(this.m_preset1Thumbnail, n"preset_nom_m");
+      inkImageRef.SetTexturePart(this.m_preset2Thumbnail, n"preset_str_m");
+      inkImageRef.SetTexturePart(this.m_preset3Thumbnail, n"preset_cor_m");
+    } else {
+      inkImageRef.SetTexturePart(this.m_preset1Thumbnail, n"preset_nom_f");
+      inkImageRef.SetTexturePart(this.m_preset2Thumbnail, n"preset_str_f");
+      inkImageRef.SetTexturePart(this.m_preset3Thumbnail, n"preset_cor_f");
+    };
+    this.RequestCameraChange(this.m_defaultPreviewSlot);
+    system = this.GetCharacterCustomizationSystem();
+    system.ApplyEditTag(this.m_editMode);
+    options = system.GetUnitedOptions(true, true, true);
+    inkCompoundRef.RemoveAllChildren(this.m_optionsList);
+    if system.IsTransgenderAllowed() && Equals(this.m_editMode, gameuiCharacterCustomizationEditTag.NewGame) {
+      this.CreateVoiceOverSwitcher();
+    };
+    i = 0;
+    while i < ArraySize(options) {
+      option = options[i];
+      if option.isEditable && option.isActive && !option.isCensored {
+        this.CreateEntry(option);
+      };
+      i += 1;
+    };
+  }
+
+  public final func CreateVoiceOverSwitcher() -> Void {
+    let switcherWidget: wref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_optionsList), n"VoiceOverSwitcher");
+    let switcherController: wref<characterCreationVoiceOverSwitcher> = switcherWidget.GetController() as characterCreationVoiceOverSwitcher;
+    switcherController.RegisterToCallback(n"OnVoiceOverSwitched", this, n"OnVoiceOverSwitched");
+    switcherWidget.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverOption");
+    switcherController.SetIsBrainGenderMale(this.m_characterCustomizationState.IsBrainGenderMale());
+  }
+
+  public final func CreateEntry(const option: ref<CharacterCustomizationOption>) -> wref<inkWidget> {
+    let colorOptionController: wref<characterCreationBodyMorphColorOption>;
+    let optionController: wref<characterCreationBodyMorphOption>;
+    let optionWidget: wref<inkWidget>;
+    let appearanceInfo: wref<gameuiAppearanceInfo> = option.info as gameuiAppearanceInfo;
+    if IsDefined(appearanceInfo) && appearanceInfo.useThumbnails {
+      optionWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_optionsList), n"ColorPicker");
+      colorOptionController = optionWidget.GetController() as characterCreationBodyMorphColorOption;
+      colorOptionController.SetOption(option);
+      colorOptionController.RegisterToCallback(n"OnColorPickerTriggered", this, n"OnColorPickerTriggered");
+      optionWidget.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverOption");
+      colorOptionController.RegisterToCallback(n"OnColorChange", this, n"OnColorChange");
+    } else {
+      optionWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_optionsList), n"Selector");
+      optionController = optionWidget.GetController() as characterCreationBodyMorphOption;
+      optionController.SetOption(option);
+      optionController.RegisterToCallback(n"OnSliderChange", this, n"OnSliderChange");
+      optionWidget.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverOption");
+    };
+    return optionWidget;
+  }
+
+  public final func HideColorPicker(index: Int32) -> Void {
+    let colorOptionController: wref<characterCreationBodyMorphColorOption>;
+    if inkWidgetRef.IsVisible(this.m_colorPicker) {
+      if IsDefined(this.m_colorPickerOwner) {
+        colorOptionController = this.m_colorPickerOwner.GetController() as characterCreationBodyMorphColorOption;
+        if IsDefined(colorOptionController) {
+          colorOptionController.RefreshColorPicker(Cast<Int32>(colorOptionController.GetColorIndex()), false);
+        };
+      };
+      this.m_colorPickerOwner.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOverColorPickerOwner");
+      this.m_colorPickerOwner = null;
+      this.m_optionList.SetVisible(true);
+      this.m_optionListAnimationProxy = this.PlayLibraryAnimation(n"option_list_show");
+      inkWidgetRef.SetVisible(this.m_colorPicker, false);
+      inkWidgetRef.SetVisible(this.m_colorPickerBG, false);
+      this.SetCursorOverWidget(this.m_cachedCursor);
+      this.PlaySound(n"CharacterCreationConfirmationAnimation", n"OnClose");
+    };
+  }
+
+  public final func ApplyUIPreset(presetName: CName, opt fromInit: Bool) -> Void {
+    this.GetCharacterCustomizationSystem().ApplyUIPreset(presetName);
+    this.GetTelemetrySystem().LogInitialChoicePresetSelected(presetName, fromInit);
+  }
+
+  public final func OnIntro() -> Void {
+    this.m_introComplete = false;
+    this.PlayAnim(n"intro", n"OnIntroComplete", this.m_animationProxy);
+  }
+
+  protected cb func OnIntroComplete(anim: ref<inkAnimProxy>) -> Bool {
+    this.m_introComplete = true;
+  }
+
+  public final func OnOutro() -> Void {
+    this.PlayAnim(n"outro", this.m_animationProxy);
+  }
+
+  public final func DisableInputBelowConfirmationPopup(disabled: Bool) -> Void {
+    let colorOptionController: ref<characterCreationBodyMorphColorOption>;
+    let optionController: ref<characterCreationBodyMorphOption>;
+    let optionNavigation: wref<inkDiscreteNavigationController>;
+    let puppetNavigation: wref<inkDiscreteNavigationController>;
+    let puppetPreviewGameController: wref<inkCharacterCreationPuppetPreviewGameController>;
+    let switcherController: wref<characterCreationVoiceOverSwitcher>;
+    let switcherNavigation: wref<inkDiscreteNavigationController>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+      optionController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphOption;
+      if IsDefined(optionController) {
+        optionController.SetInputDisabled(disabled);
+        optionNavigation = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetControllerByType(n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+        if IsDefined(optionNavigation) {
+          optionNavigation.SetNavigable(!disabled);
+        };
+      };
+      colorOptionController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphColorOption;
+      if IsDefined(colorOptionController) {
+        colorOptionController.SetInputDisabled(disabled);
+        colorOptionController.SetChildNavigable(!disabled);
+      };
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_navigationControllers) {
+      this.m_navigationControllers[i].SetInputDisabled(disabled);
+      this.m_navigationControllers[i].SetNavigable(!disabled);
+      i += 1;
+    };
+    switcherController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, 0).GetController() as characterCreationVoiceOverSwitcher;
+    if IsDefined(switcherController) {
+      switcherController.SetInputDisabled(disabled);
+    };
+    switcherNavigation = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, 0).GetControllerByType(n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+    if IsDefined(switcherNavigation) {
+      switcherNavigation.SetNavigable(!disabled);
+    };
+    this.m_scrollController.SetInputDisabled(disabled);
+    puppetPreviewGameController = this.GetCharacterCustomizationSystem().GetPuppetPreviewGameController();
+    if IsDefined(puppetPreviewGameController) {
+      puppetPreviewGameController.SetInputDisabled(disabled);
+    };
+    puppetNavigation = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetControllerByType(n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+    if IsDefined(puppetNavigation) {
+      puppetNavigation.SetNavigable(!disabled);
+    };
+    inkImageRef.SetTexturePart(this.m_preset1Bg, n"preset_idle");
+    inkImageRef.SetTexturePart(this.m_preset2Bg, n"preset_idle");
+    inkImageRef.SetTexturePart(this.m_preset3Bg, n"preset_idle");
+    this.m_randomizationSettingsController.SetDisabledInputState(disabled);
+    inkWidgetRef.SetInteractive(this.m_randomizationSettingsButton, !disabled);
+    inkWidgetRef.SetInteractive(this.m_randomize, !disabled);
+    this.m_sliderController.SetInputDisabled(disabled);
+    inkWidgetRef.SetInteractive(this.m_slider, !disabled);
+    this.m_inputDisabled = disabled;
+  }
+
+  public final func DisablePresetsBelowRandomizerSettings(disabled: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_presetsNavigationControllers) {
+      this.m_presetsNavigationControllers[i].SetInputDisabled(disabled);
+      this.m_presetsNavigationControllers[i].SetNavigable(!disabled);
+      i += 1;
+    };
+    inkWidgetRef.SetInteractive(this.m_preset1, !disabled);
+    inkWidgetRef.SetInteractive(this.m_preset2, !disabled);
+    inkWidgetRef.SetInteractive(this.m_preset3, !disabled);
+    inkImageRef.SetTexturePart(this.m_preset1Bg, n"preset_idle");
+    inkImageRef.SetTexturePart(this.m_preset2Bg, n"preset_idle");
+    inkImageRef.SetTexturePart(this.m_preset3Bg, n"preset_idle");
+  }
+
+  public final func DisableInputDuringRandomization(disabled: Bool) -> Void {
+    let colorOptionController: ref<characterCreationBodyMorphColorOption>;
+    let optionController: ref<characterCreationBodyMorphOption>;
+    let optionNavigation: wref<inkDiscreteNavigationController>;
+    let i: Int32 = 0;
+    while i < inkCompoundRef.GetNumChildren(this.m_optionsList) {
+      optionController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphOption;
+      if IsDefined(optionController) {
+        optionController.SetInputDisabled(disabled);
+        optionNavigation = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetControllerByType(n"inkDiscreteNavigationController") as inkDiscreteNavigationController;
+        if IsDefined(optionNavigation) {
+          optionNavigation.SetNavigable(!disabled);
+        };
+      };
+      colorOptionController = inkCompoundRef.GetWidgetByIndex(this.m_optionsList, i).GetController() as characterCreationBodyMorphColorOption;
+      if IsDefined(colorOptionController) {
+        colorOptionController.SetInputDisabled(disabled);
+        colorOptionController.SetChildNavigable(!disabled);
+      };
+      i += 1;
+    };
+  }
+
+  public final func ShowConfirmation() -> Void {
+    this.PlaySound(n"SaveDeleteButton", n"OnPress");
+    inkWidgetRef.SetVisible(this.m_backConfirmation, true);
+    inkWidgetRef.SetVisible(this.m_navigationButtons, false);
+    this.m_animationProxy = inkWidgetRef.GetController(this.m_backConfirmationWidget).PlayLibraryAnimation(n"confirmation_intro");
+    this.m_confirmAnimationProxy = inkWidgetRef.GetController(this.m_backConfirmation).PlayLibraryAnimation(n"confirmation_popup_btns");
+    this.DisableInputBelowConfirmationPopup(true);
+  }
+
+  public final func HideConfirmation() -> Void {
+    inkWidgetRef.SetVisible(this.m_backConfirmation, false);
+    inkWidgetRef.SetVisible(this.m_navigationButtons, true);
+    this.DisableInputBelowConfirmationPopup(false);
+    if inkWidgetRef.IsVisible(this.m_randomizationSettingsWidget) {
+      this.DisablePresetsBelowRandomizerSettings(true);
+    };
+  }
+
+  protected func PriorMenu() -> Void {
+    this.OnOutro();
+    super.PriorMenu();
+    this.GetCharacterCustomizationSystem().SetRandomizationParameters(new gameuiCharacterRandomizationParametersData());
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  protected func NextMenu() -> Void {
+    this.OnOutro();
+    super.NextMenu();
+  }
+
+  public final func PlayAnim(animName: CName, opt callBack: CName, animProxy: ref<inkAnimProxy>) -> Void {
+    if IsDefined(animProxy) && animProxy.IsPlaying() {
+      animProxy.Stop();
+    };
+    animProxy = this.PlayLibraryAnimation(animName);
+    if NotEquals(callBack, n"None") {
+      animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, callBack);
+    };
+  }
+
+  public final func GetSlotName(option: ref<CharacterCustomizationOption>) -> CName {
+    if Equals(option.bodyPart, gameuiCharacterCustomizationPart.Head) {
+      if Equals(option.info.name, n"skin_color") || Equals(option.info.name, n"skin_type") {
+        return n"UI_Skin";
+      };
+      if Equals(option.info.uiSlot, n"hairstyle") || Equals(option.info.uiSlot, n"hair_color") {
+        return n"UI_Hairs";
+      };
+      if Equals(option.info.name, n"eyes") || Equals(option.info.name, n"eyes_color") || Equals(option.info.name, n"eyebrows") || Equals(option.info.uiSlot, n"eyesbrows_color") || Equals(option.info.name, n"eyelash_color") || Equals(option.info.name, n"makeupEyes") || Equals(option.info.uiSlot, n"makeupEyes_color") {
+        return n"UI_Eyes";
+      };
+      if Equals(option.info.name, n"teeth") {
+        return n"UI_Teeth";
+      };
+      if Equals(option.info.name, n"nose") {
+        return n"UI_Nose";
+      };
+      if Equals(option.info.name, n"makeupLips_type") || Equals(option.info.name, n"makeupLips") || Equals(option.info.uiSlot, n"makeupLips_color") || Equals(option.info.name, n"mouth") {
+        return n"UI_Lips";
+      };
+      if Equals(option.info.name, n"jaw") || Equals(option.info.name, n"beard") || Equals(option.info.uiSlot, n"beard_part") || Equals(option.info.uiSlot, n"beard_color") {
+        return n"UI_Jaw";
+      };
+      return n"UI_HeadPreview";
+    };
+    if Equals(option.bodyPart, gameuiCharacterCustomizationPart.Arms) {
+      return n"UI_FingerNails";
+    };
+    return n"UI_Preview";
+  }
+
+  private final func SetTimeDilatation(enable: Bool) -> Void {
+    let timeDilationReason: CName = n"VendorStash";
+    let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(this.GetPlayerControlledObject().GetGame());
+    if enable {
+      timeSystem.SetTimeDilation(timeDilationReason, 0.00, n"Linear", n"Linear");
+      timeSystem.SetTimeDilationOnLocalPlayerZero(timeDilationReason, 0.00, n"Linear", n"Linear");
+    } else {
+      timeSystem.UnsetTimeDilation(timeDilationReason);
+      timeSystem.UnsetTimeDilationOnLocalPlayerZero(timeDilationReason);
+    };
+  }
+}

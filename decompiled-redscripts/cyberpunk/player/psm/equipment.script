@@ -1,0 +1,1282 @@
+
+public abstract class EquipmentBaseTransition extends DefaultTransition {
+
+  protected final const func GetMappedInstanceData(referenceName: CName) -> InstanceDataMappedToReferenceName {
+    let mappedInstanceData: InstanceDataMappedToReferenceName;
+    if Equals(referenceName, n"RightHand") {
+      mappedInstanceData.itemHandlingFeatureName = n"rightHandItemHandling";
+      mappedInstanceData.attachmentSlot = "AttachmentSlots.WeaponRight";
+    };
+    if Equals(referenceName, n"LeftHand") {
+      mappedInstanceData.itemHandlingFeatureName = n"leftHandItemHandling";
+      mappedInstanceData.attachmentSlot = "AttachmentSlots.WeaponLeft";
+    };
+    return mappedInstanceData;
+  }
+
+  protected final const func GetWeaponManipulationRequest(const stateContext: ref<StateContext>, stateMachineInitData: wref<EquipmentInitData>) -> ref<EquipmentManipulationRequest> {
+    let request: ref<EquipmentManipulationRequest> = stateContext.GetPermanentScriptableParameter(stateMachineInitData.eqManipulationVarName) as EquipmentManipulationRequest;
+    return request;
+  }
+
+  protected final const func SaveProcessedEquipmentManipulationRequest(stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData, stateMachineInitData: wref<EquipmentInitData>) -> Void {
+    stateContext.SetPermanentScriptableParameter(this.ReferenceNameToProcessRequestId(stateMachineInstanceData), this.GetWeaponManipulationRequest(stateContext, stateMachineInitData), true);
+  }
+
+  protected final const func GetProcessedEquipmentManipulationRequest(stateMachineInstanceData: StateMachineInstanceData, const stateContext: ref<StateContext>) -> ref<EquipmentManipulationRequest> {
+    let request: ref<EquipmentManipulationRequest> = stateContext.GetPermanentScriptableParameter(this.ReferenceNameToProcessRequestId(stateMachineInstanceData)) as EquipmentManipulationRequest;
+    return request;
+  }
+
+  protected final const func ClearProcessedEquipmentManipulationRequest(stateMachineInstanceData: StateMachineInstanceData, stateContext: ref<StateContext>) -> Void {
+    stateContext.RemovePermanentScriptableParameter(this.ReferenceNameToProcessRequestId(stateMachineInstanceData));
+  }
+
+  protected final const func CheckSlotMatchAndCompareRequestType(const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData, stateMachineInitData: wref<EquipmentInitData>, requestTypeCompare: EquipmentManipulationRequestType) -> Bool {
+    let equipRequestMatch: Bool;
+    let slotMatch: Bool;
+    let request: ref<EquipmentManipulationRequest> = this.GetWeaponManipulationRequest(stateContext, stateMachineInitData);
+    if request == null {
+      return false;
+    };
+    equipRequestMatch = Equals(request.requestType, requestTypeCompare);
+    slotMatch = Equals(request.requestSlot, EquipmentManipulationRequestSlot.Both) || Equals(request.requestSlot, this.ReferenceNameToRequestSlot(stateMachineInstanceData));
+    return equipRequestMatch && slotMatch;
+  }
+
+  protected final const func CheckReplicatedEquipRequest(const scriptInterface: ref<StateGameScriptInterface>, const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let multiplyerRequestData: ref<parameterRequestItem>;
+    let isDifferentItem: Bool = false;
+    let slotMatch: Bool = false;
+    if Equals(this.ReferenceNameToRequestSlot(stateMachineInstanceData), EquipmentManipulationRequestSlot.Right) {
+      slotMatch = true;
+    };
+    multiplyerRequestData = stateContext.GetTemporaryScriptableParameter(n"cpo_replicatedEquipRequest") as parameterRequestItem;
+    if multiplyerRequestData == null {
+      multiplyerRequestData = stateContext.GetConditionScriptableParameter(n"cpo_replicatedEquipRequest") as parameterRequestItem;
+    };
+    if IsDefined(multiplyerRequestData) {
+      isDifferentItem = this.GetSlotAttachedItemID(scriptInterface, stateMachineInstanceData) != multiplyerRequestData.requests[0].itemIDToEquip;
+    };
+    if isDifferentItem && slotMatch {
+      stateContext.SetConditionScriptableParameter(n"cpo_replicatedEquipRequest", multiplyerRequestData, true);
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func ReferenceNameToProcessRequestId(stateMachineInstanceData: StateMachineInstanceData) -> CName {
+    if Equals(stateMachineInstanceData.referenceName, n"RightHand") {
+      return n"ProcessedEqRequest_Right";
+    };
+    if Equals(stateMachineInstanceData.referenceName, n"LeftHand") {
+      return n"ProcessedEqRequest_Left";
+    };
+    return n"ProcessedEqRequest_Undefined";
+  }
+
+  protected final const func ReferenceNameToRequestSlot(stateMachineInstanceData: StateMachineInstanceData) -> EquipmentManipulationRequestSlot {
+    if Equals(stateMachineInstanceData.referenceName, n"RightHand") {
+      return EquipmentManipulationRequestSlot.Right;
+    };
+    if Equals(stateMachineInstanceData.referenceName, n"LeftHand") {
+      return EquipmentManipulationRequestSlot.Left;
+    };
+    return EquipmentManipulationRequestSlot.Undefined;
+  }
+
+  protected final const func GetItemCategoryFromItemID(item: ItemID) -> gamedataItemCategory {
+    let record: ref<Item_Record> = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item));
+    return record.ItemCategory().Type();
+  }
+
+  protected final const func GetEquipAreaFromItemID(item: ItemID) -> gamedataEquipmentArea {
+    let record: ref<Item_Record> = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item));
+    return record.EquipArea().Type();
+  }
+
+  protected final const func IsVisualItemInSlot(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(stateMachineInstanceData.referenceName);
+    let itemObject: wref<ItemObject> = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot));
+    return itemObject != null && itemObject.IsVisualSpawnAttached();
+  }
+
+  protected final const func IsUsingFluffConsumable(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let item: ItemID = this.GetSlotActiveItem(scriptInterface, stateMachineInstanceData);
+    if Equals(TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().Type(), gamedataItemType.Con_Edible) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func GetIsPSMInValidState(const scriptInterface: ref<StateGameScriptInterface>, const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let bbID: BlackboardID_Int;
+    let weapon: ref<WeaponObject>;
+    let weaponPSMState: gamePSMRangedWeaponStates;
+    let item: ref<ItemObject> = this.GetSlotAttachedItem(scriptInterface, stateMachineInstanceData);
+    if !IsDefined(item) || NotEquals(this.GetItemCategoryFromItemID(item.GetItemID()), gamedataItemCategory.Weapon) {
+      return true;
+    };
+    weapon = item as WeaponObject;
+    if !weapon.IsRanged() {
+      return true;
+    };
+    bbID = this.IsLeftHandLogic(stateMachineInstanceData) ? GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon : GetAllBlackboardDefs().PlayerStateMachine.RightWeapon;
+    weaponPSMState = IntEnum<gamePSMRangedWeaponStates>(scriptInterface.localBlackboard.GetInt(bbID));
+    return Equals(weaponPSMState, gamePSMRangedWeaponStates.Default) || Equals(weaponPSMState, gamePSMRangedWeaponStates.NoAmmo) || Equals(weaponPSMState, gamePSMRangedWeaponStates.Ready) || Equals(weaponPSMState, gamePSMRangedWeaponStates.Safe);
+  }
+
+  protected final const func GetWeaponEquipDuration(const scriptInterface: ref<StateGameScriptInterface>, const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Float {
+    let weapon: wref<WeaponObject>;
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    if Equals(this.GetProcessedEquipmentManipulationRequest(stateMachineInstanceData, stateContext).equipAnim, gameEquipAnimationType.HACK_ForceInstantEquip) {
+      return 0.00;
+    };
+    weapon = this.GetSlotAttachedItemObject(scriptInterface, stateMachineInstanceData) as WeaponObject;
+    return statSystem.GetStatValue(Cast<StatsObjectID>(weapon.GetEntityID()), gamedataStatType.EquipDuration);
+  }
+
+  protected final const func GetWeaponUnEquipDuration(const scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Float {
+    let duration: Float;
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    let request: ref<EquipmentManipulationRequest> = this.GetProcessedEquipmentManipulationRequest(stateMachineInstanceData, stateContext);
+    let weapon: wref<WeaponObject> = this.GetSlotAttachedItemObject(scriptInterface, stateMachineInstanceData) as WeaponObject;
+    let instantEquipRequested: Bool = Equals(request.equipAnim, gameEquipAnimationType.Instant);
+    if instantEquipRequested || this.HasThrowableCooldown(scriptInterface, weapon) {
+      duration = 0.00;
+    } else {
+      duration = statSystem.GetStatValue(Cast<StatsObjectID>(weapon.GetEntityID()), gamedataStatType.UnequipDuration);
+    };
+    stateContext.SetPermanentFloatParameter(n"rhUnequipDuration", duration, true);
+    return duration;
+  }
+
+  protected final const func GetConsumableUnEquipDuration(stateMachineInstanceData: StateMachineInstanceData, const stateContext: ref<StateContext>) -> Float {
+    if Equals(this.GetProcessedEquipmentManipulationRequest(stateMachineInstanceData, stateContext).equipAnim, gameEquipAnimationType.Instant) {
+      return 0.00;
+    };
+    return 0.20;
+  }
+
+  protected final const func CanEquipRequestedWeapon(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let isLeftHand: Bool;
+    let itemCategory: gamedataItemCategory;
+    let otherWeapon: wref<WeaponObject>;
+    let otherWeaponID: ItemID;
+    let slotActiveItem: ItemID = this.GetSlotActiveItem(scriptInterface, stateMachineInstanceData);
+    if !ItemID.IsValid(slotActiveItem) {
+      return true;
+    };
+    isLeftHand = this.IsLeftHandLogic(stateMachineInstanceData);
+    itemCategory = this.GetItemCategoryFromItemID(this.GetSlotActiveItem(scriptInterface, stateMachineInstanceData));
+    if Equals(itemCategory, gamedataItemCategory.Gadget) || Equals(itemCategory, gamedataItemCategory.Consumable) || isLeftHand && Equals(itemCategory, gamedataItemCategory.Cyberware) {
+      return this.CheckGenericEquipItemConditions(stateContext, scriptInterface) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody) != 5;
+    };
+    if Equals(itemCategory, gamedataItemCategory.Weapon) {
+      if !this.CanProcessEquip(stateContext, scriptInterface) {
+        return false;
+      };
+      otherWeapon = isLeftHand ? GameObject.GetRightActiveWeapon(scriptInterface.executionOwner) : GameObject.GetLeftActiveWeapon(scriptInterface.executionOwner);
+      if IsDefined(otherWeapon) {
+        if isLeftHand && otherWeapon.GetItemID() != EquipmentSystem.GetSlotActiveItem(scriptInterface.executionOwner, EquipmentManipulationRequestSlot.Right) {
+          return false;
+        };
+        otherWeaponID = otherWeapon.GetItemID();
+        if WeaponObject.IsFists(otherWeaponID) || Equals(EquipmentSystem.GetEquipAreaType(otherWeaponID), gamedataEquipmentArea.ArmsCW) {
+          return false;
+        };
+      };
+      if isLeftHand && this.IsRightHandInUnequippedState(stateContext, true) {
+        return false;
+      };
+    };
+    return otherWeapon.GetItemID() != slotActiveItem;
+  }
+
+  protected final const func HandleWeaponEquip(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData, item: ItemID, isLeftWeapon: Bool) -> Void {
+    let animFeatureMeleeData: ref<AnimFeature_MeleeData>;
+    let autoRefillEvent: ref<SetAmmoCountEvent>;
+    let autoRefillRatio: Float;
+    let leftHandAnimFeature: ref<AnimFeature_LeftHandAnimation>;
+    let magazineCapacity: Uint32;
+    let otherItem: wref<WeaponObject>;
+    let preventFirstEquip: Bool;
+    let statsEvent: ref<UpdateWeaponStatsEvent>;
+    let weaponEquipEvent: ref<WeaponEquipEvent>;
+    let animFeature: ref<AnimFeature_EquipUnequipItem> = new AnimFeature_EquipUnequipItem();
+    let animFeatureName: CName = n"equipUnequipItem";
+    let weaponEquipAnimFeature: ref<AnimFeature_EquipType> = new AnimFeature_EquipType();
+    let transactionSystem: ref<TransactionSystem> = scriptInterface.GetTransactionSystem();
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(stateMachineInstanceData.referenceName);
+    let firstEqSystem: ref<FirstEquipSystem> = FirstEquipSystem.GetInstance(scriptInterface.owner);
+    let firstEquip: Bool = false;
+    let processedRequest: ref<EquipmentManipulationRequest> = this.GetProcessedEquipmentManipulationRequest(stateMachineInstanceData, stateContext);
+    let itemObject: wref<WeaponObject> = transactionSystem.GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot)) as WeaponObject;
+    let isInCombat: Bool = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1;
+    if TweakDBInterface.GetBool(t"player.weapon.enableWeaponBlur", false) {
+      this.GetBlurParametersFromWeapon(scriptInterface);
+    };
+    preventFirstEquip = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.ScenePreventFirstEquip) || scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.MountedPreventFirstEquip);
+    if !isInCombat && !preventFirstEquip && (this.IsRightHandLogic(stateMachineInstanceData) || Equals(processedRequest.requestType, EquipmentManipulationRequestType.DualEquip)) {
+      if weaponEquipAnimFeature.firstEquip = Equals(processedRequest.equipAnim, gameEquipAnimationType.FirstEquip) || this.GetStaticBoolParameterDefault("forceFirstEquip", false) || !firstEqSystem.HasPlayedFirstEquip(ItemID.GetTDBID(itemObject.GetItemID())) {
+        weaponEquipAnimFeature.firstEquip = true;
+        stateContext.SetConditionBoolParameter(n"firstEquip", true, true);
+        firstEquip = true;
+      };
+    };
+    scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsWeaponFirstEquip, firstEquip);
+    if this.IsLeftHandLogic(stateMachineInstanceData) {
+      animFeatureName = n"leftEquipUnequipItem";
+      otherItem = GameObject.GetRightActiveWeapon(scriptInterface.executionOwner);
+    } else {
+      if this.IsRightHandLogic(stateMachineInstanceData) {
+        animFeatureName = n"rightEquipUnequipItem";
+        otherItem = GameObject.GetLeftActiveWeapon(scriptInterface.executionOwner);
+      };
+    };
+    animFeature.stateTransitionDuration = statSystem.GetStatValue(Cast<StatsObjectID>(itemObject.GetEntityID()), gamedataStatType.EquipDuration);
+    animFeature.itemState = 1;
+    animFeature.itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().AnimFeatureIndex();
+    if !isLeftWeapon {
+      this.BlockAimingForTime(stateContext, scriptInterface, animFeature.stateTransitionDuration + 0.10);
+    };
+    weaponEquipAnimFeature.equipDuration = this.GetEquipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+    weaponEquipAnimFeature.unequipDuration = this.GetUnequipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+    weaponEquipAnimFeature.dualWield = Equals(processedRequest.requestType, EquipmentManipulationRequestType.DualEquip) || IsDefined(transactionSystem.GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponRight")) && IsDefined(transactionSystem.GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponLeft"));
+    scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, animFeature, scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, itemObject);
+    if IsDefined(otherItem) {
+      scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, otherItem);
+    };
+    weaponEquipEvent = new WeaponEquipEvent();
+    weaponEquipEvent.animFeature = weaponEquipAnimFeature;
+    weaponEquipEvent.item = itemObject;
+    weaponEquipEvent.isLeftWeapon = this.IsLeftHandLogic(stateMachineInstanceData);
+    scriptInterface.executionOwner.QueueEvent(weaponEquipEvent);
+    if weaponEquipAnimFeature.dualWield {
+      leftHandAnimFeature = new AnimFeature_LeftHandAnimation();
+      leftHandAnimFeature.lockLeftHandAnimation = true;
+      scriptInterface.SetAnimationParameterFeature(n"LeftHandAnimation", leftHandAnimFeature, scriptInterface.executionOwner);
+    };
+    if itemObject.WeaponHasTag(n"Throwable") && !scriptInterface.GetStatPoolsSystem().HasStatPoolValueReachedMax(Cast<StatsObjectID>(itemObject.GetEntityID()), gamedataStatPoolType.ThrowRecovery) {
+      animFeatureMeleeData = new AnimFeature_MeleeData();
+      animFeatureMeleeData.isThrowReloading = true;
+      scriptInterface.SetAnimationParameterFeature(n"MeleeData", animFeatureMeleeData);
+    };
+    scriptInterface.executionOwner.QueueEventForEntityID(itemObject.GetEntityID(), new PlayerWeaponSetupEvent());
+    statsEvent = new UpdateWeaponStatsEvent();
+    scriptInterface.executionOwner.QueueEventForEntityID(itemObject.GetEntityID(), statsEvent);
+    if weaponEquipAnimFeature.firstEquip {
+      scriptInterface.SetAnimationParameterFloat(n"safe", 0.00);
+      if this.IsRightHandLogic(stateMachineInstanceData) {
+        stateContext.SetPermanentBoolParameter(n"WeaponInSafe", false, true);
+      };
+      stateContext.SetPermanentFloatParameter(this.GetTurnOffPublicSafeTimeStamp(stateMachineInstanceData), EngineTime.ToFloat(GameInstance.GetSimTime(scriptInterface.owner.GetGame())), true);
+    } else {
+      if stateContext.GetBoolParameter(n"InPublicZone", true) {
+      } else {
+        if stateContext.GetBoolParameter(n"WeaponInSafe", true) {
+          scriptInterface.SetAnimationParameterFloat(n"safe", 1.00);
+        };
+      };
+    };
+    autoRefillRatio = statSystem.GetStatValue(Cast<StatsObjectID>(itemObject.GetEntityID()), gamedataStatType.MagazineAutoRefill);
+    if autoRefillRatio > 0.00 {
+      magazineCapacity = WeaponObject.GetMagazineCapacity(itemObject);
+      autoRefillEvent = new SetAmmoCountEvent();
+      autoRefillEvent.ammoTypeID = WeaponObject.GetAmmoType(itemObject);
+      autoRefillEvent.count = Cast<Uint32>(Cast<Float>(magazineCapacity) * autoRefillRatio);
+      itemObject.QueueEvent(autoRefillEvent);
+    };
+  }
+
+  protected final const func HandleWeaponUnequip(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData, item: ItemID, isLeftWeapon: Bool) -> Void {
+    let dualWieldLoadoutEdit: StateResultBool;
+    let gunzerkerLevel: Int32;
+    let otherItem: wref<WeaponObject>;
+    let tempEquip: StateResultBool;
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(stateMachineInstanceData.referenceName);
+    let unequipStartEvent: ref<UnequipStart> = new UnequipStart();
+    let animFeature: ref<AnimFeature_EquipUnequipItem> = new AnimFeature_EquipUnequipItem();
+    let animFeatureName: CName = n"equipUnequipItem";
+    let transactionSystem: ref<TransactionSystem> = scriptInterface.GetTransactionSystem();
+    let placementSlot: TweakDBID = EquipmentSystem.GetPlacementSlot(item, isLeftWeapon);
+    let playerDevelopmentData: ref<PlayerDevelopmentData> = PlayerDevelopmentSystem.GetData(scriptInterface.executionOwner);
+    let itemObject: wref<WeaponObject> = transactionSystem.GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot)) as WeaponObject;
+    if this.IsLeftHandLogic(stateMachineInstanceData) {
+      animFeatureName = n"leftEquipUnequipItem";
+      otherItem = GameObject.GetRightActiveWeapon(scriptInterface.executionOwner);
+    } else {
+      if this.IsRightHandLogic(stateMachineInstanceData) {
+        animFeatureName = n"rightEquipUnequipItem";
+        otherItem = GameObject.GetLeftActiveWeapon(scriptInterface.executionOwner);
+      };
+    };
+    tempEquip = stateContext.GetPermanentBoolParameter(this.GetTempEquipOverWeapon(stateMachineInstanceData));
+    dualWieldLoadoutEdit = stateContext.GetPermanentBoolParameter(this.GetDualWieldLoadoutEdit(stateMachineInstanceData));
+    animFeature.itemState = dualWieldLoadoutEdit.valid && dualWieldLoadoutEdit.value ? 1 : 3;
+    animFeature.itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().AnimFeatureIndex();
+    animFeature.stateTransitionDuration = this.GetWeaponUnEquipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+    animFeature.tempEquipOverWeapon = tempEquip.valid && tempEquip.value;
+    if !isLeftWeapon {
+      this.BlockAimingForTime(stateContext, scriptInterface, animFeature.stateTransitionDuration + 0.10);
+    };
+    scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, animFeature, scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, itemObject);
+    if IsDefined(otherItem) {
+      scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, otherItem);
+    };
+    unequipStartEvent.SetSlotID(placementSlot);
+    scriptInterface.executionOwner.QueueEvent(unequipStartEvent);
+    gunzerkerLevel = playerDevelopmentData.IsNewPerkBought(gamedataNewPerkType.Reflexes_Master_Perk_2);
+    if IsDefined(itemObject) && gunzerkerLevel > 0 && Equals(WeaponObject.GetWeaponType(itemObject.GetItemID()), gamedataItemType.Wea_SubmachineGun) {
+      itemObject.StartReload();
+      itemObject.StopReload(gameweaponReloadStatus.Standard);
+    };
+  }
+
+  protected final func DropActiveWeapon(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Void {
+    let weaponID: ItemID;
+    let cameraWorldTransform: Transform = scriptInterface.GetCameraWorldTransform();
+    let transformVec: Vector4 = new Vector4(0.40, -0.60, -0.50, 0.00);
+    let worldPosition: Vector4 = Transform.TransformPoint(cameraWorldTransform, transformVec);
+    let weaponObject: ref<WeaponObject> = this.IsLeftHandLogic(stateMachineInstanceData) ? DefaultTransition.GetLeftActiveWeapon(scriptInterface) : DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let dropRotation: Quaternion = weaponObject.GetWorldOrientation();
+    if this.IsRightHandLogic(stateMachineInstanceData) {
+      Quaternion.SetZRot(dropRotation, RandRangeF(0.00, 180.00));
+    } else {
+      if this.IsLeftHandLogic(stateMachineInstanceData) {
+        Quaternion.SetZRot(dropRotation, -RandRangeF(0.00, 180.00));
+      };
+    };
+    weaponID = this.GetItemIDFromParam(stateMachineInstanceData, stateContext);
+    GameInstance.GetLootManager(scriptInterface.owner.GetGame()).SpawnItemDrop(scriptInterface.owner, weaponID, worldPosition, dropRotation);
+  }
+
+  protected final func CreateAndSendFirstEquipEndRequest(scriptInterface: ref<StateGameScriptInterface>, weaponTweakID: TweakDBID) -> Void {
+    let firstEqSystem: ref<FirstEquipSystem> = FirstEquipSystem.GetInstance(scriptInterface.owner);
+    let requestToSend: ref<CompletionOfFirstEquipRequest> = new CompletionOfFirstEquipRequest();
+    requestToSend.weaponID = weaponTweakID;
+    firstEqSystem.QueueRequest(requestToSend);
+  }
+
+  protected final const func HasThrowableCooldown(scriptInterface: ref<StateGameScriptInterface>, weapon: ref<WeaponObject>) -> Bool {
+    if !IsDefined(weapon) {
+      return false;
+    };
+    if !weapon.WeaponHasTag(n"Throwable") {
+      return false;
+    };
+    if scriptInterface.GetStatPoolsSystem().HasStatPoolValueReachedMax(Cast<StatsObjectID>(weapon.GetEntityID()), gamedataStatPoolType.ThrowRecovery) {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func GetSlotAttachedItem(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> ref<ItemObject> {
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(stateMachineInstanceData.referenceName);
+    return scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot));
+  }
+
+  protected final const func GetSlotAttachedItemID(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> ItemID {
+    let item: ref<ItemObject> = this.GetSlotAttachedItem(scriptInterface, stateMachineInstanceData);
+    if IsDefined(item) {
+      return item.GetItemID();
+    };
+    return ItemID.None();
+  }
+
+  protected final const func GetSlotAttachedItemObject(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> ref<ItemObject> {
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(stateMachineInstanceData.referenceName);
+    return scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot));
+  }
+
+  protected final const func IsProperItemEquipped(const scriptInterface: ref<StateGameScriptInterface>, const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    let item: ItemID = this.GetItemIDFromParam(stateMachineInstanceData, stateContext);
+    let slotActiveItem: ItemID = this.GetSlotActiveItem(scriptInterface, stateMachineInstanceData);
+    return item == slotActiveItem;
+  }
+
+  protected final const func GetSlotActiveItem(const scriptInterface: ref<StateGameScriptInterface>, stateMachineInstanceData: StateMachineInstanceData) -> ItemID {
+    return EquipmentSystem.GetSlotActiveItem(scriptInterface.executionOwner, this.ReferenceNameToRequestSlot(stateMachineInstanceData));
+  }
+
+  protected final const func GetEquipDuration(const scriptInterface: ref<StateGameScriptInterface>, const stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Float {
+    switch this.GetItemCategoryFromItemID(this.GetSlotAttachedItemID(scriptInterface, stateMachineInstanceData)) {
+      case gamedataItemCategory.Weapon:
+        return this.GetWeaponEquipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+      case gamedataItemCategory.Consumable:
+        return 0.00;
+      case gamedataItemCategory.Gadget:
+        return 0.00;
+      case gamedataItemCategory.Cyberware:
+        return this.GetWeaponEquipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+    };
+    return 1.00;
+  }
+
+  protected final const func GetUnequipDuration(const scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Float {
+    switch this.GetItemCategoryFromItemID(this.GetSlotAttachedItemID(scriptInterface, stateMachineInstanceData)) {
+      case gamedataItemCategory.Weapon:
+        return this.GetWeaponUnEquipDuration(scriptInterface, stateContext, stateMachineInstanceData);
+      case gamedataItemCategory.Consumable:
+        return this.GetConsumableUnEquipDuration(stateMachineInstanceData, stateContext);
+      case gamedataItemCategory.Gadget:
+        return 0.00;
+      case gamedataItemCategory.Cyberware:
+        return 0.00;
+      default:
+        return 0.00;
+    };
+  }
+
+  protected final const func IsLeftHandLogic(stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    return Equals(stateMachineInstanceData.referenceName, n"LeftHand");
+  }
+
+  protected final const func IsRightHandLogic(stateMachineInstanceData: StateMachineInstanceData) -> Bool {
+    return Equals(stateMachineInstanceData.referenceName, n"RightHand");
+  }
+
+  protected final const func RemoveRightWeaponStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"WeaponRight";
+    psmIdent.referenceName = n"WeaponRight";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+
+  protected final const func RemoveLeftWeaponStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"WeaponLeft";
+    psmIdent.referenceName = n"WeaponLeft";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+
+  protected final const func AddConsumableStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmAdd: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    psmAdd.stateMachineName = n"Consumable";
+    scriptInterface.executionOwner.QueueEvent(psmAdd);
+  }
+
+  protected final const func RemoveConsumableStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"Consumable";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+
+  protected final const func AddGrenadesStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmAdd: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    psmAdd.stateMachineName = n"CombatGadget";
+    scriptInterface.executionOwner.QueueEvent(psmAdd);
+  }
+
+  protected final const func RemoveGrenadesStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"CombatGadget";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+
+  protected final const func AddCyberwareStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmAdd: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    psmAdd.stateMachineName = n"LeftHandCyberware";
+    scriptInterface.executionOwner.QueueEvent(psmAdd);
+  }
+
+  protected final const func RemoveCyberwareStateMachine(const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"LeftHandCyberware";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+
+  protected final const func SetRightHandItemParam(stateContext: ref<StateContext>, item: ItemID) -> Void {
+    let wrapper: ref<ItemIdWrapper> = new ItemIdWrapper();
+    wrapper.itemID = item;
+    stateContext.SetPermanentScriptableParameter(n"rightHandItem", wrapper, true);
+  }
+
+  protected final const func ClearRightHandItemParam(stateContext: ref<StateContext>) -> Void {
+    stateContext.RemovePermanentScriptableParameter(n"rightHandItem");
+  }
+
+  protected final const func SetLeftHandItemParam(stateContext: ref<StateContext>, item: ItemID) -> Void {
+    let wrapper: ref<ItemIdWrapper> = new ItemIdWrapper();
+    wrapper.itemID = item;
+    stateContext.SetPermanentScriptableParameter(n"leftHandItem", wrapper, true);
+  }
+
+  protected final const func ClearLeftHandItemParam(stateContext: ref<StateContext>) -> Void {
+    stateContext.RemovePermanentScriptableParameter(n"leftHandItem");
+  }
+
+  protected final const func ClearHandItemParam(stateContext: ref<StateContext>, stateMachineInstanceData: StateMachineInstanceData) -> Void {
+    if this.IsRightHandLogic(stateMachineInstanceData) {
+      this.ClearRightHandItemParam(stateContext);
+    } else {
+      if this.IsLeftHandLogic(stateMachineInstanceData) {
+        this.ClearLeftHandItemParam(stateContext);
+      };
+    };
+  }
+
+  protected final const func GetItemIDFromParam(stateMachineInstanceData: StateMachineInstanceData, const stateContext: ref<StateContext>) -> ItemID {
+    if this.IsRightHandLogic(stateMachineInstanceData) {
+      return this.GetRightHandItemFromParam(stateContext);
+    };
+    if this.IsLeftHandLogic(stateMachineInstanceData) {
+      return this.GetLeftHandItemFromParam(stateContext);
+    };
+    return ItemID.None();
+  }
+
+  protected final const func GetBlurParametersFromWeapon(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_WeaponBlur> = new AnimFeature_WeaponBlur();
+    let weapon: ref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let weaponTDB: TweakDBID = ItemID.GetTDBID(weapon.GetItemID());
+    animFeature.weaponNearPlane = TDB.GetFloat(weaponTDB + t".weaponNearPlane");
+    animFeature.weaponFarPlane = TDB.GetFloat(weaponTDB + t".weaponFarPlane");
+    animFeature.weaponEdgesSharpness = TDB.GetFloat(weaponTDB + t".weaponEdgesSharpness");
+    animFeature.weaponVignetteIntensity = TDB.GetFloat(weaponTDB + t".weaponVignetteIntensity");
+    animFeature.weaponVignetteRadius = TDB.GetFloat(weaponTDB + t".weaponVignetteRadius");
+    animFeature.weaponVignetteCircular = TDB.GetFloat(weaponTDB + t".weaponVignetteCircular");
+    animFeature.weaponBlurIntensity = TDB.GetFloat(weaponTDB + t".weaponBlurIntensity");
+    animFeature.weaponNearPlane_aim = TDB.GetFloat(weaponTDB + t".weaponNearPlane_aim");
+    animFeature.weaponFarPlane_aim = TDB.GetFloat(weaponTDB + t".weaponFarPlane_aim");
+    animFeature.weaponEdgesSharpness_aim = TDB.GetFloat(weaponTDB + t".weaponEdgesSharpness_aim");
+    animFeature.weaponVignetteIntensity_aim = TDB.GetFloat(weaponTDB + t".weaponVignetteIntensity_aim");
+    animFeature.weaponVignetteRadius_aim = TDB.GetFloat(weaponTDB + t".weaponVignetteRadius_aim");
+    animFeature.weaponVignetteCircular_aim = TDB.GetFloat(weaponTDB + t".weaponVignetteCircular_aim");
+    animFeature.weaponBlurIntensity_aim = TDB.GetFloat(weaponTDB + t".weaponBlurIntensity_aim");
+    scriptInterface.SetAnimationParameterFeature(n"WeaponBlurData", animFeature);
+  }
+
+  protected final const func CanProcessEquip(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let upperBodyState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    return !this.IsPlayerInAnyMenu(scriptInterface) && this.CheckGenericEquipItemConditions(stateContext, scriptInterface) && upperBodyState != 4 && (upperBodyState != 5 || this.HasActiveConsumable(scriptInterface));
+  }
+
+  protected final const func CanProcessUnEquip(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsPlayerInAnyMenu(scriptInterface);
+  }
+
+  protected final const func GetTurnOffPublicSafeTimeStamp(stateMachineInstanceData: StateMachineInstanceData) -> CName {
+    return this.IsRightHandLogic(stateMachineInstanceData) ? n"RightTurnOffPublicSafeTimeStamp" : n"LeftTurnOffPublicSafeTimeStamp";
+  }
+
+  protected final const func GetTempEquipOverWeapon(stateMachineInstanceData: StateMachineInstanceData) -> CName {
+    return this.IsRightHandLogic(stateMachineInstanceData) ? n"rightTempEquipOverWeapon" : n"leftTempEquipOverWeapon";
+  }
+
+  protected final const func GetDualWieldLoadoutEdit(stateMachineInstanceData: StateMachineInstanceData) -> CName {
+    return this.IsRightHandLogic(stateMachineInstanceData) ? n"rightDualWieldLoadoutEdit" : n"leftDualWieldLoadoutEdit";
+  }
+
+  protected final const func GetBlackboardID(stateMachineInstanceData: StateMachineInstanceData) -> BlackboardID_Int {
+    return this.IsLeftHandLogic(stateMachineInstanceData) ? GetAllBlackboardDefs().PlayerStateMachine.EquipmentLeft : GetAllBlackboardDefs().PlayerStateMachine.EquipmentRight;
+  }
+}
+
+public class UnequippedDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected final const func ToUnequippedWaitingForExternalFactors(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let upperBodyState: Int32;
+    let equipRequestOccuredThisFrame: Bool = false;
+    let hasEquipProcessedPrevFrame: Bool = false;
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.Equip) {
+      this.SaveProcessedEquipmentManipulationRequest(stateContext, this.stateMachineInstanceData, this.stateMachineInitData);
+      equipRequestOccuredThisFrame = true;
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.DualEquip) {
+      this.SaveProcessedEquipmentManipulationRequest(stateContext, this.stateMachineInstanceData, this.stateMachineInitData);
+      equipRequestOccuredThisFrame = true;
+    };
+    if !equipRequestOccuredThisFrame {
+      hasEquipProcessedPrevFrame = IsDefined(this.GetProcessedEquipmentManipulationRequest(this.stateMachineInstanceData, stateContext));
+    };
+    if equipRequestOccuredThisFrame || hasEquipProcessedPrevFrame {
+      return true;
+    };
+    if this.CheckReplicatedEquipRequest(scriptInterface, stateContext, this.stateMachineInstanceData) {
+      return true;
+    };
+    upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    if !this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) && (this.IsRightHandLogic(this.stateMachineInstanceData) || this.IsLeftHandLogic(this.stateMachineInstanceData)) && upperBodyState != 4 && upperBodyState != 5 && NotEquals(this.GetItemCategoryFromItemID(this.GetSlotAttachedItemID(scriptInterface, this.stateMachineInstanceData)), gamedataItemCategory.Gadget) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class DelayedAnimFeatureCall extends DelayCallback {
+
+  public let featureName: CName;
+
+  public let animFeature: ref<AnimFeature_EquipUnequipItem>;
+
+  public let scriptInterface: ref<StateGameScriptInterface>;
+
+  public func Call() -> Void {
+    if IsDefined(this.scriptInterface) {
+      this.scriptInterface.SetAnimationParameterFeature(this.featureName, this.animFeature);
+    };
+  }
+}
+
+public class UnequippedEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let delayedAnimFeature: ref<DelayedAnimFeatureCall>;
+    let itemHandling: ref<AnimFeature_EquipUnequipItem>;
+    let mappedInstanceData: InstanceDataMappedToReferenceName;
+    this.SetBlackboardIntVariable(scriptInterface, this.GetBlackboardID(this.stateMachineInstanceData), 2);
+    mappedInstanceData = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+    itemHandling = new AnimFeature_EquipUnequipItem();
+    itemHandling.itemState = 0;
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) == 6 {
+      delayedAnimFeature = new DelayedAnimFeatureCall();
+      delayedAnimFeature.featureName = mappedInstanceData.itemHandlingFeatureName;
+      delayedAnimFeature.animFeature = itemHandling;
+      delayedAnimFeature.scriptInterface = scriptInterface;
+      scriptInterface.GetDelaySystem().DelayCallbackNextFrame(delayedAnimFeature);
+    } else {
+      scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, itemHandling);
+    };
+    if this.IsRightHandLogic(this.stateMachineInstanceData) {
+      this.ClearRightHandItemParam(stateContext);
+    } else {
+      if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+        this.ClearLeftHandItemParam(stateContext);
+        scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsDualWielding, false);
+        AnimationControllerComponent.SetAnimWrapperWeight(scriptInterface.executionOwner, n"dual_wield", 0.00);
+      };
+    };
+    this.ClearProcessedEquipmentManipulationRequest(this.stateMachineInstanceData, stateContext);
+  }
+
+  protected final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let weaponManipulationRequest: ref<EquipmentManipulationRequest> = this.GetWeaponManipulationRequest(stateContext, this.stateMachineInitData);
+    let tempEquipOverWeapon: Bool = weaponManipulationRequest.tempEquipOverWeapon;
+    let dualWieldLoadoutEdit: Bool = weaponManipulationRequest.dualWieldLoadoutEdit;
+    if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsDualWielding, tempEquipOverWeapon);
+    };
+    stateContext.SetPermanentBoolParameter(this.GetTempEquipOverWeapon(this.stateMachineInstanceData), tempEquipOverWeapon, true);
+    stateContext.SetPermanentBoolParameter(this.GetDualWieldLoadoutEdit(this.stateMachineInstanceData), dualWieldLoadoutEdit, true);
+    stateContext.RemovePermanentScriptableParameter(this.stateMachineInitData.eqManipulationVarName);
+  }
+}
+
+public class UnequippedWaitingForExternalFactorsDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected final const func ExitCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.CanEquipRequestedWeapon(scriptInterface, stateContext, this.stateMachineInstanceData);
+  }
+}
+
+public class SelfRemovalEvents extends StateFunctor {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  private final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    psmIdent.definitionName = n"Equipment";
+    psmIdent.referenceName = this.stateMachineInstanceData.referenceName;
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+  }
+}
+
+public class EquippedDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected final const func ToUnequipCycle(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let item: ItemID = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+    let equipRequestOccuredThisFrame: Bool = false;
+    let hasEquipProcessedPrevFrame: Bool = false;
+    let upperBodyState: Int32 = 0;
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.Unequip) {
+      this.SaveProcessedEquipmentManipulationRequest(stateContext, this.stateMachineInstanceData, this.stateMachineInitData);
+      equipRequestOccuredThisFrame = true;
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.Equip) {
+      if this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) {
+        stateContext.RemovePermanentScriptableParameter(this.stateMachineInitData.eqManipulationVarName);
+      } else {
+        this.SaveProcessedEquipmentManipulationRequest(stateContext, this.stateMachineInstanceData, this.stateMachineInitData);
+        equipRequestOccuredThisFrame = true;
+      };
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.DualEquip) {
+      if this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) {
+        stateContext.RemovePermanentScriptableParameter(this.stateMachineInitData.eqManipulationVarName);
+      } else {
+        this.SaveProcessedEquipmentManipulationRequest(stateContext, this.stateMachineInstanceData, this.stateMachineInitData);
+        equipRequestOccuredThisFrame = true;
+      };
+    };
+    if !equipRequestOccuredThisFrame {
+      hasEquipProcessedPrevFrame = IsDefined(this.GetProcessedEquipmentManipulationRequest(this.stateMachineInstanceData, stateContext));
+    };
+    if this.IsRightHandLogic(this.stateMachineInstanceData) || this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      if !this.CanProcessUnEquip(stateContext, scriptInterface) {
+        return false;
+      };
+    };
+    if this.IsLeftHandLogic(this.stateMachineInstanceData) && stateContext.IsStateMachineActive(n"Consumable") {
+      return false;
+    };
+    if equipRequestOccuredThisFrame || hasEquipProcessedPrevFrame {
+      return true;
+    };
+    if this.CheckReplicatedEquipRequest(scriptInterface, stateContext, this.stateMachineInstanceData) {
+      return true;
+    };
+    upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    if upperBodyState == 5 {
+      return true;
+    };
+    if upperBodyState == 4 && (this.IsRightHandLogic(this.stateMachineInstanceData) || EquipmentSystem.IsItemOfCategory(item, gamedataItemCategory.Weapon)) {
+      return true;
+    };
+    if !IsServer() {
+      if !this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) && this.IsRightHandLogic(this.stateMachineInstanceData) && NotEquals(this.GetItemCategoryFromItemID(this.GetSlotAttachedItemID(scriptInterface, this.stateMachineInstanceData)), gamedataItemCategory.Gadget) {
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class EquippedEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let broadcaster: ref<StimBroadcasterComponent>;
+    this.SetBlackboardIntVariable(scriptInterface, this.GetBlackboardID(this.stateMachineInstanceData), 0);
+    if this.IsRightHandLogic(this.stateMachineInstanceData) || this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      MeleeTransition.ClearInputBuffer(stateContext);
+      broadcaster = scriptInterface.executionOwner.GetStimBroadcasterComponent();
+      if !WeaponObject.IsFists(GameObject.GetActiveWeapon(scriptInterface.executionOwner).GetItemID()) && !stateContext.GetBoolParameter(n"weaponDisplayedStimuli", true) {
+        if IsDefined(broadcaster) {
+          broadcaster.TriggerSingleBroadcast(scriptInterface.executionOwner, gamedataStimType.WeaponDisplayed);
+        };
+      } else {
+        if WeaponObject.IsFists(GameObject.GetActiveWeapon(scriptInterface.executionOwner).GetItemID()) {
+          if IsDefined(broadcaster) {
+            broadcaster.TriggerSingleBroadcast(scriptInterface.executionOwner, gamedataStimType.WeaponHolstered);
+          };
+        };
+      };
+      stateContext.RemovePermanentBoolParameter(n"weaponDisplayedStimuli");
+    };
+    this.ClearProcessedEquipmentManipulationRequest(this.stateMachineInstanceData, stateContext);
+  }
+
+  protected final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let weaponManipulationRequest: ref<EquipmentManipulationRequest> = this.GetWeaponManipulationRequest(stateContext, this.stateMachineInitData);
+    let tempEquipOverWeapon: Bool = weaponManipulationRequest.tempEquipOverWeapon;
+    let dualWieldLoadoutEdit: Bool = weaponManipulationRequest.dualWieldLoadoutEdit;
+    stateContext.SetPermanentBoolParameter(this.GetTempEquipOverWeapon(this.stateMachineInstanceData), tempEquipOverWeapon, true);
+    stateContext.SetPermanentBoolParameter(this.GetDualWieldLoadoutEdit(this.stateMachineInstanceData), dualWieldLoadoutEdit, true);
+    stateContext.RemovePermanentScriptableParameter(this.stateMachineInitData.eqManipulationVarName);
+  }
+}
+
+public class EquipCycleInitDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let equipmentSystemPlayerData: ref<EquipmentSystemPlayerData>;
+    let vehicleState: CName;
+    let record: ref<Item_Record> = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item));
+    let item: ItemID = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+    if !ItemID.IsValid(item) {
+      return true;
+    };
+    record = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item));
+    if !IsDefined(record) || NotEquals(record.ItemCategory().Type(), gamedataItemCategory.Weapon) {
+      return true;
+    };
+    equipmentSystemPlayerData = EquipmentSystem.GetData(scriptInterface.executionOwner);
+    if !IsDefined(equipmentSystemPlayerData) {
+      return true;
+    };
+    if WeaponObject.IsCyberwareWeapon(item) {
+      vehicleState = stateContext.GetStateMachineCurrentState(n"Vehicle");
+      if Equals(vehicleState, n"exit") || Equals(vehicleState, n"coolExiting") || Equals(vehicleState, n"slideExiting") {
+        return true;
+      };
+    };
+    if equipmentSystemPlayerData.CheckWeaponAgainstGameplayRestrictions(item, this.IsLeftHandLogic(this.stateMachineInstanceData)) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func ToEquipCycle(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.IsVisualItemInSlot(scriptInterface, this.stateMachineInstanceData) || this.IsUsingFluffConsumable(scriptInterface, this.stateMachineInstanceData);
+  }
+
+  protected final const func ToUnequippedWaitingForExternalFactors(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.CanEquipRequestedWeapon(scriptInterface, stateContext, this.stateMachineInstanceData);
+  }
+
+  protected final const func ToUnequipped(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let threshold: Float = 1.00;
+    if this.GetInStateTime() >= threshold {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class EquipCycleInitEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let item: ItemID;
+    let itemHandling: ref<AnimFeature_EquipUnequipItem>;
+    let mappedInstanceData: InstanceDataMappedToReferenceName;
+    let placementSlot: TweakDBID;
+    let tempEquip: StateResultBool;
+    let equipStartEvent: ref<EquipStart> = new EquipStart();
+    let dualWieldWrapper: Bool = false;
+    let multiplayerRequestData: ref<parameterRequestItem> = stateContext.GetTemporaryScriptableParameter(n"cpo_replicatedEquipRequest") as parameterRequestItem;
+    if multiplayerRequestData == null {
+      multiplayerRequestData = stateContext.GetConditionScriptableParameter(n"cpo_replicatedEquipRequest") as parameterRequestItem;
+      if multiplayerRequestData != null {
+        stateContext.RemoveConditionScriptableParameter(n"cpo_replicatedEquipRequest");
+      };
+    };
+    if IsServer() && multiplayerRequestData != null {
+      item = multiplayerRequestData.requests[0].itemIDToEquip;
+      placementSlot = multiplayerRequestData.requests[0].slotID;
+    } else {
+      item = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+      placementSlot = EquipmentSystem.GetPlacementSlot(item, Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) && this.IsLeftHandLogic(this.stateMachineInstanceData));
+    };
+    if ItemID.IsValid(item) {
+      if !WeaponObject.IsRanged(item) && !stateContext.IsStateMachineActive(n"Vehicle") {
+        tempEquip = stateContext.GetPermanentBoolParameter(this.GetTempEquipOverWeapon(this.stateMachineInstanceData));
+        dualWieldWrapper = tempEquip.valid && tempEquip.value;
+        mappedInstanceData = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+        itemHandling = new AnimFeature_EquipUnequipItem();
+        itemHandling.itemState = 0;
+        itemHandling.tempEquipOverWeapon = tempEquip.valid && tempEquip.value;
+        scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, itemHandling);
+      } else {
+        if WeaponObject.IsRanged(item) {
+          dualWieldWrapper = this.IsLeftHandLogic(this.stateMachineInstanceData);
+        };
+      };
+      if IsClient() && scriptInterface.owner.IsControlledByLocalPeer() {
+        scriptInterface.RequestWeaponEquipOnServer(placementSlot, item);
+      };
+      if !this.IsUsingFluffConsumable(scriptInterface, this.stateMachineInstanceData) {
+        equipStartEvent.SetSlotID(placementSlot);
+        equipStartEvent.SetItemID(item);
+        equipStartEvent.SetHighPriority(NotEquals(WeaponObject.GetWeaponType(item), gamedataItemType.Invalid));
+        if !stateContext.IsStateMachineActive(n"Vehicle") || Equals(GetMountedVehicle(scriptInterface.executionOwner).GetCameraManager().GetActivePerspective(), vehicleCameraPerspective.FPP) {
+          equipStartEvent.SetStartingRenderingPlane(ERenderingPlane.RPl_Weapon);
+        };
+        equipStartEvent.SetFirstEquip(false);
+        scriptInterface.executionOwner.QueueEvent(equipStartEvent);
+      };
+      if this.IsRightHandLogic(this.stateMachineInstanceData) {
+        this.SetRightHandItemParam(stateContext, item);
+      } else {
+        if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+          this.SetLeftHandItemParam(stateContext, item);
+          scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsDualWielding, dualWieldWrapper);
+          AnimationControllerComponent.SetAnimWrapperWeight(scriptInterface.executionOwner, n"dual_wield", dualWieldWrapper ? 1.00 : 0.00);
+        };
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+    let item: ItemID = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot)).GetItemID();
+    if IsMultiplayer() {
+      scriptInterface.GetTransactionSystem().SetActiveItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot), item);
+    };
+  }
+}
+
+public class EquipCycleDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  protected final const func ToEquipped(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let threshold: Float = this.GetEquipDuration(scriptInterface, stateContext, this.stateMachineInstanceData);
+    let validPSMState: Bool = this.GetIsPSMInValidState(scriptInterface, stateContext, this.stateMachineInstanceData);
+    return !validPSMState || this.GetInStateTime() >= threshold;
+  }
+
+  protected final const func ToUnequipCycle(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return false;
+  }
+
+  protected final const func ToFirstEquip(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let firstEqSystem: ref<FirstEquipSystem> = FirstEquipSystem.GetInstance(scriptInterface.owner);
+    let firstEquipResult: StateResultBool = stateContext.GetConditionBoolParameter(n"firstEquip");
+    let preventFirstEquip: Bool = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.ScenePreventFirstEquip) || scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.MountedPreventFirstEquip);
+    let itemId: ItemID = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+    return firstEquipResult.value && !preventFirstEquip && this.ToEquipped(stateContext, scriptInterface) && !firstEqSystem.HasPlayedFirstEquip(ItemID.GetTDBID(itemId));
+  }
+}
+
+public class EquipCycleEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let item: ItemID = this.GetItemIDFromParam(this.stateMachineInstanceData, stateContext);
+    if !ItemID.IsValid(item) {
+      return;
+    };
+    if this.IsRightHandLogic(this.stateMachineInstanceData) {
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+        this.HandleWeaponEquip(scriptInterface, stateContext, this.stateMachineInstanceData, item, false);
+        return;
+      };
+    };
+    if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+        this.HandleWeaponEquip(scriptInterface, stateContext, this.stateMachineInstanceData, item, true);
+        return;
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Consumable) {
+        stateContext.RemovePermanentBoolParameter(n"UnequipToGadgetOrConsumable");
+        this.AddConsumableStateMachine(scriptInterface);
+        AnimationControllerComponent.SetInputBool(DefaultTransition.GetPlayerPuppet(scriptInterface), n"ignore_other_firstequip", true);
+        return;
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Gadget) {
+        stateContext.RemovePermanentBoolParameter(n"UnequipToGadgetOrConsumable");
+        AnimationControllerComponent.SetInputBool(DefaultTransition.GetPlayerPuppet(scriptInterface), n"ignore_other_firstequip", true);
+        this.AddGrenadesStateMachine(scriptInterface);
+        return;
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Cyberware) {
+        this.AddCyberwareStateMachine(scriptInterface);
+        return;
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let itemObject: wref<WeaponObject>;
+    let otherItem: wref<WeaponObject>;
+    let tempEquip: StateResultBool;
+    let item: ItemID = this.GetItemIDFromParam(this.stateMachineInstanceData, stateContext);
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+    let animFeature: ref<AnimFeature_EquipUnequipItem> = new AnimFeature_EquipUnequipItem();
+    let animFeatureName: CName = n"equipUnequipItem";
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    if !ItemID.IsValid(item) {
+      return;
+    };
+    if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      animFeatureName = n"leftEquipUnequipItem";
+      otherItem = GameObject.GetRightActiveWeapon(scriptInterface.executionOwner);
+    } else {
+      if this.IsRightHandLogic(this.stateMachineInstanceData) {
+        animFeatureName = n"rightEquipUnequipItem";
+        otherItem = GameObject.GetLeftActiveWeapon(scriptInterface.executionOwner);
+      };
+    };
+    if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+      tempEquip = stateContext.GetPermanentBoolParameter(this.GetTempEquipOverWeapon(this.stateMachineInstanceData));
+      itemObject = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot)) as WeaponObject;
+      animFeature.stateTransitionDuration = statSystem.GetStatValue(Cast<StatsObjectID>(itemObject.GetEntityID()), gamedataStatType.UnequipDuration);
+      animFeature.itemState = 2;
+      animFeature.itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().AnimFeatureIndex();
+      animFeature.tempEquipOverWeapon = tempEquip.valid && tempEquip.value;
+      scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, animFeature, scriptInterface.executionOwner);
+      scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, itemObject);
+      if IsDefined(otherItem) {
+        scriptInterface.SetAnimationParameterFeature(animFeatureName, animFeature, otherItem);
+      };
+    };
+  }
+}
+
+public class FirstEquipDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected final const func ToEquipped(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let leftHandCyberState: gamePSMLeftHandCyberware;
+    let locomotionDetailedState: Int32;
+    let threshold: Float;
+    let upperBodyState: Int32;
+    let weapon: wref<WeaponObject>;
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    let validPSMState: Bool = this.GetIsPSMInValidState(scriptInterface, stateContext, this.stateMachineInstanceData);
+    let isAiming: Bool = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody) == 6;
+    if isAiming {
+      return true;
+    };
+    upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    locomotionDetailedState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.LocomotionDetailed);
+    if stateContext.IsStateMachineActive(n"CombatGadget") || stateContext.IsStateMachineActive(n"LocomotionSwimming") || stateContext.IsStateMachineActive(n"Vehicle") || stateContext.IsStateMachineActive(n"CarriedObject") || stateContext.IsStateMachineActive(n"Consumable") || stateContext.GetBoolParameter(n"UnequipToGadgetOrConsumable", true) || stateContext.IsStateMachineActive(n"LocomotionTakedown") || upperBodyState == 4 || locomotionDetailedState == 8 || locomotionDetailedState == 10 || locomotionDetailedState == 11 || locomotionDetailedState == 12 || locomotionDetailedState == 9 || locomotionDetailedState == 17 || locomotionDetailedState == 5 || locomotionDetailedState == 6 {
+      return true;
+    };
+    leftHandCyberState = IntEnum<gamePSMLeftHandCyberware>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.LeftHandCyberware));
+    if NotEquals(leftHandCyberState, gamePSMLeftHandCyberware.Safe) && NotEquals(leftHandCyberState, gamePSMLeftHandCyberware.Default) && NotEquals(leftHandCyberState, gamePSMLeftHandCyberware.Idle) {
+      return true;
+    };
+    if !validPSMState {
+      return true;
+    };
+    weapon = this.GetSlotAttachedItemObject(scriptInterface, this.stateMachineInstanceData) as WeaponObject;
+    threshold = statSystem.GetStatValue(Cast<StatsObjectID>(weapon.GetEntityID()), gamedataStatType.EquipDuration_First) - statSystem.GetStatValue(Cast<StatsObjectID>(weapon.GetEntityID()), gamedataStatType.EquipDuration);
+    if this.GetInStateTime() >= threshold {
+      return true;
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.Unequip) {
+      return true;
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.Equip) && !this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) {
+      return true;
+    };
+    if this.CheckSlotMatchAndCompareRequestType(stateContext, this.stateMachineInstanceData, this.stateMachineInitData, EquipmentManipulationRequestType.DualEquip) && !this.IsProperItemEquipped(scriptInterface, stateContext, this.stateMachineInstanceData) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class FirstEquipEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  public const let stateMachineInitData: wref<EquipmentInitData>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let broadcaster: ref<StimBroadcasterComponent>;
+    if this.IsRightHandLogic(this.stateMachineInstanceData) || this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      if !WeaponObject.IsFists(GameObject.GetActiveWeapon(scriptInterface.executionOwner).GetItemID()) {
+        broadcaster = scriptInterface.executionOwner.GetStimBroadcasterComponent();
+        if IsDefined(broadcaster) {
+          broadcaster.TriggerSingleBroadcast(scriptInterface.executionOwner, gamedataStimType.WeaponDisplayed);
+        };
+        stateContext.SetPermanentBoolParameter(n"weaponDisplayedStimuli", true, true);
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+    let itemObject: wref<WeaponObject> = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot)) as WeaponObject;
+    this.CreateAndSendFirstEquipEndRequest(scriptInterface, ItemID.GetTDBID(itemObject.GetItemID()));
+    scriptInterface.PushAnimationEvent(n"FirstEquipEnd");
+    stateContext.SetConditionBoolParameter(n"firstEquip", false, true);
+  }
+}
+
+public class UnequipCycleDecisions extends EquipmentBaseDecisions {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  protected final const func ToUnequippedWaitingForExternalFactors(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.CanEquipRequestedWeapon(scriptInterface, stateContext, this.stateMachineInstanceData) {
+      return false;
+    };
+    return this.ToEquipCycleInit(stateContext, scriptInterface);
+  }
+
+  protected final const func ToEquipCycleInit(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let threshold: Float = this.GetUnequipDuration(scriptInterface, stateContext, this.stateMachineInstanceData);
+    let itemId: ItemID = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+    let upperBodyState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    let smConditions: Bool = upperBodyState == 4 || upperBodyState == 5 || Equals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"entering") || Equals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"switchSeats");
+    return this.GetInStateTime() >= threshold && itemId != ItemID.None() && !smConditions;
+  }
+
+  protected final const func ToUnequipped(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let threshold: Float = this.GetUnequipDuration(scriptInterface, stateContext, this.stateMachineInstanceData);
+    let upperBodyState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+    if this.GetInStateTime() >= threshold && this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData) == ItemID.None() {
+      if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+        return !stateContext.IsStateMachineActive(n"Consumable") && !stateContext.GetBoolParameter(n"UnequipToGadgetOrConsumable", true) && !stateContext.IsStateMachineActive(n"CombatGadget");
+      };
+      if this.IsRightHandLogic(this.stateMachineInstanceData) {
+        return true;
+      };
+    } else {
+      if (upperBodyState == 4 || upperBodyState == 5 || Equals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"entering") || Equals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"switchSeats")) && (this.IsRightHandLogic(this.stateMachineInstanceData) || this.IsLeftHandLogic(this.stateMachineInstanceData) && !stateContext.IsStateMachineActive(n"Consumable") && !stateContext.GetBoolParameter(n"UnequipToGadgetOrConsumable", true) && !stateContext.IsStateMachineActive(n"CombatGadget")) {
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class UnequipCycleEvents extends EquipmentBaseEvents {
+
+  public const let stateMachineInstanceData: StateMachineInstanceData;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let nextItem: ItemID;
+    let item: ItemID = this.GetItemIDFromParam(this.stateMachineInstanceData, stateContext);
+    if !ItemID.IsValid(item) {
+      return;
+    };
+    this.SetBlackboardIntVariable(scriptInterface, this.GetBlackboardID(this.stateMachineInstanceData), 1);
+    if this.IsRightHandLogic(this.stateMachineInstanceData) {
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+        this.HandleWeaponUnequip(scriptInterface, stateContext, this.stateMachineInstanceData, item, false);
+        return;
+      };
+    };
+    if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+      nextItem = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+      if Equals(this.GetItemCategoryFromItemID(nextItem), gamedataItemCategory.Gadget) || Equals(this.GetItemCategoryFromItemID(nextItem), gamedataItemCategory.Consumable) {
+        stateContext.SetPermanentBoolParameter(n"UnequipToGadgetOrConsumable", true, true);
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+        this.HandleWeaponUnequip(scriptInterface, stateContext, this.stateMachineInstanceData, item, true);
+        AnimationControllerComponent.SetInputBool(DefaultTransition.GetPlayerPuppet(scriptInterface), n"ignore_other_firstequip", false);
+        return;
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Consumable) || Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Gadget) {
+        return;
+      };
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Cyberware) {
+        this.RemoveCyberwareStateMachine(scriptInterface);
+        return;
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let itemObject: wref<GameObject>;
+    let leftHandAnimFeature: ref<AnimFeature_LeftHandAnimation>;
+    let otherObject: wref<GameObject>;
+    let placementSlot: TweakDBID;
+    let item: ItemID = this.GetItemIDFromParam(this.stateMachineInstanceData, stateContext);
+    let mappedInstanceData: InstanceDataMappedToReferenceName = this.GetMappedInstanceData(this.stateMachineInstanceData.referenceName);
+    let unequipEndEvent: ref<UnequipEnd> = new UnequipEnd();
+    let animFeature: ref<AnimFeature_EquipUnequipItem> = new AnimFeature_EquipUnequipItem();
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    let itemId: ItemID = this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData);
+    let upperBodyState: Int32 = 0;
+    let tempEquip: StateResultBool = stateContext.GetPermanentBoolParameter(this.GetTempEquipOverWeapon(this.stateMachineInstanceData));
+    let dualWieldLoadoutEdit: StateResultBool = stateContext.GetPermanentBoolParameter(this.GetDualWieldLoadoutEdit(this.stateMachineInstanceData));
+    if !ItemID.IsValid(item) {
+      return;
+    };
+    if this.IsRightHandLogic(this.stateMachineInstanceData) {
+      placementSlot = EquipmentSystem.GetPlacementSlot(item);
+      unequipEndEvent.SetSlotID(placementSlot);
+      scriptInterface.executionOwner.QueueEvent(unequipEndEvent);
+      if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+        animFeature.stateTransitionDuration = statSystem.GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.UnequipDuration);
+        animFeature.itemState = dualWieldLoadoutEdit.valid && dualWieldLoadoutEdit.value ? 1 : 4;
+        animFeature.itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().AnimFeatureIndex();
+        animFeature.tempEquipOverWeapon = tempEquip.valid && tempEquip.value;
+        if itemId != ItemID.None() {
+          animFeature.swappingWeapons = true;
+        };
+        scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, animFeature, scriptInterface.executionOwner);
+        itemObject = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot));
+        scriptInterface.SetAnimationParameterFeature(n"rightEquipUnequipItem", animFeature, itemObject);
+        otherObject = GameObject.GetLeftActiveWeapon(scriptInterface.executionOwner);
+        if IsDefined(otherObject) {
+          scriptInterface.SetAnimationParameterFeature(n"rightEquipUnequipItem", animFeature, otherObject);
+        };
+        upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+        if Equals(TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).StateMachineName(), n"None") {
+          this.RemoveRightWeaponStateMachine(scriptInterface);
+        };
+      };
+    } else {
+      if this.IsLeftHandLogic(this.stateMachineInstanceData) {
+        upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+        if !ItemID.IsValid(itemId) || upperBodyState == 4 {
+          leftHandAnimFeature = new AnimFeature_LeftHandAnimation();
+          leftHandAnimFeature.lockLeftHandAnimation = false;
+          scriptInterface.SetAnimationParameterFeature(n"LeftHandAnimation", leftHandAnimFeature, scriptInterface.executionOwner);
+        };
+        if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Weapon) {
+          placementSlot = EquipmentSystem.GetPlacementSlot(item, true);
+          unequipEndEvent.SetSlotID(placementSlot);
+          scriptInterface.executionOwner.QueueEvent(unequipEndEvent);
+          animFeature.stateTransitionDuration = statSystem.GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.UnequipDuration);
+          animFeature.itemState = dualWieldLoadoutEdit.valid && dualWieldLoadoutEdit.value ? 1 : 4;
+          animFeature.itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().AnimFeatureIndex();
+          animFeature.tempEquipOverWeapon = tempEquip.valid && tempEquip.value;
+          if itemId != ItemID.None() {
+            animFeature.swappingWeapons = true;
+          };
+          scriptInterface.SetAnimationParameterFeature(mappedInstanceData.itemHandlingFeatureName, animFeature, scriptInterface.executionOwner);
+          itemObject = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, TDBID.Create(mappedInstanceData.attachmentSlot));
+          scriptInterface.SetAnimationParameterFeature(n"leftEquipUnequipItem", animFeature, itemObject);
+          otherObject = GameObject.GetRightActiveWeapon(scriptInterface.executionOwner);
+          if IsDefined(otherObject) {
+            scriptInterface.SetAnimationParameterFeature(n"leftEquipUnequipItem", animFeature, otherObject);
+          };
+          upperBodyState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody);
+          if Equals(TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).StateMachineName(), n"None") {
+            this.RemoveLeftWeaponStateMachine(scriptInterface);
+          };
+        } else {
+          if Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Consumable) || Equals(this.GetItemCategoryFromItemID(item), gamedataItemCategory.Gadget) {
+            leftHandAnimFeature = new AnimFeature_LeftHandAnimation();
+            leftHandAnimFeature.lockLeftHandAnimation = ItemID.IsValid(this.GetSlotActiveItem(scriptInterface, this.stateMachineInstanceData));
+            scriptInterface.SetAnimationParameterFeature(n"LeftHandAnimation", leftHandAnimFeature, scriptInterface.executionOwner);
+            placementSlot = EquipmentSystem.GetPlacementSlot(item);
+            unequipEndEvent.SetSlotID(placementSlot);
+            scriptInterface.executionOwner.QueueEvent(unequipEndEvent);
+            return;
+          };
+          placementSlot = EquipmentSystem.GetPlacementSlot(item);
+          unequipEndEvent.SetSlotID(placementSlot);
+          scriptInterface.executionOwner.QueueEvent(unequipEndEvent);
+        };
+      };
+    };
+    if WeaponObject.IsDiscardable(itemObject as WeaponObject) && upperBodyState != 5 {
+      this.DropActiveWeapon(scriptInterface, stateContext, this.stateMachineInstanceData);
+    };
+  }
+}

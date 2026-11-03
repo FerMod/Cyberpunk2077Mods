@@ -1,0 +1,69 @@
+
+public class MenuScenario_Vendor extends MenuScenario_BaseMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    this.OpenMenu(n"vendor_hub_menu", userData, ScreenDisplayContext.Vendor);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    if NotEquals(this.m_currMenuName, n"None") {
+      this.GetMenusState().DispatchEvent(this.m_currMenuName, n"OnBeforeLeaveScenario");
+      this.m_currMenuName = n"None";
+    };
+    super.OnLeaveScenario(nextScenario);
+  }
+
+  protected cb func OnSwitchToVendor(opt userData: ref<IScriptable>) -> Bool {
+    this.SwitchMenu(n"fullscreen_vendor", userData, ScreenDisplayContext.Vendor);
+  }
+
+  protected cb func OnSwitchToRipperDoc(opt userData: ref<IScriptable>) -> Bool {
+    this.SwitchMenu(n"ripperdoc", userData, ScreenDisplayContext.Vendor);
+  }
+
+  protected cb func OnSwitchToCrafting(opt userData: ref<IScriptable>) -> Bool {
+    this.SwitchMenu(n"crafting_main", userData, ScreenDisplayContext.Vendor);
+  }
+
+  protected cb func OnSwitchToGlamdoc(opt userData: ref<IScriptable>) -> Bool {
+    this.SwitchMenu(n"glamdoc", userData, ScreenDisplayContext.Vendor);
+  }
+
+  protected cb func OnSwitchToCharacter(opt userData: ref<IScriptable>) -> Bool {
+    let perkUserData: ref<PerkUserData>;
+    this.SwitchMenu(n"new_perks", userData, ScreenDisplayContext.Vendor);
+    perkUserData = userData as PerkUserData;
+    if Equals(perkUserData.cyberwareScreenType, CyberwareScreenType.Ripperdoc) {
+      this.GetMenusState().DispatchEvent(n"vendor_hub_menu", n"SwitchToCharacterFromRipperdoc");
+    };
+  }
+
+  protected cb func OnSwitchToInventory(opt userData: ref<IScriptable>) -> Bool {
+    this.SwitchMenu(n"inventory_screen", userData);
+  }
+
+  protected cb func OnRefreshCurrentTab() -> Bool {
+    this.GetMenusState().DispatchEvent(n"vendor_hub_menu", n"RefreshCurrentTab");
+  }
+
+  protected cb func OnVendorClose() -> Bool {
+    this.GotoIdleState();
+  }
+
+  protected func GotoIdleState() -> Void {
+    this.GetMenusState().DispatchEvent(n"vendor_hub_menu", n"OnBack");
+    this.SwitchToScenario(n"MenuScenario_Idle");
+  }
+
+  protected cb func OnCloseHubMenuRequest() -> Bool {
+    this.GotoIdleState();
+  }
+
+  protected cb func OnTutorialComplete() -> Bool {
+    this.GetMenusState().DispatchEvent(n"vendor_hub_menu", n"TutorialComplete");
+  }
+
+  protected cb func OnEquipAnimationDataUpdate(userData: ref<IScriptable>) -> Bool {
+    this.GetMenusState().DispatchEvent(n"vendor_hub_menu", n"EquipAnimationDataUpdate", userData);
+  }
+}

@@ -1,0 +1,52 @@
+
+public class ModReloadingPopupController extends inkGameController {
+
+  private edit let m_progressBarRef: inkWidgetRef;
+
+  private edit let m_noTurnOffTextWidget: inkTextRef;
+
+  private let m_progressBarController: wref<LoadingScreenProgressBarController>;
+
+  private let m_data: ref<ModReloadingPopupData>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  protected cb func OnInitialize() -> Bool {
+    let platformName: String;
+    this.m_data = this.GetRootWidget().GetUserData(n"ModReloadingPopupData") as ModReloadingPopupData;
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnModReloadProgress");
+    this.m_progressBarController = inkWidgetRef.GetController(this.m_progressBarRef) as LoadingScreenProgressBarController;
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") {
+      inkTextRef.SetText(this.m_noTurnOffTextWidget, GetLocalizedText("UI-Modio-ModalContent-NoTurnOffConsole"));
+    } else {
+      inkTextRef.SetText(this.m_noTurnOffTextWidget, GetLocalizedText("UI-Modio-ModalContent-NoTurnOffSystem"));
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnModReloadProgress");
+  }
+
+  protected cb func OnModReloadProgress(progress: Float) -> Bool {
+    if IsDefined(this.m_progressBarController) {
+      this.m_progressBarController.SetProgress(progress);
+    };
+    if progress >= 1.00 {
+      this.Close();
+    };
+  }
+
+  private final func Close() -> Void {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") {
+      this.Close();
+    };
+  }
+}

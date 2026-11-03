@@ -1,0 +1,536 @@
+
+public native class gameuiTooltipsManager extends inkLogicController {
+
+  private edit const let m_TooltipRequesters: [inkWidgetRef];
+
+  private edit const let m_GenericTooltipsNames: [CName];
+
+  private edit const let m_TooltipLibrariesReferences: [TooltipWidgetReference];
+
+  private edit const let m_TooltipLibrariesStyledReferences: [TooltipWidgetStyledReference];
+
+  @default(gameuiTooltipsManager, base/gameplay/gui/common/tooltip/tooltipslibrary_4k.inkwidget)
+  private edit let m_TooltipsLibrary: ResRef;
+
+  @default(gameuiTooltipsManager, base/gameplay/gui/common/tooltip/tooltip_menu.inkstyle)
+  private edit let m_MenuTooltipStylePath: ResRef;
+
+  @default(gameuiTooltipsManager, base/gameplay/gui/common/tooltip/tooltip_hud.inkstyle)
+  private edit let m_HudTooltipStylePath: ResRef;
+
+  private edit let m_prespawnLazyModules: Bool;
+
+  private let m_IndexedTooltips: [wref<AGenericTooltipController>];
+
+  private let m_NamedTooltips: [ref<NamedTooltipController>];
+
+  private let m_TooltipStylePath: ResRef;
+
+  @default(gameuiTooltipsManager, true)
+  private edit let m_enableTransitionAnimation: Bool;
+
+  private let m_tooltipAnimHideDef: ref<inkAnimDef>;
+
+  private let m_tooltipDelayedShowDef: ref<inkAnimDef>;
+
+  private let m_tooltipAnimHide: ref<inkAnimProxy>;
+
+  private let m_tooltipDelayedShow: ref<inkAnimProxy>;
+
+  private let m_tooltipShowAnimProxy: ref<inkAnimProxy>;
+
+  @default(gameuiTooltipsManager, 0.5)
+  private let m_axisDataThreshold: Float;
+
+  @default(gameuiTooltipsManager, 7)
+  private let m_mouseDataThreshold: Float;
+
+  private let m_isHidden: Bool;
+
+  private final native func SetCustomMargin(margin: inkMargin) -> Void;
+
+  private final native func SetFollowsCursor(followsCursor: Bool) -> Void;
+
+  private final native func AttachToWidget(widget: wref<inkWidget>, opt placement: gameuiETooltipPlacement) -> Void;
+
+  private final native func UnAttachFromWidget() -> Void;
+
+  private final native func GetTooltipsContainerRef() -> inkWidgetRef;
+
+  private final native func RefreshTooltipsPosition() -> Void;
+
+  private final native func ResetTooltipsPosition() -> Void;
+
+  private final native func MarkToShow() -> Void;
+
+  private final static native func FindAttachmentSlot(widget: wref<inkWidget>) -> wref<gameuiTooltipAttachmentSlot>;
+
+  protected cb func OnInitialize() -> Bool {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_TooltipRequesters);
+    while i < limit {
+      inkWidgetRef.RegisterToCallback(this.m_TooltipRequesters[i], n"OnRequestTooltip", this, n"OnRequestTooltip");
+      i += 1;
+    };
+    if this.m_enableTransitionAnimation {
+      this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+      this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+      this.m_tooltipDelayedShowDef = this.GetShowingAnimation();
+      this.m_tooltipAnimHideDef = this.GetHidingAnimation();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let i: Int32;
+    let limit: Int32;
+    this.HideTooltips();
+    i = 0;
+    limit = ArraySize(this.m_TooltipRequesters);
+    while i < limit {
+      inkWidgetRef.UnregisterFromCallback(this.m_TooltipRequesters[i], n"OnRequestTooltip", this, n"OnRequestTooltip");
+      i += 1;
+    };
+    if this.m_enableTransitionAnimation {
+      this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+      this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+    };
+  }
+
+  public final func Setup() -> Void {
+    this.Setup(ETooltipsStyle.Menus);
+  }
+
+  public final func Setup(tooltipStyle: ETooltipsStyle) -> Void {
+    this.Setup(tooltipStyle, true);
+  }
+
+  public final func Setup(tooltipStyle: ETooltipsStyle, followCursor: Bool) -> Void {
+    let defaultStyleResRef: ResRef;
+    let tooltipsContainerRef: inkWidgetRef = this.GetTooltipsContainerRef();
+    let tooltipsContainer: wref<inkWidget> = inkWidgetRef.Get(tooltipsContainerRef);
+    if !IsDefined(tooltipsContainer) {
+      return;
+    };
+    defaultStyleResRef = this.GetDefaultStyleResRef(tooltipStyle);
+    tooltipsContainer.SetAffectsLayoutWhenHidden(true);
+    this.SetupIndexedWidgets(tooltipStyle, tooltipsContainer, defaultStyleResRef);
+    this.SetupNamedWidgets(tooltipStyle, tooltipsContainer, defaultStyleResRef);
+    this.SetupStyledNamedWidgets(tooltipStyle, tooltipsContainer);
+    this.SetFollowsCursor(followCursor);
+    this.ResetTooltipsPosition();
+  }
+
+  private final func GetDefaultStyleResRef(tooltipStyle: ETooltipsStyle) -> ResRef {
+    if Equals(tooltipStyle, ETooltipsStyle.Menus) {
+      return ResRef.IsValid(this.m_MenuTooltipStylePath) ? this.m_MenuTooltipStylePath : r"base\\gameplay\\gui\\common\\tooltip\\tooltip_menu.inkstyle";
+    };
+    return ResRef.IsValid(this.m_HudTooltipStylePath) ? this.m_HudTooltipStylePath : r"base\\gameplay\\gui\\common\\tooltip\\tooltip_hud.inkstyle";
+  }
+
+  private final func SetupIndexedWidgets(tooltipStyle: ETooltipsStyle, tooltipsContainer: wref<inkWidget>, styleResRef: ResRef) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let tooltipSpawnedCallbackData: ref<TooltipSpawnedCallbackData>;
+    if !ResRef.IsValid(this.m_TooltipsLibrary) {
+      this.m_TooltipsLibrary = r"base\\gameplay\\gui\\common\\tooltip\\tooltipslibrary_4k.inkwidget";
+    };
+    i = 0;
+    limit = ArraySize(this.m_GenericTooltipsNames);
+    while i < limit {
+      tooltipSpawnedCallbackData = new TooltipSpawnedCallbackData();
+      tooltipSpawnedCallbackData.index = i;
+      tooltipSpawnedCallbackData.tooltipStyle = tooltipStyle;
+      tooltipSpawnedCallbackData.styleResRef = styleResRef;
+      this.AsyncSpawnFromExternal(tooltipsContainer, this.m_TooltipsLibrary, this.m_GenericTooltipsNames[i], this, n"OnTooltipWidgetSpawned", tooltipSpawnedCallbackData);
+      i += 1;
+    };
+  }
+
+  private final func SetupNamedWidgets(tooltipStyle: ETooltipsStyle, tooltipsContainer: wref<inkWidget>, styleResRef: ResRef) -> Void {
+    let libraryReference: inkWidgetLibraryReference;
+    let tooltipSpawnedCallbackData: ref<TooltipSpawnedCallbackData>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_TooltipLibrariesReferences) {
+      libraryReference = this.m_TooltipLibrariesReferences[i].m_widgetLibraryReference;
+      if inkWidgetLibraryResource.IsValid(libraryReference.widgetLibrary) {
+        tooltipSpawnedCallbackData = new TooltipSpawnedCallbackData();
+        tooltipSpawnedCallbackData.identifier = this.m_TooltipLibrariesReferences[i].m_identifier;
+        tooltipSpawnedCallbackData.tooltipStyle = tooltipStyle;
+        tooltipSpawnedCallbackData.styleResRef = styleResRef;
+        this.AsyncSpawnFromExternal(tooltipsContainer, inkWidgetLibraryResource.GetPath(libraryReference.widgetLibrary), libraryReference.widgetItem, this, n"OnTooltipWidgetSpawned", tooltipSpawnedCallbackData);
+      };
+      i += 1;
+    };
+  }
+
+  private final func SetupStyledNamedWidgets(tooltipStyle: ETooltipsStyle, tooltipsContainer: wref<inkWidget>) -> Void {
+    let libraryReference: inkWidgetLibraryReference;
+    let styleResRef: ResRef;
+    let tooltipSpawnedCallbackData: ref<TooltipSpawnedCallbackData>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_TooltipLibrariesStyledReferences) {
+      styleResRef = Equals(tooltipStyle, ETooltipsStyle.HUD) ? this.m_TooltipLibrariesStyledReferences[i].m_hudTooltipStylePath : this.m_TooltipLibrariesStyledReferences[i].m_menuTooltipStylePath;
+      if !ResRef.IsValid(styleResRef) {
+        styleResRef = Equals(tooltipStyle, ETooltipsStyle.HUD) ? r"base\\gameplay\\gui\\common\\tooltip\\tooltip_menu.inkstyle" : r"base\\gameplay\\gui\\common\\tooltip\\tooltip_hud.inkstyle";
+      };
+      libraryReference = this.m_TooltipLibrariesStyledReferences[i].m_widgetLibraryReference;
+      if inkWidgetLibraryResource.IsValid(libraryReference.widgetLibrary) {
+        tooltipSpawnedCallbackData = new TooltipSpawnedCallbackData();
+        tooltipSpawnedCallbackData.identifier = this.m_TooltipLibrariesReferences[i].m_identifier;
+        tooltipSpawnedCallbackData.tooltipStyle = tooltipStyle;
+        tooltipSpawnedCallbackData.styleResRef = styleResRef;
+        this.AsyncSpawnFromExternal(tooltipsContainer, inkWidgetLibraryResource.GetPath(libraryReference.widgetLibrary), libraryReference.widgetItem, this, n"OnTooltipWidgetSpawned", tooltipSpawnedCallbackData);
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnTooltipWidgetSpawned(tooltipWidget: ref<inkWidget>, callbackData: ref<TooltipSpawnedCallbackData>) -> Bool {
+    let namedControllerRef: ref<NamedTooltipController>;
+    let tooltipController: wref<AGenericTooltipController>;
+    if !IsDefined(tooltipWidget) {
+      return false;
+    };
+    this.SetupWidgetAttachment(tooltipWidget, callbackData.tooltipStyle);
+    tooltipController = tooltipWidget.GetController() as AGenericTooltipController;
+    if IsDefined(tooltipController) {
+      tooltipController.SetStyle(callbackData.styleResRef);
+      if this.m_prespawnLazyModules {
+        tooltipController.PrespawnLazyModules();
+      };
+      tooltipController.Hide();
+      if callbackData.index > -1 {
+        if ArraySize(this.m_IndexedTooltips) < callbackData.index {
+          ArrayResize(this.m_IndexedTooltips, callbackData.index);
+        };
+        ArrayInsert(this.m_IndexedTooltips, callbackData.index, tooltipController);
+      } else {
+        namedControllerRef = new NamedTooltipController();
+        namedControllerRef.identifier = callbackData.identifier;
+        namedControllerRef.controller = tooltipController;
+        ArrayPush(this.m_NamedTooltips, namedControllerRef);
+      };
+    };
+  }
+
+  private final func SetupWidgetAttachment(widget: wref<inkWidget>, tooltipStyle: ETooltipsStyle) -> Void {
+    if IsDefined(widget) {
+      if Equals(tooltipStyle, ETooltipsStyle.Menus) {
+        widget.SetVAlign(inkEVerticalAlign.Top);
+        widget.SetHAlign(inkEHorizontalAlign.Left);
+        widget.SetAnchorPoint(0.00, 0.00);
+      } else {
+        widget.SetVAlign(inkEVerticalAlign.Bottom);
+        widget.SetHAlign(inkEHorizontalAlign.Right);
+        widget.SetAnchorPoint(0.00, 1.00);
+      };
+    };
+  }
+
+  private final func GetNamedWidget(identifier: CName) -> wref<AGenericTooltipController> {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_NamedTooltips) {
+      if Equals(this.m_NamedTooltips[i].identifier, identifier) {
+        return this.m_NamedTooltips[i].controller;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func ShowTooltips(const tooltipsData: script_ref<[ref<ATooltipData>]>) -> Void {
+    this.ShowTooltips(tooltipsData, new inkMargin(30.00, 20.00, 0.00, 0.00));
+  }
+
+  public final func ShowTooltipsAtWidget(const tooltipData: script_ref<[ref<ATooltipData>]>, widget: wref<inkWidget>) -> Void {
+    this.SetFollowsCursor(false);
+    this.ShowTooltips(tooltipData, new inkMargin(0.00, 0.00, 0.00, 0.00), true);
+    this.AttachToWidget(widget, gameuiETooltipPlacement.RightTop);
+  }
+
+  public final func ShowTooltipsAtWidget(const tooltipData: script_ref<[ref<ATooltipData>]>, widget: wref<inkWidget>, placement: gameuiETooltipPlacement) -> Void {
+    this.SetFollowsCursor(false);
+    this.ShowTooltips(tooltipData, new inkMargin(0.00, 0.00, 0.00, 0.00), true);
+    this.AttachToWidget(widget, placement);
+  }
+
+  public final func ShowTooltips(const tooltipData: script_ref<[ref<ATooltipData>]>, margin: inkMargin, opt playAnim: Bool) -> Void {
+    let i: Int32;
+    let identifiedData: ref<IdentifiedWrappedTooltipData>;
+    let limit: Int32;
+    let tooltipController: wref<AGenericTooltipController>;
+    this.HideTooltips();
+    this.SetCustomMargin(margin);
+    limit = ArraySize(Deref(tooltipData));
+    i = 0;
+    while i < limit {
+      identifiedData = Deref(tooltipData)[i] as IdentifiedWrappedTooltipData;
+      if IsDefined(identifiedData) && IsNameValid(identifiedData.m_identifier) {
+        tooltipController = this.GetNamedWidget(identifiedData.m_identifier);
+      } else {
+        if i >= ArraySize(this.m_IndexedTooltips) {
+          return;
+        };
+        tooltipController = this.m_IndexedTooltips[i];
+      };
+      if IsDefined(tooltipController) {
+        tooltipController.SetData(IsDefined(identifiedData) ? identifiedData.m_data : Deref(tooltipData)[i]);
+        tooltipController.Show();
+      };
+      i += 1;
+    };
+    if limit > 0 {
+      this.MarkToShow();
+    };
+  }
+
+  public final func ShowTooltip(tooltipData: ref<ATooltipData>) -> Void {
+    this.ShowTooltip(0, tooltipData);
+  }
+
+  public final func ShowTooltip(identifier: CName, tooltipData: ref<ATooltipData>) -> Void {
+    let controller: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    this.ShowTooltip(controller, tooltipData);
+  }
+
+  public final func ShowTooltip(index: Int32, tooltipData: ref<ATooltipData>) -> Void {
+    this.ShowTooltip(this.m_IndexedTooltips[index], tooltipData);
+  }
+
+  public final func ShowTooltip(tooltipController: wref<AGenericTooltipController>, tooltipData: ref<ATooltipData>) -> Void {
+    this.ShowTooltip(tooltipController, tooltipData, new inkMargin(30.00, 20.00, 0.00, 0.00));
+  }
+
+  public final func ShowTooltipAtPosition(index: Int32, position: Vector2, tooltipData: ref<ATooltipData>) -> Void {
+    this.ShowTooltipAtPosition(this.m_IndexedTooltips[index], position, tooltipData);
+  }
+
+  public final func ShowTooltipAtPosition(identifier: CName, position: Vector2, tooltipData: ref<ATooltipData>) -> Void {
+    let controller: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    this.ShowTooltipAtPosition(controller, position, tooltipData);
+  }
+
+  public final func ShowTooltipAtPosition(tooltipController: wref<AGenericTooltipController>, position: Vector2, tooltipData: ref<ATooltipData>) -> Void {
+    let newPosition: Vector2;
+    let tooltipWidget: wref<inkWidget>;
+    if IsDefined(tooltipController) {
+      this.SetFollowsCursor(false);
+      this.ResetTooltipsPosition();
+      tooltipWidget = tooltipController.GetRootWidget();
+      newPosition = WidgetUtils.GlobalToLocal(tooltipWidget, position);
+      this.ShowTooltip(tooltipController, tooltipData, new inkMargin(0.00, 0.00, 0.00, 0.00));
+      tooltipWidget.SetTranslation(newPosition);
+    };
+  }
+
+  public final func ShowTooltipAtWidget(index: Int32, widget: wref<inkWidget>, tooltipData: ref<ATooltipData>, opt placement: gameuiETooltipPlacement, opt playAnim: Bool, opt margin: inkMargin) -> Void {
+    this.ShowTooltipAtWidget(this.m_IndexedTooltips[index], widget, tooltipData, placement, playAnim, margin);
+  }
+
+  public final func ShowTooltipAtWidget(identifier: CName, widget: wref<inkWidget>, tooltipData: ref<ATooltipData>, opt placement: gameuiETooltipPlacement, opt playAnim: Bool, opt margin: inkMargin) -> Void {
+    let controller: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    this.ShowTooltipAtWidget(controller, widget, tooltipData, placement, playAnim, margin);
+  }
+
+  public final func ShowTooltipAtWidget(tooltipController: wref<AGenericTooltipController>, widget: wref<inkWidget>, tooltipData: ref<ATooltipData>, opt placement: gameuiETooltipPlacement, opt playAnim: Bool, opt margin: inkMargin) -> Void {
+    if IsDefined(tooltipController) {
+      this.SetFollowsCursor(false);
+      this.ShowTooltip(tooltipController, tooltipData, margin);
+      this.AttachToWidget(widget, placement);
+    };
+  }
+
+  public final func ShowTooltipInSlot(index: Int32, tooltipData: ref<ATooltipData>, widget: wref<inkWidget>) -> Void {
+    this.ShowTooltipInSlot(this.m_IndexedTooltips[index], tooltipData, widget);
+  }
+
+  public final func ShowTooltipInSlot(identifier: CName, tooltipData: ref<ATooltipData>, widget: wref<inkWidget>) -> Void {
+    let controller: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    this.ShowTooltipInSlot(controller, tooltipData, widget);
+  }
+
+  public final func ShowTooltipInSlot(tooltipController: wref<AGenericTooltipController>, tooltipData: ref<ATooltipData>, widget: wref<inkWidget>) -> Void {
+    let tooltipWidget: wref<inkWidget>;
+    let slotController: wref<gameuiTooltipAttachmentSlot> = gameuiTooltipsManager.FindAttachmentSlot(widget);
+    if slotController == null {
+      return;
+    };
+    if IsDefined(tooltipController) {
+      this.SetFollowsCursor(false);
+      this.ResetTooltipsPosition();
+      this.ShowTooltip(tooltipController, tooltipData, new inkMargin(0.00, 0.00, 0.00, 0.00));
+      tooltipWidget = tooltipController.GetRootWidget();
+      tooltipWidget.Reparent(slotController.GetRootWidget() as inkCompoundWidget);
+    };
+  }
+
+  public final func AttachToCursor() -> Void {
+    this.SetFollowsCursor(true);
+    this.UnAttachFromWidget();
+  }
+
+  public final func ShowTooltip(index: Int32, tooltipData: ref<ATooltipData>, margin: inkMargin) -> Void {
+    if index < 0 && index >= ArraySize(this.m_IndexedTooltips) {
+      return;
+    };
+    this.ShowTooltip(this.m_IndexedTooltips[index], tooltipData, margin);
+  }
+
+  public final func ShowTooltip(identifier: CName, tooltipData: ref<ATooltipData>, margin: inkMargin) -> Void {
+    let controller: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    this.ShowTooltip(controller, tooltipData, margin);
+  }
+
+  public final func ShowTooltip(tooltipController: wref<AGenericTooltipController>, tooltipData: ref<ATooltipData>, margin: inkMargin) -> Void {
+    this.HideTooltips();
+    if tooltipController == null {
+      return;
+    };
+    this.SetCustomMargin(margin);
+    if IsDefined(tooltipController) {
+      tooltipController.SetData(tooltipData);
+      tooltipController.Show();
+      this.StartShowingAnimation(tooltipController);
+    };
+    this.MarkToShow();
+  }
+
+  private final func StartShowingAnimation(tooltipController: wref<AGenericTooltipController>) -> Void {
+    let widget: wref<inkWidget>;
+    if this.m_tooltipShowAnimProxy != null {
+      this.m_tooltipShowAnimProxy.Stop();
+      this.m_tooltipShowAnimProxy = null;
+    };
+    widget = tooltipController.GetRootWidget();
+    if IsDefined(widget) {
+      this.m_tooltipShowAnimProxy = widget.PlayAnimation(this.GetShowingAnimation());
+    };
+  }
+
+  public final func HideTooltips() -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let previousListEnd: Int32;
+    let tooltipController: wref<AGenericTooltipController>;
+    let tooltipWidget: wref<inkWidget>;
+    this.ResetTooltipsPosition();
+    i = 0;
+    limit = ArraySize(this.m_IndexedTooltips);
+    while i < limit {
+      tooltipController = this.m_IndexedTooltips[i];
+      if IsDefined(tooltipController) {
+        tooltipController.Hide();
+        tooltipWidget = tooltipController.GetRootWidget();
+        tooltipWidget.Reparent(inkWidgetRef.Get(this.GetTooltipsContainerRef()) as inkCompoundWidget, i);
+        this.UnAttachFromWidget();
+      };
+      i += 1;
+    };
+    previousListEnd = i;
+    i = 0;
+    limit = ArraySize(this.m_NamedTooltips);
+    while i < limit {
+      tooltipController = this.m_NamedTooltips[i].controller;
+      if IsDefined(tooltipController) {
+        tooltipController.Hide();
+        tooltipWidget = tooltipController.GetRootWidget();
+        tooltipWidget.Reparent(inkWidgetRef.Get(this.GetTooltipsContainerRef()) as inkCompoundWidget, previousListEnd + i);
+        this.UnAttachFromWidget();
+      };
+      i += 1;
+    };
+  }
+
+  public final func RefreshTooltip(index: Int32) -> Void {
+    let tooltipController: wref<AGenericTooltipController> = this.m_IndexedTooltips[index];
+    if IsDefined(tooltipController) {
+      tooltipController.Refresh();
+    };
+  }
+
+  public final func RefreshTooltip(identifier: CName) -> Void {
+    let tooltipController: wref<AGenericTooltipController> = this.GetNamedWidget(identifier);
+    if IsDefined(tooltipController) {
+      tooltipController.Refresh();
+    };
+  }
+
+  private final func OnRequestTooltip(widget: wref<inkWidget>) -> Void;
+
+  public final func PlayShowingAnimation() -> Void {
+    if IsDefined(this.m_tooltipDelayedShow) {
+      this.m_tooltipDelayedShow.Stop(true);
+      this.m_tooltipDelayedShow = null;
+    };
+    this.m_tooltipDelayedShow = inkWidgetRef.PlayAnimation(this.GetTooltipsContainerRef(), this.m_tooltipDelayedShowDef);
+  }
+
+  public final func PlayHidingAnimation() -> Void {
+    if IsDefined(this.m_tooltipAnimHide) {
+      this.m_tooltipAnimHide.Stop(true);
+      this.m_tooltipAnimHide = null;
+    };
+    this.m_tooltipAnimHide = inkWidgetRef.PlayAnimation(this.GetTooltipsContainerRef(), this.m_tooltipAnimHideDef);
+  }
+
+  protected cb func OnAxisInput(evt: ref<inkPointerEvent>) -> Bool {
+    let axisData: Float = evt.GetAxisData();
+    if (evt.IsAction(n"left_stick_x") || evt.IsAction(n"left_stick_y")) && AbsF(axisData) > this.m_axisDataThreshold || (evt.IsAction(n"mouse_x") || evt.IsAction(n"mouse_y")) && AbsF(axisData) > this.m_mouseDataThreshold || (evt.IsAction(n"jcms_x") || evt.IsAction(n"jcms_y")) && AbsF(axisData) > this.m_mouseDataThreshold {
+      if IsDefined(this.m_tooltipAnimHide) && this.m_tooltipAnimHide.IsPlaying() {
+      } else {
+        if IsDefined(this.m_tooltipDelayedShow) && this.m_tooltipDelayedShow.IsPlaying() {
+          this.m_tooltipDelayedShow.Stop(true);
+          this.m_tooltipDelayedShow = inkWidgetRef.PlayAnimation(this.GetTooltipsContainerRef(), this.m_tooltipDelayedShowDef);
+          this.m_tooltipDelayedShow.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShown");
+        } else {
+          if IsDefined(this.m_tooltipAnimHide) {
+            this.m_tooltipAnimHide.Stop(true);
+            this.m_tooltipAnimHide = null;
+          };
+          this.m_tooltipAnimHide = inkWidgetRef.PlayAnimation(this.GetTooltipsContainerRef(), this.m_tooltipAnimHideDef);
+          this.m_tooltipAnimHide.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHidden");
+        };
+      };
+    };
+  }
+
+  protected cb func OnHidden(proxy: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_tooltipDelayedShow) {
+      this.m_tooltipDelayedShow.Stop(true);
+      this.m_tooltipDelayedShow = null;
+    };
+    this.m_tooltipDelayedShow = inkWidgetRef.PlayAnimation(this.GetTooltipsContainerRef(), this.m_tooltipDelayedShowDef);
+    this.m_tooltipDelayedShow.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShown");
+    this.m_isHidden = true;
+  }
+
+  protected cb func OnShown(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_isHidden = false;
+  }
+
+  private final func GetShowingAnimation() -> ref<inkAnimDef> {
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.10);
+    transparencyInterpolator.SetStartDelay(0.12);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Exponential);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetStartTransparency(0.00);
+    transparencyInterpolator.SetEndTransparency(1.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    return transparencyAnimation;
+  }
+
+  private final func GetHidingAnimation() -> ref<inkAnimDef> {
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.10);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.To);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Exponential);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetEndTransparency(0.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    return transparencyAnimation;
+  }
+}

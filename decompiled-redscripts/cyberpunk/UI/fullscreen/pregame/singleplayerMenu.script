@@ -1,0 +1,1607 @@
+
+public native class gameuiSaveHandlingController extends gameuiMenuGameController {
+
+  public final native func DeleteSavedGame(saveId: Int32) -> Void;
+
+  public final native func IsTransferSavedExportSupported() -> Bool;
+
+  public final native func IsTransferSavedImportSupported() -> Bool;
+
+  public final native func TransferSavedGame(scriptableData: ref<IScriptable>) -> Void;
+
+  public final native func RequestSaveFailedNotification() -> Void;
+
+  public final native func RequestGameSavedNotification() -> Void;
+
+  public final native func IsSaveFailedNotificationActive() -> Bool;
+
+  public final native func IsGameSavedNotificationActive() -> Bool;
+
+  public final native func LoadSaveInGame(saveId: Int32) -> Void;
+
+  public final native func LoadModdedSave(saveId: Int32) -> Void;
+
+  public final native func OverrideSavedGame(saveId: Int32, opt showXbCompatWarn: Bool) -> Void;
+
+  public final native func SetNextInitialLoadingScreen(tweakID: Uint64) -> Void;
+
+  public final native func PreSpawnInitialLoadingScreen(tweakID: Uint64) -> Void;
+
+  public final native func IsEnableModVerification() -> Bool;
+
+  public final func ShowSavingLockedNotification(const locks: script_ref<[gameSaveLock]>) -> Void {
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(new UIInGameNotificationRemoveEvent());
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(UIInGameNotificationEvent.CreateSavingLockedEvent(locks));
+  }
+}
+
+public class ExpansionBannerController extends inkLogicController {
+
+  @runtimeProperty("category", "Main")
+  private edit let m_statusTextRef: inkTextRef;
+
+  @runtimeProperty("category", "Main")
+  private edit let m_inputHintRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Main")
+  private edit let m_indicatorRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Error")
+  private edit let m_errorPanelRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Error")
+  private edit let m_errorIconRef: inkWidgetRef;
+
+  private let m_expansionStatus: ExpansionStatus;
+
+  private let m_root: wref<inkWidget>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_root = this.GetRootWidget();
+  }
+
+  public final func SetStatus(value: ExpansionStatus) -> Void {
+    this.m_expansionStatus = value;
+    this.UpdateVisuals();
+  }
+
+  public final func GetStatus() -> ExpansionStatus {
+    return this.m_expansionStatus;
+  }
+
+  private final func UpdateVisuals() -> Void {
+    switch this.m_expansionStatus {
+      case ExpansionStatus.Available:
+      case ExpansionStatus.Processing:
+      case ExpansionStatus.NotAvailable:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(true);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-LearnMore"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, false);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, true);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, false);
+        break;
+      case ExpansionStatus.Owned:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(true);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-StartDownload"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, true);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, true);
+        break;
+      case ExpansionStatus.Hidden:
+      case ExpansionStatus.Downloaded:
+        this.m_root.SetVisible(false);
+        break;
+      case ExpansionStatus.Reloading:
+      case ExpansionStatus.Downloading:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(false);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-Downloading"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, false);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, false);
+        break;
+      case ExpansionStatus.Reloading:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(false);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-SystemNotification-SaveTransfer-ExportSpinner"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, false);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, false);
+        break;
+      case ExpansionStatus.DownloadError:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(true);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-AttentionRequired"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, true);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, true);
+        break;
+      case ExpansionStatus.PreOrder:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(true);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-PreOrderNow"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, false);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, true);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, false);
+        break;
+      case ExpansionStatus.PreOrderOwned:
+        this.m_root.SetVisible(true);
+        this.m_root.SetInteractive(true);
+        inkTextRef.SetText(this.m_statusTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-Date"));
+        inkWidgetRef.SetVisible(this.m_indicatorRef, true);
+        inkWidgetRef.SetVisible(this.m_inputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_errorIconRef, false);
+    };
+  }
+}
+
+public class GogUserDisplayController extends inkLogicController {
+
+  private edit let m_cdprAccountName: inkTextRef;
+
+  private edit let m_platformAccountName: inkTextRef;
+
+  private edit let m_platformAccountIcon: inkImageRef;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  public final func Setup(requestHandler: wref<inkISystemRequestsHandler>) -> Void {
+    this.m_requestHandler = requestHandler;
+  }
+
+  public final func SetCDPRUsername(username: String) -> Void {
+    inkTextRef.SetText(this.m_cdprAccountName, username);
+  }
+
+  public final func SetPlatformUsername(username: String) -> Void {
+    inkTextRef.SetText(this.m_platformAccountName, username);
+    switch this.m_requestHandler.GetGameServicePlatform() {
+      case redGameServicesPlatform.Steam:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"steam_icon");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, true);
+        break;
+      case redGameServicesPlatform.Epic:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"epic_icon");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, true);
+        break;
+      case redGameServicesPlatform.GOG:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"gog_icon");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, true);
+        break;
+      case redGameServicesPlatform.Prospero:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"ps_icon");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, true);
+        break;
+      case redGameServicesPlatform.WinGDK:
+      case redGameServicesPlatform.Scarlett:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"xsx_icon");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, true);
+        break;
+      case redGameServicesPlatform.Emporium:
+        inkImageRef.SetTexturePart(this.m_platformAccountIcon, n"None");
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, false);
+        break;
+      case redGameServicesPlatform.Null:
+        inkWidgetRef.SetVisible(this.m_platformAccountName, false);
+        inkWidgetRef.SetVisible(this.m_platformAccountIcon, false);
+    };
+  }
+}
+
+public class SingleplayerMenuGameController extends MainMenuGameController {
+
+  @runtimeProperty("category", "Logo")
+  private edit let m_baseLogoContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Logo")
+  private edit let m_ep1LogoContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Gog")
+  private edit let m_gogButtonWidgetRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Gog")
+  private edit let m_gogContainerRef: inkCompoundRef;
+
+  @runtimeProperty("category", "Gog")
+  private edit let m_gogUserDisplayContainerRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_AdditionalButtonsBoxRef: inkCompoundRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_accountSelector: inkCompoundRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_commonGameVersionButton: inkCompoundRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_emporiumButtons: inkCompoundRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_emporiumGameVersionButton: inkCompoundRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_emporiumFeaturesBtn: inkCompoundRef;
+
+  @runtimeProperty("category", "Patch")
+  private edit let m_patch2Notification: inkCompoundRef;
+
+  @runtimeProperty("category", "Patch")
+  @default(SingleplayerMenuGameController, 10.f)
+  private edit let m_patch2NotificationDelay: Float;
+
+  @runtimeProperty("category", "Expansion")
+  private edit let m_expansionBanner: inkCompoundRef;
+
+  @runtimeProperty("category", "Expansion")
+  @default(SingleplayerMenuGameController, EP1)
+  private edit let m_ep1IdName: CName;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_eulaWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_quitGameWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_sliderWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_declineButtonWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_acceptButtonWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_declineButtonText: inkTextRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_acceptButtonText: inkTextRef;
+
+  @runtimeProperty("category", "Eula")
+  private edit let m_contentTextRef: inkTextRef;
+
+  @runtimeProperty("category", "Eula")
+  @default(SingleplayerMenuGameController, UI-EULA-EULAFullText)
+  private edit let m_contentTextLocKey: CName;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_continuetooltipContainer: inkCompoundRef;
+
+  private edit let m_tooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_versionTextRef: inkTextRef;
+
+  private let m_onlineSystem: wref<IOnlineSystem>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_continueGameTooltipController: wref<ContinueGameTooltip>;
+
+  private let m_modioTooltipController: wref<ModioToolTipInMenu>;
+
+  private let m_expansionHintController: wref<TrophyTooltipController>;
+
+  private let m_expansionBannerController: wref<ExpansionBannerController>;
+
+  private let m_accountSelectorController: wref<MenuAccountLogicController>;
+
+  private let m_gogContainerController: wref<GogContainerController>;
+
+  private let m_textAnimController: wref<inkTextReplaceController>;
+
+  private let m_tooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_gameVersionButton: inkCompoundRef;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_patchNotesCheckData: ref<PatchNotesCheckData>;
+
+  private let m_dataSyncStatus: CloudSavesQueryStatus;
+
+  private let m_savesCount: Int32;
+
+  private let m_savesReady: Bool;
+
+  private let m_isOffline: Bool;
+
+  private let m_isModded: Bool;
+
+  private let m_isUserUGCRestricted: Bool;
+
+  private let m_isExpansionHintShown: Bool;
+
+  private let m_isMainMenuShownFirstTime: Bool;
+
+  private let m_isPatch2NotificationShown: Bool;
+
+  private let m_isReloadPopupShown: Bool;
+
+  private let m_isEp1Enabled: Bool;
+
+  private let m_isEmporium: Bool;
+
+  private let m_gameVersion: String;
+
+  @default(SingleplayerMenuGameController, patch2_notification_intro)
+  private let m_patch2NotificationIntroName: CName;
+
+  @default(SingleplayerMenuGameController, patch2_notification_outro)
+  private let m_patch2NotificationOutroName: CName;
+
+  private let m_patch2NotificationAnimProxy: ref<inkAnimProxy>;
+
+  private let m_gameVersionAnim: ref<inkAnimProxy>;
+
+  @default(SingleplayerMenuGameController, false)
+  private let m_eulaIsAccepted: Bool;
+
+  @default(SingleplayerMenuGameController, false)
+  private let m_isEulaWindowOpened: Bool;
+
+  @default(SingleplayerMenuGameController, false)
+  private let m_eulaRead: Bool;
+
+  private let m_sliderController: wref<inkSliderController>;
+
+  private let m_declineButtonController: wref<inkButtonController>;
+
+  private let m_acceptButtonController: wref<inkButtonController>;
+
+  private let m_eulaAnimationProxy: ref<inkAnimProxy>;
+
+  private let m_modioButton: wref<inkWidget>;
+
+  private let m_isModReloadingPopupShown: Bool;
+
+  private let m_hasAlreadyShownMenuItemList: Bool;
+
+  private let m_gogUserDisplayController: wref<GogUserDisplayController>;
+
+  protected cb func OnInitialize() -> Bool {
+    let platformName: String;
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.m_hasAlreadyShownMenuItemList = false;
+    this.m_savesCount = 0;
+    this.m_savesCount = this.m_requestHandler.RequestSavesCountSync();
+    this.m_requestHandler.RegisterToCallback(n"OnSavesForLoadReady", this, n"OnSavesForLoadReady");
+    this.m_requestHandler.RegisterToCallback(n"OnBoughtFullGame", this, n"OnRedrawRequested");
+    this.m_requestHandler.RegisterToCallback(n"OnSaveMetadataReady", this, n"OnSaveMetadataReady");
+    this.m_requestHandler.RegisterToCallback(n"OnCloudSavesQueryStatusChanged", this, n"OnCloudSavesQueryStatusChanged");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_MainMenu");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentStatusUpdateResult", this, n"OnAdditionalContentStatusUpdateResult_MainMenu");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult_MainMenu");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentInstallationRequestResult", this, n"OnAdditionalContentInstallationRequestResult_MainMenu");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnAdditionalContentDataReloadProgress_MainMenu");
+    this.m_requestHandler.RegisterToCallback(n"OnGogSignInCallback", this, n"OnGogSignIn");
+    this.RegisterToCallback(n"OnNeedToDisplayStartupUpdateModsPopup", this, n"OpenStartupCheckPopup");
+    this.RegisterToCallback(n"OnNeedToDisplayLoadMenuUpdateModsPopup", this, n"OpenUpdateModsPopup");
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") || Equals(platformName, "windowsGDK") {
+      Modio.RequestRestrictionStatus(this, n"OnRequestRestrictionStatusCallBack", false);
+    };
+    this.m_requestHandler.RequestSavesForLoad();
+    this.SetNextInitialLoadingScreen(this.m_requestHandler.GetLatestSaveMetadata().initialLoadingScreenID);
+    this.m_onlineSystem = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame());
+    super.OnInitialize();
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    };
+    if inkWidgetRef.IsValid(this.m_buttonHintsManagerRef) {
+      this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+      this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("UI-UserActions-Select"));
+    };
+    this.m_textAnimController = inkWidgetRef.GetController(this.m_versionTextRef) as inkTextReplaceController;
+    this.m_isEmporium = Equals(GetPlatformShortName(), "emporium");
+    if this.m_isEmporium {
+      inkWidgetRef.SetVisible(this.m_commonGameVersionButton, false);
+      inkWidgetRef.SetVisible(this.m_emporiumButtons, true);
+      this.m_gameVersionButton = this.m_emporiumGameVersionButton;
+      inkWidgetRef.RegisterToCallback(this.m_emporiumFeaturesBtn, n"OnPress", this, n"OnEmporiumFeaturesPress");
+    } else {
+      inkWidgetRef.SetVisible(this.m_commonGameVersionButton, true);
+      inkWidgetRef.SetVisible(this.m_emporiumButtons, false);
+      this.m_gameVersionButton = this.m_commonGameVersionButton;
+    };
+    inkWidgetRef.RegisterToCallback(this.m_gameVersionButton, n"OnHoverOver", this, n"OnGameVersionHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_gameVersionButton, n"OnHoverOut", this, n"OnGameVersionHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_gameVersionButton, n"OnPress", this, n"OnGameVersionPress");
+    inkWidgetRef.RegisterToCallback(this.m_patch2Notification, n"OnPress", this, n"OnGameVersionPress");
+    this.m_accountSelectorController = inkWidgetRef.Get(this.m_accountSelector).GetController() as MenuAccountLogicController;
+    this.m_gogContainerController = inkWidgetRef.GetController(this.m_gogContainerRef) as GogContainerController;
+    if IsDefined(this.m_gogContainerController) {
+      this.m_gogContainerController.RegisterToCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+    };
+    this.m_gogUserDisplayController = inkWidgetRef.Get(this.m_gogUserDisplayContainerRef).GetController() as GogUserDisplayController;
+    this.m_gogUserDisplayController.Setup(this.m_requestHandler);
+    this.m_tooltipsManager = inkWidgetRef.GetControllerByType(this.m_tooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_tooltipsManager.Setup(ETooltipsStyle.Menus);
+    this.m_expansionBannerController = inkWidgetRef.GetController(this.m_expansionBanner) as ExpansionBannerController;
+    this.m_expansionBannerController.SetStatus(ExpansionStatus.Hidden);
+    this.CheckUserOutdatedMods(true);
+    if IsDefined(this.m_uiSystem) {
+      if !this.m_uiSystem.GetIsEulaAccepted() {
+        this.ShowEula();
+      } else {
+        if !this.m_uiSystem.GetHasTelemetryScreenBeenDisplayed() {
+          this.ShowPitchScreen();
+        } else {
+          if this.m_patchNotesCheckData.m_ownExpansion && this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2000_EP1) {
+            this.OpenExpansionInfoPopup(ExpansionPopupType.ThankYou, true);
+            this.SpawnExpansionHint();
+            this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000_EP1);
+          };
+          this.FinishMenuInitialization();
+        };
+      };
+    };
+    if !IsFinal() && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK")) {
+    };
+    inkWidgetRef.SetVisible(this.m_gogUserDisplayContainerRef, this.m_requestHandler.GetIsSignedIn());
+    if this.m_requestHandler.GetIsSignedIn() {
+      this.m_gogUserDisplayController.SetCDPRUsername(this.m_onlineSystem.GetGalaxyPersonaName());
+      this.RequestPlatformUsername();
+    };
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    if !IsDefined(this.m_uiSystem) {
+      this.m_onlineSystem = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame());
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      this.m_onlineSystem.RequestInitialStatus();
+      if !this.m_uiSystem.GetIsEulaAccepted() {
+        this.ShowEula();
+      } else {
+        if !this.m_uiSystem.GetHasTelemetryScreenBeenDisplayed() {
+          this.ShowPitchScreen();
+        } else {
+          this.FinishMenuInitialization();
+        };
+      };
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+    this.m_menuListController.GetRootWidget().UnregisterFromCallback(n"OnRelease", this, n"OnListRelease");
+    this.m_menuListController.GetRootWidget().UnregisterFromCallback(n"OnRepeat", this, n"OnListRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_gameVersionButton, n"OnPress", this, n"OnGameVersionPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_patch2Notification, n"OnPress", this, n"OnGameVersionPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_emporiumFeaturesBtn, n"OnPress", this, n"OnEmporiumFeaturesPress");
+    this.UnregisterFromCallback(n"OnNeedToDisplayStartupUpdateModsPopup", this, n"OpenStartupCheckPopup");
+    this.UnregisterFromCallback(n"OnNeedToDisplayLoadMenuUpdateModsPopup", this, n"OpenUpdateModsPopup");
+    if IsDefined(GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame())) {
+      inkWidgetRef.UnregisterFromCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+    };
+    if IsDefined(this.m_gogContainerController) {
+      this.m_gogContainerController.UnregisterFromCallback(n"GogReloadEmporium", this, n"OnGogReloadEmporium");
+    };
+    super.OnUninitialize();
+    this.m_requestHandler.UnregisterFromCallback(n"OnBoughtFullGame", this, n"OnRedrawRequested");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_MainMenu");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentStatusUpdateResult", this, n"OnAdditionalContentStatusUpdateResult_MainMenu");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult_MainMenu");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentInstallationRequestResult", this, n"OnAdditionalContentInstallationRequestResult_MainMenu");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnAdditionalContentDataReloadProgress_MainMenu");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnShowOneTimeMessages", this, n"OnShowOneTimeMessages");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnCheckPatchNotes", this, n"OnCheckPatchNotes");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnOpenPatchNotes", this, n"OnOpenPatchNotes");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnClosePatchNotes", this, n"OnClosePatchNotes");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnCloseUpdateMods", this, n"OnCloseUpdateMods");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnCloseExpansionPopup", this, n"OnCloseExpansionPopup");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnPurchaseDisabledError", this, n"OnPurchaseDisabledError");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnShowMainMenuTooltip", this, n"OnShowMainMenuTooltip");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnHideMainMenuTooltip", this, n"OnHideMainMenuTooltip");
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let data: ref<SingleplayerMenuData> = userData as SingleplayerMenuData;
+    if IsDefined(data) {
+      this.m_isExpansionHintShown = data.showExpansionHint;
+      this.m_isMainMenuShownFirstTime = data.mainMenuShownFirstTime;
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    super.OnSetMenuEventDispatcher(menuEventDispatcher);
+    menuEventDispatcher.RegisterToEvent(n"OnShowOneTimeMessages", this, n"OnShowOneTimeMessages");
+    menuEventDispatcher.RegisterToEvent(n"OnCheckPatchNotes", this, n"OnCheckPatchNotes");
+    menuEventDispatcher.RegisterToEvent(n"OnOpenPatchNotes", this, n"OnOpenPatchNotes");
+    menuEventDispatcher.RegisterToEvent(n"OnClosePatchNotes", this, n"OnClosePatchNotes");
+    menuEventDispatcher.RegisterToEvent(n"OnCloseUpdateMods", this, n"OnCloseUpdateMods");
+    menuEventDispatcher.RegisterToEvent(n"OnCloseExpansionPopup", this, n"OnCloseExpansionPopup");
+    menuEventDispatcher.RegisterToEvent(n"OnPurchaseDisabledError", this, n"OnPurchaseDisabledError");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnShowMainMenuTooltip", this, n"OnShowMainMenuTooltip");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnHideMainMenuTooltip", this, n"OnHideMainMenuTooltip");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnShowModioTerms", this, n"OnShowModioTerms");
+  }
+
+  protected cb func OnRequestRestrictionStatusCallBack(status: Int32) -> Bool {
+    let characterCustomizationSystem: ref<gameuiICharacterCustomizationSystem>;
+    if status == 0 {
+      this.m_isUserUGCRestricted = false;
+    } else {
+      this.m_isUserUGCRestricted = true;
+      characterCustomizationSystem = GameInstance.GetCharacterCustomizationSystem(this.GetPlayerControlledObject().GetGame());
+      this.m_continueGameTooltipController.CheckThumbnailCensorship(!characterCustomizationSystem.IsNudityAllowed(), this.m_isUserUGCRestricted);
+    };
+  }
+
+  private final func UpdateExpansionBannerState() -> Void {
+    inkWidgetRef.RegisterToCallback(this.m_expansionBanner, n"OnRelease", this, n"OnExpansionBannerPressed");
+    if this.m_expansionBannerController != null {
+      this.m_expansionBannerController = inkWidgetRef.GetController(this.m_expansionBanner) as ExpansionBannerController;
+    };
+    if this.m_isEmporium {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Hidden);
+    } else {
+      if this.m_requestHandler.IsAdditionalContentEnabled(this.m_ep1IdName) {
+        this.m_expansionBannerController.SetStatus(ExpansionStatus.Downloaded);
+      } else {
+        if this.m_requestHandler.IsAdditionalContentOwned(this.m_ep1IdName) {
+          if !this.m_requestHandler.IsAdditionalContentReleased(this.m_ep1IdName) {
+            this.m_expansionBannerController.SetStatus(ExpansionStatus.PreOrderOwned);
+          } else {
+            this.m_expansionBannerController.SetStatus(ExpansionStatus.Owned);
+          };
+        } else {
+          this.m_expansionBannerController.SetStatus(ExpansionStatus.Available);
+        };
+      };
+    };
+  }
+
+  private final func SwitchGameLogo(isEP1Installed: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_baseLogoContainer, !isEP1Installed);
+    inkWidgetRef.SetVisible(this.m_ep1LogoContainer, isEP1Installed);
+  }
+
+  public final func OnAdditionalContentPurchaseResult_MainMenu(id: CName, success: Bool) -> Void {
+    if success && Equals(id, this.m_ep1IdName) {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Owned);
+      this.OpenExpansionInfoPopup(ExpansionPopupType.ThankYou, true);
+    } else {
+      this.ShowExpansionError(ExpansionErrorType.PurchaseFailed);
+      this.UpdateExpansionBannerState();
+    };
+  }
+
+  public final func OnAdditionalContentStatusUpdateResult_MainMenu(id: CName, success: Bool) -> Void {
+    if success && Equals(id, this.m_ep1IdName) {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Owned);
+      this.OpenExpansionInfoPopup(ExpansionPopupType.ThankYou, true);
+    } else {
+      this.ShowExpansionError(ExpansionErrorType.PurchaseFailed);
+      this.UpdateExpansionBannerState();
+    };
+  }
+
+  public final func OnAdditionalContentInstallationResult_MainMenu(id: CName, success: Bool) -> Void {
+    if success && Equals(id, this.m_ep1IdName) {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Available);
+      if this.m_requestHandler.IsAdditionalContentEnabled(this.m_ep1IdName) {
+        this.SpawnExpansionHint();
+      };
+    } else {
+      this.ShowExpansionError(ExpansionErrorType.InstallFailed);
+      this.UpdateExpansionBannerState();
+      this.SwitchGameLogo(success);
+    };
+  }
+
+  public final func OnAdditionalContentInstallationRequestResult_MainMenu(id: CName, success: Bool) -> Void {
+    if success && Equals(id, this.m_ep1IdName) {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Downloading);
+    } else {
+      if !this.m_requestHandler.IsInstallThroughAppEnabled() {
+        this.ShowExpansionError(ExpansionErrorType.InstallDisabled);
+      } else {
+        this.ShowExpansionError(ExpansionErrorType.InstallRequestFailed);
+      };
+    };
+  }
+
+  public final func OnAdditionalContentDataReloadProgress_MainMenu(progress: Float) -> Void {
+    if (Modio.IsModReloadingProgress() || this.m_isModReloadingPopupShown) && !this.m_isReloadPopupShown {
+      if progress >= 1.00 {
+        this.m_isModReloadingPopupShown = false;
+      } else {
+        if !this.m_isModReloadingPopupShown && progress > 0.00 {
+          this.OpenModReloadingPopup();
+          this.m_isModReloadingPopupShown = true;
+        };
+      };
+      return;
+    };
+    if progress >= 1.00 {
+      this.m_expansionBannerController.SetStatus(ExpansionStatus.Downloaded);
+      this.SwitchGameLogo(true);
+      if !this.m_isExpansionHintShown {
+        this.SpawnExpansionHint();
+      };
+    } else {
+      if !this.m_isReloadPopupShown && progress > 0.00 {
+        this.m_expansionBannerController.SetStatus(ExpansionStatus.Reloading);
+        this.OpenExpansionInfoPopup(ExpansionPopupType.Reloading, true);
+        this.m_isReloadPopupShown = true;
+      };
+    };
+  }
+
+  public final func ShowAdditionalDataInvalidError(validationResult: Uint32) -> Void {
+    let errorCode: Uint32;
+    let errorDescription: CName;
+    let errorTitle: CName;
+    let platform: String;
+    if validationResult > 0u {
+      platform = GetPlatformShortName();
+      if Cast<Bool>(validationResult & 16u) {
+        errorTitle = n"UI-DLC-EP1-Errors-DirectStorageUnsupported_Title_XSX";
+        errorDescription = n"UI-DLC-EP1-Errors-DirectStorageUnsupported_Description_XSX";
+        errorCode = validationResult;
+      } else {
+        if Cast<Bool>(validationResult & 4u) || Cast<Bool>(validationResult & 8u) {
+          errorTitle = n"UI-DLC-EP1-Errors-InstallMismatch_Title";
+          errorDescription = n"UI-DLC-EP1-Errors-InstallMismatch_Description";
+          errorCode = validationResult;
+          if Equals(platform, "xseriesx") || Equals(platform, "xseriess") {
+            errorTitle = errorTitle + n"_XSX";
+            errorDescription = errorDescription + n"_XSX";
+          };
+          if Equals(platform, "ps5") || Equals(platform, "ps5pro") {
+            errorTitle = errorTitle + n"_PS5";
+            errorDescription = errorDescription + n"_PS5";
+          };
+        } else {
+          errorTitle = n"UI-DLC-EP1-Errors-InstallIncomplete_Title";
+          errorDescription = n"UI-DLC-EP1-Errors-InstallIncomplete_Description";
+          if validationResult <= 0u {
+            errorCode = 95053u;
+          };
+          if Equals(platform, "xseriesx") || Equals(platform, "xseriess") {
+            errorTitle = errorTitle + n"_XSX";
+            errorDescription = errorDescription + n"_XSX";
+          };
+          if Equals(platform, "ps5") || Equals(platform, "ps5pro") {
+            errorTitle = errorTitle + n"_PS5";
+            errorDescription = errorDescription + n"_PS5";
+          };
+        };
+      };
+      this.PushErrorPopup(errorTitle, errorDescription, errorCode);
+    };
+  }
+
+  protected cb func OnPurchaseDisabledError(userData: ref<IScriptable>) -> Bool {
+    this.ShowExpansionError(ExpansionErrorType.PurchaseDisabled);
+  }
+
+  protected cb func OnExpansionBannerPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.ExpansionBannerInteracted();
+    };
+  }
+
+  private final func ExpansionBannerInteracted() -> Void {
+    if NotEquals(this.m_expansionBannerController.GetStatus(), ExpansionStatus.NotAvailable) {
+      switch this.m_expansionBannerController.GetStatus() {
+        case ExpansionStatus.Available:
+          this.m_requestHandler.LogPreorderBannerClick(this.m_ep1IdName);
+          this.OpenExpansionInfoPopup(ExpansionPopupType.Features, true);
+          break;
+        case ExpansionStatus.Owned:
+          this.m_requestHandler.RequestAdditionalContentInstall(this.m_ep1IdName);
+          break;
+        case ExpansionStatus.PreOrder:
+          this.m_requestHandler.LogPreorderBannerClick(this.m_ep1IdName);
+          this.OpenExpansionInfoPopup(ExpansionPopupType.PreOrder, true);
+          break;
+        case ExpansionStatus.PreOrderOwned:
+          this.OpenExpansionInfoPopup(ExpansionPopupType.PreOrder, true);
+          break;
+        default:
+      };
+    };
+  }
+
+  private final func OpenExpansionInfoPopup(type: ExpansionPopupType, forcibly: Bool) -> Void {
+    let popupRequestEvt: ref<OpenExpansionPopupEvent> = new OpenExpansionPopupEvent();
+    popupRequestEvt.m_type = type;
+    popupRequestEvt.m_state = this.m_expansionBannerController.GetStatus();
+    popupRequestEvt.m_forcibly = forcibly;
+    this.QueueBroadcastEvent(popupRequestEvt);
+  }
+
+  private final func OpenModReloadingPopup() -> Void {
+    let popupRequestEvt: ref<ModReloadingPopupEvent> = new ModReloadingPopupEvent();
+    this.QueueBroadcastEvent(popupRequestEvt);
+  }
+
+  protected cb func OnShowOneTimeMessages(userData: ref<IScriptable>) -> Bool {
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    };
+    if this.m_uiSystem.GetIsEulaAccepted() {
+      this.CheckEmporiumPopup();
+    };
+  }
+
+  protected cb func OnCheckPatchNotes(userData: ref<IScriptable>) -> Bool {
+    this.m_patchNotesCheckData = userData as PatchNotesCheckData;
+    this.CheckPatchNotes();
+  }
+
+  private final func CheckPatchNotes() -> Void {
+    let lastSeenPatch: Uint32;
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    };
+    if !this.m_uiSystem.GetIsEulaAccepted() {
+      return;
+    };
+    if !IsDefined(this.m_requestHandler) {
+      this.m_requestHandler = this.GetSystemRequestsHandler();
+    };
+    if this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2000) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2100) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2200) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2300) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2400) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2500) {
+      lastSeenPatch = EnumInt(this.m_uiSystem.GetPitchScreenLastSeenPatch());
+      if !this.GetSystemRequestsHandler().GetIsSignedIn() && lastSeenPatch < 8u {
+        this.ShowPitchScreen();
+      } else {
+        this.m_isPatch2NotificationShown = true;
+        this.ShowPatch2Notification();
+      };
+    } else {
+      this.m_isPatch2NotificationShown = false;
+    };
+  }
+
+  protected cb func OnOpenPatchNotes(userData: ref<IScriptable>) -> Bool {
+    this.SetControlsVisible(false);
+  }
+
+  protected cb func OnClosePatchNotes(userData: ref<IScriptable>) -> Bool {
+    this.m_isPatch2NotificationShown = false;
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2100);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2200);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2300);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2400);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2500);
+    this.SetControlsVisible(true);
+  }
+
+  protected cb func OnShowMainMenuTooltip(userData: ref<IScriptable>) -> Bool {
+    let tooltipData: ref<MainMenuTooltipData> = userData as MainMenuTooltipData;
+    if tooltipData != null {
+      if tooltipData.targetWidget != null {
+        this.m_tooltipsManager.ShowTooltipAtWidget(tooltipData.identifier, tooltipData.targetWidget, tooltipData.data, tooltipData.placement);
+      } else {
+        this.m_tooltipsManager.ShowTooltip(tooltipData.identifier, tooltipData.data);
+      };
+    };
+  }
+
+  protected cb func OnHideMainMenuTooltip(userData: ref<IScriptable>) -> Bool {
+    this.m_tooltipsManager.HideTooltips();
+  }
+
+  protected cb func OnCloseExpansionPopup(userData: ref<IScriptable>) -> Bool {
+    if this.m_isPatch2NotificationShown {
+      this.ShowPatch2Notification();
+    } else {
+      this.SetButtonsVisible(true);
+    };
+    this.ShowRussianLanguageDisclaimer();
+  }
+
+  protected cb func OnPatch2NotificationIntroFinished(anim: ref<inkAnimProxy>) -> Bool {
+    let animOptions: inkAnimOptions;
+    this.SetButtonsVisible(true);
+    this.m_patch2NotificationAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnPatch2NotificationIntroFinished");
+    inkWidgetRef.SetVisible(this.m_AdditionalButtonsBoxRef, true);
+    animOptions.executionDelay = this.m_patch2NotificationDelay;
+    this.m_patch2NotificationAnimProxy = this.PlayLibraryAnimation(this.m_patch2NotificationOutroName, animOptions);
+    this.m_patch2NotificationAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPatch2NotificationOutroFinished");
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2100);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2200);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2300);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2400);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2500);
+  }
+
+  protected cb func OnPatch2NotificationOutroFinished(anim: ref<inkAnimProxy>) -> Bool {
+    this.m_isPatch2NotificationShown = false;
+    inkWidgetRef.SetVisible(this.m_patch2Notification, false);
+    this.m_patch2NotificationAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnPatch2NotificationOutroFinished");
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2100);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2200);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2300);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2400);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2500);
+  }
+
+  private final func ShowPatch2Notification() -> Void {
+    inkWidgetRef.SetVisible(this.m_patch2Notification, true);
+    inkWidgetRef.SetVisible(this.m_AdditionalButtonsBoxRef, true);
+    this.m_patch2NotificationAnimProxy = this.PlayLibraryAnimation(this.m_patch2NotificationIntroName);
+    this.m_patch2NotificationAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPatch2NotificationIntroFinished");
+  }
+
+  private final func OpenPatchNotesPopup(mode: Bool) -> Void {
+    let popupRequestEvt: ref<OpenPatchNotesPopupEvent>;
+    if IsDefined(this.m_patch2NotificationAnimProxy) {
+      this.m_patch2NotificationAnimProxy.GotoEndAndStop();
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000);
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2100);
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2200);
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2300);
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2400);
+      this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2500);
+    };
+    popupRequestEvt = new OpenPatchNotesPopupEvent();
+    this.QueueBroadcastEvent(popupRequestEvt);
+  }
+
+  private final func OpenStartupCheckPopup(modInfoList: [ModToUpdateInfo], bHaveDeletedModsBeenRemoved: Bool, bShouldDisplayThumbnail: Bool, bShouldDisplayModName: Bool, bModsDefaultSelected: Bool) -> Void {
+    let updateModRequestEvt: ref<UpdateModsPopupEvent> = new UpdateModsPopupEvent();
+    updateModRequestEvt.modInfoList = modInfoList;
+    updateModRequestEvt.bHaveModsBeenDeleted = bHaveDeletedModsBeenRemoved;
+    updateModRequestEvt.bShouldShowThumbnail = bShouldDisplayThumbnail;
+    updateModRequestEvt.bShouldShowModNames = bShouldDisplayModName;
+    updateModRequestEvt.bDoesNumberExceedModLimit = false;
+    updateModRequestEvt.bIsForLoadingASave = false;
+    updateModRequestEvt.bDefaultModsSelected = bModsDefaultSelected;
+    updateModRequestEvt.bShouldShowConfirmButton = false;
+    this.QueueBroadcastEvent(updateModRequestEvt);
+  }
+
+  private final func OpenUpdateModsPopup(modInfoList: [ModToUpdateInfo], deprecatedCount: Int32, bDoesNumberExceedModLimit: Bool, bHaveDeletedModsBeenRemoved: Bool, bShouldDisplayThumbnail: Bool, bShouldDisplayModName: Bool, bModsDefaultSelected: Bool) -> Void {
+    let updateModRequestEvt: ref<UpdateModsPopupEvent> = new UpdateModsPopupEvent();
+    updateModRequestEvt.modInfoList = modInfoList;
+    updateModRequestEvt.bHaveModsBeenDeleted = bHaveDeletedModsBeenRemoved;
+    updateModRequestEvt.bShouldShowThumbnail = bShouldDisplayThumbnail;
+    updateModRequestEvt.bShouldShowModNames = bShouldDisplayModName;
+    updateModRequestEvt.bDoesNumberExceedModLimit = bDoesNumberExceedModLimit;
+    updateModRequestEvt.bIsForLoadingASave = true;
+    updateModRequestEvt.bDefaultModsSelected = bModsDefaultSelected;
+    updateModRequestEvt.bShouldShowConfirmButton = false;
+    updateModRequestEvt.deprecatedModsCount = deprecatedCount;
+    this.QueueBroadcastEvent(updateModRequestEvt);
+  }
+
+  private final func SetControlsVisible(visible: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_menuList, visible);
+    inkWidgetRef.SetVisible(this.m_buttonHintsManagerRef, visible);
+    this.SetButtonsVisible(visible);
+  }
+
+  private final func SetButtonsVisible(visible: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, visible);
+    inkWidgetRef.SetVisible(this.m_patch2Notification, this.m_isPatch2NotificationShown && visible);
+    inkWidgetRef.SetVisible(this.m_AdditionalButtonsBoxRef, !this.m_isPatch2NotificationShown && visible);
+    if this.m_accountSelectorController.IsEnabled() {
+      inkWidgetRef.SetVisible(this.m_accountSelector, visible);
+    };
+  }
+
+  protected cb func OnRedrawRequested() -> Bool {
+    this.ShowActionsList();
+  }
+
+  protected cb func OnTooltipContainerSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let previewImageWidget: wref<inkImage>;
+    widget.SetVisible(false);
+    this.m_continueGameTooltipController = widget.GetController() as ContinueGameTooltip;
+    if this.m_savesReady || Equals(this.m_dataSyncStatus, CloudSavesQueryStatus.FetchedSuccessfully) {
+      previewImageWidget = this.m_continueGameTooltipController.GetPreviewImageWidget();
+      if IsDefined(previewImageWidget) {
+        this.GetSystemRequestsHandler().RequestSavedGameScreenshot(0, previewImageWidget);
+      };
+      this.m_continueGameTooltipController.UpdateNetworkStatus(this.m_dataSyncStatus);
+      this.m_continueGameTooltipController.SetOfflineStatus(this.m_isOffline);
+    };
+  }
+
+  protected cb func OnExpansionHintSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    widget.SetVisible(true);
+    this.m_continueGameTooltipController.GetRootWidget().SetVisible(false);
+    this.m_isExpansionHintShown = true;
+    if !IsDefined(this.m_expansionHintController) {
+      this.m_expansionHintController = widget.GetController() as TrophyTooltipController;
+      this.m_menuEventDispatcher.SpawnEvent(n"OnExpansionHint");
+    };
+  }
+
+  protected cb func OnContinueButtonEnter(evt: ref<inkPointerEvent>) -> Bool {
+    if (this.m_savesCount > 0 || !this.m_savesReady) && !this.m_isExpansionHintShown {
+      this.m_continueGameTooltipController.GetRootWidget().SetVisible(true);
+    };
+  }
+
+  protected cb func OnContinueButtonLeave(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_continueGameTooltipController.GetRootWidget().SetVisible(false);
+  }
+
+  protected cb func OnSavesForLoadReady(saves: [String]) -> Bool {
+    let previewImageWidget: wref<inkImage>;
+    this.m_savesCount = ArraySize(saves);
+    this.m_savesReady = true;
+    this.ShowActionsList();
+    if IsDefined(this.m_continueGameTooltipController) {
+      if this.m_savesCount > 0 {
+        previewImageWidget = this.m_continueGameTooltipController.GetPreviewImageWidget();
+        if IsDefined(previewImageWidget) {
+          this.GetSystemRequestsHandler().RequestSavedGameScreenshot(0, this.m_continueGameTooltipController.GetPreviewImageWidget());
+        };
+      } else {
+        this.m_continueGameTooltipController.GetRootWidget().SetVisible(false);
+      };
+    };
+  }
+
+  protected cb func OnModioTooltipContainerSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    widget.SetVisible(false);
+    this.m_modioTooltipController = widget.GetController() as ModioToolTipInMenu;
+  }
+
+  protected cb func OnModioButtonEnter(evt: ref<inkPointerEvent>) -> Bool {
+    if NotEquals(GetPlatformShortName(), "emporium") {
+      if !this.GetSystemRequestsHandler().GetIsSignedIn() {
+        this.m_modioTooltipController.SetText(GetLocalizedText("UI-Modio-Tooltips-RequestLoginCDPR"));
+      } else {
+        if !Modio.IsAuthorized() {
+          this.m_modioTooltipController.SetText(GetLocalizedText("UI-Modio-Tooltips-RequestLoginModio"));
+        };
+      };
+      if !this.GetSystemRequestsHandler().IsOnline() {
+        this.m_modioTooltipController.SetText("offline");
+      };
+      this.RefreshModioToolTipPos();
+    };
+  }
+
+  protected cb func OnModioButtonLeave(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_modioTooltipController.GetRootWidget().SetVisible(false);
+  }
+
+  protected cb func OnShowModioTerms(userData: ref<IScriptable>) -> Bool {
+    this.ShowModioTerms();
+  }
+
+  private final func ShowModioTerms() -> Void {
+    let modioTermsPopupEvt: ref<ModioTermsPopupEvent> = new ModioTermsPopupEvent();
+    this.QueueBroadcastEvent(modioTermsPopupEvt);
+  }
+
+  protected cb func OnModioTermsPopupClose(evt: ref<ModioTermsPopupCloseEvent>) -> Bool {
+    this.m_menuEventDispatcher.SpawnEvent(n"OnModioTermsPopupClose", evt);
+  }
+
+  public final func RefreshModioToolTipPos() -> Void {
+    let index: Int32;
+    let modioBtnPos: Vector2;
+    let modioButton: wref<inkWidget>;
+    if IsDefined(this.m_modioTooltipController) {
+      index = this.m_savesCount > 0 ? 4 : 3;
+      modioButton = inkCompoundRef.GetWidgetByIndex(this.m_menuList, index);
+      modioBtnPos = modioButton.GetSize();
+      this.m_modioTooltipController.SetMarginTop((modioBtnPos.Y + 10.00) * Cast<Float>(index));
+    };
+  }
+
+  protected func ShowActionsList() -> Void {
+    let continueButton: wref<inkWidget>;
+    let continueButtonController: wref<PauseMenuButtonItem>;
+    let newGameButtonController: wref<PauseMenuButtonItem>;
+    super.ShowActionsList();
+    continueButton = inkCompoundRef.GetWidgetByIndex(this.m_menuList, 0);
+    continueButton.RegisterToCallback(n"OnEnter", this, n"OnContinueButtonEnter");
+    continueButton.RegisterToCallback(n"OnLeave", this, n"OnContinueButtonLeave");
+    if IsDefined(this.m_modioButton) {
+      this.m_modioButton.UnregisterFromCallback(n"OnEnter", this, n"OnModioButtonEnter");
+      this.m_modioButton.UnregisterFromCallback(n"OnLeave", this, n"OnModioButtonLeave");
+    };
+    this.m_modioButton = inkCompoundRef.GetWidgetByIndex(this.m_menuList, this.m_savesCount > 0 ? 4 : 3);
+    this.m_modioButton.RegisterToCallback(n"OnEnter", this, n"OnModioButtonEnter");
+    this.m_modioButton.RegisterToCallback(n"OnLeave", this, n"OnModioButtonLeave");
+    this.RefreshModioToolTipPos();
+    if this.DoesUserHaveAtLeastOneModActive() {
+      continueButtonController = this.m_savesCount > 0 ? inkCompoundRef.GetWidgetByIndex(this.m_menuList, 0).GetController() as PauseMenuButtonItem : null;
+      newGameButtonController = inkCompoundRef.GetWidgetByIndex(this.m_menuList, this.m_savesCount > 0 ? 1 : 0).GetController() as PauseMenuButtonItem;
+      this.DisplayAndSetupTrophyIcon(continueButtonController, true);
+      this.DisplayAndSetupTrophyIcon(newGameButtonController, false);
+    };
+  }
+
+  protected cb func OnSaveMetadataReady(info: ref<SaveMetadataInfo>) -> Bool {
+    let characterCustomizationSystem: ref<gameuiICharacterCustomizationSystem>;
+    let continueButtonController: wref<PauseMenuButtonItem>;
+    if info.saveIndex == 0 {
+      if info.isValid {
+        continueButtonController = inkCompoundRef.GetWidgetByIndex(this.m_menuList, 0).GetController() as PauseMenuButtonItem;
+        this.m_isModded = info.isModded;
+        if this.m_isModded {
+          this.DisplayAndSetupTrophyIcon(continueButtonController, true);
+        };
+        characterCustomizationSystem = GameInstance.GetCharacterCustomizationSystem(this.GetPlayerControlledObject().GetGame());
+        this.m_continueGameTooltipController.SetMetadata(info, this.IsEnableModVerification(), this.m_isEp1Enabled);
+        this.m_continueGameTooltipController.CheckThumbnailCensorship(!characterCustomizationSystem.IsNudityAllowed(), this.m_isUserUGCRestricted);
+        this.LoadBackgroundWidget(info.initialLoadingScreenID);
+      } else {
+        this.m_continueGameTooltipController.SetInvalid(info);
+      };
+    };
+  }
+
+  private final func isAbleToDisplayBrokenTrophyIconAndTooltip() -> Bool {
+    return Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") || Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "xseriess");
+  }
+
+  private final func DisplayAndSetupTrophyIcon(inButtonItem: wref<PauseMenuButtonItem>, bIsContinueButton: Bool) -> Void {
+    let onHoveredEventName: CName;
+    if !inButtonItem.IsTrophyVisible() && this.isAbleToDisplayBrokenTrophyIconAndTooltip() {
+      if bIsContinueButton {
+        onHoveredEventName = n"OnTrophyIconHoveredForContinue";
+      } else {
+        onHoveredEventName = n"OnTrophyIconHoveredForNewGame";
+      };
+      inButtonItem.DisplayTrophyIcon();
+      inButtonItem.GetTrophyIconWidget().RegisterToCallback(n"OnHoverOver", this, onHoveredEventName);
+      inButtonItem.GetTrophyIconWidget().RegisterToCallback(n"OnHoverOut", this, n"OnTrophyIconHoveredOut");
+    };
+  }
+
+  protected cb func OnTrophyIconHoveredForContinue(e: ref<inkPointerEvent>) -> Bool {
+    let spawnMargin: inkMargin;
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    if Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-TrophiesUnavailablePlaystation");
+    } else {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-AchievementsUnavailableXbox");
+    };
+    spawnMargin.left = 15.00;
+    if !this.m_isExpansionHintShown {
+      this.m_tooltipsManager.ShowTooltipAtWidget(0, this.m_continueGameTooltipController.GetTrophyTooltipSpawner(), tooltipData, gameuiETooltipPlacement.RightTop, true, spawnMargin);
+    } else {
+      this.m_tooltipsManager.ShowTooltipAtWidget(0, this.m_expansionHintController.GetTrophyTooltipSpawner(), tooltipData, gameuiETooltipPlacement.RightTop, true, spawnMargin);
+    };
+  }
+
+  protected cb func OnTrophyIconHoveredForNewGame(e: ref<inkPointerEvent>) -> Bool {
+    let spawnMargin: inkMargin;
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    if Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-TrophiesUnavailablePlaystation");
+    } else {
+      tooltipData.Title = GetLocalizedText("UI-Menus-Saving-Tooltips-AchievementsUnavailableXbox");
+    };
+    if this.m_isExpansionHintShown {
+      spawnMargin.left = 15.00;
+      this.m_tooltipsManager.ShowTooltipAtWidget(0, this.m_expansionHintController.GetTrophyTooltipSpawner(), tooltipData, gameuiETooltipPlacement.RightTop, true, spawnMargin);
+    } else {
+      spawnMargin.left = 60.00;
+      this.m_tooltipsManager.ShowTooltipAtWidget(0, inkCompoundRef.GetWidgetByIndex(this.m_menuList, this.m_savesCount > 0 ? 1 : 0), tooltipData, gameuiETooltipPlacement.RightTop, true, spawnMargin);
+    };
+  }
+
+  protected cb func OnTrophyIconHoveredOut(e: ref<inkPointerEvent>) -> Bool {
+    this.m_tooltipsManager.HideTooltips();
+  }
+
+  private func PopulateMenuItemList() -> Void {
+    if this.m_savesCount > 0 {
+      this.AddMenuItem(GetLocalizedText("UI-ScriptExports-Continue0"), PauseMenuAction.QuickLoad);
+    };
+    this.AddMenuItem(GetLocalizedText("UI-ScriptExports-NewGame0"), n"OnNewGame");
+    this.AddMenuItem(GetLocalizedText("UI-ScriptExports-LoadGame0"), n"OnLoadGame");
+    this.AddMenuItem(GetLocalizedText("UI-Labels-Settings"), n"OnSwitchToSettings");
+    this.AddMenuItem(GetLocalizedTextByKey(n"UI-Modio-MenuContent-Mods"), n"OnSwitchToModioMenu");
+    this.AddMenuItem(GetLocalizedText("UI-Labels-Credits"), n"OnCreditsPicker");
+    if TrialHelper.IsInPS5TrialMode() {
+      this.AddMenuItem(GetLocalizedText("UI-Notifications-Ps5TrialBuyMenuItem"), n"OnBuyGame");
+    };
+    this.m_menuListController.Refresh();
+    if !this.m_hasAlreadyShownMenuItemList {
+      this.SetCursorOverWidget(inkCompoundRef.GetWidgetByIndex(this.m_menuList, 0));
+    };
+    this.m_hasAlreadyShownMenuItemList = true;
+  }
+
+  protected cb func OnListRelease(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsHandled() {
+      return false;
+    };
+    this.m_menuListController.HandleInput(e, this);
+  }
+
+  protected cb func OnGlobalRelease(e: ref<inkPointerEvent>) -> Bool {
+    let delayEvent: ref<RetrySaveDataRequestDelay>;
+    if e.IsHandled() {
+      return false;
+    };
+    if e.IsAction(n"back") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.m_menuEventDispatcher.SpawnEvent(n"OnBack");
+      e.Handle();
+    } else {
+      if e.IsAction(n"gog_rewards") {
+        this.PlaySound(n"Button", n"OnPress");
+        this.m_menuEventDispatcher.SpawnEvent(n"OnGOGProfile");
+        e.Handle();
+      } else {
+        if e.IsAction(n"navigate_down") || e.IsAction(n"navigate_up") || e.IsAction(n"navigate_left") || e.IsAction(n"navigate_right") {
+          this.SetCursorOverWidget(inkCompoundRef.GetWidgetByIndex(this.m_menuList, 0));
+        } else {
+          if e.IsAction(n"reload") && !this.m_continueGameTooltipController.IsBusy() {
+            this.m_continueGameTooltipController.DisplayDataSyncIndicator(true);
+            delayEvent = new RetrySaveDataRequestDelay();
+            GameInstance.GetDelaySystem(this.GetPlayerControlledObject().GetGame()).DelayEvent(this.GetPlayerControlledObject(), delayEvent, 1.00);
+          } else {
+            if this.m_isEmporium && e.IsAction(n"emporium_popup") {
+              this.ShowEmporiumPopup();
+            } else {
+              if !this.m_isEmporium && e.IsAction(n"expansion_popup") && inkWidgetRef.IsVisible(this.m_expansionBanner) {
+                this.ExpansionBannerInteracted();
+              } else {
+                if e.IsAction(n"game_version") {
+                  this.OpenPatchNotesPopup(true);
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnRetrySaveDataRequestDelay(evt: ref<RetrySaveDataRequestDelay>) -> Bool {
+    this.m_requestHandler.RequestSavesForLoad();
+    this.m_onlineSystem.RequestInitialStatus();
+  }
+
+  protected cb func OnGogPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      evt.Handle();
+      this.m_menuEventDispatcher.SpawnEvent(n"OnGOGProfile");
+    };
+  }
+
+  protected cb func OnGogReloadEmporium(evt: ref<GogReloadEmporium>) -> Bool {
+    this.m_menuEventDispatcher.SpawnEvent(n"OnReloadGOGProfile");
+  }
+
+  protected cb func OnGameVersionPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      evt.Handle();
+      this.OpenPatchNotesPopup(true);
+    };
+  }
+
+  protected cb func OnEmporiumFeaturesPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      evt.Handle();
+      this.ShowEmporiumPopup();
+    };
+  }
+
+  protected cb func OnGameVersionHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    if IsDefined(this.m_gameVersionAnim) {
+      this.m_gameVersionAnim.GotoStartAndStop();
+    } else {
+      this.m_gameVersion = this.m_textAnimController.GetBaseText();
+    };
+    this.m_textAnimController.SetDelay(4.00);
+    this.m_textAnimController.SetDuration(1.50);
+    this.m_textAnimController.SetTargetText("2.0.77");
+    this.m_gameVersionAnim = this.m_textAnimController.PlaySetAnimation();
+  }
+
+  protected cb func OnGameVersionHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    if IsDefined(this.m_gameVersionAnim) && this.m_gameVersionAnim.GetProgression() < 0.50 && this.m_gameVersionAnim.IsPlaying() {
+      this.m_gameVersionAnim.GotoStartAndStop();
+      inkTextRef.SetText(this.m_versionTextRef, this.m_gameVersion);
+    } else {
+      this.m_textAnimController.SetDelay(1.00);
+      this.m_textAnimController.SetDuration(1.00);
+      this.m_textAnimController.SetTargetText(this.m_gameVersion);
+      this.m_gameVersionAnim = this.m_textAnimController.PlaySetAnimation();
+    };
+  }
+
+  protected cb func OnCloudSavesQueryStatusChanged(status: CloudSavesQueryStatus) -> Bool {
+    let previewImageWidget: wref<inkImage>;
+    this.m_dataSyncStatus = status;
+    if IsDefined(this.m_continueGameTooltipController) {
+      this.m_continueGameTooltipController.UpdateNetworkStatus(this.m_dataSyncStatus);
+      if Equals(this.m_dataSyncStatus, CloudSavesQueryStatus.FetchedSuccessfully) {
+        previewImageWidget = this.m_continueGameTooltipController.GetPreviewImageWidget();
+        if IsDefined(previewImageWidget) {
+          this.GetSystemRequestsHandler().RequestSavedGameScreenshot(0, this.m_continueGameTooltipController.GetPreviewImageWidget());
+        };
+      };
+    };
+  }
+
+  protected cb func OnOnlineStatusChanged(value: GOGRewardsSystemStatus) -> Bool {
+    let error: GOGRewardsSystemErrors = this.m_onlineSystem.GetError();
+    this.m_isOffline = NotEquals(error, GOGRewardsSystemErrors.None);
+    if IsDefined(this.m_continueGameTooltipController) {
+      this.m_continueGameTooltipController.SetOfflineStatus(this.m_isOffline);
+    };
+  }
+
+  protected func HandleMenuItemActivate(data: ref<PauseMenuListItemData>) -> Bool {
+    if super.HandleMenuItemActivate(data) || !this.m_savesReady {
+      return false;
+    };
+    switch data.action {
+      case PauseMenuAction.QuickLoad:
+        if this.m_savesCount > 0 {
+          this.m_accountSelectorController.DisableAccountSelector();
+          GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogLastCheckpointLoaded();
+          if this.m_isModded {
+            this.LoadModdedSave(0);
+          } else {
+            this.GetSystemRequestsHandler().LoadLastCheckpoint(false);
+          };
+          return true;
+        };
+    };
+    return false;
+  }
+
+  private final func SpawnExpansionHint() -> Void {
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_continuetooltipContainer), n"ExpansionHintTooltip", this, n"OnExpansionHintSpawned");
+  }
+
+  private final func ShowRussianLanguageDisclaimer() -> Void {
+    let voName: CName;
+    let voVar: ref<ConfigVarListName>;
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    };
+    voVar = this.GetSystemRequestsHandler().GetUserSettings().GetVar(n"/language", n"VoiceOver") as ConfigVarListName;
+    if IsDefined(voVar) {
+      voName = voVar.GetValue();
+      if Equals(voName, n"ru-ru") {
+        this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-SystemNotification-ruVO-LaunchPopUpHeader", n"UI-SystemNotification-ruVO-LaunchPopUpMessage");
+      };
+    };
+  }
+
+  private final func PushErrorPopup(title: CName, description: CName, opt errorCode: Uint32) -> Void {
+    let errorPopupEvt: ref<OpenExpansionErrorPopupEvent> = new OpenExpansionErrorPopupEvent();
+    errorPopupEvt.m_title = title;
+    errorPopupEvt.m_description = description;
+    errorPopupEvt.m_errorCode = errorCode;
+    this.QueueBroadcastEvent(errorPopupEvt);
+  }
+
+  private final func ShowExpansionError(error: ExpansionErrorType) -> Void {
+    let errorCode: Uint32;
+    let errorDescription: CName;
+    let errorTitle: CName;
+    switch error {
+      case ExpansionErrorType.PurchaseFailed:
+        errorTitle = n"UI-DLC-EP1-Errors-PurchaseFailed_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-PurchaseFailed_Description";
+        errorCode = 92516u;
+        break;
+      case ExpansionErrorType.PurchaseDisabled:
+        errorTitle = n"UI-DLC-EP1-Errors-PurchaseDisabled_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-PurchaseDisabled_Description";
+        errorCode = 92518u;
+        break;
+      case ExpansionErrorType.InstallFailed:
+        errorTitle = n"UI-DLC-EP1-Errors-InstallFailed_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-InstallFailed_Description";
+        errorCode = 92520u;
+        break;
+      case ExpansionErrorType.InstallRequestFailed:
+        errorTitle = n"UI-DLC-EP1-Errors-InstallRequestFailed_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-InstallRequestFailed_Description";
+        errorCode = 92522u;
+        break;
+      case ExpansionErrorType.InstallDisabled:
+        errorTitle = n"UI-DLC-EP1-Errors-InstallDisabled_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-InstallDisabled_Description";
+        errorCode = 92524u;
+        break;
+      case ExpansionErrorType.DataInvalid:
+        errorTitle = n"UI-DLC-EP1-Errors-InstallIncomplete_Title";
+        errorDescription = n"UI-DLC-EP1-Errors-InstallIncomplete_Description";
+        errorCode = 95053u;
+    };
+    if (Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "xseriess")) && NotEquals(errorTitle, n"None") && NotEquals(errorDescription, n"None") {
+      errorTitle = errorTitle + n"_XSX";
+      errorDescription = errorDescription + n"_XSX";
+    };
+    if (Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro")) && NotEquals(errorTitle, n"None") && NotEquals(errorDescription, n"None") {
+      errorTitle = errorTitle + n"_PS5";
+      errorDescription = errorDescription + n"_PS5";
+    };
+    this.PushErrorPopup(errorTitle, errorDescription, errorCode);
+  }
+
+  private final func OnFirstTimeMainMenu() -> Void {
+    this.m_requestHandler.LogPreorderBannerImpression(this.m_ep1IdName);
+    this.ShowAdditionalDataInvalidError(this.m_requestHandler.GetAdditionalContentValidationResult(this.m_ep1IdName));
+  }
+
+  private final func CheckEmporiumPopup() -> Void {
+    if this.m_isEmporium && !this.m_uiSystem.GetOneTimeMessageSeen(gameuiOneTimeMessage.EmporiumConsoleFeatures) {
+      this.ShowEmporiumPopup();
+      this.m_uiSystem.SetOneTimeMessageSeen(gameuiOneTimeMessage.EmporiumConsoleFeatures, true);
+    };
+  }
+
+  private final func ShowEmporiumPopup() -> Void {
+    let emporiumPopupEvt: ref<EmporiumPopupEvent> = new EmporiumPopupEvent();
+    this.QueueBroadcastEvent(emporiumPopupEvt);
+  }
+
+  private final func DBG_ShowAccountButton() -> Void {
+    if IsDefined(this.m_accountSelectorController) {
+      this.m_accountSelectorController.DBG_ShowAccountButton();
+    };
+  }
+
+  private final func ShowEula() -> Void {
+    if !this.m_uiSystem.GetIsEulaAccepted() {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnEulaDisplay");
+    };
+  }
+
+  private final func ShowPitchScreen() -> Void {
+    this.m_menuEventDispatcher.SpawnEvent(n"OnPitchScreenDisplay");
+  }
+
+  private final func UninitializeEula() -> Void {
+    this.SetControlsVisible(true);
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnButtonPress");
+    this.m_sliderController.UnregisterFromCallback(n"OnSliderValueChanged", this, n"OnEulaScrollbarValueChanged");
+    this.m_declineButtonController.UnregisterFromCallback(n"OnButtonClick", this, n"OnDeclineButtonClick");
+    this.m_declineButtonController.UnregisterFromCallback(n"OnButtonStateChanged", this, n"OnDeclineButtonStateChanged");
+    this.m_acceptButtonController.UnregisterFromCallback(n"OnButtonClick", this, n"OnAcceptButtonClick");
+    this.m_acceptButtonController.UnregisterFromCallback(n"OnButtonStateChanged", this, n"OnAcceptButtonStateChanged");
+  }
+
+  protected cb func OnEulaScrollbarValueChanged(sliderController: wref<inkSliderController>, progress: Float, value: Float) -> Bool {
+    if progress >= 1.00 {
+      this.m_eulaRead = true;
+      inkWidgetRef.SetInteractive(this.m_declineButtonWidget, true);
+      inkWidgetRef.SetState(this.m_declineButtonText, n"Normal");
+      inkWidgetRef.SetInteractive(this.m_acceptButtonWidget, true);
+      inkWidgetRef.SetState(this.m_acceptButtonText, n"Normal");
+    };
+  }
+
+  protected cb func OnDeclineButtonClick(controller: wref<inkButtonController>) -> Bool {
+    this.OnDeclineButtonPressed();
+  }
+
+  private final func OnDeclineButtonPressed() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if this.m_isEulaWindowOpened && this.m_eulaRead {
+      inkWidgetRef.SetState(this.m_declineButtonText, EnumValueToName(n"inkEButtonState", 2l));
+      inkWidgetRef.SetState(this.m_acceptButtonText, EnumValueToName(n"inkEButtonState", 0l));
+      this.m_isEulaWindowOpened = false;
+      playbackOptions.playReversed = true;
+      this.m_eulaAnimationProxy = this.PlayLibraryAnimation(n"eula_intro", playbackOptions);
+      this.m_eulaAnimationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnEulaDeclined");
+    };
+  }
+
+  protected cb func OnEulaDeclined(e: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_eulaAnimationProxy) {
+      this.m_eulaAnimationProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnEulaDeclined");
+    };
+    inkWidgetRef.SetState(this.m_declineButtonText, EnumValueToName(n"inkEButtonState", 0l));
+    this.m_eulaAnimationProxy = this.PlayLibraryAnimation(n"eula_decline_loop");
+    this.m_eulaAnimationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnEulaReopen");
+  }
+
+  protected cb func OnEulaReopen(e: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_eulaAnimationProxy) {
+      this.m_eulaAnimationProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnEulaReopen");
+    };
+    this.m_isEulaWindowOpened = true;
+  }
+
+  protected cb func OnDeclineButtonStateChanged(controller: wref<inkButtonController>, oldState: inkEButtonState, newState: inkEButtonState) -> Bool {
+    inkWidgetRef.SetState(this.m_declineButtonText, EnumValueToName(n"inkEButtonState", EnumInt(newState)));
+  }
+
+  protected cb func OnAcceptButtonClick(controller: wref<inkButtonController>) -> Bool {
+    this.OnAcceptButtonPressed();
+  }
+
+  private final func OnAcceptButtonPressed() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if this.m_isEulaWindowOpened && this.m_eulaRead {
+      inkWidgetRef.SetState(this.m_acceptButtonText, EnumValueToName(n"inkEButtonState", 2l));
+      inkWidgetRef.SetState(this.m_declineButtonText, EnumValueToName(n"inkEButtonState", 0l));
+      this.m_isEulaWindowOpened = false;
+      playbackOptions.playReversed = true;
+      this.m_eulaAnimationProxy = this.PlayLibraryAnimation(n"eula_intro", playbackOptions);
+      this.m_eulaAnimationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnEulaIsAccepted");
+    };
+  }
+
+  protected cb func OnEulaIsAccepted(e: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_eulaAnimationProxy) {
+      this.m_eulaAnimationProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnEulaIsAccepted");
+    };
+    this.m_uiSystem.SetIsEulaAccepted(true);
+    this.UninitializeEula();
+    this.FinishMenuInitialization();
+    this.CheckPatchNotes();
+  }
+
+  private final func FinishMenuInitialization() -> Void {
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+    this.m_menuListController.GetRootWidget().RegisterToCallback(n"OnRelease", this, n"OnListRelease");
+    this.m_menuListController.GetRootWidget().RegisterToCallback(n"OnRepeat", this, n"OnListRelease");
+    if this.m_isExpansionHintShown {
+      this.SpawnExpansionHint();
+    };
+    if this.m_isMainMenuShownFirstTime {
+      this.OnFirstTimeMainMenu();
+    };
+    this.CheckEmporiumPopup();
+    this.UpdateExpansionBannerState();
+    this.SwitchGameLogo(this.m_requestHandler.IsAdditionalContentEnabled(this.m_ep1IdName));
+    if IsDefined(GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame())) {
+      inkWidgetRef.RegisterToCallback(this.m_gogButtonWidgetRef, n"OnRelease", this, n"OnGogPressed");
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, true);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_gogButtonWidgetRef, false);
+      inkWidgetRef.SetInteractive(this.m_gogButtonWidgetRef, false);
+    };
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_continuetooltipContainer), n"ContinueTooltip", this, n"OnTooltipContainerSpawned");
+    this.AsyncSpawnFromExternal(inkWidgetRef.Get(this.m_continuetooltipContainer), r"base\\gameplay\\gui\\fullscreen\\main_menu\\modio\\modio_tooltip.inkwidget", n"Root", this, n"OnModioTooltipContainerSpawned");
+    this.m_isEp1Enabled = IsEP1();
+    this.GetTelemetrySystem().ClearPlaythroughEp1();
+  }
+
+  protected cb func OnAcceptButtonStateChanged(controller: wref<inkButtonController>, oldState: inkEButtonState, newState: inkEButtonState) -> Bool {
+    inkWidgetRef.SetState(this.m_acceptButtonText, EnumValueToName(n"inkEButtonState", EnumInt(newState)));
+  }
+
+  protected cb func OnButtonPress(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() {
+      if evt.IsAction(n"system_accept_eula") && inkWidgetRef.IsInteractive(this.m_acceptButtonWidget) {
+        this.OnAcceptButtonPressed();
+      } else {
+        if evt.IsAction(n"back") && inkWidgetRef.IsInteractive(this.m_declineButtonWidget) {
+          this.OnDeclineButtonPressed();
+        };
+      };
+      evt.Handle();
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsAction(action, n"system_quit_game") && Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) {
+      if this.CanExitGame() {
+        this.ExitGame();
+      };
+    };
+  }
+
+  protected func PlatformUsernameReceived(platformName: String) -> Void {
+    if IsDefined(this.m_gogUserDisplayController) {
+      this.m_gogUserDisplayController.SetPlatformUsername(platformName);
+    };
+  }
+
+  protected cb func OnGogSignIn() -> Bool {
+    inkWidgetRef.SetVisible(this.m_gogUserDisplayContainerRef, true);
+    this.m_gogUserDisplayController.SetCDPRUsername(this.m_onlineSystem.GetGalaxyPersonaName());
+    this.RequestPlatformUsername();
+  }
+
+  protected cb func OnDisconnectClickedEvent(evt: ref<DisconnectClickedEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_gogUserDisplayContainerRef, false);
+  }
+}
+
+public class ExpansionErrorPopupController extends inkGameController {
+
+  private edit let m_title: inkTextRef;
+
+  private edit let m_description: inkTextRef;
+
+  private edit let m_errorCodeText: inkTextRef;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  @default(ExpansionErrorPopupController, intro)
+  private edit let m_introAnimationName: CName;
+
+  @default(ExpansionErrorPopupController, outro)
+  private edit let m_outroAnimationName: CName;
+
+  private let m_data: ref<ExpansionErrorPopuppData>;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.SetupData();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    this.SetMessage();
+    this.m_animProxy = this.PlayLibraryAnimation(this.m_introAnimationName);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+  }
+
+  private final func SetupData() -> Void {
+    this.m_data = this.GetRootWidget().GetUserData(n"ExpansionErrorPopuppData") as ExpansionErrorPopuppData;
+  }
+
+  private final func SetMessage() -> Void {
+    let description: String;
+    let error: String;
+    let title: String = GetLocalizedTextByKey(this.m_data.title);
+    if NotEquals(title, "") {
+      inkTextRef.SetText(this.m_title, title);
+    };
+    description = GetLocalizedTextByKey(this.m_data.description);
+    if NotEquals(description, "") {
+      inkTextRef.SetText(this.m_description, description);
+    } else {
+      if this.m_data.errorCode < 90000u {
+        inkTextRef.SetText(this.m_description, "Archive files could not be loaded correctly. Make sure both the game and Phantom Liberty have fully completed the installation / update process.");
+      };
+    };
+    if this.m_data.errorCode > 0u {
+      error += "(";
+      error += GetLocalizedText("Gameplay-Scanning-Devices-GameplayActions-Error");
+      error += ": ";
+      error += IntToString(Cast<Int32>(this.m_data.errorCode));
+      error += ")";
+      inkTextRef.SetText(this.m_errorCodeText, error);
+    };
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.Close();
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") || evt.IsAction(n"system_notification_confirm") {
+      this.Close();
+    };
+  }
+
+  private final func Close() -> Void {
+    this.PlaySound(n"Button", n"OnPress");
+    if IsDefined(this.m_animProxy) {
+      this.m_animProxy.GotoEndAndStop();
+    };
+    this.m_animProxy = this.PlayLibraryAnimation(this.m_outroAnimationName);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}

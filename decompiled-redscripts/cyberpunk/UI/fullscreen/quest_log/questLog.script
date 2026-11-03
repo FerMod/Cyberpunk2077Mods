@@ -1,0 +1,1055 @@
+
+public class questLogGameController extends gameuiMenuGameController {
+
+  private edit let m_virtualList: inkWidgetRef;
+
+  private edit let m_detailsPanel: inkWidgetRef;
+
+  private edit let m_buttonHints: inkWidgetRef;
+
+  private edit let m_filtersList: inkWidgetRef;
+
+  private edit let m_questList: inkWidgetRef;
+
+  private let m_game: GameInstance;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_quests: [wref<JournalEntry>];
+
+  private let m_resolvedQuests: [wref<JournalEntry>];
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_trackedQuest: wref<JournalQuest>;
+
+  private let m_curreentQuest: wref<JournalQuest>;
+
+  private let m_externallyOpenedQuestHash: Int32;
+
+  private let m_playerLevel: Int32;
+
+  private let m_recommendedLevel: Int32;
+
+  private let m_entryAnimProxy: ref<inkAnimProxy>;
+
+  private let m_canUsePhone: Bool;
+
+  private let m_detailsPanelCtrl: wref<QuestDetailsPanelController>;
+
+  private let m_virtualListController: wref<QuestListVirtualController>;
+
+  private let m_filters: [wref<QuestListFilterButtonController>];
+
+  private let m_activeFilter: wref<QuestListFilterButtonController>;
+
+  private let m_currentCustomFilterIndex: Int32;
+
+  @default(questLogGameController, 0.5f)
+  private let m_axisDataThreshold: Float;
+
+  @default(questLogGameController, 7.0f)
+  private let m_mouseDataThreshold: Float;
+
+  @default(questLogGameController, 0.2f)
+  private let m_delayedShowDuration: Float;
+
+  private let m_delayedShow: DelayID;
+
+  private let m_listPanelHoverd: Bool;
+
+  private let m_isDelayTicking: Bool;
+
+  private let m_firstInit: Bool;
+
+  private let m_filterSwich: Bool;
+
+  private let m_questData: wref<JournalQuest>;
+
+  private let m_appliedQuestData: wref<JournalQuest>;
+
+  private let m_skipAnimation: Bool;
+
+  public let m_listData: [ref<QuestListItemData>];
+
+  public let m_questTypeList: [QuestListItemType];
+
+  public let m_questToOpen: wref<JournalQuest>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.SetupFilterButtons();
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnReleaseInput");
+    inkWidgetRef.RegisterToCallback(this.m_questList, n"OnEnter", this, n"OnQuestListPanelEnter");
+    inkWidgetRef.RegisterToCallback(this.m_questList, n"OnLeave", this, n"OnQuestListLeave");
+    this.m_detailsPanelCtrl = inkWidgetRef.GetController(this.m_detailsPanel) as QuestDetailsPanelController;
+    this.m_virtualListController = inkWidgetRef.GetController(this.m_virtualList) as QuestListVirtualController;
+    this.m_virtualListController.RegisterToCallback(n"OnAllElementsSpawned", this, n"OnAllElementsSpawned");
+    this.m_game = this.GetPlayerControlledObject().GetGame();
+    this.m_journalManager = GameInstance.GetJournalManager(this.m_game);
+    this.m_journalManager.RegisterScriptCallback(this, n"OnJournalReady", gameJournalListenerType.State);
+    this.m_playerLevel = RoundMath(GameInstance.GetStatsSystem(this.m_game).GetStatValue(Cast<StatsObjectID>(this.GetPlayerControlledObject().GetEntityID()), gamedataStatType.Level));
+    this.OnJournalReady(0u, n"None", JournalNotifyOption.Notify, JournalChangeType.Undefined);
+    this.m_virtualListController.SortQuests(false);
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHints), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddButtonHint(n"sort_list", this.GetSortTypeName(this.m_virtualListController.GetQuestSortType()));
+    this.m_buttonHintsController.AddButtonHint(n"track", GetLocalizedText("UI-UserActions-TrackQuest"));
+    this.PlayLibraryAnimation(n"journal_intro");
+    this.m_canUsePhone = this.IsPhoneAvailable();
+    this.m_firstInit = true;
+    this.m_filterSwich = false;
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnReleaseInput");
+    inkWidgetRef.UnregisterFromCallback(this.m_questList, n"OnEnter", this, n"OnQuestListPanelEnter");
+    inkWidgetRef.UnregisterFromCallback(this.m_questList, n"OnLeave", this, n"OnQuestListLeave");
+    this.m_virtualListController.UnregisterFromCallback(n"OnAllElementsSpawned", this, n"OnAllElementsSpawned");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+  }
+
+  protected cb func OnAllElementsSpawned() -> Bool {
+    let entryToSelectHash: Int32;
+    if this.m_firstInit {
+      entryToSelectHash = this.m_journalManager.GetEntryHash(IsDefined(this.m_questToOpen) ? this.m_questToOpen : this.m_trackedQuest);
+      this.m_firstInit = false;
+      this.m_questToOpen = null;
+      this.m_virtualListController.SelectItemByHash(entryToSelectHash);
+    } else {
+      if this.m_filterSwich {
+        this.m_filterSwich = false;
+        this.m_virtualListController.SelectItemByHash(this.m_journalManager.GetEntryHash(this.m_questData));
+      };
+    };
+  }
+
+  protected cb func OnQuestListPanelEnter(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_listPanelHoverd = true;
+  }
+
+  protected cb func OnQuestListLeave(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_listPanelHoverd = false;
+  }
+
+  protected cb func OnAxisInput(evt: ref<inkPointerEvent>) -> Bool;
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnCloseHubMenu");
+    };
+  }
+
+  protected cb func OnCodexPopupRequest(evt: ref<OpenCodexPopupEvent>) -> Bool {
+    this.GetRootWidget().SetVisible(false);
+  }
+
+  protected cb func OnCodexPopupClosedEvent(evt: ref<CodexPopupClosedEvent>) -> Bool {
+    this.GetRootWidget().SetVisible(true);
+  }
+
+  protected cb func OnJournalReady(entryHash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    let context: JournalRequestContext;
+    let contextFilter: JournalRequestStateFilter;
+    let i: Int32;
+    let resolvedContext: JournalRequestContext;
+    let resolvedEntriesBuffer: array<wref<JournalEntry>>;
+    if Equals(notifyOption, JournalNotifyOption.DoNotNotify) {
+      return true;
+    };
+    contextFilter.active = true;
+    contextFilter.inactive = false;
+    contextFilter.succeeded = false;
+    contextFilter.failed = false;
+    context.stateFilter = contextFilter;
+    ArrayClear(this.m_quests);
+    this.m_journalManager.GetQuests(context, this.m_quests);
+    resolvedContext.stateFilter = QuestLogUtils.GetSuccessFilter();
+    ArrayClear(this.m_resolvedQuests);
+    this.m_journalManager.GetQuests(resolvedContext, resolvedEntriesBuffer);
+    i = 0;
+    while i < ArraySize(resolvedEntriesBuffer) {
+      ArrayPush(this.m_resolvedQuests, resolvedEntriesBuffer[i]);
+      i += 1;
+    };
+    resolvedContext.stateFilter = QuestLogUtils.GetFailedFilter();
+    this.m_journalManager.GetQuests(resolvedContext, resolvedEntriesBuffer);
+    i = 0;
+    while i < ArraySize(resolvedEntriesBuffer) {
+      ArrayPush(this.m_resolvedQuests, resolvedEntriesBuffer[i]);
+      i += 1;
+    };
+    this.m_trackedQuest = questLogGameController.GetTopQuestEntry(this.m_journalManager, this.m_journalManager.GetTrackedEntry());
+    this.BuildQuestList();
+  }
+
+  private final func SetupFilterButtons() -> Void {
+    this.RequestSpawnFilterButton(9);
+    this.RequestSpawnFilterButton(0);
+    this.RequestSpawnFilterButton(2);
+    this.RequestSpawnFilterButton(7);
+  }
+
+  private final func RequestSpawnFilterButton(type: Int32) -> Void {
+    let spawnedData: ref<FilterButtonSpawnedData> = new FilterButtonSpawnedData();
+    spawnedData.m_type = type;
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_filtersList), n"filterButton", this, n"OnFilterButtonSpawned", spawnedData);
+  }
+
+  protected cb func OnFilterButtonSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let filterType: QuestListItemType;
+    let finishedQuestCount: Int32;
+    let questCount: Int32;
+    let spawnedData: ref<FilterButtonSpawnedData>;
+    let controller: ref<QuestListFilterButtonController> = widget.GetController() as QuestListFilterButtonController;
+    ArrayPush(this.m_filters, controller);
+    widget.SetHAlign(inkEHorizontalAlign.Left);
+    widget.SetVAlign(inkEVerticalAlign.Top);
+    widget.RegisterToCallback(n"OnRelease", this, n"OnFilterReleased");
+    spawnedData = userData as FilterButtonSpawnedData;
+    filterType = IntEnum<QuestListItemType>(spawnedData.m_type);
+    controller.SetData(filterType);
+    if Equals(filterType, QuestListItemType.All) {
+      this.m_activeFilter = controller;
+      controller.SetActive(true);
+      this.m_virtualListController.SetFilter(this.m_activeFilter.GetType());
+      finishedQuestCount = ArrayCount(this.m_questTypeList, QuestListItemType.Finished);
+      questCount = ArraySize(this.m_questTypeList) - finishedQuestCount;
+    } else {
+      if Equals(filterType, QuestListItemType.MainQuest) {
+        questCount = ArrayCount(this.m_questTypeList, QuestListItemType.MainQuest) + ArrayCount(this.m_questTypeList, QuestListItemType.SideQuest);
+      } else {
+        if Equals(filterType, QuestListItemType.Gig) {
+          questCount = ArrayCount(this.m_questTypeList, QuestListItemType.Apartment) + ArrayCount(this.m_questTypeList, QuestListItemType.Gig) + ArrayCount(this.m_questTypeList, QuestListItemType.Cyberpsycho) + ArrayCount(this.m_questTypeList, QuestListItemType.NCPDQuest) + ArrayCount(this.m_questTypeList, QuestListItemType.Courier);
+        } else {
+          questCount = ArrayCount(this.m_questTypeList, filterType);
+        };
+      };
+    };
+    controller.SetCounter(questCount);
+  }
+
+  protected cb func OnFilterReleased(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: wref<QuestListFilterButtonController>;
+    let i: Int32;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      controller = evt.GetTarget().GetController() as QuestListFilterButtonController;
+      if this.m_activeFilter != controller {
+        if IsDefined(this.m_activeFilter) {
+          this.m_activeFilter.SetActive(false);
+        };
+        this.m_activeFilter = controller;
+        this.m_activeFilter.SetActive(true);
+        this.m_virtualListController.SetFilter(this.m_activeFilter.GetType());
+        this.m_filterSwich = true;
+        i = 0;
+        while i < ArraySize(this.m_filters) {
+          if this.m_filters[i] == this.m_activeFilter {
+            this.m_currentCustomFilterIndex = i;
+          };
+          i += 1;
+        };
+      };
+    };
+  }
+
+  private final func IsPhoneAvailable() -> Bool {
+    let phoneSystem: wref<PhoneSystem> = GameInstance.GetScriptableSystemsContainer(this.m_game).Get(n"PhoneSystem") as PhoneSystem;
+    if IsDefined(phoneSystem) {
+      return phoneSystem.IsPhoneEnabled();
+    };
+    return false;
+  }
+
+  private final func GetListedCategories() -> [gameJournalQuestType] {
+    let result: array<gameJournalQuestType>;
+    ArrayPush(result, gameJournalQuestType.MainQuest);
+    ArrayPush(result, gameJournalQuestType.SideQuest);
+    ArrayPush(result, gameJournalQuestType.StreetStory);
+    ArrayPush(result, gameJournalQuestType.Contract);
+    ArrayPush(result, gameJournalQuestType.CyberPsycho);
+    ArrayPush(result, gameJournalQuestType.VehicleQuest);
+    ArrayPush(result, gameJournalQuestType.ApartmentQuest);
+    ArrayPush(result, gameJournalQuestType.CourierQuest);
+    ArrayPush(result, gameJournalQuestType.CourierSideQuest);
+    return result;
+  }
+
+  private final func GetDisplayedCategory(category: gameJournalQuestType) -> QuestListItemType {
+    switch category {
+      case gameJournalQuestType.MainQuest:
+        return QuestListItemType.MainQuest;
+      case gameJournalQuestType.CourierSideQuest:
+      case gameJournalQuestType.MinorQuest:
+      case gameJournalQuestType.SideQuest:
+        return QuestListItemType.SideQuest;
+      case gameJournalQuestType.StreetStory:
+        return QuestListItemType.Gig;
+      case gameJournalQuestType.CyberPsycho:
+        return QuestListItemType.Cyberpsycho;
+      case gameJournalQuestType.Contract:
+        return QuestListItemType.NCPDQuest;
+      case gameJournalQuestType.ApartmentQuest:
+        return QuestListItemType.Apartment;
+      case gameJournalQuestType.CourierQuest:
+        return QuestListItemType.Courier;
+    };
+    return QuestListItemType.Invalid;
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let attachment: ref<MessageMenuAttachmentData> = userData as MessageMenuAttachmentData;
+    if IsDefined(attachment) {
+      this.m_externallyOpenedQuestHash = attachment.m_entryHash;
+    };
+  }
+
+  protected cb func OnReleaseInput(e: ref<inkPointerEvent>) -> Bool {
+    let linkEvt: ref<ActivateLink>;
+    let mapEvt: ref<ActivateMapLink>;
+    let menuEvent: ref<inkMenuInstance_SpawnEvent>;
+    let trackEvt: ref<RequestChangeTrackedObjective>;
+    if e.IsAction(n"option_switch_next_settings") {
+      this.NavigateCustomFilters(ECustomFilterDPadNavigationOption.SelectNext);
+      this.PlaySound(n"Button", n"OnPress");
+    } else {
+      if e.IsAction(n"option_switch_prev_settings") {
+        this.PlaySound(n"Button", n"OnPress");
+        this.NavigateCustomFilters(ECustomFilterDPadNavigationOption.SelectPrev);
+      } else {
+        if e.IsAction(n"sort_list") {
+          this.PlaySound(n"Button", n"OnPress");
+          this.m_virtualListController.SortQuests(true);
+          this.m_buttonHintsController.AddButtonHint(n"sort_list", this.GetSortTypeName(this.m_virtualListController.GetQuestSortType()));
+        } else {
+          if e.IsAction(n"toggle_map") || e.IsAction(n"open_map_link") {
+            if !e.IsHandled() && !e.IsConsumed() && !this.m_detailsPanelCtrl.HasMultipleActionLinks() {
+              e.Handle();
+              e.Consume();
+              this.PlaySound(n"Button", n"OnPress");
+              mapEvt = new ActivateMapLink();
+              this.QueueEvent(mapEvt);
+              menuEvent = new inkMenuInstance_SpawnEvent();
+              menuEvent.Init(n"OnHotkeySwitchToMap_FastTravel");
+              this.QueueEvent(menuEvent);
+            };
+          } else {
+            if e.IsAction(n"open_codex_link") {
+              if !e.IsHandled() && !e.IsConsumed() && !this.m_detailsPanelCtrl.HasMultipleActionLinks() {
+                e.Handle();
+                e.Consume();
+                this.PlaySound(n" Button", n"OnPress");
+                linkEvt = new ActivateLink();
+                this.QueueEvent(linkEvt);
+              };
+            } else {
+              if e.IsAction(n"track") {
+                if IsDefined(this.m_curreentQuest) && !e.IsHandled() && !this.m_listPanelHoverd {
+                  trackEvt = new RequestChangeTrackedObjective();
+                  trackEvt.m_quest = this.m_curreentQuest;
+                  this.QueueEvent(trackEvt);
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func NavigateCustomFilters(option: ECustomFilterDPadNavigationOption) -> Void {
+    let controller: wref<QuestListFilterButtonController>;
+    let newCustomFilterIndex: Int32;
+    let filtersAmount: Int32 = ArraySize(this.m_filters);
+    if filtersAmount == 0 {
+      return;
+    };
+    newCustomFilterIndex = this.m_currentCustomFilterIndex;
+    if Equals(option, ECustomFilterDPadNavigationOption.SelectNext) {
+      newCustomFilterIndex = newCustomFilterIndex < filtersAmount - 1 ? newCustomFilterIndex + 1 : 0;
+    } else {
+      if Equals(option, ECustomFilterDPadNavigationOption.SelectPrev) {
+        newCustomFilterIndex = newCustomFilterIndex > 0 ? newCustomFilterIndex - 1 : filtersAmount - 1;
+      };
+    };
+    controller = this.m_filters[newCustomFilterIndex].GetController() as QuestListFilterButtonController;
+    if !(controller.IsVisible() || newCustomFilterIndex == this.m_currentCustomFilterIndex) {
+    } else {
+    };
+    this.m_currentCustomFilterIndex = newCustomFilterIndex;
+    if IsDefined(this.m_activeFilter) {
+      this.m_activeFilter.SetActive(false);
+    };
+    this.m_activeFilter = controller;
+    this.m_activeFilter.SetActive(true);
+    this.m_virtualListController.SetFilter(this.m_activeFilter.GetType());
+  }
+
+  private final func BuildQuestList() -> Void {
+    let i: Int32;
+    let itemData: ref<QuestListItemData>;
+    let limit: Int32;
+    let questEntry: wref<JournalQuest>;
+    let scriptableListData: array<ref<IScriptable>>;
+    let targetQuestEntry: wref<JournalEntry>;
+    let trackedQuestType: Int32;
+    ArrayClear(this.m_listData);
+    if this.m_externallyOpenedQuestHash != 0 {
+      targetQuestEntry = this.m_journalManager.GetEntry(Cast<Uint32>(this.m_externallyOpenedQuestHash));
+      if IsDefined(targetQuestEntry as JournalQuestMapPinBase) {
+        targetQuestEntry = questLogGameController.GetTopQuestEntry(this.m_journalManager, targetQuestEntry);
+        if IsDefined(targetQuestEntry) {
+          this.m_externallyOpenedQuestHash = this.m_journalManager.GetEntryHash(targetQuestEntry);
+        };
+      };
+    };
+    i = 0;
+    while i < ArraySize(this.m_quests) {
+      questEntry = this.m_quests[i] as JournalQuest;
+      itemData = this.GetQuestListItemData(questEntry, this.GetDisplayedCategory(questEntry.GetType()), this.m_trackedQuest);
+      if this.m_externallyOpenedQuestHash != 0 {
+        if this.m_journalManager.GetEntryHash(questEntry) == this.m_externallyOpenedQuestHash {
+          this.m_questToOpen = questEntry;
+        };
+      } else {
+        if this.m_questToOpen == null || questEntry == this.m_trackedQuest {
+          this.m_questToOpen = questEntry;
+        };
+      };
+      ArrayPush(this.m_listData, itemData);
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_resolvedQuests) {
+      questEntry = this.m_resolvedQuests[i] as JournalQuest;
+      itemData = this.GetQuestListItemData(questEntry, QuestListItemType.Finished, this.m_trackedQuest);
+      ArrayPush(this.m_listData, itemData);
+      i += 1;
+    };
+    if IsDefined(this.m_questToOpen) {
+      trackedQuestType = EnumInt(this.GetDisplayedCategory(this.m_questToOpen.GetType()));
+      if trackedQuestType != 0 {
+      };
+    };
+    i = 0;
+    limit = ArraySize(this.m_listData);
+    while i < limit {
+      ArrayPush(this.m_questTypeList, this.m_listData[i].GetQuestType());
+      ArrayPush(scriptableListData, this.m_listData[i]);
+      i += 1;
+    };
+    this.m_virtualListController.SetData(scriptableListData);
+  }
+
+  public final static func GetTopQuestEntry(journalManager: ref<JournalManager>, entry: wref<JournalEntry>) -> wref<JournalQuest> {
+    let lastValidQuestEntry: wref<JournalQuest>;
+    let tempEntry: wref<JournalEntry> = entry;
+    while tempEntry != null {
+      tempEntry = journalManager.GetParentEntry(tempEntry);
+      if IsDefined(tempEntry as JournalQuest) {
+        lastValidQuestEntry = tempEntry as JournalQuest;
+      };
+    };
+    return lastValidQuestEntry;
+  }
+
+  private final func GetQuestListItemData(questEntry: ref<JournalQuest>, questType: QuestListItemType, opt trackedQuest: ref<JournalQuest>) -> ref<QuestListItemData> {
+    let recommendedLevel: Int32 = GameInstance.GetLevelAssignmentSystem(this.m_game).GetLevelAssignment(this.m_journalManager.GetRecommendedLevelID(questEntry));
+    let result: ref<QuestListItemData> = new QuestListItemData();
+    result.m_questType = questType;
+    result.m_journalManager = this.m_journalManager;
+    result.m_questData = questEntry;
+    result.m_playerLevel = this.m_playerLevel;
+    result.m_recommendedLevel = recommendedLevel;
+    result.m_State = this.m_journalManager.GetEntryState(questEntry);
+    result.QuestLastUpdateTime();
+    if trackedQuest != null {
+      result.m_isTrackedQuest = trackedQuest == questEntry;
+    };
+    return result;
+  }
+
+  protected cb func OnQuestListItemSelected(e: ref<QuestlListItemSelected>) -> Bool {
+    this.m_questData = e.m_questData;
+    this.m_skipAnimation = e.m_skipAnimation;
+    this.m_appliedQuestData = this.m_questData;
+    this.DisplayQuestData(this.m_appliedQuestData, this.m_skipAnimation);
+    this.UpdateTrackingInputHint();
+  }
+
+  protected cb func OnQuestlListItemDelayedHover(evt: ref<QuestlListItemDelayedHover>) -> Bool {
+    this.m_isDelayTicking = false;
+    if IsDefined(this.m_questData) && this.m_appliedQuestData != this.m_questData && this.m_listPanelHoverd {
+      this.m_appliedQuestData = this.m_questData;
+      this.DisplayQuestData(this.m_appliedQuestData, this.m_skipAnimation);
+    };
+  }
+
+  private final func DisplayQuestData(questData: wref<JournalQuest>, skipAnimation: Bool) -> Void {
+    let data: ref<QuestListItemData>;
+    let i: Int32;
+    let updateEvent: ref<UpdateOpenedQuestEvent>;
+    if this.m_curreentQuest != questData {
+      updateEvent = new UpdateOpenedQuestEvent();
+      updateEvent.m_openedQuest = questData;
+      this.m_curreentQuest = questData;
+      this.QueueEvent(updateEvent);
+      i = 0;
+      while i < ArraySize(this.m_listData) {
+        data = this.m_listData[i];
+        if IsDefined(data) {
+          data.m_isOpenedQuest = updateEvent.m_openedQuest == data.m_questData;
+        };
+        i += 1;
+      };
+      this.m_detailsPanelCtrl.SetPhoneAvailable(this.m_canUsePhone);
+      this.m_detailsPanelCtrl.Setup(questData, this.m_journalManager, GameInstance.GetScriptableSystemsContainer(this.m_game).Get(n"PhoneSystem") as PhoneSystem, GameInstance.GetMappinSystem(this.m_game), GameInstance.GetUISystem(this.m_game), this.m_game, skipAnimation);
+      if this.m_entryAnimProxy.IsPlaying() {
+        this.m_entryAnimProxy.Stop();
+      };
+      this.m_entryAnimProxy = this.PlayLibraryAnimation(n"entry_fade_in");
+    };
+  }
+
+  private final func GetFirstObjectiveFromQuest(journalQuest: wref<JournalQuest>) -> wref<JournalQuestObjective> {
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    QuestLogUtils.UnpackRecursive(this.m_journalManager, journalQuest, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      if IsDefined(unpackedData[i] as JournalQuestObjective) {
+        return unpackedData[i] as JournalQuestObjective;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetSortTypeName(currentQuestSortType: QuestListSortType) -> String {
+    let sortTypeName: String = GetLocalizedText("UI-Quests-Sorting-Sort") + GetLocalizedText("Common-Characters-Semicolon") + " ";
+    if Equals(currentQuestSortType, QuestListSortType.Distance) {
+      sortTypeName += GetLocalizedText("UI-Quests-Sorting-Distance");
+    } else {
+      sortTypeName += GetLocalizedText("UI-Quests-Sorting-Update");
+    };
+    return sortTypeName;
+  }
+
+  protected cb func OnRequestChangeTrackedObjective(e: ref<RequestChangeTrackedObjective>) -> Bool {
+    let data: ref<QuestListItemData>;
+    let i: Int32;
+    let trackedEntry: wref<JournalEntry>;
+    let updateEvent: ref<UpdateTrackedObjectiveEvent>;
+    if NotEquals(this.m_journalManager.GetEntryState(e.m_quest), gameJournalEntryState.Failed) && NotEquals(this.m_journalManager.GetEntryState(e.m_quest), gameJournalEntryState.Succeeded) {
+      if e.m_forceSelectEntry != 0 {
+        this.m_virtualListController.SelectItemByHash(e.m_forceSelectEntry);
+      };
+      if e.m_objective == null {
+        e.m_objective = this.GetFirstObjectiveFromQuest(e.m_quest);
+      };
+      trackedEntry = this.m_journalManager.GetTrackedEntry();
+      if this.m_trackedQuest == e.m_quest && this.m_trackedQuest != null || trackedEntry == e.m_objective && trackedEntry != null {
+        this.m_journalManager.UntrackEntry();
+        updateEvent = new UpdateTrackedObjectiveEvent();
+        updateEvent.m_trackedObjective = null;
+        updateEvent.m_trackedQuest = null;
+        this.m_trackedQuest = null;
+      } else {
+        this.m_journalManager.TrackEntry(e.m_objective);
+        updateEvent = new UpdateTrackedObjectiveEvent();
+        updateEvent.m_trackedObjective = e.m_objective;
+        updateEvent.m_trackedQuest = questLogGameController.GetTopQuestEntry(this.m_journalManager, e.m_objective);
+        this.m_trackedQuest = updateEvent.m_trackedQuest;
+      };
+      this.QueueEvent(updateEvent);
+      this.PlaySound(n"MapPin", n"OnCreate");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Fast, RumblePosition.Right);
+      i = 0;
+      while i < ArraySize(this.m_listData) {
+        data = this.m_listData[i];
+        if IsDefined(data) {
+          data.m_isTrackedQuest = updateEvent.m_trackedQuest == data.m_questData;
+        };
+        i += 1;
+      };
+      this.UpdateTrackingInputHint();
+    };
+  }
+
+  private final func UpdateTrackingInputHint() -> Void {
+    if this.m_trackedQuest == this.m_questData {
+      this.m_buttonHintsController.AddButtonHint(n"track", GetLocalizedText("UI-Quests-Untrack"));
+    } else {
+      this.m_buttonHintsController.AddButtonHint(n"track", GetLocalizedText("UI-UserActions-TrackQuest"));
+    };
+  }
+}
+
+public class QuestListItemData extends IScriptable {
+
+  public let m_questType: QuestListItemType;
+
+  public let m_lastUpdateTimestamp: GameTime;
+
+  public let m_isTrackedQuest: Bool;
+
+  public let m_isOpenedQuest: Bool;
+
+  public let m_questData: wref<JournalQuest>;
+
+  public let m_journalManager: wref<JournalManager>;
+
+  public let m_playerLevel: Int32;
+
+  public let m_recommendedLevel: Int32;
+
+  public let m_State: gameJournalEntryState;
+
+  public let m_distance: Float;
+
+  private let m_distancesFetched: Bool;
+
+  private let m_objectivesDistances: [ref<QuestListDistanceData>];
+
+  public final func GetFirstObjective() -> wref<JournalQuestObjective> {
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    QuestLogUtils.UnpackRecursive(this.m_journalManager, this.m_questData, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      if IsDefined(unpackedData[i] as JournalQuestObjective) {
+        return unpackedData[i] as JournalQuestObjective;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func isVisited() -> Bool {
+    return this.m_journalManager.IsEntryVisited(this.m_questData);
+  }
+
+  public final func isDone() -> Bool {
+    return Equals(this.m_State, gameJournalEntryState.Succeeded) || Equals(this.m_State, gameJournalEntryState.Failed);
+  }
+
+  public final func SetVisited() -> Void {
+    if !this.m_journalManager.IsEntryVisited(this.m_questData) {
+      this.m_journalManager.SetEntryVisited(this.m_questData, true);
+    };
+  }
+
+  public final func GetDistances() -> [ref<QuestListDistanceData>] {
+    let distanceData: ref<QuestListDistanceData>;
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    if !this.m_distancesFetched {
+      QuestLogUtils.UnpackRecursive(this.m_journalManager, this.m_questData, unpackedData);
+      i = 0;
+      while i < ArraySize(unpackedData) {
+        if IsDefined(unpackedData[i] as JournalQuestObjective) {
+          distanceData = new QuestListDistanceData();
+          distanceData.m_objective = unpackedData[i] as JournalQuestObjective;
+          distanceData.m_distance = this.m_journalManager.GetDistanceToNearestMappin(unpackedData[i] as JournalQuestObjective, QuestLogUtils.GetDefaultFilter());
+          ArrayPush(this.m_objectivesDistances, distanceData);
+        };
+        i += 1;
+      };
+      this.m_distancesFetched = true;
+    };
+    return this.m_objectivesDistances;
+  }
+
+  public final func QuestLastUpdateTime() -> Void {
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    let time: GameTime = GameTime.MakeGameTime(0, 0, 0, 0);
+    QuestLogUtils.UnpackRecursive(this.m_journalManager, this.m_questData, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      time = this.m_journalManager.GetEntryTimestamp(unpackedData[i]);
+      if this.m_lastUpdateTimestamp < time {
+        this.m_lastUpdateTimestamp = time;
+      };
+      i += 1;
+    };
+  }
+
+  public final func GetQuestType() -> QuestListItemType {
+    return this.m_questType;
+  }
+
+  public final func GetEntryHash() -> Int32 {
+    if IsDefined(this.m_journalManager) {
+      return this.m_journalManager.GetEntryHash(this.m_questData);
+    };
+    return -1;
+  }
+
+  public final func GetNearestDistance() -> ref<QuestListDistanceData> {
+    let result: ref<QuestListDistanceData>;
+    let distances: array<ref<QuestListDistanceData>> = this.GetDistances();
+    let i: Int32 = 0;
+    while i < ArraySize(distances) {
+      if result == null {
+        result = distances[i];
+      } else {
+        if result.m_distance <= 0.00 || distances[i].m_distance < result.m_distance {
+          result = distances[i];
+        };
+      };
+      i += 1;
+    };
+    this.m_distance = result.m_distance;
+    return result;
+  }
+
+  public final func GetTrackedOrNearest() -> ref<QuestListDistanceData> {
+    let i: Int32;
+    let result: ref<QuestListDistanceData>;
+    let unpackedData: array<wref<JournalEntry>>;
+    let trackedObjective: wref<JournalEntry> = this.m_journalManager.GetTrackedEntry();
+    if this.m_isTrackedQuest {
+      QuestLogUtils.UnpackRecursive(this.m_journalManager, this.m_questData, unpackedData);
+      i = 0;
+      while i < ArraySize(unpackedData) {
+        if IsDefined(unpackedData[i] as JournalQuestObjective) {
+          if unpackedData[i] == trackedObjective {
+            result = new QuestListDistanceData();
+            result.m_objective = unpackedData[i] as JournalQuestObjective;
+            result.m_distance = this.m_journalManager.GetDistanceToNearestMappin(unpackedData[i] as JournalQuestObjective);
+            return result;
+          };
+        };
+        i += 1;
+      };
+    } else {
+      return this.GetNearestDistance();
+    };
+    return null;
+  }
+}
+
+public class QuestListVirtualTemplateClassifier extends inkVirtualItemTemplateClassifier {
+
+  public func ClassifyItem(data: Variant) -> Uint32 {
+    return 0u;
+  }
+}
+
+public class QuestListVirtualDataView extends ScriptableDataView {
+
+  private let m_filterType: QuestListItemType;
+
+  private let m_compareBuilder: ref<CompareBuilder>;
+
+  @default(QuestListVirtualDataView, QuestListSortType.Updated)
+  private let m_currentQuestSortType: QuestListSortType;
+
+  public final func Setup() -> Void {
+    this.m_compareBuilder = CompareBuilder.Make();
+  }
+
+  public final func SetFilter(type: QuestListItemType) -> Void {
+    this.m_filterType = type;
+    this.Filter();
+  }
+
+  public func FilterItem(data: ref<IScriptable>) -> Bool {
+    let questData: ref<QuestListItemData> = data as QuestListItemData;
+    if !IsDefined(questData) {
+      return false;
+    };
+    if Equals(this.m_filterType, QuestListItemType.All) {
+      return NotEquals(questData.m_questType, QuestListItemType.Finished);
+    };
+    if Equals(this.m_filterType, QuestListItemType.MainQuest) {
+      return Equals(questData.m_questType, QuestListItemType.SideQuest) || Equals(questData.m_questType, QuestListItemType.MainQuest);
+    };
+    if Equals(this.m_filterType, QuestListItemType.Gig) {
+      return Equals(questData.m_questType, QuestListItemType.Apartment) || Equals(questData.m_questType, QuestListItemType.Gig) || Equals(questData.m_questType, QuestListItemType.Cyberpsycho) || Equals(questData.m_questType, QuestListItemType.NCPDQuest) || Equals(questData.m_questType, QuestListItemType.Courier);
+    };
+    return Equals(questData.m_questType, this.m_filterType);
+  }
+
+  public final func SetSortType(type: QuestListSortType) -> Void {
+    this.m_currentQuestSortType = type;
+  }
+
+  protected func SortItem(left: ref<IScriptable>, right: ref<IScriptable>) -> Bool {
+    let leftData: ref<QuestListItemData> = left as QuestListItemData;
+    let rightData: ref<QuestListItemData> = right as QuestListItemData;
+    this.m_compareBuilder.Reset();
+    if IsDefined(leftData) && IsDefined(rightData) {
+      this.m_compareBuilder.IntAsc(EnumInt(leftData.m_questType), EnumInt(rightData.m_questType));
+      if Equals(this.m_currentQuestSortType, QuestListSortType.Distance) {
+        this.m_compareBuilder.FloatAsc(leftData.m_distance, rightData.m_distance);
+      } else {
+        this.m_compareBuilder.GameTimeDesc(leftData.m_lastUpdateTimestamp, rightData.m_lastUpdateTimestamp);
+      };
+    };
+    return this.m_compareBuilder.GetBool();
+  }
+}
+
+public class QuestListVirtualController extends inkVirtualListController {
+
+  protected let m_dataView: ref<QuestListVirtualDataView>;
+
+  protected let m_dataSource: ref<ScriptableDataSource>;
+
+  protected let m_classifier: ref<QuestListVirtualTemplateClassifier>;
+
+  private let m_controller: wref<QuestMissionLinkController>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_questSortType: QuestListSortType;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_dataView = new QuestListVirtualDataView();
+    this.m_dataSource = new ScriptableDataSource();
+    this.m_classifier = new QuestListVirtualTemplateClassifier();
+    this.m_questSortType = QuestListSortType.Updated;
+    this.m_dataView.Setup();
+    this.m_dataView.EnableSorting();
+    this.m_dataView.SetSource(this.m_dataSource);
+    this.SetSource(this.m_dataView);
+    this.SetClassifier(this.m_classifier);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_dataView.SetSource(null);
+    this.SetSource(null);
+    this.SetClassifier(null);
+    this.m_dataSource = null;
+  }
+
+  protected cb func OnScrollToJournalEntry(evt: ref<ScrollToJournalEntryEvent>) -> Bool {
+    this.SetFilter(QuestListItemType.All);
+    this.SelectItemByHash(evt.m_hash);
+  }
+
+  public func SetData(const data: script_ref<[ref<IScriptable>]>, opt sortOnce: Bool) -> Void {
+    this.m_dataSource.Reset(Deref(data));
+    this.EnableSorting();
+    if sortOnce {
+      this.DisableSorting();
+    };
+  }
+
+  public func GetDataSize() -> Int32 {
+    return Cast<Int32>(this.m_dataView.Size());
+  }
+
+  public func EnableSorting() -> Void {
+    this.m_dataView.EnableSorting();
+  }
+
+  public func DisableSorting() -> Void {
+    this.m_dataView.DisableSorting();
+  }
+
+  public func SortQuests(cycleSortType: Bool) -> Void {
+    this.m_dataView.EnableSorting();
+    if cycleSortType {
+      this.m_questSortType = EnumInt(this.m_questSortType) < 1 ? IntEnum<QuestListSortType>(EnumInt(this.m_questSortType) + 1) : QuestListSortType.Updated;
+    };
+    this.m_dataView.SetSortType(this.m_questSortType);
+    this.m_dataView.Sort();
+    this.m_dataView.DisableSorting();
+  }
+
+  public final func GetQuestSortType() -> QuestListSortType {
+    return this.m_questSortType;
+  }
+
+  public func IsSortingEnabled() -> Bool {
+    return this.m_dataView.IsSortingEnabled();
+  }
+
+  public final func SetFilter(type: QuestListItemType) -> Void {
+    this.m_dataView.SetFilter(type);
+    this.SortQuests(false);
+  }
+
+  public final func SelectItemByHash(questHash: Int32) -> Void {
+    let currentData: wref<QuestListItemData>;
+    let targetIndex: Int32 = -1;
+    let size: Int32 = Cast<Int32>(this.m_dataView.Size());
+    let i: Int32 = 0;
+    while i < size {
+      currentData = this.m_dataView.GetItem(Cast<Uint32>(i)) as QuestListItemData;
+      if currentData.GetEntryHash() == questHash {
+        targetIndex = i;
+        break;
+      };
+      i += 1;
+    };
+    if targetIndex != -1 {
+      this.ForceSelectIndex(Cast<Uint32>(targetIndex), currentData.m_questData);
+    };
+  }
+
+  private final func ForceSelectIndex(idx: Uint32, questRecord: wref<JournalQuest>) -> Void {
+    let evt: ref<QuestlListItemSelected>;
+    this.ToggleItem(idx);
+    this.ScrollToIndex(idx);
+    evt = new QuestlListItemSelected();
+    evt.m_selectionIndex = idx;
+    evt.m_questData = questRecord;
+    this.QueueEvent(evt);
+  }
+}
+
+public class QuestDetailsObjectiveController extends inkLogicController {
+
+  private edit let m_objectiveName: inkTextRef;
+
+  private edit let m_trackingMarker: inkWidgetRef;
+
+  private edit let m_root: inkWidgetRef;
+
+  private let m_objective: wref<JournalQuestObjective>;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_hovered: Bool;
+
+  private let m_isTracked: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.GetRootWidget().RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func Setup(objective: wref<JournalQuestObjective>, journalManager: wref<JournalManager>, currentCounter: Int32, totalCounter: Int32, opt isTracked: Bool) -> Void {
+    this.m_journalManager = journalManager;
+    this.m_objective = objective;
+    let finalTitle: String = objective.GetDescription();
+    if totalCounter > 0 {
+      finalTitle = GetLocalizedText(finalTitle) + " [" + IntToString(currentCounter) + "/" + IntToString(totalCounter) + "]";
+    };
+    if this.m_journalManager.GetIsObjectiveOptional(objective) {
+      finalTitle = GetLocalizedText(finalTitle) + " [" + GetLocalizedText("UI-ScriptExports-Optional0") + "]";
+    };
+    inkTextRef.SetText(this.m_objectiveName, finalTitle);
+    this.m_isTracked = isTracked;
+    inkWidgetRef.SetState(this.m_trackingMarker, this.m_isTracked ? n"Tracked" : n"Default");
+    this.m_hovered = false;
+    this.UpdateState();
+  }
+
+  protected cb func OnUpdateTrackedObjectiveEvent(e: ref<UpdateTrackedObjectiveEvent>) -> Bool {
+    this.m_isTracked = this.m_objective == e.m_trackedObjective;
+    inkWidgetRef.SetState(this.m_trackingMarker, this.m_isTracked ? n"Tracked" : n"Default");
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<RequestChangeTrackedObjective>;
+    if e.IsAction(n"click") || e.IsAction(n"tap") || e.IsAction(n"track") && !this.m_isTracked {
+      evt = new RequestChangeTrackedObjective();
+      evt.m_objective = this.m_objective;
+      e.Handle();
+      this.QueueEvent(evt);
+    };
+  }
+
+  public final func UpdateState() -> Void {
+    let targetState: CName = n"Default";
+    if this.m_hovered {
+      targetState = n"Hover";
+    };
+    inkWidgetRef.SetState(this.m_root, targetState);
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<QuestObjectiveHoverOverEvent> = new QuestObjectiveHoverOverEvent();
+    this.QueueEvent(evt);
+    this.m_hovered = true;
+    this.UpdateState();
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<QuestObjectiveHoverOutEvent> = new QuestObjectiveHoverOutEvent();
+    this.QueueEvent(evt);
+    this.m_hovered = false;
+    this.UpdateState();
+  }
+}
+
+public class QuestListFilterButtonController extends inkLogicController {
+
+  public edit let m_icon: inkImageRef;
+
+  public edit let m_counter: inkTextRef;
+
+  public let m_filterType: QuestListItemType;
+
+  public let m_hovered: Bool;
+
+  public let m_active: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hovered = true;
+    this.UpdateState();
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hovered = false;
+    this.UpdateState();
+  }
+
+  public final func SetData(filterType: QuestListItemType) -> Void {
+    this.m_filterType = filterType;
+    if Equals(this.m_filterType, QuestListItemType.Apartment) {
+      inkImageRef.SetTexturePart(this.m_icon, n"apartment_car_buy");
+    } else {
+      inkImageRef.SetTexturePart(this.m_icon, QuestTypeIconUtils.GetFilterIcon(this.m_filterType));
+    };
+    inkWidgetRef.SetState(this.m_icon, QuestTypeIconUtils.GetIconState(this.m_filterType));
+  }
+
+  public final func SetCounter(count: Int32) -> Void {
+    inkWidgetRef.SetState(this.m_counter, QuestTypeIconUtils.GetIconState(this.m_filterType));
+    inkTextRef.SetText(this.m_counter, ToString(count));
+    this.GetRootWidget().SetVisible(Cast<Bool>(count));
+  }
+
+  public final func GetType() -> QuestListItemType {
+    return this.m_filterType;
+  }
+
+  public final func SetActive(active: Bool) -> Void {
+    this.m_active = active;
+    this.UpdateState();
+  }
+
+  public final func IsVisible() -> Bool {
+    return IsDefined(this.GetRootWidget()) && this.GetRootWidget().IsVisible();
+  }
+
+  private final func UpdateState() -> Void {
+    if this.m_active {
+      this.GetRootWidget().SetState(n"Active");
+      return;
+    };
+    this.GetRootWidget().SetState(this.m_hovered ? n"Hover" : n"Default");
+  }
+}

@@ -1,0 +1,932 @@
+
+public class NewPerksCategoriesGameController extends gameuiMenuGameController {
+
+  private edit let m_tooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_perksCategoriesContainer: inkWidgetRef;
+
+  private edit let m_tabsContainer: inkWidgetRef;
+
+  private edit let m_perksScreenContainer: inkWidgetRef;
+
+  private edit let m_espionageScreenContainer: inkWidgetRef;
+
+  private edit let m_skillsScreenContainer: inkWidgetRef;
+
+  private edit let m_pointsDisplay: inkWidgetRef;
+
+  private edit let m_playerLevel: inkTextRef;
+
+  private edit let m_resetAttributesButton: inkWidgetRef;
+
+  private edit let m_skillsScreenButton: inkWidgetRef;
+
+  private edit let m_espionageAttributeMask: inkWidgetRef;
+
+  private edit let m_espionagePointsRef: inkWidgetRef;
+
+  private edit let m_attributeTooltipHolderRight: inkWidgetRef;
+
+  private edit let m_attributeTooltipHolderLeft: inkWidgetRef;
+
+  private edit const let m_centerHiglightParts: [inkWidgetRef];
+
+  private edit let m_perkTooltipPlacementLeft: inkWidgetRef;
+
+  private edit let m_perkTooltipPlacementRight: inkWidgetRef;
+
+  private edit let m_perkTooltipBgLeft: inkWidgetRef;
+
+  private edit let m_perkTooltipBgRight: inkWidgetRef;
+
+  private let m_perkTooltipBgAnimProxy: ref<inkAnimProxy>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_tabsController: wref<NewPerkTabsController>;
+
+  private let m_perksScreenController: wref<NewPerksScreenLogicController>;
+
+  private let m_espionageScreenController: wref<NewPerksScreenLogicController>;
+
+  private let m_skillScreenController: wref<NewPerkSkillsLogicController>;
+
+  private let m_tooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_dataManager: ref<PlayerDevelopmentDataManager>;
+
+  private let m_questSystem: wref<QuestsSystem>;
+
+  private let m_attributesControllersList: [wref<PerksMenuAttributeItemController>];
+
+  private let m_perksMenuItemCreatedQueue: [ref<PerksMenuAttributeItemCreated>];
+
+  private let m_pointsDisplayController: wref<PerksPointsDisplayController>;
+
+  private let m_playerStatsBlackboard: wref<IBlackboard>;
+
+  private let m_characterLevelListener: ref<CallbackHandle>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  @default(NewPerksCategoriesGameController, NewPeksActiveScreen.Invalid)
+  private let m_previousScreen: NewPeksActiveScreen;
+
+  private let m_currentScreen: NewPeksActiveScreen;
+
+  @default(NewPerksCategoriesGameController, gamedataStatType.Invalid)
+  private let m_currentStatScreen: gamedataStatType;
+
+  private let m_johnnyEspionageInitialized: Bool;
+
+  private let m_isEspionageUnlocked: Bool;
+
+  private let m_lastHoveredAttribute: PerkMenuAttribute;
+
+  private let m_cyberwarePerkDetailsPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_perksScreenIntroAnimProxy: ref<inkAnimProxy>;
+
+  private let m_perksScreenOutroAnimProxy: ref<inkAnimProxy>;
+
+  private let m_perksScreenDirection: NewPerkTabsArrowDirection;
+
+  private let m_currentTooltipData: PerkHoverEventTooltipData;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_currentCursorPos: Vector2;
+
+  private let m_perkUserData: ref<PerkUserData>;
+
+  private let m_vendorUserData: ref<VendorUserData>;
+
+  private let m_skillsOpenData: ref<OpenSkillsMenuData>;
+
+  private let m_resetConfirmationToken: ref<inkGameNotificationToken>;
+
+  private let m_userData: ref<IScriptable>;
+
+  private let m_isPlayerInCombat: Bool;
+
+  private let m_screenDisplayContext: ScreenDisplayContext;
+
+  protected cb func OnInitialize() -> Bool {
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_tabsContainer), n"Tabs", this, n"OnTabsSpawned");
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_perksScreenContainer), n"PerksScreen", this, n"OnPerksScreenSpawned");
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_espionageScreenContainer), n"Spy_PerksScreen", this, n"OnEspionageScreenSpawned");
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(this.m_skillsScreenContainer), n"SkillsScreen", this, n"OnSkillsScreenSpawned");
+    this.m_pointsDisplayController = inkWidgetRef.GetController(this.m_pointsDisplay) as PerksPointsDisplayController;
+    this.m_dataManager = new PlayerDevelopmentDataManager();
+    this.m_dataManager.Initialize(GameInstance.GetPlayerSystem(this.GetPlayerControlledObject().GetGame()).GetLocalPlayerMainGameObject() as PlayerPuppet, this);
+    this.m_perksScreenDirection = NewPerkTabsArrowDirection.Invalid;
+    this.UpdateScreen();
+    this.m_playerStatsBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_PlayerStats);
+    this.m_characterLevelListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.Level, this, n"OnCharacterLevelUpdated", true);
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_tooltipsManager = inkWidgetRef.GetControllerByType(this.m_tooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_tooltipsManager.Setup(ETooltipsStyle.Menus);
+    inkWidgetRef.RegisterToCallback(this.m_resetAttributesButton, n"OnRelease", this, n"OnResetAttributesButtonClick");
+    inkWidgetRef.RegisterToCallback(this.m_resetAttributesButton, n"OnHoverOver", this, n"OnResetAttributesButtonHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_resetAttributesButton, n"OnHoverOut", this, n"OnResetAttributesButtonHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_skillsScreenButton, n"OnRelease", this, n"OnSkillScreenButtonClick");
+    inkWidgetRef.RegisterToCallback(this.m_skillsScreenButton, n"OnHoverOver", this, n"OnSkillScreenButtonHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_skillsScreenButton, n"OnHoverOut", this, n"OnSkillScreenButtonHoverOut");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.HandleEventQueue();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnSetScreenDisplayContext", this, n"OnSetScreenDisplayContext");
+    inkWidgetRef.UnregisterFromCallback(this.m_resetAttributesButton, n"OnRelease", this, n"OnResetAttributesButtonClick");
+    inkWidgetRef.UnregisterFromCallback(this.m_resetAttributesButton, n"OnHoverOver", this, n"OnResetAttributesButtonHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_resetAttributesButton, n"OnHoverOut", this, n"OnResetAttributesButtonHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_skillsScreenButton, n"OnRelease", this, n"OnSkillScreenButtonClick");
+    inkWidgetRef.UnregisterFromCallback(this.m_skillsScreenButton, n"OnHoverOver", this, n"OnSkillScreenButtonHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_skillsScreenButton, n"OnHoverOut", this, n"OnSkillScreenButtonHoverOut");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnRelativeInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.m_skillScreenController.UnregisterData();
+    this.StopRumbleLoop(RumbleStrength.SuperLight);
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    let psmBlackboard: ref<IBlackboard>;
+    this.m_player = playerPuppet as PlayerPuppet;
+    this.m_questSystem = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    this.ResolveResetAttributesButtonVisibility();
+    this.m_isEspionageUnlocked = GetFact(this.m_player.GetGame(), n"ep1_tree_unlocked") > 0;
+    psmBlackboard = this.m_player.GetPlayerStateMachineBlackboard();
+    this.m_isPlayerInCombat = psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1;
+    this.UpdateJohnnyEspionageAttribute();
+    this.m_uiSystem = GameInstance.GetUISystem(this.m_player.GetGame());
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnSetScreenDisplayContext", this, n"OnSetScreenDisplayContext");
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Categories) && Equals(this.m_perkUserData.cyberwareScreenType, CyberwareScreenType.Ripperdoc) {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnRefreshCurrentTab");
+    } else {
+      if Equals(this.m_currentScreen, NewPeksActiveScreen.Categories) && IsDefined(this.m_vendorUserData) {
+        this.CloseVendor();
+      } else {
+        if NotEquals(this.m_currentScreen, NewPeksActiveScreen.Categories) {
+          this.CloseActiveScreen();
+        } else {
+          this.m_menuEventDispatcher.SpawnEvent(n"OnCloseHubMenu");
+        };
+      };
+    };
+  }
+
+  protected cb func OnSetScreenDisplayContext(userData: ref<IScriptable>) -> Bool {
+    let displayContext: ref<ScreenDisplayContextData> = userData as ScreenDisplayContextData;
+    if IsDefined(displayContext) {
+      this.m_screenDisplayContext = displayContext.Context;
+    };
+  }
+
+  protected cb func OnBeforeLeaveScenario(userData: ref<IScriptable>) -> Bool {
+    if Equals(this.m_screenDisplayContext, ScreenDisplayContext.Vendor) {
+      MenuUIUtils.RequestAutoSave(this.m_player, 1.00);
+    };
+  }
+
+  private final func CloseVendor() -> Void {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent> = new inkMenuInstance_SpawnEvent();
+    menuEvent.Init(n"OnVendorClose");
+    this.QueueEvent(menuEvent);
+  }
+
+  protected cb func OnPerksScreenSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_perksScreenController = widget.GetController() as NewPerksScreenLogicController;
+    this.m_perksScreenController.SetGameController(this);
+    if IsDefined(this.m_perkUserData) && NotEquals(this.m_perkUserData.statType, gamedataStatType.Invalid) {
+      this.OpenPerksScreen(this.m_perkUserData.statType, NewPerkTabsArrowDirection.Invalid);
+      this.m_perksScreenController.SetCursorOverPerk(this.m_perkUserData.perkType, false);
+    };
+  }
+
+  protected cb func OnEspionageScreenSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_espionageScreenController = widget.GetController() as NewPerksScreenLogicController;
+  }
+
+  protected cb func OnSkillsScreenSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_skillScreenController = widget.GetController() as NewPerkSkillsLogicController;
+    this.m_skillsOpenData = this.m_userData as OpenSkillsMenuData;
+    if Equals(this.m_skillsOpenData.openSkills, true) {
+      this.OpenSkillsScreen();
+    };
+  }
+
+  protected cb func OnTabsSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_tabsController = widget.GetController() as NewPerkTabsController;
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    this.m_userData = userData;
+    this.m_perkUserData = userData as PerkUserData;
+    this.m_vendorUserData = userData as VendorUserData;
+  }
+
+  private final func OpenPerksScreen(statType: gamedataStatType, direction: NewPerkTabsArrowDirection) -> Void {
+    this.m_perksScreenDirection = direction;
+    this.m_currentStatScreen = statType;
+    if NotEquals(direction, NewPerkTabsArrowDirection.Invalid) {
+      this.m_perksScreenOutroAnimProxy = this.PlayScreenOutro();
+      if IsDefined(this.m_perksScreenOutroAnimProxy) {
+        this.HideTooltip();
+        this.m_perksScreenOutroAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPerksScreenOutroFinished");
+      } else {
+        this.InitializePerkScreen();
+      };
+    } else {
+      this.InitializePerkScreen();
+    };
+    this.ForceResetCursorType();
+  }
+
+  protected cb func OnScreenIntroFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if this.m_currentTooltipData.isShown {
+      this.ShowTooltip(this.m_currentTooltipData);
+    };
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) {
+      this.m_perksScreenController.SetIntroFinished(true);
+      this.m_perksScreenController.FireDelayedDimming();
+      this.UpdatePerkScreenHighlights(this.m_currentCursorPos);
+    } else {
+      if Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+        this.m_espionageScreenController.SetIntroFinished(true);
+        this.m_espionageScreenController.FireDelayedDimming();
+      };
+    };
+    this.m_perksScreenController.RefreshCursorOverPerk();
+  }
+
+  protected cb func OnPerksScreenOutroFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.InitializePerkScreen();
+  }
+
+  private final func InitializePerkScreen() -> Void {
+    let initData: ref<NewPerksScreenInitData> = new NewPerksScreenInitData();
+    initData.stat = this.m_currentStatScreen;
+    initData.attribute = PerkAttributeHelper.BaseStatToAttribute(initData.stat);
+    initData.attributeData = TweakDBInterface.GetAttributeDataRecord(initData.attribute);
+    initData.perkMenuAttribute = PerkAttributeHelper.BaseStatToPerkMenuAttribute(initData.stat);
+    initData.isPlayerInCombat = this.m_isPlayerInCombat;
+    if Equals(this.m_currentStatScreen, gamedataStatType.Espionage) {
+      this.m_espionageScreenController.Initialize(this.m_dataManager, initData, this.m_buttonHintsController);
+      this.m_currentScreen = NewPeksActiveScreen.Espionage;
+    } else {
+      this.m_perksScreenController.Initialize(this.m_dataManager, initData, this.m_buttonHintsController);
+      this.m_currentScreen = NewPeksActiveScreen.Perks;
+    };
+    this.m_tabsController.SetData(this.m_dataManager, initData, this.m_isEspionageUnlocked);
+    this.UpdateScreen();
+  }
+
+  private final func OpenSkillsScreen() -> Void {
+    this.m_currentScreen = NewPeksActiveScreen.Skills;
+    this.m_skillScreenController.Initialize(this.m_dataManager);
+    this.m_perksScreenDirection = NewPerkTabsArrowDirection.Invalid;
+    this.UpdateScreen();
+  }
+
+  protected cb func OnCharacterLevelUpdated(value: Int32) -> Bool {
+    inkTextRef.SetText(this.m_playerLevel, IntToString(value));
+  }
+
+  private final func CloseActiveScreen() -> Void {
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) || Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+      this.StopPerkScreenAnims();
+    };
+    this.m_currentScreen = NewPeksActiveScreen.Categories;
+    this.m_perksScreenDirection = NewPerkTabsArrowDirection.Invalid;
+    this.UpdateScreen();
+  }
+
+  private final func UpdateScreen() -> Void {
+    let hasSwipeAnims: Bool;
+    this.UpdateData();
+    this.UpdateScreensVisibility();
+    hasSwipeAnims = Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) || Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage);
+    if NotEquals(this.m_previousScreen, this.m_currentScreen) || hasSwipeAnims {
+      this.m_perksScreenIntroAnimProxy = this.PlayScreenIntro();
+      this.m_perksScreenIntroAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnScreenIntroFinished");
+      this.m_previousScreen = this.m_currentScreen;
+    };
+  }
+
+  private final func IsPerkScreenAnimPLaying() -> Bool {
+    return IsDefined(this.m_perksScreenIntroAnimProxy) && this.m_perksScreenIntroAnimProxy.IsPlaying() || IsDefined(this.m_perksScreenOutroAnimProxy) && this.m_perksScreenOutroAnimProxy.IsPlaying();
+  }
+
+  private final func StopPerkScreenAnims() -> Void {
+    if IsDefined(this.m_perksScreenIntroAnimProxy) && this.m_perksScreenIntroAnimProxy.IsPlaying() {
+      this.m_perksScreenIntroAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_perksScreenIntroAnimProxy.GotoEndAndStop();
+    };
+    if IsDefined(this.m_perksScreenOutroAnimProxy) && this.m_perksScreenOutroAnimProxy.IsPlaying() {
+      this.m_perksScreenOutroAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_perksScreenOutroAnimProxy.GotoStartAndStop();
+    };
+  }
+
+  private final func PlayScreenIntro() -> ref<inkAnimProxy> {
+    let animName: CName;
+    this.StopPerkScreenAnims();
+    if Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Invalid) {
+      animName = Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage) ? n"panel_perks_espionage_intro" : n"panel_perks_intro";
+    } else {
+      if Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+        animName = Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Left) ? n"swipe_right_2_espionage_screen" : n"swipe_left_2_espionage_screen";
+      } else {
+        animName = Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Left) ? n"swipe_right_2_perks_screen" : n"swipe_left_2_perks_screen";
+      };
+    };
+    switch this.m_currentScreen {
+      case NewPeksActiveScreen.Categories:
+        return this.PlayLibraryAnimation(n"panel_categories_intro");
+      case NewPeksActiveScreen.Perks:
+        return this.PlayLibraryAnimationOnAutoSelectedTargets(animName, this.m_perksScreenController.GetRootWidget());
+      case NewPeksActiveScreen.Espionage:
+        return this.PlayLibraryAnimationOnAutoSelectedTargets(animName, this.m_espionageScreenController.GetRootWidget());
+      case NewPeksActiveScreen.Skills:
+        return this.PlayLibraryAnimationOnAutoSelectedTargets(n"panel_skills_intro", this.m_skillScreenController.GetRootWidget());
+      default:
+        return null;
+    };
+  }
+
+  private final func PlayScreenOutro() -> ref<inkAnimProxy> {
+    let animName: CName;
+    this.StopPerkScreenAnims();
+    if Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Invalid) {
+      return null;
+    };
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+      animName = Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Left) ? n"swipe_right_1_espionage_screen" : n"swipe_left_1_espionage_screen";
+    } else {
+      animName = Equals(this.m_perksScreenDirection, NewPerkTabsArrowDirection.Left) ? n"swipe_right_1_perks_screen" : n"swipe_left_1_perks_screen";
+    };
+    switch this.m_currentScreen {
+      case NewPeksActiveScreen.Perks:
+        return this.PlayLibraryAnimationOnAutoSelectedTargets(animName, this.m_perksScreenController.GetRootWidget());
+      case NewPeksActiveScreen.Espionage:
+        return this.PlayLibraryAnimationOnAutoSelectedTargets(animName, this.m_espionageScreenController.GetRootWidget());
+      default:
+        return null;
+    };
+  }
+
+  private final func UpdateData() -> Void {
+    this.m_perksScreenController.SetValues();
+    this.m_pointsDisplayController.SetValues(this.m_dataManager.GetAttributePoints(), this.m_dataManager.GetPerkPoints(), this.m_dataManager.GetSpyPerkPoints());
+    this.m_tabsController.SetValues(this.m_dataManager.GetAttributePoints(), this.m_dataManager.GetPerkPoints(), this.m_dataManager.GetSpyPerkPoints());
+  }
+
+  private final func UpdateScreensVisibility() -> Void {
+    inkWidgetRef.SetVisible(this.m_perksCategoriesContainer, Equals(this.m_currentScreen, NewPeksActiveScreen.Categories));
+    inkWidgetRef.SetVisible(this.m_tabsContainer, Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) || Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage));
+    inkWidgetRef.SetVisible(this.m_perksScreenContainer, Equals(this.m_currentScreen, NewPeksActiveScreen.Perks));
+    inkWidgetRef.SetVisible(this.m_espionageScreenContainer, Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage));
+    inkWidgetRef.SetVisible(this.m_skillsScreenContainer, Equals(this.m_currentScreen, NewPeksActiveScreen.Skills));
+    this.m_perksScreenController.SetActive(Equals(this.m_currentScreen, NewPeksActiveScreen.Perks));
+    this.m_espionageScreenController.SetActive(Equals(this.m_currentScreen, NewPeksActiveScreen.Espionage));
+    this.m_skillScreenController.SetActive(Equals(this.m_currentScreen, NewPeksActiveScreen.Skills));
+  }
+
+  protected cb func OnPerksMenuAttributeItemCreated(evt: ref<PerksMenuAttributeItemCreated>) -> Bool {
+    let perkMenuAttribute: PerkMenuAttribute;
+    if IsDefined(this.m_dataManager) {
+      evt.perksMenuAttributeItem.Setup(this.m_dataManager);
+      ArrayPush(this.m_attributesControllersList, evt.perksMenuAttributeItem);
+      perkMenuAttribute = evt.perksMenuAttributeItem.GetAttributeType();
+      if Equals(perkMenuAttribute, PerkMenuAttribute.Johnny) || Equals(perkMenuAttribute, PerkMenuAttribute.Espionage) {
+        this.UpdateJohnnyEspionageAttribute();
+      };
+    } else {
+      ArrayPush(this.m_perksMenuItemCreatedQueue, evt);
+    };
+  }
+
+  protected final func HandleEventQueue() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_perksMenuItemCreatedQueue) {
+      this.OnPerksMenuAttributeItemCreated(this.m_perksMenuItemCreatedQueue[i]);
+      i += 1;
+    };
+    this.UpdateJohnnyEspionageAttribute();
+  }
+
+  private final func UpdateJohnnyEspionageAttribute() -> Void {
+    let bothReady: Int32;
+    let i: Int32;
+    let isJohnnyUnlocked: Bool;
+    let limit: Int32;
+    if !this.m_johnnyEspionageInitialized {
+      if this.m_player != null && this.m_questSystem != null {
+        isJohnnyUnlocked = this.m_questSystem.GetFact(n"q005_johnny_chip_acquired") == 1;
+        inkWidgetRef.SetVisible(this.m_espionagePointsRef, this.m_isEspionageUnlocked);
+        i = 0;
+        limit = ArraySize(this.m_attributesControllersList);
+        while i < limit {
+          if Equals(this.m_attributesControllersList[i].GetAttributeType(), PerkMenuAttribute.Johnny) {
+            this.m_attributesControllersList[i].GetRootWidget().SetVisible(!this.m_isEspionageUnlocked && isJohnnyUnlocked);
+            bothReady += 1;
+          } else {
+            if Equals(this.m_attributesControllersList[i].GetAttributeType(), PerkMenuAttribute.Espionage) {
+              this.m_attributesControllersList[i].GetRootWidget().SetVisible(this.m_isEspionageUnlocked);
+              bothReady += 1;
+            };
+          };
+          i += 1;
+        };
+        if bothReady > 1 {
+          this.m_johnnyEspionageInitialized = true;
+        };
+      };
+    };
+  }
+
+  protected cb func OnCyberwarePerkDetailsPopup(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_cyberwarePerkDetailsPopupToken = null;
+  }
+
+  protected cb func OnTabMenuArrowClicked(evt: ref<NewPerksTabArrowClickedEvent>) -> Bool {
+    let itemsCount: Int32;
+    let currentPerkMenuAttributeInt: Int32 = EnumInt(PerkAttributeHelper.BaseStatToPerkMenuAttribute(this.m_currentStatScreen));
+    currentPerkMenuAttributeInt += Equals(evt.direction, NewPerkTabsArrowDirection.Left) ? -1 : 1;
+    itemsCount = this.m_isEspionageUnlocked ? 6 : 5;
+    currentPerkMenuAttributeInt += itemsCount;
+    currentPerkMenuAttributeInt = currentPerkMenuAttributeInt % itemsCount;
+    this.PlaySound(n"Button", n"OnPress");
+    this.OpenPerksScreen(PerkAttributeHelper.PerkMenuAttributeToStat(IntEnum<PerkMenuAttribute>(currentPerkMenuAttributeInt)), evt.direction);
+  }
+
+  protected cb func OnPlayerDevUpdateData(evt: ref<PlayerDevUpdateDataEvent>) -> Bool {
+    let attributes: array<ref<AttributeData>>;
+    let i: Int32;
+    let j: Int32;
+    this.UpdateData();
+    attributes = this.m_dataManager.GetAttributes();
+    i = 0;
+    while i < ArraySize(attributes) {
+      j = 0;
+      while j < ArraySize(this.m_attributesControllersList) {
+        if Equals(this.m_attributesControllersList[j].GetStatType(), attributes[i].type) {
+          this.m_attributesControllersList[j].UpdateData(attributes[i]);
+          break;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    this.UnequipLeftHandWeaponsIfNeeded();
+    this.m_tooltipsManager.RefreshTooltip(0);
+    this.m_tooltipsManager.RefreshTooltip(n"perkTooltip");
+  }
+
+  private final func UpdatePerkScreenHighlights(cursorPos: Vector2) -> Void {
+    let height: Float;
+    let position: Float;
+    let scale: Float = 1.00 / this.m_uiSystem.GetInverseUIScale();
+    let blackBarsSizes: Vector2 = this.m_uiSystem.GetBlackBarsSizes();
+    let tierHighlights: array<PerkTierHighlight> = this.m_perksScreenController.GetHighlightData();
+    let i: Int32 = 0;
+    while i < ArraySize(tierHighlights) {
+      position = tierHighlights[i].position * scale + blackBarsSizes.Y;
+      height = tierHighlights[i].height * scale;
+      if cursorPos.Y >= position && cursorPos.Y <= position + height {
+        this.m_perksScreenController.SetTierHighlightHover(i);
+        return;
+      };
+      i += 1;
+    };
+    this.m_perksScreenController.SetTierHighlightHover(-1);
+  }
+
+  protected cb func OnRelativeInput(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsAction(n"mouse_y") && !evt.IsAction(n"jcms_y") {
+      return false;
+    };
+    this.m_currentCursorPos = evt.GetScreenSpacePosition();
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) {
+      this.UpdatePerkScreenHighlights(this.m_currentCursorPos);
+    };
+  }
+
+  protected cb func OnAxisInput(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsAction(n"left_stick_y") {
+      return false;
+    };
+    this.m_currentCursorPos = evt.GetScreenSpacePosition();
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Perks) {
+      this.UpdatePerkScreenHighlights(this.m_currentCursorPos);
+    };
+  }
+
+  private final func ResolveResetAttributesButtonVisibility() -> Void {
+    if !IsDefined(this.m_questSystem) {
+      inkWidgetRef.SetVisible(this.m_resetAttributesButton, false);
+      return;
+    };
+    if this.m_questSystem.GetFact(n"ResetAttributeDisabled") == 0 {
+      inkWidgetRef.SetVisible(this.m_resetAttributesButton, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_resetAttributesButton, false);
+    };
+  }
+
+  protected cb func OnResetConfirmed(data: ref<inkGameNotificationData>) -> Bool {
+    let resultData: ref<GenericMessageNotificationCloseData> = data as GenericMessageNotificationCloseData;
+    this.m_resetConfirmationToken = null;
+    if IsDefined(resultData) && Equals(resultData.result, GenericMessageNotificationResult.Yes) {
+      PlayerDevelopmentSystem.GetData(this.m_player).ResetNewPerks();
+      PlayerDevelopmentSystem.GetData(this.m_player).ResetAttributes();
+      this.QueueEvent(new PlayerDevUpdateDataEvent());
+      this.m_questSystem.SetFact(n"ResetAttributeDisabled", 1);
+      inkWidgetRef.SetVisible(this.m_resetAttributesButton, false);
+      this.PlaySound(n"Attributes", n"OnDone");
+      this.PlayLibraryAnimation(n"panel_categories_reset_attributes");
+    };
+  }
+
+  protected cb func OnResetFailed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_resetConfirmationToken = null;
+  }
+
+  protected cb func OnResetAttributesButtonClick(evt: ref<inkPointerEvent>) -> Bool {
+    let result: CanSellNewPerkResult;
+    let vendorNotification: ref<UIMenuNotificationEvent>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if this.m_player.IsInCombat() {
+        vendorNotification = new UIMenuNotificationEvent();
+        vendorNotification.m_notificationType = UIMenuNotificationType.InventoryActionBlocked;
+        this.QueueEvent(vendorNotification);
+      } else {
+        if this.m_questSystem.GetFact(n"ResetAttributeDisabled") == 1 {
+          inkWidgetRef.SetVisible(this.m_resetAttributesButton, false);
+        } else {
+          result = PlayerDevelopmentSystem.CanSellNewPerks(this.m_player);
+          if !result.success {
+            if Equals(result.message, "UI-Notifications-RespecCyberwareCapacityBlocked") {
+              this.OpenPerksScreen(gamedataStatType.TechnicalAbility, NewPerkTabsArrowDirection.Invalid);
+              this.m_perksScreenController.SetCursorOverPerk(result.perkType, false);
+            };
+            this.m_resetConfirmationToken = GenericMessageNotification.Show(this, result.title, result.message, GenericMessageNotificationType.Confirm);
+            this.m_resetConfirmationToken.RegisterListener(this, n"OnResetFailed");
+            return false;
+          };
+          this.m_resetConfirmationToken = GenericMessageNotification.Show(this, "UI-Menus-Perks-ResetAttributes", "UI-Menus-Perks-ResetAttributesConfirmation", GenericMessageNotificationType.YesNo);
+          this.m_resetConfirmationToken.RegisterListener(this, n"OnResetConfirmed");
+        };
+      };
+    };
+  }
+
+  protected cb func OnResetAttributesButtonHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_resetAttributesButton, n"Hover");
+  }
+
+  protected cb func OnResetAttributesButtonHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_resetAttributesButton, n"Default");
+  }
+
+  protected cb func OnSkillScreenButtonHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_skillsScreenButton, n"Hover");
+  }
+
+  protected cb func OnSkillScreenButtonHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_skillsScreenButton, n"Default");
+  }
+
+  protected cb func OnSkillScreenButtonClick(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.OpenSkillsScreen();
+    };
+  }
+
+  protected cb func OnAttributeHoldStart(evt: ref<PerksMenuAttributeItemHoldStart>) -> Bool {
+    if evt.actionName.IsAction(n"upgrade_attribute") && this.m_dataManager.IsAttributeUpgradeable(evt.attributeType) {
+      this.PlayRumbleLoop(RumbleStrength.SuperLight);
+      this.PlaySound(n"Attributes", n"OnStart");
+    };
+  }
+
+  protected cb func OnAttributeInvestHoldFinished(evt: ref<NewPerksTabAttributeInvestHoldFinished>) -> Bool {
+    let currentLevel: Int32;
+    if this.m_dataManager.IsAttributeUpgradeable(evt.attribute) {
+      this.StopSoundByName(n"ui_menu_attributes_progress_bar_start");
+      currentLevel = this.m_dataManager.GetAttributeLevel(evt.attribute);
+      if this.m_perksScreenController.IsThresholdExceeded(currentLevel, currentLevel + 1) {
+        this.PlaySoundByName(n"ui_menu_perk_unlock_level", true);
+      } else {
+        this.PlaySound(n"Attributes", n"OnDone");
+      };
+    };
+    this.m_dataManager.UpgradeAttribute(PerkAttributeHelper.PerkMenuAttributeToStat(evt.attribute));
+    this.QueueEvent(new UpdatePlayerDevelopmentData());
+  }
+
+  protected cb func OnAttributeClicked(evt: ref<PerksMenuAttributeItemClicked>) -> Bool {
+    if NotEquals(evt.attributeType, PerkMenuAttribute.Johnny) && !evt.isHeld && IsDefined(this.m_perksScreenController) {
+      this.PlaySound(n"Button", n"OnPress");
+      this.OpenPerksScreen(PerkAttributeHelper.PerkMenuAttributeToStat(evt.attributeType), NewPerkTabsArrowDirection.Invalid);
+    };
+  }
+
+  protected cb func OnAttributeReleased(evt: ref<PerksMenuAttributeItemReleased>) -> Bool {
+    this.StopSoundByName(n"ui_menu_attributes_progress_bar_start");
+    this.StopRumbleLoop(RumbleStrength.SuperLight);
+  }
+
+  protected cb func OnAttributePurchaseRequest(evt: ref<AttributeUpgradePurchased>) -> Bool {
+    if this.m_dataManager.IsAttributeUpgradeable(evt.attributeType) {
+      this.StopSoundByName(n"ui_menu_attributes_progress_bar_start");
+      this.StopRumbleLoop(RumbleStrength.SuperLight);
+      this.PlaySound(n"Attributes", n"OnDone");
+    };
+    this.m_dataManager.UpgradeAttribute(evt.attributeData);
+    this.QueueEvent(new UpdatePlayerDevelopmentData());
+  }
+
+  protected cb func OnAttributeHoverOver(evt: ref<PerksMenuAttributeItemHoverOver>) -> Bool {
+    this.PlayHoverAnimation(true);
+    this.SetAttributeBuyButtonHintHoverOver(evt.attributeType);
+    this.m_currentTooltipData.widget = inkWidgetRef.Get(this.m_attributeTooltipHolderRight);
+    this.m_currentTooltipData.data = evt.attributeData;
+    this.m_currentTooltipData.placement = gameuiETooltipPlacement.RightCenter;
+    this.m_currentTooltipData.isShown = true;
+    if NotEquals(evt.attributeType, PerkMenuAttribute.Johnny) {
+      this.ShowTooltip(inkWidgetRef.Get(this.m_attributeTooltipHolderRight), evt.attributeData, gameuiETooltipPlacement.RightCenter);
+    } else {
+      this.HideTooltip();
+    };
+    this.m_lastHoveredAttribute = evt.attributeType;
+  }
+
+  protected cb func OnAttributeHoverOut(evt: ref<PerksMenuAttributeItemHoverOut>) -> Bool {
+    if Equals(this.m_lastHoveredAttribute, evt.attributeType) {
+      if this.m_currentTooltipData.data.IsA(n"AttributeData") {
+        this.m_currentTooltipData.isShown = false;
+      };
+      this.PlayHoverAnimation(false);
+      this.SetAttributeBuyButtonHintHoverOut();
+      this.HideTooltip();
+      this.StopRumbleLoop(RumbleStrength.SuperLight);
+    };
+  }
+
+  private final func RefreshAttributeTooltip() -> Void {
+    this.ShowTooltip(this.m_currentTooltipData.widget, this.m_currentTooltipData.data, this.m_currentTooltipData.placement);
+  }
+
+  protected final func PlayHoverAnimation(value: Bool) -> Void {
+    let i: Int32;
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.35);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.To);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Linear);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetEndTransparency(value ? 1.00 : 0.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    i = 0;
+    while i < ArraySize(this.m_centerHiglightParts) {
+      inkWidgetRef.PlayAnimation(this.m_centerHiglightParts[i], transparencyAnimation);
+      i += 1;
+    };
+  }
+
+  private final func SetAttributeBuyButtonHintHoverOver(attribute: PerkMenuAttribute) -> Void {
+    let cursorData: ref<MenuCursorUserData> = new MenuCursorUserData();
+    cursorData.SetAnimationOverride(n"hoverOnHoldToComplete");
+    cursorData.AddAction(n"upgrade_attribute");
+    if NotEquals(attribute, PerkMenuAttribute.Espionage) && this.m_dataManager.IsAttributeUpgradeable(attribute) {
+      this.m_buttonHintsController.AddButtonHint(n"upgrade_perk", GetLocalizedText("LocKey#49715"));
+      this.SetCursorContext(n"Hover", cursorData);
+    } else {
+      this.SetCursorContext(n"Hover");
+    };
+  }
+
+  private final func ReevaluateAttributeBuyButtonHintHoverOver(attribute: PerkMenuAttribute) -> Void {
+    if !this.m_dataManager.IsAttributeUpgradeable(attribute) {
+      this.m_buttonHintsController.RemoveButtonHint(n"upgrade_perk");
+      this.SetCursorContext(n"Hover");
+    };
+  }
+
+  private final func SetAttributeBuyButtonHintHoverOut() -> Void {
+    this.SetCursorContext(n"Default");
+    this.m_buttonHintsController.RemoveButtonHint(n"upgrade_perk");
+  }
+
+  protected cb func OnPerkHoverOver(evt: ref<NewPerkHoverOverEvent>) -> Bool {
+    this.m_perksScreenController.OnPerkHoverOver(evt);
+    this.m_espionageScreenController.OnPerkHoverOver(evt);
+    this.m_currentTooltipData.widget = evt.evt.GetTarget();
+    this.m_currentTooltipData.data = evt.perkData;
+    this.m_currentTooltipData.placement = gameuiETooltipPlacement.RightCenter;
+    this.m_currentTooltipData.isShown = true;
+    this.ShowTooltip(this.m_currentTooltipData);
+  }
+
+  protected cb func OnPerkHoverOut(evt: ref<NewPerkHoverOutEvent>) -> Bool {
+    if this.m_currentTooltipData.data.IsA(n"NewPerkDisplayData") {
+      this.m_currentTooltipData.isShown = false;
+    };
+    this.HideTooltip();
+  }
+
+  protected cb func OnRefreshPerkTooltipEvent(evt: ref<RefreshPerkTooltipEvent>) -> Bool {
+    this.m_currentTooltipData.widget = evt.target;
+    this.m_currentTooltipData.data = evt.perkData;
+    this.m_currentTooltipData.placement = gameuiETooltipPlacement.RightCenter;
+    this.m_currentTooltipData.isShown = true;
+    this.ShowTooltip(this.m_currentTooltipData);
+  }
+
+  protected cb func OnSkillHoverOver(evt: ref<SkillHoverOver>) -> Bool {
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    tooltipData.Title = GetLocalizedText(evt.title);
+    tooltipData.Description = GetLocalizedText(evt.description);
+    this.m_tooltipsManager.ShowTooltipAtWidget(n"descriptionTooltip", evt.widget, tooltipData, gameuiETooltipPlacement.RightCenter, new inkMargin(40.00, 0.00, 0.00, 0.00));
+  }
+
+  protected cb func OnSkillHoverOut(evt: ref<SkillHoverOut>) -> Bool {
+    this.HideTooltip();
+  }
+
+  protected cb func OnSkillRewardHoverOver(evt: ref<SkillRewardHoverOver>) -> Bool {
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    tooltipData.Title = GetLocalizedText(evt.data.description);
+    tooltipData.TitleLocalizationPackage = evt.data.locPackage;
+    this.m_tooltipsManager.ShowTooltipAtWidget(n"descriptionTooltip", evt.widget, tooltipData, gameuiETooltipPlacement.RightCenter, new inkMargin(40.00, 0.00, 0.00, 0.00));
+  }
+
+  protected cb func OnSkillRewardHoverOut(evt: ref<SkillRewardHoverOut>) -> Bool {
+    this.HideTooltip();
+  }
+
+  protected cb func OnUpdatePlayerDevelopmentData(evt: ref<UpdatePlayerDevelopmentData>) -> Bool {
+    this.UpdateData();
+    if Equals(this.m_currentScreen, NewPeksActiveScreen.Categories) {
+      this.ReevaluateAttributeBuyButtonHintHoverOver(this.m_lastHoveredAttribute);
+      this.RefreshAttributeTooltip();
+    };
+    this.UnequipLeftHandWeaponsIfNeeded();
+  }
+
+  protected cb func OnPlayNewPerksSoundEvent(evt: ref<PlayNewPerksSoundEvent>) -> Bool {
+    this.PlaySoundByName(evt.soundName, evt.stopIfPlaying);
+    this.PlayRumble(evt.rumbleStrength, RumbleType.Pulse, RumblePosition.Both);
+  }
+
+  public final func PlaySoundByName(soundName: CName, stopIfPlaying: Bool) -> Void {
+    if stopIfPlaying {
+      GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Stop(soundName);
+    };
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(soundName);
+  }
+
+  public final func StopSoundByName(soundName: CName) -> Void {
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Stop(soundName);
+  }
+
+  private final func ShowTooltip(data: PerkHoverEventTooltipData) -> Void {
+    this.ShowTooltip(data.widget, data.data, data.placement);
+  }
+
+  private final func ShowTooltip(widget: wref<inkWidget>, data: ref<IDisplayData>, opt placement: gameuiETooltipPlacement) -> Void {
+    let boundries: Vector2;
+    let holderPosition: Vector2;
+    let perkTooltipName: CName;
+    let tooltipData: ref<BasePerksMenuTooltipData>;
+    let widgetPosition: Vector2;
+    let widgetSize: Vector2;
+    let marginAdjustment: Vector2 = new Vector2(0.00, 0.00);
+    if this.IsPerkScreenAnimPLaying() {
+      return;
+    };
+    tooltipData = data.CreateTooltipData(this.m_dataManager);
+    if tooltipData == null {
+      return;
+    };
+    if data.IsA(n"PerkDisplayData") || data.IsA(n"TraitDisplayData") || data.IsA(n"NewPerkDisplayData") {
+      perkTooltipName = n"perkTooltip";
+      if data.IsA(n"NewPerkDisplayData") && Equals(data as NewPerkDisplayData.m_type, gamedataNewPerkType.Espionage_Central_Milestone_1) {
+        perkTooltipName = n"espionageCentralDetails";
+      };
+      widgetPosition = WidgetUtils.LocalToGlobal(widget);
+      boundries = this.m_perksScreenController.GetHighligtedPerksHorizontalBoundries();
+      if NotEquals(perkTooltipName, n"espionageCentralDetails") {
+        holderPosition = WidgetUtils.LocalToGlobal(inkWidgetRef.Get(this.m_perkTooltipPlacementRight));
+        widgetSize = widget.GetSize();
+        marginAdjustment.Y = widgetPosition.Y - holderPosition.Y + (widgetSize.Y * 1.00 / this.m_uiSystem.GetInverseUIScale()) / 2.00;
+        marginAdjustment.Y *= this.m_uiSystem.GetInverseUIScale();
+      };
+      if widgetPosition.X < this.AdjustValueToScaleAndBlackBars(1400.00) {
+        if NotEquals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+          holderPosition = WidgetUtils.LocalToGlobal(inkWidgetRef.Get(this.m_perkTooltipPlacementRight));
+          marginAdjustment.X = boundries.Y - holderPosition.X + 50.00 * 1.00 / this.m_uiSystem.GetInverseUIScale();
+          marginAdjustment.X *= this.m_uiSystem.GetInverseUIScale();
+        };
+        this.m_tooltipsManager.ShowTooltipAtWidget(perkTooltipName, inkWidgetRef.Get(this.m_perkTooltipPlacementRight), tooltipData, gameuiETooltipPlacement.RightCenter, true, new inkMargin(marginAdjustment.X, marginAdjustment.Y, 0.00, 0.00));
+        this.ShowTooltipBackground(this.m_perkTooltipBgRight);
+      } else {
+        if NotEquals(this.m_currentScreen, NewPeksActiveScreen.Espionage) {
+          holderPosition = WidgetUtils.LocalToGlobal(inkWidgetRef.Get(this.m_perkTooltipPlacementLeft));
+          marginAdjustment.X = boundries.X - holderPosition.X - 100.00 * 1.00 / this.m_uiSystem.GetInverseUIScale();
+          marginAdjustment.X *= this.m_uiSystem.GetInverseUIScale();
+        };
+        this.m_tooltipsManager.ShowTooltipAtWidget(perkTooltipName, inkWidgetRef.Get(this.m_perkTooltipPlacementLeft), tooltipData, gameuiETooltipPlacement.LeftCenter, true, new inkMargin(marginAdjustment.X, marginAdjustment.Y, 0.00, 0.00));
+        this.ShowTooltipBackground(this.m_perkTooltipBgLeft);
+      };
+    } else {
+      this.m_tooltipsManager.ShowTooltipAtWidget(n"attributeTooltip", widget, tooltipData, placement);
+    };
+  }
+
+  private final func AdjustValueToScaleAndBlackBars(value: Float) -> Float {
+    let scale: Float = 1.00 / this.m_uiSystem.GetInverseUIScale();
+    let blackBarsSizes: Vector2 = this.m_uiSystem.GetBlackBarsSizes();
+    return value * scale + blackBarsSizes.X;
+  }
+
+  private final func ShowTooltipBackground(bgWidget: script_ref<inkWidgetRef>) -> Void {
+    let animation: ref<inkAnimDef>;
+    let interpolator: ref<inkAnimTransparency>;
+    if inkWidgetRef.IsVisible(Deref(bgWidget)) {
+      return;
+    };
+    animation = new inkAnimDef();
+    interpolator = new inkAnimTransparency();
+    interpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    interpolator.SetType(inkanimInterpolationType.Sinusoidal);
+    interpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    interpolator.SetDuration(0.20);
+    interpolator.SetStartDelay(0.05);
+    interpolator.SetStartTransparency(0.00);
+    interpolator.SetEndTransparency(1.00);
+    animation.AddInterpolator(interpolator);
+    inkWidgetRef.SetVisible(Deref(bgWidget), true);
+    this.m_perkTooltipBgAnimProxy = inkWidgetRef.PlayAnimation(Deref(bgWidget), animation);
+  }
+
+  private final func HideTooltip() -> Void {
+    this.m_tooltipsManager.HideTooltips();
+    inkWidgetRef.SetVisible(this.m_perkTooltipBgRight, false);
+    inkWidgetRef.SetVisible(this.m_perkTooltipBgLeft, false);
+  }
+
+  protected cb func OnPlayRelicIntroAnimationEvent(evt: ref<PlayRelicIntroAnimationEvent>) -> Bool {
+    this.PlayRelicIntroAnim();
+  }
+
+  private final func PlayRelicIntroAnim() -> Void {
+    let i: Int32;
+    let target: ref<inkWidgetsSet>;
+    this.PlayLibraryAnimation(n"root_relic_intro");
+    i = 0;
+    while i < ArraySize(this.m_attributesControllersList) {
+      if Equals(this.m_attributesControllersList[i].GetAttributeType(), PerkMenuAttribute.Johnny) {
+        this.m_attributesControllersList[i].GetRootWidget().SetVisible(true);
+        target = new inkWidgetsSet();
+        target.Select(this.m_attributesControllersList[i].GetRootWidget());
+        this.PlayLibraryAnimationOnTargets(n"base_relic_intro_button", target);
+      } else {
+        if Equals(this.m_attributesControllersList[i].GetAttributeType(), PerkMenuAttribute.Espionage) {
+          this.m_attributesControllersList[i].GetRootWidget().SetVisible(true);
+          target = new inkWidgetsSet();
+          target.Select(this.m_attributesControllersList[i].GetRootWidget());
+          this.PlayLibraryAnimationOnTargets(n"ep1_relic_intro_button", target);
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func UnequipLeftHandWeaponsIfNeeded() -> Void {
+    if !PlayerDevelopmentSystem.GetData(this.m_player).IsNewPerkBoughtAnyLevel(gamedataNewPerkType.Cool_Central_Milestone_2) {
+      EquipmentSystem.RequestUnequipItem(this.m_player, gamedataEquipmentArea.Weapon, 3);
+      EquipmentSystem.RequestUnequipItem(this.m_player, gamedataEquipmentArea.Weapon, 4);
+      EquipmentSystem.RequestUnequipItem(this.m_player, gamedataEquipmentArea.Weapon, 5);
+    };
+  }
+}

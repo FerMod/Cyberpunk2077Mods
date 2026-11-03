@@ -1,0 +1,1511 @@
+
+public native class VehicleObject extends GameObject {
+
+  private let m_vehicleComponent: wref<VehicleComponent>;
+
+  private let m_uiComponent: wref<worlduiWidgetComponent>;
+
+  protected let m_crowdMemberComponent: ref<CrowdMemberBaseComponent>;
+
+  private let m_attitudeAgent: ref<AttitudeAgent>;
+
+  private let m_hitTimestamp: Float;
+
+  private let m_drivingTrafficPattern: CName;
+
+  private let m_onPavement: Bool;
+
+  private let m_inTrafficLane: Bool;
+
+  private let m_timesSentReactionEvent: Int32;
+
+  private let m_timesToResendHandleReactionEvent: Int32;
+
+  private let m_hasReactedToStimuli: Bool;
+
+  private let m_gotStuckIncrement: Int32;
+
+  private let m_waitForPassengersToSpawnEventDelayID: DelayID;
+
+  private let m_triggerPanicDrivingEventDelayID: DelayID;
+
+  private let m_reactionTriggerEvent: ref<HandleReactionEvent>;
+
+  private let m_fearInside: Bool;
+
+  private let m_photoModeActiveListener: ref<CallbackHandle>;
+
+  private let m_vehicleUpsideDown: Bool;
+
+  private let m_isQhackUploadInProgress: Bool;
+
+  private let m_hitByPlayer: Bool;
+
+  private let m_currentlyUploadingAction: wref<ScriptableDeviceAction>;
+
+  private let m_bumpedRecently: Int32;
+
+  private let m_bumpTimestamp: Float;
+
+  private let m_minUnconsciousImpact: Float;
+
+  private let m_driverUnconscious: Bool;
+
+  private let m_abandoned: Bool;
+
+  public const func IsVehicle() -> Bool {
+    return true;
+  }
+
+  public const func IsPrevention() -> Bool {
+    return IsDefined(this.m_vehicleComponent) && this.m_vehicleComponent.HasPreventionPassenger();
+  }
+
+  public final native func GetBlackboard() -> ref<IBlackboard>;
+
+  public final native const func GetRecord() -> wref<Vehicle_Record>;
+
+  public final native const func IsVehicleRemoteControlled() -> Bool;
+
+  public final native const func IsVehicleAccelerateQuickhackActive() -> Bool;
+
+  public final native const func IsVehicleForceBrakesQuickhackActive() -> Bool;
+
+  public final native const func GetDistanceToPlayerSquared() -> Float;
+
+  public final native const func IsHackable() -> Bool;
+
+  public final native const func IsVehicleInsideInnerAreaOfAreaSpeedLimiter() -> Bool;
+
+  public final native const func IsPlayerMounted() -> Bool;
+
+  public final native const func IsPlayerDriver() -> Bool;
+
+  public final native const func HasPassengers() -> Bool;
+
+  public final native const func HasTrafficSlot() -> Bool;
+
+  public final native func PreHijackPrepareDriverSlot() -> Void;
+
+  public final native func CanUnmount(isPlayer: Bool, mountedObject: wref<GameObject>, opt checkSpecificDirection: vehicleExitDirection) -> vehicleUnmountPosition;
+
+  public final native func DetermineCoolExitImpulseLevel(mountedObject: wref<GameObject>, maxImpulseHeightThreshold: Float, minImpulseHeightThreshold: Float) -> vehicleCoolExitImpulseLevel;
+
+  public final native func ToggleRadioReceiver(toggle: Bool) -> Void;
+
+  public final native func SetRadioReceiverStation(stationIndex: Uint32) -> Void;
+
+  public final native func NextRadioReceiverStation() -> Void;
+
+  public final native func SetRadioTier(radioTier: Uint32, overrideTier: Bool) -> Void;
+
+  public final native func ToggleHorn(toggle: Bool, opt isPolice: Bool) -> Void;
+
+  public final native func ToggleSiren(toggle: Bool) -> Void;
+
+  public final native func NotifyWindowChange(windowName: CName, isOpened: Bool) -> Void;
+
+  public final native func DetachPart(partName: CName) -> Void;
+
+  public final native func DetachAllParts() -> Void;
+
+  public final native func SetHasExploded() -> Void;
+
+  public final native func HasOccupantSlot(slotName: CName) -> Bool;
+
+  public final native const func GetRecordID() -> TweakDBID;
+
+  public final native func GetAccessoryController() -> ref<vehicleController>;
+
+  public final native const func IsAirControlEnabled() -> Bool;
+
+  public final native func EnableAirControl(toggle: Bool) -> Void;
+
+  public final native const func IsInAir() -> Bool;
+
+  public final native const func IsLeaningOnOneWheel() -> Bool;
+
+  public final native const func IsFlippedOver() -> Bool;
+
+  public final native const func IsSkidding(wheelSlipThreshold: Float) -> Bool;
+
+  public final native func GetCameraManager() -> ref<VehicleCameraManager>;
+
+  public final native const func IsPlayerVehicle() -> Bool;
+
+  public final native const func IsPlayerActiveVehicle() -> Bool;
+
+  public final native const func IsCrowdVehicle() -> Bool;
+
+  public final native const func IsVehicleParked() -> Bool;
+
+  public final native const func IsAutoDriveModeEnabled() -> Bool;
+
+  public final native func SetVehicleRemoteControlled(enable: Bool, shouldUnseatPassengers: Bool, shouldModifyInteractionState: Bool) -> Void;
+
+  public final native func ToggleVehicleRemoteControlCamera() -> Void;
+
+  public final native func SetIsHackable(enable: Bool) -> Void;
+
+  public final native func ActivateNetrunnerQuickhack(chooseHack: VehicleNetrunnerQuickhackType) -> Void;
+
+  public final native func IsRadioReceiverActive() -> Bool;
+
+  public final native func WasRadioReceiverPlaying() -> Bool;
+
+  public final native func GetCurrentRadioIndex() -> Uint32;
+
+  public final native func GetRadioReceiverStationName() -> CName;
+
+  public final native func GetRadioReceiverTrackName() -> CName;
+
+  public final native func GetAnimsetOverrideForPassenger(slotName: CName) -> CName;
+
+  public final native func GetAnimsetOverrideForPassengerFromSlotName(slotName: CName) -> CName;
+
+  public final native func GetAnimsetOverrideForPassengerFromBoneName(boneName: CName) -> CName;
+
+  public final native func GetBoneNameFromSlot(slotName: CName) -> CName;
+
+  public final native func GetSlotIdForMountedObject(mountedObject: wref<GameObject>) -> CName;
+
+  public final native func ShouldDamageSystemIgnoreHit(hitComponentName: CName) -> Bool;
+
+  public final native const func GetCurrentSlotLocalPathLength() -> Float;
+
+  public final native const func GetCurrentSlotLocalPathProgression() -> Float;
+
+  public final native const func GetCurrentSlotEstimatedTimeToArrival() -> Float;
+
+  public final native func TurnVehicleOn(on: Bool) -> Void;
+
+  public final native func TurnEngineOn(on: Bool) -> Void;
+
+  public final native func LockVehicleOnState(shouldLock: Bool) -> Void;
+
+  public final native const func IsVehicleTurnedOn() -> Bool;
+
+  public final native const func IsEngineTurnedOn() -> Bool;
+
+  public final native const func IsVehicleOnStateLocked() -> Bool;
+
+  public final native func ForceBrakesFor(seconds: Float) -> Void;
+
+  public final native func ForceBrakesUntilStoppedOrFor(secondsToTimeout: Float, opt callback: ref<vehicleForceBrakesCallbackListener>) -> Void;
+
+  public final native func ActivateTemporaryLossOfControl() -> Void;
+
+  public final native func PhysicsWakeUp() -> Void;
+
+  public final native func IsInTrafficPhysicsState() -> Bool;
+
+  public final native func IsInQuestOrScenePhysicsState() -> Bool;
+
+  public final native const func IsExecutingAnyCommand() -> Bool;
+
+  public final native const func GetAIComponent() -> ref<AIVehicleAgent>;
+
+  public final native const func GetCustomizationComponent() -> ref<VehicleCustomizationComponent>;
+
+  public final native const func IsChasingTarget() -> Bool;
+
+  public final native const func GetTimeChasingTarget() -> Float;
+
+  public final native func HasNavPathToTarget(targetID: EntityID, duration: Float, invert: Bool) -> Bool;
+
+  public final native const func IsPerformingPanicDriving() -> Bool;
+
+  public final native const func IsPerformingSceneAnimation() -> Bool;
+
+  public final native const func CanStartPanicDriving() -> Bool;
+
+  public final native func EnableHighPriorityPanicDriving() -> Void;
+
+  public final native func ApplyPermanentStun() -> Void;
+
+  public final native const func CommandsFromDriverEnabled() -> Bool;
+
+  public final native const func GetPoliceStrategy() -> vehiclePoliceStrategy;
+
+  public final native func SetPoliceStrategy(strategy: vehiclePoliceStrategy) -> Void;
+
+  public final native const func GetPoliceStrategyDestination() -> Vector3;
+
+  public final native func SetPoliceStrategyDestination(dest: Vector4) -> Void;
+
+  public final native func AreFrontWheelsCentered() -> Bool;
+
+  public final native func AddCollisionForce(force: Vector4) -> Void;
+
+  public final native func GetCollisionForce() -> Vector4;
+
+  public final native func GetLinearVelocity() -> Vector4;
+
+  public final native func GetTotalMass() -> Float;
+
+  public final native const func CanSwitchWeapons() -> Bool;
+
+  public final native const func GetActiveWeapons(out weaponList: [wref<WeaponObject>]) -> Void;
+
+  public final native func IsArmedVehicle() -> Bool;
+
+  public final native func EnableNPCCombat(enable: Bool) -> Void;
+
+  public final native func NPCShoot(target: Vector4, projectiles: Uint32) -> Void;
+
+  public final native func IsNPCShooting() -> Bool;
+
+  public final native func EverPerformedChase() -> Bool;
+
+  public final native func TrySetHitCooldown() -> Bool;
+
+  public final native func ApplyAvgZOffset() -> Void;
+
+  public final func GetCurrentSpeed() -> Float {
+    return this.GetBlackboard().GetFloat(GetAllBlackboardDefs().Vehicle.SpeedValue);
+  }
+
+  public final const func IsAbandoned() -> Bool {
+    return this.m_abandoned;
+  }
+
+  public final native func SetDestructionGridPointValues(layer: Uint32, values: [Float; 15], accumulate: Bool) -> Void;
+
+  public final native func DestructionResetGrid() -> Void;
+
+  public final native func DestructionResetGlass() -> Void;
+
+  private final native func GetUIComponents() -> [ref<worlduiWidgetComponent>];
+
+  public final native func SendDelayedFinishedMountingEventToPS(isMounting: Bool, slotID: CName, character: ref<GameObject>, delay: Float) -> Void;
+
+  public final const func IsDestroyed() -> Bool {
+    return this.GetVehiclePS().GetIsDestroyed();
+  }
+
+  public final const func IsStolen() -> Bool {
+    return this.GetVehiclePS().GetIsStolen();
+  }
+
+  public final const func RecordHasTag(tag: CName) -> Bool {
+    let vehicleRecord: ref<Vehicle_Record>;
+    if !VehicleComponent.GetVehicleRecord(this, vehicleRecord) {
+      return false;
+    };
+    return this.RecordHasTag(vehicleRecord, tag);
+  }
+
+  public final const func RecordHasTag(vehicleRecord: ref<Vehicle_Record>, tag: CName) -> Bool {
+    let vehicleTags: array<CName> = vehicleRecord.Tags();
+    if ArrayContains(vehicleTags, tag) {
+      return true;
+    };
+    return false;
+  }
+
+  public const func IsGameplayRelevant() -> Bool {
+    return false;
+  }
+
+  protected cb func OnRequestComponents(ri: EntityRequestComponentsInterface) -> Bool {
+    EntityRequestComponentsInterface.RequestComponent(ri, n"controller", n"VehicleComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"CrowdMember", n"CrowdMemberBaseComponent", false);
+    EntityRequestComponentsInterface.RequestComponent(ri, n"AttitudeAgent", n"AttitudeAgent", true);
+    super.OnRequestComponents(ri);
+  }
+
+  protected cb func OnTakeControl(ri: EntityResolveComponentsInterface) -> Bool {
+    this.m_vehicleComponent = EntityResolveComponentsInterface.GetComponent(ri, n"controller") as VehicleComponent;
+    this.m_crowdMemberComponent = EntityResolveComponentsInterface.GetComponent(ri, n"CrowdMember") as CrowdMemberBaseComponent;
+    this.m_attitudeAgent = EntityResolveComponentsInterface.GetComponent(ri, n"AttitudeAgent") as AttitudeAgent;
+    super.OnTakeControl(ri);
+  }
+
+  protected cb func OnGameAttached() -> Bool {
+    super.OnGameAttached();
+    this.SetInteriorUIEnabled(false);
+    this.m_hitByPlayer = false;
+    if this.GetVehiclePS().GetIsVehicleVisualCustomizationActive() && this.GetVehiclePS().GetIsVehicleApperanceCustomizationInDistanceTermination() && !this.GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage() {
+      this.ExecuteVisualCustomizationWithDelay(true, false, false, 0.00);
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new CheckVehicleVisialCustomizationDistanceTermination(), 2.00);
+    };
+  }
+
+  protected cb func OnDetach() -> Bool {
+    super.OnDetach();
+    this.GetVehiclePS().SetVehicleApperanceCustomizationInDistanceTermination(false);
+  }
+
+  protected cb func OnDeviceLinkRequest(evt: ref<DeviceLinkRequest>) -> Bool {
+    let link: ref<VehicleDeviceLinkPS>;
+    if this.IsCrowdVehicle() {
+      return false;
+    };
+    link = VehicleDeviceLinkPS.CreateAndAcquirVehicleDeviceLinkPS(this.GetGame(), this.GetEntityID());
+    if IsDefined(link) {
+      GameInstance.GetPersistencySystem(this.GetGame()).QueuePSEvent(link.GetID(), link.GetClassName(), evt);
+    };
+  }
+
+  protected cb func OnEventReceived(stimEvent: ref<StimuliEvent>) -> Bool {
+    let delayReactionEvt: ref<DelayReactionToMissingPassengersEvent>;
+    let mountInfos: array<MountingInfo> = GameInstance.GetMountingFacility(this.GetGame()).GetMountingInfoMultipleWithIds(this.GetEntityID());
+    if this.m_inTrafficLane && ArraySize(mountInfos) == 0 && NotEquals(stimEvent.GetStimType(), gamedataStimType.Invalid) {
+      delayReactionEvt = new DelayReactionToMissingPassengersEvent();
+      delayReactionEvt.stimEvent = stimEvent;
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, delayReactionEvt, 2.00);
+    };
+  }
+
+  protected cb func OnDelayReactionToMissingPassengersEvent(evt: ref<DelayReactionToMissingPassengersEvent>) -> Bool {
+    let mountInfos: array<MountingInfo> = GameInstance.GetMountingFacility(this.GetGame()).GetMountingInfoMultipleWithIds(this.GetEntityID());
+    if ArraySize(mountInfos) == 0 {
+      if !evt.delayedAlready && this.m_inTrafficLane {
+        evt.delayedAlready = true;
+        GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, evt, 2.00);
+      };
+    } else {
+      VehicleComponent.QueueEventToAllPassengers(this.GetGame(), this.GetEntityID(), evt.stimEvent);
+    };
+  }
+
+  protected cb func OnTeleport() -> Bool {
+    let autodriveSystem: ref<AutoDriveSystem>;
+    if this.IsAutoDriveModeEnabled() {
+      if IsDefined(autodriveSystem = GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"AutoDriveSystem") as AutoDriveSystem) {
+        autodriveSystem.QueueRequest(new StopAutoDriveOnTeleportRequest());
+      };
+    };
+  }
+
+  public const func GetDeviceLink() -> ref<VehicleDeviceLinkPS> {
+    let link: ref<VehicleDeviceLinkPS> = VehicleDeviceLinkPS.AcquireVehicleDeviceLink(this.GetGame(), this.GetEntityID());
+    if IsDefined(link) {
+      return link;
+    };
+    return null;
+  }
+
+  protected func SendEventToDefaultPS(evt: ref<Event>) -> Void {
+    let persistentState: ref<VehicleComponentPS> = this.GetVehiclePS();
+    if persistentState == null {
+      return;
+    };
+    GameInstance.GetPersistencySystem(this.GetGame()).QueuePSEvent(persistentState.GetID(), persistentState.GetClassName(), evt);
+  }
+
+  protected cb func OnMountingEvent(evt: ref<MountingEvent>) -> Bool {
+    let mountChild: ref<GameObject> = GameInstance.FindEntityByID(this.GetGame(), evt.request.lowLevelMountingInfo.childId) as GameObject;
+    if mountChild == null {
+      return false;
+    };
+    if mountChild.IsPlayer() {
+      this.SetInteriorUIEnabled(true);
+      this.SyncVehicleVisualCustomizationDefinition();
+      this.GetVehicleComponent().EnableCustomizableAppearance(false);
+      if this.ReevaluateStealing(mountChild, evt.request.lowLevelMountingInfo.slotId.id, evt.request.mountData.mountEventOptions.occupiedByNonFriendly) {
+        this.StealVehicle(mountChild);
+      };
+    };
+  }
+
+  protected cb func OnVehicleFinishedMounting(evt: ref<VehicleFinishedMountingEvent>) -> Bool {
+    if evt.isMounting && IsDefined(evt.character) && evt.character.IsPlayer() {
+      this.m_abandoned = false;
+      if this.GetVehiclePS().GetIsVehicleVisualCustomizationActive() && !this.GetVehiclePS().GetIsVehicleApperanceCustomizationInDistanceTermination() && !this.GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage() {
+        this.ExecuteVisualCustomizationWithDelay(true, false, false, 0.00);
+      } else {
+        if VehicleVisualCustomizationTemplate.IsValid(this.GetVehiclePS().GetVehicleVisualCustomizationTemplate()) && !this.GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage() && !this.GetVehiclePS().GetIsVehicleApperanceCustomizationInDistanceTermination() {
+          this.ExecuteVisualCustomizationWithDelay(true, false, false, 0.80);
+        };
+      };
+    };
+  }
+
+  protected cb func OnUnmountingEvent(evt: ref<UnmountingEvent>) -> Bool {
+    let mountChild: ref<GameObject> = GameInstance.FindEntityByID(this.GetGame(), evt.request.lowLevelMountingInfo.childId) as GameObject;
+    let isSilentUnmount: Bool = IsDefined(evt.request.mountData) && evt.request.mountData.mountEventOptions.silentUnmount;
+    if IsDefined(mountChild) && mountChild.IsPlayer() {
+      if !isSilentUnmount {
+        this.SetInteriorUIEnabled(false);
+      };
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new CheckVehicleVisialCustomizationDistanceTermination(), 1.00);
+    };
+  }
+
+  private final func SetInteriorUIEnabled(enabled: Bool) -> Void {
+    let component: ref<worlduiWidgetComponent>;
+    let i: Int32;
+    let uiComponents: array<ref<worlduiWidgetComponent>> = this.GetUIComponents();
+    let total: Int32 = ArraySize(uiComponents);
+    if total > 0 {
+      i = 0;
+      while i < total {
+        component = uiComponents[i];
+        if IsDefined(component) {
+          component.Toggle(enabled);
+        };
+        i += 1;
+      };
+      this.GetBlackboard().SetBool(GetAllBlackboardDefs().Vehicle.IsUIActive, enabled);
+      this.GetBlackboard().FireCallbacks();
+    };
+  }
+
+  public final func TempDisableUI(delay: Float) -> Void {
+    this.SetInteriorUIEnabled(false);
+    GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new DelayEnableInteriorUIEvent(), delay);
+  }
+
+  protected cb func OnDelayEnableInteriorUIEvent(evt: ref<DelayEnableInteriorUIEvent>) -> Bool {
+    this.SetInteriorUIEnabled(true);
+  }
+
+  private final func ReevaluateStealing(character: wref<GameObject>, slotID: CName, stealingAction: Bool) -> Bool {
+    let vehicleRecord: ref<Vehicle_Record>;
+    if !IsDefined(character) || !character.IsPlayer() {
+      return false;
+    };
+    if stealingAction {
+      return true;
+    };
+    if this.IsStolen() || NotEquals(slotID, n"seat_front_left") || this.IsPlayerVehicle() {
+      return false;
+    };
+    if !VehicleComponent.GetVehicleRecord(this, vehicleRecord) {
+      return false;
+    };
+    if Equals(vehicleRecord.Affiliation().Type(), gamedataAffiliation.NCPD) || this.RecordHasTag(vehicleRecord, n"TriggerPrevention") {
+      return true;
+    };
+    return false;
+  }
+
+  private final func StealVehicle(thief: wref<GameObject>) -> Void {
+    StimBroadcasterComponent.BroadcastStim(thief, gamedataStimType.CrowdIllegalAction);
+    StimBroadcasterComponent.BroadcastActiveStim(thief, gamedataStimType.CrimeWitness, 4.40);
+    this.GetVehiclePS().SetIsStolen(true);
+  }
+
+  protected cb func OnWorkspotFinished(componentName: CName) -> Bool {
+    if Equals(componentName, n"trunkBodyDisposalPlayer") {
+      this.GetVehicleComponent().MountNpcBodyToTrunk();
+    } else {
+      if Equals(componentName, n"trunkBodyPickupPlayer") {
+        this.GetVehicleComponent().FinishTrunkBodyPickup();
+      };
+    };
+  }
+
+  public const func GetVehiclePS() -> ref<VehicleComponentPS> {
+    let ps: ref<PersistentState> = this.GetControllerPersistentState();
+    return ps as VehicleComponentPS;
+  }
+
+  public const func GetPSClassName() -> CName {
+    return this.GetVehiclePS().GetClassName();
+  }
+
+  protected final const func GetControllerPersistentState() -> ref<PersistentState> {
+    let psID: PersistentID = this.GetVehicleComponent().GetPersistentID();
+    if PersistentID.IsDefined(psID) {
+      return GameInstance.GetPersistencySystem(this.GetGame()).GetConstAccessToPSObject(psID, this.GetVehicleComponent().GetPSName());
+    };
+    return null;
+  }
+
+  public const func GetVehicleComponent() -> ref<VehicleComponent> {
+    return this.m_vehicleComponent;
+  }
+
+  public final const func GetCrowdMemberComponent() -> ref<CrowdMemberBaseComponent> {
+    return this.m_crowdMemberComponent;
+  }
+
+  public const func GetAttitudeAgent() -> ref<AttitudeAgent> {
+    return this.m_attitudeAgent;
+  }
+
+  public const func ShouldShowScanner() -> Bool {
+    if this.GetHudManager().IsBraindanceActive() && !this.m_scanningComponent.IsBraindanceClue() {
+      return false;
+    };
+    return true;
+  }
+
+  protected cb func OnHUDInstruction(evt: ref<HUDInstruction>) -> Bool {
+    if evt.quickhackInstruction.ShouldProcess() {
+      this.TryOpenQuickhackMenu(evt.quickhackInstruction.ShouldOpen());
+    };
+  }
+
+  public const func IsQuickHackAble() -> Bool {
+    let isNetrunner: Bool = this.IsNetrunner();
+    let isQuickHacksExposed: Bool = this.IsQuickHacksExposed();
+    let isQHBlockedByScene: Bool = QuickhackModule.IsQuickhackBlockedByScene(GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerMainGameObject());
+    return isNetrunner && isQuickHacksExposed && !isQHBlockedByScene;
+  }
+
+  public const func IsQuickHacksExposed() -> Bool {
+    return this.GetVehiclePS().IsQuickHacksExposed();
+  }
+
+  protected func SendQuickhackCommands(shouldOpen: Bool) -> Void {
+    let actions: array<ref<DeviceAction>>;
+    let commands: array<ref<QuickhackData>>;
+    let context: GetActionsContext;
+    let quickSlotsManagerNotification: ref<RevealInteractionWheel> = new RevealInteractionWheel();
+    quickSlotsManagerNotification.lookAtObject = this;
+    if shouldOpen {
+      context = this.GetVehiclePS().GenerateContext(gamedeviceRequestType.Remote, Device.GetInteractionClearance(), GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerControlledGameObject(), this.GetEntityID());
+      this.GetVehiclePS().GetRemoteActions(actions, context);
+      if this.m_isQhackUploadInProgress && !this.IsActionQueueEnabled() || this.IsActionQueueFull() {
+        ScriptableDeviceComponentPS.SetActionsInactiveAll(actions, "LocKey#7020");
+      };
+      if this.IsActionQueueEnabled() {
+        QuickHackableQueueHelper.CheckAndSetInactivityReasonForVehicleActions(actions, this.m_currentlyUploadingAction);
+      };
+      QuickHackableHelper.TranslateActionsIntoQuickSlotCommands(actions, commands, this, this.GetVehiclePS());
+      quickSlotsManagerNotification.commands = commands;
+      quickSlotsManagerNotification.shouldReveal = ArraySize(actions) > 0;
+    };
+    GameInstance.GetUISystem(this.GetGame()).QueueEvent(quickSlotsManagerNotification);
+  }
+
+  protected cb func OnUploadProgressStateChanged(evt: ref<UploadProgramProgressEvent>) -> Bool {
+    if Equals(evt.progressBarContext, EProgressBarContext.QuickHack) && Equals(evt.progressBarType, EProgressBarType.UPLOAD) {
+      switch evt.state {
+        case EUploadProgramState.STARTED:
+          this.m_isQhackUploadInProgress = true;
+          break;
+        case EUploadProgramState.COMPLETED:
+          this.m_isQhackUploadInProgress = false;
+      };
+    };
+  }
+
+  public const func CanRevealRemoteActionsWheel() -> Bool {
+    return this.IsQuickHackAble();
+  }
+
+  public const func ShouldRegisterToHUD() -> Bool {
+    return true;
+  }
+
+  protected cb func OnSetExposeQuickHacks(evt: ref<SetExposeQuickHacks>) -> Bool {
+    this.RequestHUDRefresh();
+  }
+
+  public const func GetDefaultHighlight() -> ref<FocusForcedHighlightData> {
+    let currentOutlineType: EFocusOutlineType;
+    let highlight: ref<FocusForcedHighlightData>;
+    if this.IsDestroyed() || this.IsPlayerMounted() {
+      return null;
+    };
+    if this.m_scanningComponent.IsBraindanceBlocked() || this.m_scanningComponent.IsPhotoModeBlocked() {
+      return null;
+    };
+    currentOutlineType = this.GetCurrentOutline();
+    if Equals(currentOutlineType, EFocusOutlineType.INVALID) {
+      return null;
+    };
+    highlight = new FocusForcedHighlightData();
+    highlight.sourceID = this.GetEntityID();
+    highlight.sourceName = this.GetClassName();
+    highlight.outlineType = currentOutlineType;
+    if Equals(highlight.outlineType, EFocusOutlineType.QUEST) {
+      highlight.highlightType = EFocusForcedHighlightType.QUEST;
+    } else {
+      if Equals(highlight.outlineType, EFocusOutlineType.HACKABLE) {
+        highlight.highlightType = EFocusForcedHighlightType.HACKABLE;
+      };
+    };
+    if this.IsNetrunner() {
+      highlight.patternType = VisionModePatternType.Netrunner;
+    } else {
+      highlight.patternType = VisionModePatternType.Default;
+    };
+    return highlight;
+  }
+
+  public const func GetCurrentOutline() -> EFocusOutlineType {
+    if this.IsQuest() {
+      return EFocusOutlineType.QUEST;
+    };
+    if this.IsNetrunner() {
+      return EFocusOutlineType.HACKABLE;
+    };
+    return EFocusOutlineType.INVALID;
+  }
+
+  public const func IsNetrunner() -> Bool {
+    let isCyberdeckEquipped: Bool = EquipmentSystem.IsCyberdeckEquipped(GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerMainGameObject());
+    return isCyberdeckEquipped;
+  }
+
+  public const func CompileScannerChunks() -> Bool {
+    let VehicleManufacturerChunk: ref<ScannerVehicleManufacturer>;
+    let driveLayoutChunk: ref<ScannerVehicleDriveLayout>;
+    let horsepowerChunk: ref<ScannerVehicleHorsepower>;
+    let infoChunk: ref<ScannerVehicleInfo>;
+    let massChunk: ref<ScannerVehicleMass>;
+    let productionYearsChunk: ref<ScannerVehicleProdYears>;
+    let record: ref<Vehicle_Record>;
+    let stateChunk: ref<ScannerVehicleState>;
+    let uiData: ref<VehicleUIData_Record>;
+    let vehicleCustomizationChunk: ref<ScannerVehicleCustomizationTemplate>;
+    let vehicleNameChunk: ref<ScannerVehicleName>;
+    let scannerBlackboard: wref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGame()).Get(GetAllBlackboardDefs().UI_ScannerModules);
+    scannerBlackboard.SetInt(GetAllBlackboardDefs().UI_ScannerModules.ObjectType, 2, true);
+    record = this.GetRecord();
+    uiData = record.VehicleUIData();
+    vehicleNameChunk = new ScannerVehicleName();
+    vehicleNameChunk.Set(LocKeyToString(record.DisplayName()));
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleName, ToVariant(vehicleNameChunk));
+    VehicleManufacturerChunk = new ScannerVehicleManufacturer();
+    VehicleManufacturerChunk.Set(record.Manufacturer().EnumName());
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleManufacturer, ToVariant(VehicleManufacturerChunk));
+    productionYearsChunk = new ScannerVehicleProdYears();
+    productionYearsChunk.Set(uiData.ProductionYear());
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleProductionYears, ToVariant(productionYearsChunk));
+    massChunk = new ScannerVehicleMass();
+    massChunk.Set(RoundMath(MeasurementUtils.ValueToImperial(uiData.Mass(), EMeasurementUnit.Kilogram)));
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleMass, ToVariant(massChunk));
+    infoChunk = new ScannerVehicleInfo();
+    infoChunk.Set(uiData.Info());
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleInfo, ToVariant(infoChunk));
+    vehicleCustomizationChunk = new ScannerVehicleCustomizationTemplate();
+    vehicleCustomizationChunk.Set(this.GetVehicleComponent().GetCurrentAppearanceColorTemplate(), this.GetRecord().ColorProfilesRestricted(), this.GetRecord().TwintoneModelName());
+    scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleCustomization, ToVariant(vehicleCustomizationChunk));
+    if this == (this as CarObject) || this == (this as BikeObject) {
+      horsepowerChunk = new ScannerVehicleHorsepower();
+      horsepowerChunk.Set(RoundMath(uiData.Horsepower()));
+      scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleHorsepower, ToVariant(horsepowerChunk));
+      stateChunk = new ScannerVehicleState();
+      stateChunk.Set(this.m_vehicleComponent.GetVehicleStateForScanner());
+      scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleState, ToVariant(stateChunk));
+      driveLayoutChunk = new ScannerVehicleDriveLayout();
+      driveLayoutChunk.Set(uiData.DriveLayout());
+      scannerBlackboard.SetVariant(GetAllBlackboardDefs().UI_ScannerModules.ScannerVehicleDriveLayout, ToVariant(driveLayoutChunk));
+    };
+    return true;
+  }
+
+  protected cb func OnLookedAtEvent(evt: ref<LookedAtEvent>) -> Bool {
+    super.OnLookedAtEvent(evt);
+    VehicleComponent.QueueEventToAllPassengers(this.GetGame(), this, evt);
+  }
+
+  protected cb func OnCrowdSettingsEvent(evt: ref<CrowdSettingsEvent>) -> Bool {
+    if !this.m_driverUnconscious {
+      this.m_drivingTrafficPattern = evt.movementType;
+      this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+    };
+  }
+
+  protected cb func OnStuckEvent(evt: ref<VehicleStuckEvent>) -> Bool {
+    this.m_gotStuckIncrement += 1;
+    this.m_drivingTrafficPattern = n"stop";
+    this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+    GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, this.m_reactionTriggerEvent, 1.00);
+    if this.IsPrevention() {
+      VehicleComponent.QueueEventToAllPassengers(this.GetGame(), this.GetEntityID(), evt);
+    };
+  }
+
+  protected cb func OnVehicleDestructionEvent(evt: ref<gameVehicleDestructionEvent>) -> Bool {
+    if Equals(evt.attackData.GetAttackType(), gamedataAttackType.Melee) {
+      if VehicleComponent.HasActiveDriverMounted(this.GetGame(), this.GetEntityID()) && !this.IsPlayerDriver() {
+        this.m_vehicleComponent.PlayDelayedHonk(TweakDBInterface.GetFloat(t"vehicles.honking.meleeHonkDuration", 1.00), TweakDBInterface.GetFloat(t"vehicles.honking.meleeHonkDelay", 0.30));
+      };
+    };
+  }
+
+  protected cb func OnTrafficAudioEvent(evt: ref<TrafficAudioEvent>) -> Bool {
+    if Equals(evt.audioAction, audioTrafficVehicleAudioAction.Horn) {
+    };
+  }
+
+  protected cb func OnVehicleBumpEvent(evt: ref<VehicleBumpEvent>) -> Bool {
+    let isBike: Bool;
+    this.m_vehicleComponent.CheckForDrag(evt.impactVelocityChange);
+    isBike = this == (this as BikeObject);
+    if evt.isInTraffic && evt.impactVelocityChange > 0.00 {
+      this.HandleTrafficBump(evt.impactVelocityChange);
+    } else {
+      if IsDefined(evt.hitVehicle) && isBike {
+        this.m_vehicleComponent.HandleBikeCollisionReaction(evt.impactVelocityChange, Vector4.Vector3To4(evt.hitNormal));
+      };
+    };
+  }
+
+  private final func HandleTrafficBump(impact: Float) -> Void {
+    let impactNormal: Float;
+    let threshold: Float;
+    if impact > 20.00 {
+      return;
+    };
+    if this.IsExecutingAnyCommand() {
+      return;
+    };
+    if this.m_minUnconsciousImpact == 0.00 {
+      this.m_minUnconsciousImpact = TweakDBInterface.GetFloat(t"AIGeneralSettings.minUnconsciousImpact", 6.50);
+    };
+    impactNormal = (impact - 20.00) * 0.11;
+    if impact > this.m_minUnconsciousImpact && RandRangeF(0.00, 1.00) < (100.00 - this.m_minUnconsciousImpact + impactNormal * impactNormal * (20.00 - this.m_minUnconsciousImpact)) / 100.00 {
+      this.TriggerUnconsciousBehaviorForPassengers();
+    } else {
+      this.EscalateBumpVehicleReaction();
+    };
+    threshold = TweakDBInterface.GetFloat(t"vehicles.honking.collisionHonkUpperThreshold", 100.00) / 3.60;
+    if impact < threshold && VehicleComponent.HasActiveDriverMounted(this.GetGame(), this.GetEntityID()) && !this.IsPlayerDriver() {
+      this.m_vehicleComponent.PlayDelayedHonk(TweakDBInterface.GetFloat(t"vehicles.honking.collisionHonkDuration", 1.50), TweakDBInterface.GetFloat(t"vehicles.honking.collisionHonkDelay", 0.50));
+    };
+  }
+
+  private final func EscalateBumpVehicleReaction() -> Void {
+    let broadcaster: ref<StimBroadcasterComponent>;
+    let driver: ref<GameObject>;
+    if !GameObject.IsCooldownActive(this, n"bumpCooldown") {
+      GameObject.StartCooldown(this, n"bumpCooldown", 1.00);
+      driver = VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID());
+      if VehicleComponent.IsMountedToVehicle(this.GetGame(), driver) && IsDefined(driver as NPCPuppet) && ScriptedPuppet.IsActive(driver) {
+        GameObject.PlayVoiceOver(driver, n"vehicle_bump", n"Scripts:EscalateBumpVehicleReaction", true);
+      };
+      if this.m_bumpTimestamp >= EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame())) {
+        this.m_bumpedRecently += 1;
+        if this.m_bumpedRecently > 2 {
+          broadcaster = GameInstance.GetPlayerSystem(this.GetGame()).GetLocalPlayerMainGameObject().GetStimBroadcasterComponent();
+          if IsDefined(broadcaster) && IsDefined(driver) {
+            broadcaster.SendDrirectStimuliToTarget(this, gamedataStimType.Bump, driver);
+          };
+        };
+      } else {
+        this.m_bumpedRecently = 1;
+        this.m_bumpTimestamp = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame())) + 60.00;
+      };
+    };
+  }
+
+  private final func TriggerUnconsciousBehaviorForPassengers() -> Void {
+    let delayBehaviorEvent: ref<WaitForPassengersToSpawnEvent>;
+    let game: GameInstance;
+    let i: Int32;
+    let mountInfos: array<MountingInfo>;
+    let passenger: ref<GameObject>;
+    if !this.m_driverUnconscious {
+      this.m_drivingTrafficPattern = n"stop";
+      this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+      this.m_driverUnconscious = true;
+      this.ApplyPermanentStun();
+    };
+    game = this.GetGame();
+    mountInfos = GameInstance.GetMountingFacility(game).GetMountingInfoMultipleWithIds(this.GetEntityID());
+    if ArraySize(mountInfos) == 0 {
+      GameInstance.GetDelaySystem(game).CancelDelay(this.m_waitForPassengersToSpawnEventDelayID);
+      delayBehaviorEvent = new WaitForPassengersToSpawnEvent();
+      this.m_waitForPassengersToSpawnEventDelayID = GameInstance.GetDelaySystem(game).DelayEvent(this, delayBehaviorEvent, 1.50);
+    };
+    i = 0;
+    while i < ArraySize(mountInfos) {
+      if Equals(mountInfos[i].slotId.id, n"trunk_body") {
+      } else {
+        passenger = GameInstance.FindEntityByID(game, mountInfos[i].childId) as GameObject;
+        if IsDefined(passenger) {
+          StatusEffectHelper.ApplyStatusEffect(passenger, t"BaseStatusEffect.Defeated");
+          if VehicleComponent.IsDriver(this.GetGame(), passenger) {
+            this.m_vehicleComponent.PlayHonkForDuration(7.50);
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnUnableToStartPanicDriving(evt: ref<VehicleUnableToStartPanicDriving>) -> Bool {
+    if evt.forceExitVehicle {
+      this.TriggerExitBehavior();
+    } else {
+      this.TriggerFearInsideVehicleBehavior();
+      this.ResendHandleReactionEvent();
+    };
+  }
+
+  protected cb func OnWaitForPassengersToSpawnEvent(evt: ref<WaitForPassengersToSpawnEvent>) -> Bool {
+    this.TriggerUnconsciousBehaviorForPassengers();
+  }
+
+  protected cb func OnHandleReactionEvent(evt: ref<HandleReactionEvent>) -> Bool {
+    let isMaxTacOnScene: Bool;
+    let prevention: ref<PreventionSystem>;
+    let randomDraw: Float;
+    if this.IsPerformingPanicDriving() || this.IsExecutingAnyCommand() {
+      return IsDefined(null);
+    };
+    if EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame())) <= this.m_hitTimestamp + 2.00 && evt.stimEvent.sourceObject.IsPlayer() {
+      this.EnableHighPriorityPanicDriving();
+    };
+    if !GameObject.IsCooldownActive(this, n"vehicleReactionCooldown") && !this.m_driverUnconscious {
+      this.m_reactionTriggerEvent = evt;
+      GameObject.StartCooldown(this, n"vehicleReactionCooldown", 1.00);
+      randomDraw = RandRangeF(0.00, 1.00);
+      prevention = GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"PreventionSystem") as PreventionSystem;
+      isMaxTacOnScene = !prevention.IsMaxTacDefeated();
+      if this.m_gotStuckIncrement < 2 && !this.m_abandoned && this.CanStartPanicDriving() && !isMaxTacOnScene {
+        this.TriggerDrivingPanicBehavior(evt.stimEvent.sourcePosition);
+        this.m_fearInside = false;
+      } else {
+        if isMaxTacOnScene || (randomDraw <= 0.30 || this.m_gotStuckIncrement > 2) && evt.stimEvent.sourceObject.IsPlayer() && this.CanNPCsLeaveVehicle() {
+          this.TriggerExitBehavior();
+          this.m_fearInside = false;
+        } else {
+          if !this.m_fearInside {
+            this.TriggerFearInsideVehicleBehavior();
+            this.m_fearInside = true;
+          };
+          this.ResendHandleReactionEvent();
+        };
+      };
+    };
+  }
+
+  protected cb func OnTriggerPanicDrivingEvent(evt: ref<TriggerPanicDrivingEvent>) -> Bool {
+    this.PanicDrivingBehavior();
+  }
+
+  private final func PanicDrivingBehavior() -> Void {
+    if !this.m_abandoned && !this.IsPlayerMounted() {
+      if Equals(this.m_drivingTrafficPattern, n"stop") {
+        this.ResetReactionSequenceOfAllPassengers();
+      };
+      GameObject.PlayVoiceOver(VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID()), n"fear_run", n"Scripts:PanicDrivingBehavior", true);
+      this.m_drivingTrafficPattern = n"panic";
+      this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+      this.ResetTimesSentReactionEvent();
+    };
+  }
+
+  private final func TriggerDrivingPanicBehavior(threatPosition: Vector4) -> Void {
+    let panicDrivingEvent: ref<TriggerPanicDrivingEvent>;
+    GameInstance.GetDelaySystem(this.GetGame()).CancelDelay(this.m_triggerPanicDrivingEventDelayID);
+    panicDrivingEvent = new TriggerPanicDrivingEvent();
+    if EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame())) <= this.m_hitTimestamp + 2.00 {
+      this.QueueEvent(panicDrivingEvent);
+    } else {
+      if Vector4.DistanceSquared(this.GetWorldPosition(), threatPosition) < 225.00 {
+        this.m_triggerPanicDrivingEventDelayID = GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, panicDrivingEvent, RandRangeF(0.40, 0.70));
+      } else {
+        this.m_triggerPanicDrivingEventDelayID = GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, panicDrivingEvent, RandRangeF(0.80, 1.50));
+      };
+    };
+  }
+
+  private final func TriggerFearInsideVehicleBehavior() -> Void {
+    let npcReactionEvent: ref<DelayedCrowdReactionEvent>;
+    this.m_drivingTrafficPattern = n"stop";
+    this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+    npcReactionEvent = new DelayedCrowdReactionEvent();
+    npcReactionEvent.stimEvent = this.m_reactionTriggerEvent.stimEvent;
+    npcReactionEvent.vehicleFearPhase = 2;
+    VehicleComponent.QueueEventToAllPassengers(this.GetGame(), this.GetEntityID(), npcReactionEvent, true);
+  }
+
+  public final func TriggerExitBehavior(opt maxDelayOverride: Float) -> Void {
+    let exitEvent: ref<AIEvent>;
+    let npcReactionEvent: ref<DelayedCrowdReactionEvent>;
+    let passengersCanLeaveCar: array<wref<GameObject>>;
+    let passengersCantLeaveCar: array<wref<GameObject>>;
+    VehicleComponent.CheckIfPassengersCanLeaveCar(this.GetGame(), this.GetEntityID(), passengersCanLeaveCar, passengersCantLeaveCar);
+    this.m_drivingTrafficPattern = n"stop";
+    this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+    npcReactionEvent = new DelayedCrowdReactionEvent();
+    npcReactionEvent.stimEvent = this.m_reactionTriggerEvent.stimEvent;
+    if this.IsDestroyed() {
+      return;
+    };
+    if ArraySize(passengersCanLeaveCar) > 0 && !this.IsA(n"vehicleAVBaseObject") {
+      if (this.IsPerformingPanicDriving() || (passengersCanLeaveCar[0] as ScriptedPuppet).IsCrowd()) && !(passengersCanLeaveCar[0] as ScriptedPuppet).IsPrevention() && !(passengersCanLeaveCar[0] as ScriptedPuppet).IsAggressive() && !this.IsQuest() {
+        exitEvent = new AIEvent();
+        exitEvent.name = n"ExitVehicleInPanic";
+        VehicleComponent.QueueEventToPassengers(this.GetGame(), this.GetEntityID(), exitEvent, passengersCanLeaveCar, true, maxDelayOverride);
+        npcReactionEvent.vehicleFearPhase = 3;
+        VehicleComponent.QueueEventToPassengers(this.GetGame(), this.GetEntityID(), npcReactionEvent, passengersCanLeaveCar, true, maxDelayOverride);
+      } else {
+        exitEvent = new AIEvent();
+        exitEvent.name = n"ExitVehicle";
+        VehicleComponent.QueueEventToPassengers(this.GetGame(), this.GetEntityID(), exitEvent, passengersCanLeaveCar, true, maxDelayOverride);
+      };
+      this.ResetTimesSentReactionEvent();
+    };
+    if ArraySize(passengersCantLeaveCar) > 0 {
+      if (passengersCantLeaveCar[0] as ScriptedPuppet).IsCharacterCivilian() {
+        npcReactionEvent.vehicleFearPhase = 2;
+      };
+      VehicleComponent.QueueEventToPassengers(this.GetGame(), this.GetEntityID(), npcReactionEvent, passengersCantLeaveCar, true);
+      this.ResendHandleReactionEvent();
+    };
+    this.m_abandoned = true;
+  }
+
+  private final func ResendHandleReactionEvent() -> Void {
+    let delayTime: Float;
+    if !this.IsTargetClose(this.m_reactionTriggerEvent.stimEvent.sourceObject.GetWorldPosition(), 20.00) {
+      if this.m_timesToResendHandleReactionEvent == 0 {
+        this.m_timesToResendHandleReactionEvent = TweakDBInterface.GetInt(t"AIGeneralSettings.timesToResendHandleReactionEvent", 3);
+      };
+      if this.m_timesSentReactionEvent >= this.m_timesToResendHandleReactionEvent {
+        return;
+      };
+      this.m_timesSentReactionEvent += 1;
+    } else {
+      this.m_timesSentReactionEvent = 0;
+    };
+    delayTime = RandRangeF(2.00, 3.00);
+    GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, this.m_reactionTriggerEvent, delayTime);
+  }
+
+  private final func ResetTimesSentReactionEvent() -> Void {
+    this.m_timesSentReactionEvent = 0;
+  }
+
+  private final func ResetReactionSequenceOfAllPassengers() -> Void {
+    let mountingInfos: array<MountingInfo> = GameInstance.GetMountingFacility(this.GetGame()).GetMountingInfoMultipleWithObjects(this);
+    let count: Int32 = ArraySize(mountingInfos);
+    let workspotSystem: ref<WorkspotGameSystem> = GameInstance.GetWorkspotSystem(this.GetGame());
+    let i: Int32 = 0;
+    while i < count {
+      workspotSystem.HardResetPlaybackToStart(GameInstance.FindEntityByID(this.GetGame(), mountingInfos[i].childId) as GameObject);
+      i += 1;
+    };
+  }
+
+  private final func CanNPCsLeaveVehicle() -> Bool {
+    let angleToTarget: Float;
+    let direction: Vector4;
+    if this.IsTargetClose(this.m_reactionTriggerEvent.stimEvent.sourceObject.GetWorldPosition(), 25.00) {
+      direction = this.m_reactionTriggerEvent.stimEvent.sourceObject.GetWorldPosition() - this.GetWorldPosition();
+      angleToTarget = Vector4.GetAngleDegAroundAxis(direction, this.GetWorldForward(), this.GetWorldUp());
+      if AbsF(angleToTarget) < 85.00 {
+        return true;
+      };
+      return false;
+    };
+    return true;
+  }
+
+  private final func IsTargetClose(targetPosition: Vector4, distance: Float) -> Bool {
+    let distanceSquared: Float = Vector4.DistanceSquared(targetPosition, this.GetWorldPosition());
+    if distanceSquared < distance * distance {
+      return true;
+    };
+    return false;
+  }
+
+  protected cb func OnHit(evt: ref<gameHitEvent>) -> Bool {
+    super.OnHit(evt);
+  }
+
+  public final func ShouldPreventionReactToExplosion() -> Bool {
+    return this.m_hitByPlayer && (IsDefined(this.GetBlackboard()) && this.GetBlackboard().GetBool(GetAllBlackboardDefs().Vehicle.IsCrowd) || this.IsVehicleParked());
+  }
+
+  public func ReactToHitProcess(hitEvent: ref<gameHitEvent>) -> Void {
+    let autodriveSystem: ref<AutoDriveSystem>;
+    let isFromPrevention: Bool;
+    let attackType: gamedataAttackType = hitEvent.attackData.GetAttackType();
+    super.ReactToHitProcess(hitEvent);
+    isFromPrevention = false;
+    if IsDefined(hitEvent.attackData.GetInstigator()) {
+      isFromPrevention = hitEvent.attackData.GetInstigator().IsPrevention();
+      if !this.m_hitByPlayer {
+        this.m_hitByPlayer = hitEvent.attackData.GetInstigator().IsPlayer();
+      };
+    };
+    if this.IsPrevention() && this.IsCrowdVehicle() && !isFromPrevention {
+      this.m_vehicleComponent.InjectThreat(hitEvent.attackData.GetInstigator());
+    };
+    if this.IsAutoDriveModeEnabled() && NotEquals(attackType, gamedataAttackType.Direct) {
+      if IsDefined(autodriveSystem = GameInstance.GetScriptableSystemsContainer(this.GetGame()).Get(n"AutoDriveSystem") as AutoDriveSystem) {
+        autodriveSystem.QueueRequest(new AutoDriveHitRequest());
+      };
+    };
+  }
+
+  private final func OnHitSounds(hitEvent: ref<gameHitEvent>) -> Void {
+    if !AttackData.IsRangedOrDirect(hitEvent.attackData.GetAttackType()) {
+      return;
+    };
+    if !hitEvent.attackData.GetInstigator().IsPlayer() {
+      return;
+    };
+    GameInstance.GetAudioSystem(this.GetGame()).PlayImpact(n"w_feedback_hit_armor", hitEvent.hitPosition, this);
+  }
+
+  protected cb func OnDamageReceived(evt: ref<gameDamageReceivedEvent>) -> Bool {
+    super.OnDamageReceived(evt);
+    if !this.IsDead() && this.IsPlayerMounted() {
+      GameInstance.GetTelemetrySystem(this.GetGame()).LogPlayerVehicleDamageReceived(Cast<Int32>(evt.totalDamageReceived));
+    };
+  }
+
+  protected func DamagePipelineFinalized(evt: ref<gameHitEvent>) -> Void {
+    let driver: ref<GameObject>;
+    super.DamagePipelineFinalized(evt);
+    if !GameObject.IsCooldownActive(this, n"vehicleHitCooldown") {
+      GameObject.StartCooldown(this, n"vehicleHitCooldown", 1.00);
+      this.m_hitTimestamp = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGame()));
+    };
+    driver = VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID());
+    if IsDefined(driver) && NotEquals((driver as ScriptedPuppet).GetHighLevelStateFromBlackboard(), gamedataNPCHighLevelState.Combat) {
+      if this.GetVehicleComponent().HasPreventionPassenger() {
+        StimBroadcasterComponent.SendStimDirectly(evt.attackData.GetInstigator(), gamedataStimType.CombatHit, driver);
+      };
+    };
+    this.ApplyDamagesToDriver(evt);
+  }
+
+  public final func ApplyDamagesToDriver(evt: ref<gameHitEvent>) -> Void {
+    let attack: ref<IAttack>;
+    let attackContext: AttackInitContext;
+    let baseNumberOfHits: Float;
+    let chance: Float;
+    let curHealth: Float;
+    let damage: Float;
+    let driverKillEvt: ref<gameHitEvent>;
+    let health: Float;
+    let maxHealth: Float;
+    let percentHealthDamage: Float;
+    let instigator: wref<GameObject> = evt.attackData.GetInstigator();
+    if instigator.IsPlayer() && !this.IsPlayerDriver() && VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID()) != null && RPGManager.HasStatFlag(instigator, gamedataStatType.CanPlayerPierceDriver) && AttackData.IsRangedOrDirect(evt.attackData.GetAttackType()) {
+      health = GameInstance.GetStatPoolsSystem(this.GetGame()).GetStatPoolValue(Cast<StatsObjectID>(this.GetEntityID()), gamedataStatPoolType.Health, false);
+      maxHealth = GameInstance.GetStatPoolsSystem(this.GetGame()).GetStatPoolMaxPointValue(Cast<StatsObjectID>(this.GetEntityID()), gamedataStatPoolType.Health);
+      damage = evt.attackComputed.GetAttackValue(gamedataDamageType.Physical);
+      curHealth = (health - damage) / maxHealth;
+      percentHealthDamage = ClampF(damage / maxHealth, 0.00, 0.30);
+      baseNumberOfHits = 20.00;
+      chance = TweakDBInterface.GetFloat(t"Attacks.DriverKill.chance", 1.00);
+      chance = chance * percentHealthDamage * baseNumberOfHits;
+      if curHealth > 0.50 {
+        chance = chance * (1.50 - curHealth);
+      };
+      if Cast<Float>(RandRange(0, 100)) < chance {
+        driverKillEvt = new gameHitEvent();
+        driverKillEvt.attackData = new AttackData();
+        attackContext.record = TweakDBInterface.GetAttackRecord(t"Attacks.DriverKill");
+        attackContext.instigator = evt.attackData.GetInstigator();
+        attackContext.source = evt.attackData.GetSource();
+        attack = IAttack.Create(attackContext);
+        driverKillEvt.target = VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID());
+        driverKillEvt.attackData.SetAttackDefinition(attack);
+        driverKillEvt.attackData.SetInstigator(evt.attackData.GetInstigator());
+        driverKillEvt.attackData.SetSource(evt.attackData.GetSource());
+        driverKillEvt.attackData.SetAttackType(gamedataAttackType.Effect);
+        driverKillEvt.attackData.AddFlag(hitFlag.Kill, n"driver_kill");
+        GameInstance.GetDamageSystem(this.GetGame()).QueueHitEvent(driverKillEvt, this);
+      };
+    };
+  }
+
+  public final func IsOnPavement() -> Bool {
+    return this.m_onPavement;
+  }
+
+  protected cb func OnPavement(evt: ref<OnPavement>) -> Bool {
+    this.m_onPavement = true;
+  }
+
+  protected cb func OnOffPavement(evt: ref<OffPavement>) -> Bool {
+    this.m_onPavement = false;
+  }
+
+  private final const func IsActionQueueEnabled() -> Bool {
+    let playerPuppet: ref<PlayerPuppet> = GetPlayer(this.GetGame());
+    return QuickHackableQueueHelper.IsActionQueueEnabled(this.m_currentlyUploadingAction, playerPuppet);
+  }
+
+  private final const func IsActionQueueFull() -> Bool {
+    return QuickHackableQueueHelper.IsActionQueueFull(this.m_currentlyUploadingAction);
+  }
+
+  public func SetCurrentlyUploadingAction(action: ref<ScriptableDeviceAction>) -> Void {
+    this.m_currentlyUploadingAction = action;
+  }
+
+  public func GetCurrentlyUploadingAction() -> ref<ScriptableDeviceAction> {
+    return this.m_currentlyUploadingAction;
+  }
+
+  protected cb func OnInCrowd(evt: ref<InCrowd>) -> Bool {
+    let hls: gamedataNPCHighLevelState;
+    let vehicleDriver: wref<GameObject>;
+    this.m_inTrafficLane = true;
+    if !this.m_driverUnconscious {
+      vehicleDriver = VehicleComponent.GetDriverMounted(this.GetGame(), this.GetEntityID());
+      if IsDefined(vehicleDriver) {
+        hls = (vehicleDriver as ScriptedPuppet).GetHighLevelStateFromBlackboard();
+        if NotEquals(hls, gamedataNPCHighLevelState.Fear) && Equals(this.m_drivingTrafficPattern, n"stop") {
+          this.m_drivingTrafficPattern = n"normal";
+          this.m_crowdMemberComponent.ChangeMoveType(this.m_drivingTrafficPattern);
+        };
+      };
+      this.m_fearInside = false;
+    };
+  }
+
+  protected cb func OnOutOfCrowd(evt: ref<OutOfCrowd>) -> Bool {
+    this.m_inTrafficLane = false;
+  }
+
+  public final func IsInTrafficLane() -> Bool {
+    return this.m_inTrafficLane;
+  }
+
+  public final func IsVehicleUpsideDown() -> Bool {
+    return this.m_vehicleUpsideDown;
+  }
+
+  public final func ComputeIsVehicleUpsideDown() -> Bool {
+    return Vector4.Dot(this.GetWorldUp(), Vector4.UP()) < 0.00;
+  }
+
+  public final func GetVehicleType() -> gamedataVehicleType {
+    let vehicleTypeRecord: ref<VehicleType_Record>;
+    let vehicleRecord: ref<Vehicle_Record> = this.GetRecord();
+    if !IsDefined(vehicleRecord) {
+      return gamedataVehicleType.Invalid;
+    };
+    vehicleTypeRecord = vehicleRecord.Type();
+    if !IsDefined(vehicleTypeRecord) {
+      return gamedataVehicleType.Invalid;
+    };
+    return vehicleTypeRecord.Type();
+  }
+
+  protected cb func OnVehicleFlippedOverEvent(evt: ref<VehicleFlippedOverEvent>) -> Bool {
+    this.m_vehicleUpsideDown = evt.isFlippedOver;
+  }
+
+  protected cb func OnStealVehicleEvent(evt: ref<StealVehicleEvent>) -> Bool {
+    this.m_abandoned = true;
+  }
+
+  public const func IsQuest() -> Bool {
+    return this.GetVehiclePS().IsMarkedAsQuest();
+  }
+
+  protected func MarkAsQuest(isQuest: Bool) -> Void {
+    this.GetVehiclePS().SetIsMarkedAsQuest(isQuest);
+  }
+
+  protected cb func OnSwitchVehicleVisualCustomizationStateEvent(evt: ref<SwitchVehicleVisualCustomizationStateEvent>) -> Bool {
+    if VehicleVisualCustomizationTemplate.IsValid(this.GetVehiclePS().GetVehicleVisualCustomizationTemplate()) && !this.GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage() {
+      this.ExecuteVisualCustomizationWithDelay(evt.on, !evt.on, false, 0.80);
+    };
+  }
+
+  protected cb func OnCheckVehicleVisialCustomizationDistanceTermination(evt: ref<CheckVehicleVisialCustomizationDistanceTermination>) -> Bool {
+    let distanceCheckEvent: ref<CheckVehicleVisialCustomizationDistanceTermination>;
+    let switchVisualCustomizationEvent: ref<SwitchVehicleVisualCustomizationStateEvent>;
+    let playerDistance: Float = Vector4.DistanceSquared(this.GetWorldPosition(), GetPlayerObject(this.GetGame()).GetWorldPosition());
+    if playerDistance < 32.00 {
+      if this.IsPlayerMounted() || !VehicleVisualCustomizationTemplate.IsValid(this.GetVehiclePS().GetVehicleVisualCustomizationTemplate()) || !this.GetVehiclePS().GetIsVehicleVisualCustomizationActive() {
+        return false;
+      };
+      this.GetVehiclePS().SetVehicleApperanceCustomizationInDistanceTermination(true);
+      distanceCheckEvent = new CheckVehicleVisialCustomizationDistanceTermination();
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, distanceCheckEvent, 0.50);
+    } else {
+      this.GetVehiclePS().SetVehicleApperanceCustomizationInDistanceTermination(false);
+      switchVisualCustomizationEvent = new SwitchVehicleVisualCustomizationStateEvent();
+      switchVisualCustomizationEvent.on = false;
+      this.QueueEvent(switchVisualCustomizationEvent);
+    };
+  }
+
+  protected cb func OnNewVehicleVisualCustomizationEvent(evt: ref<NewVehicleVisualCustomizationEvent>) -> Bool {
+    let componentEvent: ref<StoreVisualCustomizationDataForIDEvent>;
+    let oldTemplate: VehicleVisualCustomizationTemplate;
+    let storageComponent: ref<vehicleVisualCustomizationComponent>;
+    let template: VehicleVisualCustomizationTemplate;
+    let vehComponent: ref<VehicleComponent> = this.GetVehicleComponent();
+    let PS: ref<VehicleComponentPS> = this.GetVehiclePS();
+    if !IsDefined(vehComponent) || !IsDefined(PS) {
+      return false;
+    };
+    if !evt.reset && !vehComponent.CanApplyTemplateOnVehicle(evt.template) {
+      StatusEffectHelper.ApplyStatusEffect(GetPlayer(this.GetGame()), t"BaseStatusEffect.VehicleVisualModCooldownInstant");
+      return false;
+    };
+    PS = this.GetVehiclePS();
+    template = evt.template;
+    oldTemplate = PS.GetVehicleVisualCustomizationTemplate();
+    PS.SetVehicleVisualCustomizationTemplate(template);
+    if !evt.reset {
+      if !VehicleVisualCustomizationTemplate.Equals(template, oldTemplate) && VehicleVisualCustomizationTemplate.IsValid(template) {
+        this.ExecuteVisualCustomizationWithDelay(true, false, false, 0.80);
+      } else {
+        GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new VehicleCustomizationLightsEvent(), 0.50);
+        StatusEffectHelper.ApplyStatusEffect(GetPlayer(this.GetGame()), t"BaseStatusEffect.VehicleVisualModCooldownInstant");
+      };
+    } else {
+      if VehicleVisualCustomizationTemplate.IsValid(oldTemplate) {
+        this.ExecuteVisualCustomizationWithDelay(false, true, false, 0.80);
+      } else {
+        GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new VehicleCustomizationLightsEvent(), 0.50);
+        StatusEffectHelper.ApplyStatusEffect(GetPlayer(this.GetGame()), t"BaseStatusEffect.VehicleVisualModCooldownInstant");
+        this.GetVehiclePS().SetVehicleVisualCustomizationActive(true);
+      };
+    };
+    if NotEquals(template, oldTemplate) {
+      vehComponent.ProcessHeatLevelOnVisualCustomization(oldTemplate, template);
+    };
+    storageComponent = GetMainPlayer(this.GetGame()).GetVehicleVisualCustomizationComponent();
+    if IsDefined(storageComponent) && vehComponent.GetIsVehicleVisualCustomizationEnabled() {
+      componentEvent = new StoreVisualCustomizationDataForIDEvent();
+      componentEvent.template = template;
+      componentEvent.vehicleID = this.GetRecordID();
+      storageComponent.QueueEntityEvent(componentEvent);
+    };
+  }
+
+  protected final func ExecuteVisualCustomizationWithDelay(set: Bool, reset: Bool, instant: Bool, opt delay: Float) -> Void {
+    let evt: ref<ExecuteVehicleVisualCustomizationEvent> = new ExecuteVehicleVisualCustomizationEvent();
+    evt.set = set;
+    evt.reset = reset;
+    evt.instant = instant;
+    if delay == 0.00 || instant {
+      this.QueueEvent(evt);
+    } else {
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, evt, delay);
+    };
+  }
+
+  protected cb func OnProcessVehicleVisualCustomizationLights(evt: ref<VehicleCustomizationLightsEvent>) -> Bool {
+    let color: Color;
+    let lightsEvent: ref<VehicleLightQuestChangeColorEvent>;
+    let template: VehicleVisualCustomizationTemplate;
+    let vehicleRecord: ref<Vehicle_Record> = this.GetRecord();
+    if !vehicleRecord.CustomizeLights() {
+      return false;
+    };
+    template = this.GetVehiclePS().GetVehicleVisualCustomizationTemplate();
+    if template.genericData.lightsColorDefined {
+      color = Color.HSBToColor(template.genericData.lightsColorHue, false, 0.50, 1.00);
+      lightsEvent = new VehicleLightQuestChangeColorEvent();
+      lightsEvent.color = color;
+      lightsEvent.lightType = vehicleELightType.Head;
+      lightsEvent.forceOverrideEmissiveColor = true;
+      this.QueueEvent(lightsEvent);
+      lightsEvent = new VehicleLightQuestChangeColorEvent();
+      lightsEvent.color = color;
+      lightsEvent.lightType = vehicleELightType.Interior;
+      lightsEvent.forceOverrideEmissiveColor = true;
+      this.QueueEvent(lightsEvent);
+      if this == (this as BikeObject) {
+        lightsEvent = new VehicleLightQuestChangeColorEvent();
+        lightsEvent.color = color;
+        lightsEvent.lightType = vehicleELightType.Utility;
+        lightsEvent.forceOverrideEmissiveColor = true;
+        this.QueueEvent(lightsEvent);
+      };
+    } else {
+      lightsEvent = new VehicleLightQuestChangeColorEvent();
+      lightsEvent.lightType = vehicleELightType.Head;
+      lightsEvent.forceOverrideEmissiveColor = false;
+      if vehicleRecord.GetHeadlightColorCount() == 4 {
+        lightsEvent.color = new Color(Cast<Uint8>(vehicleRecord.GetHeadlightColorItem(0)), Cast<Uint8>(vehicleRecord.GetHeadlightColorItem(1)), Cast<Uint8>(vehicleRecord.GetHeadlightColorItem(2)), Cast<Uint8>(vehicleRecord.GetHeadlightColorItem(3)));
+      } else {
+        lightsEvent.color = new Color(255u, 255u, 255u, 255u);
+      };
+      this.QueueEvent(lightsEvent);
+      lightsEvent = new VehicleLightQuestChangeColorEvent();
+      lightsEvent.lightType = vehicleELightType.Interior;
+      lightsEvent.forceOverrideEmissiveColor = false;
+      if vehicleRecord.GetInteriorColorCount() == 4 {
+        lightsEvent.color = new Color(Cast<Uint8>(vehicleRecord.GetInteriorColorItem(0)), Cast<Uint8>(vehicleRecord.GetInteriorColorItem(1)), Cast<Uint8>(vehicleRecord.GetInteriorColorItem(2)), Cast<Uint8>(vehicleRecord.GetInteriorColorItem(3)));
+      } else {
+        lightsEvent.color = new Color(255u, 255u, 255u, 255u);
+      };
+      this.QueueEvent(lightsEvent);
+      if this == (this as BikeObject) {
+        lightsEvent = new VehicleLightQuestChangeColorEvent();
+        lightsEvent.lightType = vehicleELightType.Utility;
+        lightsEvent.forceOverrideEmissiveColor = false;
+        if vehicleRecord.GetUtilityLightColorCount() == 4 {
+          lightsEvent.color = new Color(Cast<Uint8>(vehicleRecord.GetInteriorColorItem(0)), Cast<Uint8>(vehicleRecord.GetUtilityLightColorItem(1)), Cast<Uint8>(vehicleRecord.GetUtilityLightColorItem(2)), Cast<Uint8>(vehicleRecord.GetUtilityLightColorItem(3)));
+        } else {
+          lightsEvent.color = new Color(255u, 255u, 255u, 255u);
+        };
+      };
+    };
+  }
+
+  public final func PlayVehicleVisualCustomizationShader(play: Bool, opt instant: Bool, opt affectRims: Bool) -> Void {
+    if IsDefined(this.m_vehicleComponent) {
+      this.m_vehicleComponent.PlayVehicleVisualCustomizationShader(play, instant, affectRims);
+    };
+  }
+
+  public final func GetCustomizationWidgets() -> [ref<worlduiWidgetComponent>] {
+    let widgets: array<ref<worlduiWidgetComponent>> = this.GetUIComponents();
+    return widgets;
+  }
+
+  private final func SyncVehicleVisualCustomizationDefinition() -> Void {
+    let template: VehicleVisualCustomizationTemplate;
+    let PS: ref<VehicleComponentPS> = this.GetVehiclePS();
+    let component: ref<vehicleVisualCustomizationComponent> = GetPlayer(this.GetGame()).GetVehicleVisualCustomizationComponent();
+    if this.GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled() {
+      if IsDefined(component) {
+        template = component.RetrieveVisualCustomizationForVehicle(this.GetRecordID());
+        PS.SetVehicleVisualCustomizationTemplate(template);
+      };
+    };
+  }
+}
+
+public native class AVObject extends VehicleObject {
+
+  public final func TurnOffThrusters() -> Void {
+    GameObjectEffectHelper.BreakEffectLoopEvent(this, n"thrusters");
+  }
+
+  public final func TurnOnThrusters() -> Void {
+    GameObjectEffectHelper.StartEffectEvent(this, n"thrusters");
+  }
+}
+
+public class ncartMetroObject extends AVObject {
+
+  private let m_pitchAdjustmentDelayID: DelayID;
+
+  private let m_Z: Float;
+
+  private let m_checkForLeveling: Bool;
+
+  private let m_pitchingValue: Int32;
+
+  @default(ncartMetroObject, 0.4f)
+  public edit let m_pitchAngleCheckInterval: Float;
+
+  @default(ncartMetroObject, 0.75f)
+  public edit let m_pitchAngleReturnInterval: Float;
+
+  @default(ncartMetroObject, ue_metro_track_reverse)
+  public edit let m_trainReverseDirectionFactName: CName;
+
+  @default(ncartMetroObject, 0.9f)
+  public edit let m_pitchAngleAdjustmentTreshold: Float;
+
+  @default(ncartMetroObject, 0.5f)
+  public edit let m_pitchAngleLevelOutTreshold: Float;
+
+  protected cb func OnGameAttached() -> Bool {
+    super.OnGameAttached();
+    this.m_Z = WorldPosition.GetZ(WorldTransform.GetWorldPosition(this.GetWorldTransform()));
+    this.TogglePitchAdjustment(true);
+  }
+
+  protected cb func OnDetach() -> Bool {
+    super.OnDetach();
+    this.TogglePitchAdjustment(false);
+  }
+
+  private final func PerformYawAjustment() -> Void {
+    let orientation: Quaternion = WorldTransform.GetOrientation(this.GetWorldTransform());
+    let angles: EulerAngles = Quaternion.ToEulerAngles(orientation);
+    angles.Yaw = AngleNormalize180(angles.Yaw + 180.00);
+    GameInstance.GetTeleportationFacility(this.GetGame()).Teleport(this, this.GetWorldPosition(), angles);
+  }
+
+  private final func TogglePitchAdjustment(on: Bool) -> Void {
+    let delaySystem: ref<DelaySystem> = GameInstance.GetDelaySystem(this.GetGame());
+    if on {
+      this.m_pitchAdjustmentDelayID = delaySystem.DelayEvent(this, new MetroPitchAdjustmentEvent(), this.m_pitchAngleCheckInterval);
+    } else {
+      delaySystem.CancelDelay(this.m_pitchAdjustmentDelayID);
+    };
+  }
+
+  private final func PerformPitchAdjustment(z: Float) -> Void {
+    let animPlay: ref<gameTransformAnimationPlayEvent>;
+    if this.m_Z > z {
+      animPlay = new gameTransformAnimationPlayEvent();
+      animPlay.animationName = n"PitchDown";
+      animPlay.timeScale = 1.00;
+      animPlay.timesPlayed = 1u;
+      this.m_pitchingValue = -1;
+      this.QueueEvent(animPlay);
+    } else {
+      animPlay = new gameTransformAnimationPlayEvent();
+      animPlay.timeScale = 1.00;
+      animPlay.animationName = n"PitchUp";
+      animPlay.timesPlayed = 1u;
+      this.m_pitchingValue = 1;
+      this.QueueEvent(animPlay);
+    };
+  }
+
+  private final func LevelOutPitch() -> Void {
+    let animPlay: ref<gameTransformAnimationPlayEvent>;
+    switch this.m_pitchingValue {
+      case 1:
+        animPlay = new gameTransformAnimationPlayEvent();
+        animPlay.animationName = n"PitchUp";
+        animPlay.timeScale = -1.00;
+        animPlay.timesPlayed = 1u;
+        this.m_pitchingValue = 0;
+        this.QueueEvent(animPlay);
+        break;
+      case -1:
+        animPlay = new gameTransformAnimationPlayEvent();
+        animPlay.animationName = n"PitchDown";
+        animPlay.timeScale = -1.00;
+        animPlay.timesPlayed = 1u;
+        this.m_pitchingValue = 0;
+        this.QueueEvent(animPlay);
+    };
+  }
+
+  protected cb func OnMetroPitchAdjustmentEvent(evt: ref<MetroPitchAdjustmentEvent>) -> Bool {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.GetGame());
+    let z: Float = WorldPosition.GetZ(WorldTransform.GetWorldPosition(this.GetWorldTransform()));
+    let disablingFact: Int32 = questSystem.GetFact(n"ue_metro_disable_pitch_adjustment");
+    if disablingFact >= 1 {
+      if this.m_checkForLeveling {
+        this.LevelOutPitch();
+        this.m_checkForLeveling = false;
+      };
+      GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new MetroPitchAdjustmentEvent(), this.m_pitchAngleCheckInterval);
+      this.m_Z = z;
+    } else {
+      if !this.m_checkForLeveling {
+        if AbsF(this.m_Z - z) > this.m_pitchAngleAdjustmentTreshold {
+          this.PerformPitchAdjustment(z);
+          this.m_checkForLeveling = true;
+        };
+        GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new MetroPitchAdjustmentEvent(), this.m_pitchAngleCheckInterval);
+      } else {
+        if AbsF(this.m_Z - z) <= this.m_pitchAngleLevelOutTreshold {
+          this.LevelOutPitch();
+          this.m_checkForLeveling = false;
+        };
+        GameInstance.GetDelaySystem(this.GetGame()).DelayEvent(this, new MetroPitchAdjustmentEvent(), this.m_pitchAngleReturnInterval);
+        this.m_Z = z;
+      };
+    };
+  }
+}
+
+public static func GetMountedVehicle(object: ref<GameObject>) -> wref<VehicleObject> {
+  let game: GameInstance = object.GetGame();
+  let mountingFacility: ref<IMountingFacility> = GameInstance.GetMountingFacility(game);
+  let mountingInfo: MountingInfo = mountingFacility.GetMountingInfoSingleWithObjects(object);
+  let vehicle: wref<VehicleObject> = GameInstance.FindEntityByID(game, mountingInfo.parentId) as VehicleObject;
+  return vehicle;
+}
+
+public native class vehicleForceBrakesCallbackListener extends IScriptable {
+
+  protected cb func OnForceBrakeComplete(wasInterrupted: Bool) -> Bool;
+}

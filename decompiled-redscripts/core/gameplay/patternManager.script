@@ -1,0 +1,212 @@
+
+public class PatternManager extends IScriptable {
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_isLightRumbleOn: Bool;
+
+  public final func OnPlayerAttach(player: ref<PlayerPuppet>) -> Void {
+    this.m_player = player;
+  }
+
+  public final func OnPlayerDetach(player: ref<PlayerPuppet>) -> Void;
+
+  public final static func SetupMotionControlsSettings(gameInstance: GameInstance) -> Void {
+    let activeStyle: CName;
+    let gyroAimingActivationModeStyleDualGrip: ref<ConfigVarListString>;
+    let inputSchemesBB: ref<IBlackboard>;
+    let isPlayerInGyroTutorial: Bool;
+    let mouserIsEnabled: ref<ConfigVarListString>;
+    let patternMatchingIsEnabled: ref<ConfigVarBool>;
+    let patternMatchingIsEnabledVal: Bool;
+    let patternMatchingModeStyleDisabledWithDescription: ref<ConfigVarListString>;
+    let patternMatchingModeStyleDualGripGyroAlwaysOn: ref<ConfigVarListString>;
+    let patternMatchingModeStyleDualGripGyroDisabled: ref<ConfigVarListString>;
+    let patternMatchingModeStyleDualGripGyroOnAiming: ref<ConfigVarListString>;
+    let patternMatchingModeStyleDualGripGyroRanged: ref<ConfigVarListString>;
+    let patternMatchingPreStyle: ref<ConfigVarListString>;
+    let playerPuppet: ref<PlayerPuppet>;
+    let patternMatchingGrpName: CName = n"/controls";
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(gameInstance);
+    let userSettings: ref<UserSettings> = GameInstance.GetSettingsSystem(gameInstance);
+    if Equals(userSettings.GetUserSettingsLoadStatus(), UserSettingsLoadStatus.NotLoaded) {
+      return;
+    };
+    playerPuppet = GameInstance.GetPlayerSystem(gameInstance).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    (GameInstance.GetSettingsSystem(gameInstance).GetVar(n"/gameplay/difficulty", n"GameDifficulty") as ConfigVarListString).SetEnabled(!playerPuppet.IsInReplayTutorial());
+    if NotEquals(GetPlatformShortName(), "emporium") {
+      questSystem.SetFact(n"q000_vr_tutorial_gyro_choice_enabled", 0);
+      return;
+    };
+    questSystem.SetFact(n"q000_vr_tutorial_gyro_choice_enabled", 1);
+    patternMatchingPreStyle = userSettings.GetVar(patternMatchingGrpName, n"PreSelectedStyle") as ConfigVarListString;
+    mouserIsEnabled = userSettings.GetVar(patternMatchingGrpName, n"JcmsActivationMode") as ConfigVarListString;
+    gyroAimingActivationModeStyleDualGrip = userSettings.GetVar(patternMatchingGrpName, n"GyroAimingActivationModeStyleDualGrip") as ConfigVarListString;
+    patternMatchingModeStyleDualGripGyroAlwaysOn = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingModeStyleDualGripGyroAlwaysOn") as ConfigVarListString;
+    patternMatchingModeStyleDualGripGyroRanged = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingModeStyleDualGripGyroRanged") as ConfigVarListString;
+    patternMatchingModeStyleDualGripGyroOnAiming = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingModeStyleDualGripGyroOnAiming") as ConfigVarListString;
+    patternMatchingModeStyleDualGripGyroDisabled = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingModeStyleDualGripGyroDisabled") as ConfigVarListString;
+    patternMatchingIsEnabled = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingIsEnabled") as ConfigVarBool;
+    if patternMatchingIsEnabled.GetValue() {
+      EmporiumSettingsManager.SetPatternMatchingUnlocked(true);
+    };
+    patternMatchingIsEnabledVal = EmporiumSettingsManager.HasPatternMatchingUnlocked();
+    patternMatchingPreStyle.SetEnabled(true);
+    gyroAimingActivationModeStyleDualGrip.SetEnabled(true);
+    patternMatchingModeStyleDualGripGyroAlwaysOn.SetEnabled(true);
+    patternMatchingModeStyleDualGripGyroRanged.SetEnabled(true);
+    patternMatchingModeStyleDualGripGyroOnAiming.SetEnabled(true);
+    patternMatchingModeStyleDualGripGyroDisabled.SetEnabled(true);
+    isPlayerInGyroTutorial = playerPuppet.IsInGyroTutorial();
+    if isPlayerInGyroTutorial {
+      patternMatchingPreStyle.SetIndex(2);
+      mouserIsEnabled.SetIndex(0);
+      gyroAimingActivationModeStyleDualGrip.SetIndex(1);
+      patternMatchingModeStyleDualGripGyroAlwaysOn.SetIndex(0);
+      patternMatchingModeStyleDualGripGyroRanged.SetIndex(1);
+      patternMatchingModeStyleDualGripGyroOnAiming.SetIndex(1);
+      patternMatchingModeStyleDualGripGyroDisabled.SetIndex(1);
+      patternMatchingPreStyle.SetEnabled(false);
+      gyroAimingActivationModeStyleDualGrip.SetEnabled(false);
+    } else {
+      inputSchemesBB = GameInstance.GetBlackboardSystem(gameInstance).Get(GetAllBlackboardDefs().InputSchemes);
+      if IsDefined(inputSchemesBB) {
+        activeStyle = inputSchemesBB.GetName(GetAllBlackboardDefs().InputSchemes.ActiveStyle);
+        patternMatchingPreStyle.SetIndex(ConvertCNameIntoStyleSettingsIndex(activeStyle));
+      };
+    };
+    if !patternMatchingIsEnabledVal {
+      patternMatchingModeStyleDisabledWithDescription = userSettings.GetVar(patternMatchingGrpName, n"PatternMatchingModeStyleDisabledStateWithDescription") as ConfigVarListString;
+      patternMatchingModeStyleDisabledWithDescription.SetEnabled(true);
+      patternMatchingModeStyleDisabledWithDescription.SetIndex(isPlayerInGyroTutorial ? 1 : 2);
+      patternMatchingModeStyleDisabledWithDescription.SetEnabled(false);
+      if !isPlayerInGyroTutorial {
+        patternMatchingModeStyleDualGripGyroAlwaysOn.SetIndex(1);
+        patternMatchingModeStyleDualGripGyroRanged.SetIndex(2);
+        patternMatchingModeStyleDualGripGyroOnAiming.SetIndex(2);
+        patternMatchingModeStyleDualGripGyroDisabled.SetIndex(2);
+      };
+    };
+    if !patternMatchingIsEnabledVal || isPlayerInGyroTutorial {
+      patternMatchingModeStyleDualGripGyroAlwaysOn.SetEnabled(false);
+      patternMatchingModeStyleDualGripGyroRanged.SetEnabled(false);
+      patternMatchingModeStyleDualGripGyroOnAiming.SetEnabled(false);
+      patternMatchingModeStyleDualGripGyroDisabled.SetEnabled(false);
+    };
+  }
+
+  public final func TurnOnLightRumbleLoop() -> Void {
+    if this.m_isLightRumbleOn {
+      return;
+    };
+    GameObject.PlaySound(this.m_player, n"motion_loop_super_light_right_2d");
+    this.m_isLightRumbleOn = true;
+  }
+
+  public final func TurnOffLightRumbleLoop() -> Void {
+    if !this.m_isLightRumbleOn {
+      return;
+    };
+    GameObject.PlaySound(this.m_player, n"motion_loop_super_light_stop");
+    this.m_isLightRumbleOn = false;
+  }
+
+  public final func HandleInputAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Void {
+    let currentPlayer: ref<PlayerPuppet>;
+    let simpleScreenMsg: SimpleScreenMessage;
+    let wasActionConsumed: Bool;
+    simpleScreenMsg.isShown = true;
+    simpleScreenMsg.isInstant = true;
+    simpleScreenMsg.duration = 5.00;
+    simpleScreenMsg.type = SimpleMessageType.Undefined;
+    let notificationMessageType: BlackboardID_Variant = GetAllBlackboardDefs().UI_Notifications.OnscreenMessage;
+    if ListenerAction.IsButtonJustPressed(action) {
+      if Equals(ListenerAction.GetName(action), n"PatternMatchingToggleOn") {
+        simpleScreenMsg.message = "PATTERN MATCHING IS ON";
+        GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().UI_Notifications).SetVariant(notificationMessageType, ToVariant(simpleScreenMsg), true);
+      } else {
+        if Equals(ListenerAction.GetName(action), n"PatternMatchingToggleOff") {
+          simpleScreenMsg.message = "PATTERN MATCHING IS OFF";
+          GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().UI_Notifications).SetVariant(notificationMessageType, ToVariant(simpleScreenMsg), true);
+        } else {
+          if Equals(ListenerAction.GetName(action), n"GyroAimingToggleOn") {
+            simpleScreenMsg.message = "GYRO AIMING IS ON";
+            GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().UI_Notifications).SetVariant(notificationMessageType, ToVariant(simpleScreenMsg), true);
+          } else {
+            if Equals(ListenerAction.GetName(action), n"GyroAimingToggleOff") {
+              simpleScreenMsg.message = "GYRO AIMING IS OFF";
+              GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().UI_Notifications).SetVariant(notificationMessageType, ToVariant(simpleScreenMsg), true);
+            };
+          };
+        };
+      };
+    };
+    currentPlayer = GameInstance.GetPlayerSystem(this.m_player.GetGame()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    if currentPlayer.IsVRReplacer() && this.m_player.IsPatternMatchingOn() {
+      wasActionConsumed = this.ConsumeInputAction(currentPlayer, action, consumer);
+    };
+    if ListenerAction.IsPatternJustActivated(action) {
+      if !wasActionConsumed && GameObject.GetActiveWeapon(currentPlayer).IsMelee() && Equals(ListenerAction.GetPatternTutorialName(action), n"MeleeAttack_Charge") {
+        this.TurnOnLightRumbleLoop();
+      };
+    } else {
+      if ListenerAction.IsPatternJustDeactivated(action) {
+        if !wasActionConsumed && GameObject.GetActiveWeapon(currentPlayer).IsMelee() && Equals(ListenerAction.GetPatternTutorialName(action), n"MeleeAttack_Charge") {
+          this.TurnOffLightRumbleLoop();
+        };
+      };
+    };
+  }
+
+  private final func ConsumeInputAction(player: ref<PlayerPuppet>, action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let actionNameStr: String;
+    let consumeAction: Bool;
+    let equippedWeapon: ref<WeaponObject>;
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    let patternNameStr: String;
+    let patternTutorialNameStr: String;
+    let allowOnlyPatternInputs: Bool = StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"AllowOnlyMotionPatternInputs");
+    let patternTutorialName: CName = ListenerAction.GetPatternTutorialName(action);
+    let patternName: CName = ListenerAction.GetPatternName(action);
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    let blockDodgeAction: Bool = questSystem.GetFact(n"gyro_dodge_tutorial") == 0 && questSystem.GetFact(n"gyro_dodge_tutorial_seen") == 0 && questSystem.GetFact(n"gyro_dodge_left_tutorial") == 0 && questSystem.GetFact(n"gyro_dodge_left_tutorial_seen") == 0 && questSystem.GetFact(n"gyro_dodge_right_tutorial") == 0 && questSystem.GetFact(n"gyro_dodge_right_tutorial_seen") == 0;
+    if Equals(patternName, n"None") && Equals(patternTutorialName, n"None") && allowOnlyPatternInputs {
+      actionNameStr = NameToString(ListenerAction.GetName(action));
+      equippedWeapon = GameObject.GetActiveWeapon(player);
+      if IsDefined(equippedWeapon) && equippedWeapon.IsMelee() && StrContains(actionNameStr, "MeleeAttack") || blockDodgeAction && StrContains(actionNameStr, "Dodge") || StrContains(actionNameStr, "Reload") || StrContains(actionNameStr, "UseConsumable") {
+        consumeAction = true;
+      };
+    } else {
+      patternTutorialNameStr = NameToString(patternTutorialName);
+      patternNameStr = NameToString(patternName);
+      if (StrContains(patternTutorialNameStr, "MeleeAttack_Normal") || StrContains(patternNameStr, "Melee_Attack_Normal")) && questSystem.GetFact(n"gyro_light_attack_tutorial") == 0 && questSystem.GetFact(n"gyro_light_attack_tutorial_seen") == 0 {
+        consumeAction = true;
+      } else {
+        if (StrContains(patternTutorialNameStr, "MeleeAttack_Heavy") || StrContains(patternTutorialNameStr, "MeleeAttack_Charge")) && questSystem.GetFact(n"gyro_strong_attack_tutorial") == 0 && questSystem.GetFact(n"gyro_strong_attack_tutorial_seen") == 0 && questSystem.GetFact(n"gyro_charged_attack_tutorial") == 0 && questSystem.GetFact(n"gyro_charged_attack_tutorial_seen") == 0 {
+          consumeAction = true;
+        } else {
+          if StrContains(patternTutorialNameStr, "Reload") && questSystem.GetFact(n"gyro_reload_tutorial") == 0 && questSystem.GetFact(n"gyro_reload_tutorial_seen") == 0 {
+            consumeAction = true;
+          } else {
+            if StrContains(patternTutorialNameStr, "Dodge") && blockDodgeAction {
+              consumeAction = true;
+            } else {
+              if StrContains(patternTutorialNameStr, "UseConsumable") && questSystem.GetFact(n"gyro_inhaler_tutorial") == 0 && questSystem.GetFact(n"gyro_inhaler_tutorial_seen") == 0 {
+                consumeAction = true;
+              };
+            };
+          };
+        };
+      };
+    };
+    if consumeAction {
+      ListenerActionConsumer.Consume(consumer);
+      ListenerActionConsumer.ConsumeSingleAction(consumer);
+      ListenerActionConsumer.DontSendReleaseEvent(consumer);
+      notificationEvent = new UIInGameNotificationEvent();
+      notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+      GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(notificationEvent);
+    };
+    return consumeAction;
+  }
+}

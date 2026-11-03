@@ -1,0 +1,756 @@
+
+public class WorldMapTooltipContainer extends inkLogicController {
+
+  protected edit let m_defaultTooltip: inkWidgetRef;
+
+  protected edit let m_policeTooltip: inkWidgetRef;
+
+  protected let m_defaultTooltipController: wref<WorldMapTooltipBaseController>;
+
+  protected let m_policeTooltipController: wref<WorldMapTooltipBaseController>;
+
+  protected let m_tooltips: [wref<WorldMapTooltipBaseController>; 3];
+
+  @default(WorldMapTooltipContainer, -1)
+  protected let m_currentVisibleIndex: Int32;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_defaultTooltipController = inkWidgetRef.GetController(this.m_defaultTooltip) as WorldMapTooltipBaseController;
+    this.m_policeTooltipController = inkWidgetRef.GetController(this.m_policeTooltip) as WorldMapTooltipBaseController;
+    this.m_tooltips[1] = this.m_policeTooltipController;
+    this.m_tooltips[2] = this.m_defaultTooltipController;
+    this.HideAll(true);
+  }
+
+  public final func Show(target: WorldMapTooltipType) -> Void {
+    let oldController: wref<WorldMapTooltipBaseController>;
+    let newController: wref<WorldMapTooltipBaseController> = this.GetTooltipController(target);
+    let priority: Int32 = this.GetControllerPriorityIndex(newController);
+    if priority == this.m_currentVisibleIndex {
+      return;
+    };
+    if newController.m_active || newController.m_visible {
+      return;
+    };
+    newController.m_active = true;
+    if this.m_currentVisibleIndex != -1 {
+      oldController = this.m_tooltips[this.m_currentVisibleIndex];
+      if this.m_currentVisibleIndex < priority {
+        oldController.HideInstant();
+        newController.Show();
+        this.m_currentVisibleIndex = priority;
+      };
+    } else {
+      newController.Show();
+      this.m_currentVisibleIndex = priority;
+    };
+  }
+
+  public final func Hide(target: WorldMapTooltipType) -> Void {
+    let newController: wref<WorldMapTooltipBaseController>;
+    let shouldHideInstant: Bool = false;
+    let oldController: wref<WorldMapTooltipBaseController> = this.GetTooltipController(target);
+    let priority: Int32 = this.GetControllerPriorityIndex(oldController);
+    oldController.m_active = false;
+    if oldController.m_visible {
+      if this.m_currentVisibleIndex != -1 && this.m_currentVisibleIndex == priority {
+        this.m_currentVisibleIndex = this.m_currentVisibleIndex - 1;
+        while this.m_currentVisibleIndex >= 0 {
+          newController = this.m_tooltips[this.m_currentVisibleIndex];
+          if newController.m_active {
+            newController.Show();
+            shouldHideInstant = true;
+            break;
+          };
+          this.m_currentVisibleIndex -= 1;
+        };
+      };
+      if shouldHideInstant {
+        oldController.HideInstant();
+      } else {
+        oldController.Hide();
+      };
+    };
+  }
+
+  public final func HideAll(opt force: Bool) -> Void {
+    let total: Int32 = ArraySize(this.m_tooltips);
+    let i: Int32 = 0;
+    while i < total {
+      this.m_tooltips[i].m_active = false;
+      this.m_tooltips[i].HideInstant(force);
+      i += 1;
+    };
+  }
+
+  public final func SetData(target: WorldMapTooltipType, const data: script_ref<WorldMapTooltipData>, menu: ref<WorldMapMenuGameController>) -> Void {
+    this.GetTooltipController(target).SetData(data, menu);
+  }
+
+  public final func PlayPaymentErrorAnimation() -> Void {
+    this.GetTooltipController(WorldMapTooltipType.Default).PlayLibraryAnimation(n"NotEnoughMoney");
+  }
+
+  private final func GetTooltipController(type: WorldMapTooltipType) -> wref<WorldMapTooltipBaseController> {
+    switch type {
+      case WorldMapTooltipType.Police:
+        return this.m_policeTooltipController;
+      default:
+        return this.m_defaultTooltipController;
+    };
+  }
+
+  private final func GetControllerPriorityIndex(controller: wref<WorldMapTooltipBaseController>) -> Int32 {
+    let total: Int32 = ArraySize(this.m_tooltips);
+    let i: Int32 = 0;
+    while i < total {
+      if this.m_tooltips[i] == controller {
+        return i;
+      };
+      i += 1;
+    };
+    return -1;
+  }
+}
+
+public class WorldMapTooltipBaseController extends inkLogicController {
+
+  protected edit let m_root: inkWidgetRef;
+
+  private let m_showHideAnim: ref<inkAnimProxy>;
+
+  @default(WorldMapTooltipBaseController, false)
+  public let m_visible: Bool;
+
+  @default(WorldMapTooltipBaseController, false)
+  public let m_active: Bool;
+
+  protected func GetShowAnimation() -> CName {
+    return n"ShowTooltip";
+  }
+
+  protected func GetHideAnimation() -> CName {
+    return n"HideTooltip";
+  }
+
+  public func Show() -> Void {
+    if !this.m_visible {
+      if IsDefined(this.m_showHideAnim) {
+        this.m_showHideAnim.Stop();
+      };
+      this.m_showHideAnim = this.PlayLibraryAnimation(this.GetShowAnimation());
+      this.m_visible = true;
+    };
+  }
+
+  public func HideInstant(opt force: Bool) -> Void {
+    if this.m_visible || force {
+      if IsDefined(this.m_showHideAnim) {
+        this.m_showHideAnim.Stop();
+      };
+      inkWidgetRef.SetOpacity(this.m_root, 0.00);
+      this.m_visible = false;
+    };
+  }
+
+  public func Hide() -> Void {
+    if this.m_visible {
+      if IsDefined(this.m_showHideAnim) {
+        this.m_showHideAnim.Stop();
+      };
+      this.m_showHideAnim = this.PlayLibraryAnimation(this.GetHideAnimation());
+      this.m_visible = false;
+    };
+  }
+
+  public func SetData(const data: script_ref<WorldMapTooltipData>, menu: ref<WorldMapMenuGameController>) -> Void;
+}
+
+public class WorldMapTooltipController extends WorldMapTooltipBaseController {
+
+  protected edit let m_titleText: inkTextRef;
+
+  protected edit let m_fixerIcon: inkImageRef;
+
+  protected edit let m_descText: inkTextRef;
+
+  protected edit let m_warningText: inkTextRef;
+
+  protected edit let m_additionalDescText: inkTextRef;
+
+  protected edit let m_lineBreak: inkWidgetRef;
+
+  protected edit let m_icon: inkImageRef;
+
+  protected edit let m_ep1Icon: inkImageRef;
+
+  protected edit let m_inputOpenJournalContainer: inkCompoundRef;
+
+  protected edit let m_inputInteractContainer: inkCompoundRef;
+
+  protected edit let m_inputMoreInfoContainer: inkCompoundRef;
+
+  protected edit let m_inputDelamainTaxiContainer: inkCompoundRef;
+
+  protected edit let m_travelCostContainer: inkCompoundRef;
+
+  protected edit let m_travelCostText: inkTextRef;
+
+  protected edit let m_threatLevelPanel: inkWidgetRef;
+
+  protected edit let m_threatLevelValue: inkTextRef;
+
+  protected edit let m_fixerPanel: inkWidgetRef;
+
+  protected edit let m_linkImage: inkImageRef;
+
+  private let m_gigProgress: Float;
+
+  private edit let m_bar: inkWidgetRef;
+
+  private let m_barAnimationProxy: ref<inkAnimProxy>;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private edit let m_gigBarCompletedText: inkTextRef;
+
+  private edit let m_gigBarTotalText: inkTextRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.Reset();
+  }
+
+  public func SetData(const data: script_ref<WorldMapTooltipData>, menu: ref<WorldMapMenuGameController>) -> Void {
+    let apartmentOffer: ref<PurchaseOffer_Record>;
+    let contentID: TweakDBID;
+    let contentRecord: wref<ContentAssignment_Record>;
+    let cost: Int32;
+    let curveModifier: wref<CurveStatModifier_Record>;
+    let descStr: String;
+    let fastTravelmappin: ref<FastTravelMappin>;
+    let fixerData: FixerTooltipMapData;
+    let fixerIcon: ref<UIIcon_Record>;
+    let glamdocName: String;
+    let glamdocRecord: ref<GlamdocMappin_Record>;
+    let iconAtlasPartName: CName;
+    let iconRecord: ref<UIIcon_Record>;
+    let journalID: String;
+    let levelState: CName;
+    let m_mappin: ref<JournalQuestMapPin>;
+    let m_objective: ref<JournalQuestObjective>;
+    let m_phase: ref<JournalQuestPhase>;
+    let m_quest: ref<JournalQuest>;
+    let mappinPhase: gamedataMappinPhase;
+    let mappinVariant: gamedataMappinVariant;
+    let poiMappin: ref<PointOfInterestMappin>;
+    let pointData: ref<FastTravelPointData>;
+    let prefix: String;
+    let price: Int32;
+    let racingRecord: ref<RacingMappin_Record>;
+    let ripperdocName: String;
+    let ripperdocRecord: ref<RipperdocMappin_Record>;
+    let suffix: String;
+    let textParams: ref<inkTextParams>;
+    let threatString: String;
+    let titleStr: String;
+    let vehicleMappin: ref<VehicleMappin>;
+    let vehicleObject: wref<VehicleObject>;
+    let vehicleOffer: ref<VehicleOffer_Record>;
+    let warnStr: String = "None";
+    let recommendedLvl: Uint32 = 0u;
+    let inputInteract: Bool = false;
+    let inputOpenJournal: Bool = false;
+    let inputMoreInfo: Bool = false;
+    let threatVisible: Bool = false;
+    let isInGigGroupmappin: Bool = false;
+    let isDelamainTaxi: Bool = false;
+    let journalManager: ref<JournalManager> = menu.GetJournalManager();
+    let player: wref<GameObject> = menu.GetPlayer();
+    let playerLevel: Int32 = RoundMath(GameInstance.GetStatsSystem(player.GetGame()).GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatType.Level));
+    inkWidgetRef.SetVisible(this.m_fixerIcon, false);
+    if Deref(data).controller != null && Deref(data).mappin != null && journalManager != null && player != null {
+      inkWidgetRef.SetVisible(this.m_descText, true);
+      inkWidgetRef.SetVisible(this.m_fixerPanel, false);
+      inkWidgetRef.SetVisible(this.m_linkImage, false);
+      inkWidgetRef.SetVisible(this.m_additionalDescText, false);
+      this.GetRootWidget().SetState(n"Default");
+      mappinVariant = Deref(data).mappin.GetVariant();
+      mappinPhase = Deref(data).mappin.GetPhase();
+      fastTravelmappin = Deref(data).mappin as FastTravelMappin;
+      vehicleMappin = Deref(data).mappin as VehicleMappin;
+      if Equals(mappinVariant, gamedataMappinVariant.QuestGiverVariant) || Equals(mappinVariant, gamedataMappinVariant.RetrievingVariant) || Equals(mappinVariant, gamedataMappinVariant.HuntForPsychoVariant) || Equals(mappinVariant, gamedataMappinVariant.ThieveryVariant) || Equals(mappinVariant, gamedataMappinVariant.SabotageVariant) || Equals(mappinVariant, gamedataMappinVariant.ClientInDistressVariant) || Equals(mappinVariant, gamedataMappinVariant.CourierVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz09_CourierSandboxActivityVariant) || Equals(mappinVariant, gamedataMappinVariant.BountyHuntVariant) || Equals(mappinVariant, gamedataMappinVariant.ConvoyVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz02_MotorcycleForPurchaseVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz06_NCPDGigVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz05_ApartmentToPurchaseVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz12_WorldEncounterVariant) {
+        isInGigGroupmappin = true;
+      };
+      if IsDefined(vehicleMappin) {
+        vehicleObject = vehicleMappin.GetVehicle();
+        if IsDefined(vehicleObject) {
+          titleStr = vehicleObject.GetDisplayName();
+          if this.IsVehicleUnlocked(vehicleObject, player) {
+            descStr = GetLocalizedText("UI-MappinTypes-PersonalVehicleDescription");
+          } else {
+            descStr = "None";
+          };
+        } else {
+          titleStr = GetLocalizedText("UI-MappinTypes-PersonalVehicle");
+          descStr = GetLocalizedText("UI-MappinTypes-PersonalVehicleDescription");
+        };
+      } else {
+        if IsDefined(fastTravelmappin) {
+          pointData = fastTravelmappin.GetPointData();
+          descStr = GetLocalizedText("UI-MappinTypes-FastTravel");
+          titleStr = Deref(data).isCollection ? GetLocalizedText("UI-MappinTypes-FastTravelDescription") : pointData.GetPointDisplayName();
+          inputInteract = Deref(data).fastTravelEnabled;
+        } else {
+          if Equals(mappinPhase, gamedataMappinPhase.UndiscoveredPhase) && isInGigGroupmappin {
+            titleStr = "UI-MappinTypes-Gig";
+            descStr = "UI-MappinTypes-GigDescription";
+          } else {
+            if Equals(mappinPhase, gamedataMappinPhase.UndiscoveredPhase) {
+              titleStr = "UI-MappinTypes-Undiscovered";
+            } else {
+              m_mappin = Deref(data).journalEntry as JournalQuestMapPin;
+              if m_mappin != null {
+                m_objective = journalManager.GetParentEntry(m_mappin) as JournalQuestObjective;
+                if m_objective != null {
+                  m_phase = journalManager.GetParentEntry(m_objective) as JournalQuestPhase;
+                  if m_phase != null {
+                    m_quest = journalManager.GetParentEntry(m_phase) as JournalQuest;
+                    if m_quest != null {
+                      this.GetRootWidget().SetState(n"Quest");
+                      titleStr = m_quest.GetTitle(journalManager);
+                      descStr = m_objective.GetDescription();
+                      if isInGigGroupmappin {
+                        fixerIcon = TweakDBInterface.GetUIIconRecord(QuestLogUtils.GetFixerData(journalManager, m_objective));
+                        if NotEquals(fixerIcon.AtlasPartName(), n"None") {
+                          inkImageRef.SetTexturePart(this.m_fixerIcon, fixerIcon.AtlasPartName());
+                          inkWidgetRef.SetVisible(this.m_fixerIcon, true);
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+              if Equals(mappinVariant, gamedataMappinVariant.FixerVariant) {
+                fixerData = MappinUIUtils.GetFixerVariantData(GameInstance.GetQuestsSystem(player.GetGame()), Deref(data).mappin);
+                titleStr = GetLocalizedTextByKey(fixerData.fixerLocKey);
+                iconRecord = fixerData.fixerIcon;
+                this.m_gigProgress = Cast<Float>(fixerData.generalQuestsProgress) / Cast<Float>(fixerData.allQuestsAmount);
+                inkTextRef.SetText(this.m_gigBarCompletedText, ToString(fixerData.generalQuestsProgress));
+                inkTextRef.SetText(this.m_gigBarTotalText, ToString(fixerData.allQuestsAmount));
+                inkWidgetRef.SetVisible(this.m_descText, false);
+                inkWidgetRef.SetVisible(this.m_fixerPanel, true);
+                this.GetRootWidget().SetState(n"Fixer");
+                this.PlayAnim(n"OnTooltipIntro", n"OnFixerProgressBarAnim");
+                if Equals(fixerData.additionalDescriptionKey, n"None") {
+                  inkWidgetRef.SetVisible(this.m_additionalDescText, false);
+                } else {
+                  inkTextRef.SetLocalizedTextScript(this.m_additionalDescText, fixerData.additionalDescriptionKey);
+                  inkWidgetRef.SetVisible(this.m_additionalDescText, true);
+                };
+              } else {
+                if Equals(mappinVariant, gamedataMappinVariant.Zzz01_CarForPurchaseVariant) || Equals(mappinVariant, gamedataMappinVariant.Zzz02_MotorcycleForPurchaseVariant) {
+                  poiMappin = Deref(data).mappin as PointOfInterestMappin;
+                  if poiMappin != null {
+                    vehicleOffer = this.GetVehicleOfferForMapPin(poiMappin, journalManager);
+                    if vehicleOffer != null {
+                      InkImageUtils.RequestSetImage(this, this.m_linkImage, vehicleOffer.PreviewImage().GetID(), n"OnIconCallback");
+                      price = vehicleOffer.PriceHandle().OverrideValue();
+                      titleStr = NameToString(vehicleOffer.BrandName()) + " " + GetLocalizedText(vehicleOffer.Name());
+                      descStr = GetLocalizedText("LocKey#15374") + ": \u{20ac}$" + IntToString(price);
+                    };
+                  };
+                } else {
+                  if Equals(mappinVariant, gamedataMappinVariant.Zzz05_ApartmentToPurchaseVariant) {
+                    poiMappin = Deref(data).mappin as PointOfInterestMappin;
+                    if poiMappin != null {
+                      apartmentOffer = this.GetApartmentOfferForMapPin(poiMappin, journalManager);
+                      if apartmentOffer != null {
+                        InkImageUtils.RequestSetImage(this, this.m_linkImage, apartmentOffer.PreviewImage().GetID(), n"OnIconCallback");
+                        apartmentOffer.Name();
+                        titleStr = GetLocalizedText(apartmentOffer.Name());
+                        price = apartmentOffer.PriceHandle().OverrideValue();
+                        descStr = "LocKey#93557";
+                        textParams = new inkTextParams();
+                        textParams.AddNumber("price", price);
+                      };
+                    };
+                  } else {
+                    if Equals(mappinVariant, gamedataMappinVariant.Zzz09_CourierSandboxActivityVariant) {
+                      if GameInstance.GetQuestsSystem(player.GetGame()).GetFact(n"CourierDiscovered") == 0 {
+                        titleStr = "UI-MappinTypes-CourierTitleBeforeDiscovery";
+                        descStr = "UI-MappinTypes-CourierDescBeforeDiscovery";
+                      } else {
+                        titleStr = "UI-MappinTypes-CourierTitleDiscovered";
+                        descStr = "UI-MappinTypes-CourierDescDiscovered";
+                      };
+                    } else {
+                      if Equals(mappinVariant, gamedataMappinVariant.ServicePointRipperdocVariant) {
+                        journalID = Deref(data).journalEntry.GetId();
+                        contentID = TDBID.Create("Mappins." + journalID);
+                        ripperdocRecord = TweakDBInterface.GetRipperdocMappinRecord(contentID);
+                        iconAtlasPartName = ripperdocRecord.AtlasPartName();
+                        if NotEquals(iconAtlasPartName, n"None") {
+                          inkWidgetRef.SetVisible(this.m_fixerIcon, true);
+                          inkImageRef.SetTexturePart(this.m_fixerIcon, iconAtlasPartName);
+                        };
+                        titleStr = GetLocalizedTextByKey(n"UI-MappinTypes-RipperdocServicePoint");
+                        ripperdocName = GetLocalizedText(ripperdocRecord.LocalizedName());
+                        if NotEquals(ripperdocName, "") {
+                          titleStr += " - " + ripperdocName;
+                        };
+                        descStr = NameToString(MappinUIUtils.MappinToDescriptionString(mappinVariant));
+                        inkWidgetRef.SetVisible(this.m_additionalDescText, false);
+                        iconAtlasPartName = n"None";
+                      } else {
+                        if Equals(mappinVariant, gamedataMappinVariant.Zzz21_ServicePointGlamdocVariant) {
+                          journalID = Deref(data).journalEntry.GetId();
+                          contentID = TDBID.Create("Mappins." + journalID);
+                          glamdocRecord = TweakDBInterface.GetGlamdocMappinRecord(contentID);
+                          iconAtlasPartName = glamdocRecord.AtlasPartName();
+                          if NotEquals(iconAtlasPartName, n"None") {
+                            inkWidgetRef.SetVisible(this.m_fixerIcon, true);
+                            inkImageRef.SetTexturePart(this.m_fixerIcon, iconAtlasPartName);
+                          };
+                          titleStr = GetLocalizedTextByKey(n"UI-MappinTypes-GlamdocServicePoint");
+                          glamdocName = GetLocalizedText(glamdocRecord.LocalizedName());
+                          if NotEquals(glamdocName, "") {
+                            titleStr += " - " + glamdocName;
+                          };
+                          descStr = NameToString(MappinUIUtils.MappinToDescriptionString(mappinVariant));
+                          inkWidgetRef.SetVisible(this.m_additionalDescText, false);
+                          iconAtlasPartName = n"None";
+                        } else {
+                          if Equals(mappinVariant, gamedataMappinVariant.Zzz18_RacingVariant) {
+                            journalID = Deref(data).journalEntry.GetId();
+                            contentID = TDBID.Create("Mappins." + journalID);
+                            racingRecord = TweakDBInterface.GetRacingMappinRecord(contentID);
+                            titleStr = GetLocalizedText(racingRecord.Title());
+                            descStr = GetLocalizedText(racingRecord.Description());
+                          } else {
+                            if Equals(mappinVariant, gamedataMappinVariant.Zzz20_DelamainTaxiDestinationVariant) {
+                              titleStr = GetLocalizedTextByKey(n"UI-MappinTypes-DelamainDestination");
+                              descStr = "None";
+                              warnStr = Deref(data).travelCost > Deref(data).playerMoney ? GetLocalizedTextByKey(n"Story-base-gameplay-gui-fullscreen-hub_menu-vendor_hub-_localizationString0") : "None";
+                              cost = Deref(data).travelCost;
+                              isDelamainTaxi = true;
+                            };
+                          };
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+              if Equals(titleStr, "") {
+                titleStr = NameToString(MappinUIUtils.MappinToString(mappinVariant, mappinPhase));
+              };
+              if Equals(descStr, "") {
+                descStr = NameToString(MappinUIUtils.MappinToDescriptionString(mappinVariant));
+              };
+            };
+          };
+          if isInGigGroupmappin {
+            this.GetRootWidget().SetState(n"Gig");
+          };
+          if Deref(data).journalEntry != null {
+            recommendedLvl = journalManager.GetRecommendedLevel(Deref(data).journalEntry);
+            if IsDefined(m_quest) {
+              contentID = m_quest.GetRecommendedLevelID();
+            } else {
+              journalID = Deref(data).journalEntry.GetId();
+              if StrBeginsWith(journalID, "mq") || StrBeginsWith(journalID, "sq") || StrBeginsWith(journalID, "q") {
+                StrSplitFirst(journalID, "_", prefix, suffix);
+                journalID = prefix;
+              };
+              contentID = TDBID.Create("DeviceContentAssignment." + journalID);
+            };
+            contentRecord = TweakDBInterface.GetContentAssignmentRecord(contentID);
+            if IsDefined(contentRecord) {
+              curveModifier = contentRecord.PowerLevelMod() as CurveStatModifier_Record;
+              if IsDefined(curveModifier) {
+                recommendedLvl = Cast<Uint32>(RoundF(GameInstance.GetStatsDataSystem(player.GetGame()).GetValueFromCurve(StringToName(curveModifier.Id()), Cast<Float>(playerLevel), StringToName(curveModifier.Column()))));
+              } else {
+                recommendedLvl = Cast<Uint32>(GameInstance.GetLevelAssignmentSystem(player.GetGame()).GetLevelAssignment(contentID));
+              };
+            };
+          };
+          levelState = QuestLogUtils.GetLevelState(playerLevel, Cast<Int32>(recommendedLvl));
+          switch levelState {
+            case n"ThreatHigh":
+              threatVisible = true;
+              threatString = GetLocalizedText("UI-Tooltips-ThreatHigh");
+              break;
+            case n"ThreatVeryHigh":
+              threatVisible = true;
+              threatString = GetLocalizedText("UI-Tooltips-ThreatVeryHigh");
+              break;
+            default:
+          };
+        };
+      };
+      inputOpenJournal = Deref(data).readJournal && !Deref(data).fastTravelEnabled;
+      inputMoreInfo = Deref(data).moreInfo;
+    };
+    inkWidgetRef.SetVisible(this.m_threatLevelPanel, threatVisible);
+    if threatVisible {
+      inkTextRef.SetText(this.m_threatLevelValue, threatString);
+    };
+    if Deref(data).isCollection {
+      inputOpenJournal = false;
+      inputInteract = false;
+      inputMoreInfo = false;
+    };
+    inkTextRef.SetText(this.m_titleText, titleStr);
+    if Equals(descStr, "None") {
+      inkWidgetRef.SetVisible(this.m_descText, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_descText, true);
+      if textParams == null {
+        inkTextRef.SetText(this.m_descText, descStr);
+      } else {
+        inkTextRef.SetLocalizedTextScript(this.m_descText, descStr, textParams);
+      };
+    };
+    if Equals(warnStr, "None") {
+      inkWidgetRef.SetVisible(this.m_warningText, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_warningText, true);
+      inkTextRef.SetText(this.m_warningText, warnStr);
+    };
+    if journalManager.IsEp1Entry(Deref(data).journalEntry) {
+      inkWidgetRef.SetVisible(this.m_ep1Icon, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_ep1Icon, false);
+    };
+    iconAtlasPartName = iconRecord.AtlasPartName();
+    if NotEquals(iconAtlasPartName, n"None") {
+      if Equals(iconAtlasPartName, n"c_mrhands") {
+        if GameInstance.GetQuestsSystem(player.GetGame()).GetFact(n"q303_hands_scene_done") == 0 {
+          inkImageRef.SetTexturePart(this.m_icon, n"c_mrhands");
+        } else {
+          inkImageRef.SetTexturePart(this.m_icon, n"c_mr_hands");
+        };
+      } else {
+        inkImageRef.SetTexturePart(this.m_icon, iconAtlasPartName);
+      };
+    };
+    if inkWidgetRef.IsVisible(this.m_descText) || inkWidgetRef.IsVisible(this.m_fixerPanel) || inkWidgetRef.IsVisible(this.m_threatLevelPanel) {
+      inkWidgetRef.SetVisible(this.m_lineBreak, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_lineBreak, false);
+    };
+    inkWidgetRef.SetVisible(this.m_inputOpenJournalContainer, inputOpenJournal);
+    inkWidgetRef.SetVisible(this.m_inputInteractContainer, inputInteract);
+    inkWidgetRef.SetVisible(this.m_inputMoreInfoContainer, inputMoreInfo);
+    inkWidgetRef.SetVisible(this.m_inputDelamainTaxiContainer, isDelamainTaxi && Deref(data).delamainTaxiEnabled);
+    if cost > 0 {
+      inkWidgetRef.SetVisible(this.m_travelCostContainer, true);
+      inkTextRef.SetText(this.m_travelCostText, IntToString(cost));
+    } else {
+      inkWidgetRef.SetVisible(this.m_travelCostContainer, false);
+    };
+  }
+
+  protected cb func OnIconCallback(e: ref<iconAtlasCallbackData>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_linkImage, Equals(e.loadResult, inkIconResult.Success));
+  }
+
+  private final func IsVehicleUnlocked(vehicleObject: wref<VehicleObject>, player: wref<GameObject>) -> Bool {
+    let i: Int32;
+    let limit: Int32;
+    let targetId: TweakDBID;
+    let vehicles: array<PlayerVehicle>;
+    if vehicleObject.IsPlayerVehicle() {
+      targetId = vehicleObject.GetRecordID();
+      GameInstance.GetVehicleSystem(player.GetGame()).GetPlayerUnlockedVehicles(vehicles);
+      i = 0;
+      limit = ArraySize(vehicles);
+      while i < limit {
+        if vehicles[i].recordID == targetId {
+          return true;
+        };
+        i += 1;
+      };
+    };
+    return false;
+  }
+
+  private final func GetVehicleOfferForMapPin(poiMappin: ref<PointOfInterestMappin>, journalManager: ref<JournalManager>) -> ref<VehicleOffer_Record> {
+    let slotName: String = NameToString(poiMappin.GetSlotName());
+    let offerId: TweakDBID = TDBID.Create("Vehicle." + slotName + "_offer");
+    if !TDBID.IsValid(offerId) {
+      return null;
+    };
+    return TweakDBInterface.GetVehicleOfferRecord(offerId);
+  }
+
+  private final func GetApartmentOfferForMapPin(poiMappin: ref<PointOfInterestMappin>, journalManager: ref<JournalManager>) -> ref<PurchaseOffer_Record> {
+    let slotName: String = NameToString(poiMappin.GetSlotName());
+    let offerId: TweakDBID = TDBID.Create("Apartment." + slotName + "_offer");
+    if !TDBID.IsValid(offerId) {
+      return null;
+    };
+    return TweakDBInterface.GetPurchaseOfferRecord(offerId);
+  }
+
+  private final func DisplayAttachedImage(objective: ref<JournalQuestObjective>, widget: inkImageRef, journalManager: ref<JournalManager>) -> Void {
+    let childEntries: array<wref<JournalEntry>>;
+    let i: Int32;
+    let imageEntry: ref<JournalImageEntry>;
+    let unpackFilter: JournalRequestStateFilter;
+    unpackFilter.active = true;
+    unpackFilter.inactive = true;
+    QuestLogUtils.UnpackRecursiveWithFilter(journalManager, objective, unpackFilter, childEntries, true);
+    i = 0;
+    while i < ArraySize(childEntries) {
+      imageEntry = childEntries[i] as JournalImageEntry;
+      if IsDefined(imageEntry) {
+        inkWidgetRef.SetVisible(widget, true);
+        InkImageUtils.RequestSetImage(this, widget, imageEntry.GetThumbnailImageID());
+        return;
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(widget, false);
+  }
+
+  protected cb func OnFixerProgressBarAnim(anim: ref<inkAnimProxy>) -> Bool {
+    let barWidthSize: Float = 300.00;
+    let barHeightSize: Float = 6.00;
+    let barStartSize: Vector2 = new Vector2(0.00, barHeightSize);
+    let barEndSize: Vector2 = new Vector2(AbsF(this.m_gigProgress * barWidthSize), barHeightSize);
+    let barProgress: ref<inkAnimDef> = new inkAnimDef();
+    let sizeInterpolator: ref<inkAnimSize> = new inkAnimSize();
+    sizeInterpolator.SetDuration(0.40);
+    sizeInterpolator.SetStartSize(barStartSize);
+    sizeInterpolator.SetEndSize(barEndSize);
+    sizeInterpolator.SetType(inkanimInterpolationType.Quintic);
+    sizeInterpolator.SetMode(inkanimInterpolationMode.EasyInOut);
+    barProgress.AddInterpolator(sizeInterpolator);
+    this.m_barAnimationProxy = inkWidgetRef.PlayAnimation(this.m_bar, barProgress);
+  }
+
+  protected final func GetLevelState(playerLevel: Int32, recommendedLvl: Int32) -> CName {
+    return QuestLogUtils.GetLevelState(playerLevel, recommendedLvl);
+  }
+
+  protected final func Reset() -> Void {
+    this.SetData(new WorldMapTooltipData(), null);
+  }
+
+  public final func PlayAnim(animName: CName, opt callBack: CName) -> Void {
+    if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+      this.m_animationProxy.Stop();
+    };
+    this.m_animationProxy = this.PlayLibraryAnimation(animName);
+    if NotEquals(callBack, n"None") {
+      this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, callBack);
+    };
+  }
+}
+
+public class WorldMapPoliceTooltipController extends WorldMapTooltipController {
+
+  protected func GetShowAnimation() -> CName {
+    return n"ShowPoliceTooltip";
+  }
+
+  protected func GetHideAnimation() -> CName {
+    return n"HidePoliceTooltip";
+  }
+
+  public func SetData(const data: script_ref<WorldMapTooltipData>, menu: ref<WorldMapMenuGameController>) -> Void {
+    let contentID: TweakDBID;
+    let contentRecord: wref<ContentAssignment_Record>;
+    let curveModifier: wref<CurveStatModifier_Record>;
+    let descStr: String;
+    let journalQuest: ref<JournalQuest>;
+    let levelState: CName;
+    let mappinPhase: gamedataMappinPhase;
+    let mappinVariant: gamedataMappinVariant;
+    let playerLevel: Int32;
+    let threatString: String;
+    let titleStr: String;
+    let recommendedLvl: Int32 = 0;
+    let threatVisible: Bool = false;
+    let journalManager: ref<JournalManager> = menu.GetJournalManager();
+    let player: wref<GameObject> = menu.GetPlayer();
+    let powerLevel: Float = GameInstance.GetStatsSystem(player.GetGame()).GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatType.Level);
+    if Deref(data).controller != null && Deref(data).mappin != null && journalManager != null && player != null {
+      mappinVariant = Deref(data).mappin.GetVariant();
+      mappinPhase = Deref(data).mappin.GetPhase();
+      if Equals(mappinPhase, gamedataMappinPhase.UndiscoveredPhase) {
+        titleStr = "UI-MappinTypes-Undiscovered";
+      } else {
+        if Equals(mappinPhase, gamedataMappinPhase.UndiscoveredPhase) && Equals(mappinVariant, gamedataMappinVariant.QuestGiverVariant) {
+          titleStr = "UI-MappinTypes-Gig";
+          descStr = "UI-MappinTypes-GigDescription";
+          mappinVariant = mappinVariant;
+        } else {
+          if Equals(mappinPhase, gamedataMappinPhase.CompletedPhase) {
+            titleStr = NameToString(MappinUIUtils.MappinToString(mappinVariant, mappinPhase));
+            descStr = "UI-Notifications-QuestCompleted";
+          } else {
+            titleStr = NameToString(MappinUIUtils.MappinToString(mappinVariant, mappinPhase));
+            descStr = NameToString(MappinUIUtils.MappinToDescriptionString(mappinVariant));
+          };
+        };
+      };
+      if Deref(data).journalEntry != null {
+        recommendedLvl = Cast<Int32>(journalManager.GetRecommendedLevel(Deref(data).journalEntry));
+        journalQuest = Deref(data).journalEntry as JournalQuest;
+        if IsDefined(journalQuest) {
+          contentID = journalQuest.GetRecommendedLevelID();
+        } else {
+          contentID = TDBID.Create("DeviceContentAssignment." + Deref(data).journalEntry.GetId());
+        };
+        contentRecord = TweakDBInterface.GetContentAssignmentRecord(contentID);
+        if IsDefined(contentRecord) {
+          curveModifier = contentRecord.PowerLevelMod() as CurveStatModifier_Record;
+          if IsDefined(curveModifier) {
+            recommendedLvl = RoundMath(GameInstance.GetStatsDataSystem(player.GetGame()).GetValueFromCurve(StringToName(curveModifier.Id()), powerLevel, StringToName(curveModifier.Column())));
+          } else {
+            recommendedLvl = GameInstance.GetLevelAssignmentSystem(player.GetGame()).GetLevelAssignment(contentID);
+          };
+        };
+      };
+      playerLevel = Cast<Int32>(GameInstance.GetStatsSystem(player.GetGame()).GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatType.Level));
+      levelState = QuestLogUtils.GetLevelState(playerLevel, recommendedLvl);
+      switch levelState {
+        case n"ThreatHigh":
+          threatVisible = true;
+          threatString = GetLocalizedText("UI-Tooltips-ThreatHigh");
+          break;
+        case n"ThreatVeryHigh":
+          threatVisible = true;
+          threatString = GetLocalizedText("UI-Tooltips-ThreatVeryHigh");
+          break;
+        default:
+      };
+      inkTextRef.SetText(this.m_threatLevelValue, threatString);
+    };
+    inkWidgetRef.SetVisible(this.m_threatLevelPanel, threatVisible);
+    if threatVisible {
+      inkTextRef.SetText(this.m_threatLevelValue, threatString);
+    };
+    inkTextRef.SetText(this.m_titleText, titleStr);
+    if Equals(descStr, "None") {
+      inkWidgetRef.SetVisible(this.m_descText, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_descText, true);
+      inkTextRef.SetText(this.m_descText, descStr);
+    };
+  }
+}
+
+public class WorldMapGangItemController extends inkLogicController {
+
+  private edit let m_factionNameText: inkTextRef;
+
+  private edit let m_factionIconImage: inkImageRef;
+
+  public final func SetData(affiliationRecord: wref<Affiliation_Record>) -> Void {
+    inkTextRef.SetLocalizedText(this.m_factionNameText, affiliationRecord.LocalizedName());
+    inkImageRef.SetTexturePart(this.m_factionIconImage, affiliationRecord.IconPath());
+  }
+}

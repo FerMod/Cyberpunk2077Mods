@@ -1,0 +1,1231 @@
+
+public class NewPerksScreenLogicController extends inkLogicController {
+
+  private edit const let m_perksWidgets: [inkWidgetRef];
+
+  private edit let m_gauge: inkWidgetRef;
+
+  private edit const let m_tiers: [PerkScreenTierInfo];
+
+  private edit let m_animationBoldLineWidget: inkWidgetRef;
+
+  private edit let m_animationLineWidget: inkWidgetRef;
+
+  private edit let m_animationGradientWidget: inkWidgetRef;
+
+  private edit let m_attributeButtonWidget: inkWidgetRef;
+
+  private edit let m_lockedLineIcon: inkWidgetRef;
+
+  private edit let m_unlockedLineIcon: inkWidgetRef;
+
+  private edit const let m_attributeRequirementTexts: [inkTextRef];
+
+  private edit const let m_levelRequirementTexts: [inkTextRef];
+
+  private let m_perksInitialized: Bool;
+
+  private let m_perksControllers: ref<inkHashMap>;
+
+  private let m_perksContainersControllers: ref<inkHashMap>;
+
+  private let m_perkControllersArray: [wref<NewPerksPerkContainerLogicController>];
+
+  private let m_enabledControllers: [wref<NewPerksPerkContainerLogicController>];
+
+  private let m_initData: ref<NewPerksScreenInitData>;
+
+  private let m_perksList: [wref<NewPerk_Record>];
+
+  private let m_playerDevelopmentSystem: wref<PlayerDevelopmentSystem>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_playerDevelopmentData: wref<PlayerDevelopmentData>;
+
+  private let m_attributePoints: Int32;
+
+  private let m_linksManager: ref<NewPerksRequirementsLinksManager>;
+
+  private let m_gaugeController: wref<NewPerksGaugeController>;
+
+  private let m_attributeButtonController: wref<NewPerksAttributeButtonController>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_dataManager: wref<PlayerDevelopmentDataManager>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_levels: [NewPerksGaugePointDetails];
+
+  private let m_highlightData: [PerkTierHighlight];
+
+  private let m_activeProxies: [ref<inkAnimProxy>];
+
+  private let m_highlightedWires: [inkWidgetRef];
+
+  private let m_highlightedPerks: [wref<inkWidget>];
+
+  private let m_dimmedWidgets: [inkWidgetRef];
+
+  private let m_dimProxies: [ref<inkAnimProxy>];
+
+  private let m_undimProxies: [ref<inkAnimProxy>];
+
+  private let m_isActiveScreen: Bool;
+
+  private let m_isEspionage: Bool;
+
+  private let m_unlockAnimData: UnlockAnimData;
+
+  private let m_lineAnimProxy: ref<inkAnimProxy>;
+
+  private let m_buttonMoveAnimProxy: ref<inkAnimProxy>;
+
+  private let m_buttonCustomAnimProxy: ref<inkAnimProxy>;
+
+  private let m_lockAnimProxy: ref<inkAnimProxy>;
+
+  private let m_introFinished: Bool;
+
+  private let m_perkHovered: Bool;
+
+  private let m_currentHoveredPerkData: ref<NewPerkDisplayData>;
+
+  private let m_gameController: wref<NewPerksCategoriesGameController>;
+
+  private let m_sellFailToken: ref<inkGameNotificationToken>;
+
+  @default(NewPerksScreenLogicController, gamedataNewPerkType.Invalid)
+  private let m_perkToSnapCursor: gamedataNewPerkType;
+
+  private let m_unlockState: Int32;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_gaugeController = inkWidgetRef.GetController(this.m_gauge) as NewPerksGaugeController;
+    this.m_gaugeController.RefreshLevelRequirementsFromTDB();
+    this.SetHighlightData(330.00);
+  }
+
+  public final func Initialize(dataManager: wref<PlayerDevelopmentDataManager>, initData: ref<NewPerksScreenInitData>, buttonHintsController: wref<ButtonHints>) -> Void {
+    let possibleLevel: Int32;
+    this.m_dataManager = dataManager;
+    if this.m_playerDevelopmentSystem == null || this.m_player != this.m_dataManager.GetPlayer() {
+      this.m_playerDevelopmentSystem = PlayerDevelopmentSystem.GetInstance(this.m_dataManager.GetPlayer());
+      this.m_playerDevelopmentData = PlayerDevelopmentSystem.GetData(this.m_dataManager.GetPlayer());
+    };
+    this.m_player = this.m_dataManager.GetPlayer();
+    GameInstance.GetUISystem(this.m_player.GetGame()).SetNavigationOppositeAxisDistanceCost(1.54);
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_buttonHintsController = buttonHintsController;
+    this.m_initData = initData;
+    this.m_playerDevelopmentData.UnlockFreeNewPerks(PlayerDevelopmentData.StatTypeToAttributeDataType(initData.stat));
+    ArrayClear(this.m_perksList);
+    initData.attributeData.Perks(this.m_perksList);
+    this.m_attributePoints = this.m_playerDevelopmentData.GetAttributePoints(initData.attributeData.Type());
+    this.m_isEspionage = Equals(initData.attributeData.Type(), gamedataAttributeDataType.EspionageAttributeData);
+    this.m_linksManager = new NewPerksRequirementsLinksManager();
+    this.m_attributeButtonController = inkWidgetRef.GetController(this.m_attributeButtonWidget) as NewPerksAttributeButtonController;
+    this.m_attributeButtonController.SetData(initData, buttonHintsController);
+    this.m_attributeButtonController.PlayIdleAnimation();
+    this.StopTierUnlockAnimations();
+    this.StopPathToTargetPerkAnimations();
+    this.StopAllPerkAnimations();
+    possibleLevel = Min(this.m_attributePoints + this.m_playerDevelopmentData.GetDevPoints(gamedataDevelopmentPointType.Attribute), 20);
+    this.m_gaugeController.UpdateLevel(this.m_attributePoints, possibleLevel);
+    this.m_levels = this.m_gaugeController.GetLevels();
+    this.SetLevelGradient(this.m_attributePoints);
+    this.SetScriptableSystemPreviousLevel(initData.attributeData.Attribute().StatType(), this.m_attributePoints);
+    this.UpdateTiers(this.m_attributePoints);
+    this.UpdatemAttributeRequirementTexts();
+    if !this.m_perksInitialized {
+      this.InitializePerksControllers();
+    };
+    this.ClearAllLines();
+    this.AttachSlotControllers();
+    this.BuildPerkTree();
+    this.SetIntroFinished(false);
+    this.m_perkHovered = false;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnPostOnRelease");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnPostOnRelease");
+    GameInstance.GetUISystem(this.m_player.GetGame()).ResetNavigationOppositeAxisDistanceCost();
+  }
+
+  protected cb func OnPostOnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let clickEvent: ref<NewPerksTabArrowClickedEvent>;
+    if this.m_isActiveScreen {
+      if evt.IsAction(n"option_switch_prev_settings") {
+        clickEvent = new NewPerksTabArrowClickedEvent();
+        clickEvent.direction = NewPerkTabsArrowDirection.Left;
+        this.QueueEvent(clickEvent);
+      } else {
+        if evt.IsAction(n"option_switch_next_settings") {
+          clickEvent = new NewPerksTabArrowClickedEvent();
+          clickEvent.direction = NewPerkTabsArrowDirection.Right;
+          this.QueueEvent(clickEvent);
+        };
+      };
+    };
+  }
+
+  protected cb func OnPlayerDevUpdateData(evt: ref<PlayerDevUpdateDataEvent>) -> Bool {
+    let possibleLevel: Int32;
+    let previousLevel: Int32;
+    if this.m_isActiveScreen {
+      previousLevel = this.m_attributePoints;
+      this.m_attributePoints = this.m_playerDevelopmentData.GetAttributePoints(this.m_initData.attributeData.Type());
+      possibleLevel = Min(this.m_attributePoints + this.m_playerDevelopmentData.GetDevPoints(gamedataDevelopmentPointType.Attribute), 20);
+      this.m_gaugeController.UpdateLevel(this.m_attributePoints, possibleLevel);
+      if this.IsThresholdExceeded(previousLevel, this.m_attributePoints) {
+        this.ReevaluatePerkAvailability();
+        this.StartUnlockAnimation(previousLevel, this.m_attributePoints);
+      };
+      this.SetScriptableSystemPreviousLevel(this.m_initData.attributeData.Attribute().StatType(), this.m_attributePoints);
+      this.UpdateTiers(this.m_attributePoints);
+    };
+  }
+
+  public final func IsThresholdExceeded(previousLevel: Int32, currentLevel: Int32) -> Bool {
+    return this.GetLevelThreshold(previousLevel) != this.GetLevelThreshold(currentLevel);
+  }
+
+  public final func SetActive(value: Bool) -> Void {
+    if this.m_isActiveScreen && !value {
+      this.UndimTree(true);
+    };
+    this.m_isActiveScreen = value;
+  }
+
+  public final func SetIntroFinished(value: Bool) -> Void {
+    this.m_introFinished = value;
+  }
+
+  public final func SetValues() -> Void {
+    let attributeData: ref<AttributeData> = this.m_dataManager.GetAttribute(this.m_dataManager.GetAttributeRecordIDFromEnum(this.m_initData.perkMenuAttribute));
+    this.m_attributeButtonController.SetValues(attributeData.value, this.GetPointsToNextTier(attributeData.value), this.m_dataManager.GetAttributePoints());
+  }
+
+  public final func SetCursorOverPerk(perkType: gamedataNewPerkType, forceSnap: Bool) -> Void {
+    if forceSnap {
+      this.SetCursorOverWidget(this.GetCachedPerkItemLogicController(perkType).GetRootWidget());
+    } else {
+      this.m_perkToSnapCursor = perkType;
+    };
+  }
+
+  public final func SetGameController(gameController: ref<NewPerksCategoriesGameController>) -> Void {
+    this.m_gameController = gameController;
+  }
+
+  public final func RefreshCursorOverPerk() -> Void {
+    if NotEquals(this.m_perkToSnapCursor, gamedataNewPerkType.Invalid) {
+      this.SetCursorOverWidget(this.GetCachedPerkItemLogicController(this.m_perkToSnapCursor).GetRootWidget(), 0.10);
+      this.m_perkToSnapCursor = gamedataNewPerkType.Invalid;
+    };
+  }
+
+  private final func InitializePerksControllers() -> Void {
+    let controller: wref<NewPerksPerkContainerLogicController>;
+    this.m_perksContainersControllers = new inkHashMap();
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_perksWidgets);
+    while i < limit {
+      controller = inkWidgetRef.GetController(this.m_perksWidgets[i]) as NewPerksPerkContainerLogicController;
+      this.m_perksContainersControllers.Insert(EnumInt(controller.GetSlotIdentifier()), controller);
+      ArrayPush(this.m_perkControllersArray, controller);
+      i += 1;
+    };
+    this.m_perksInitialized = true;
+  }
+
+  private final func ClearAllLines() -> Void {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_perkControllersArray);
+    while i < limit {
+      this.m_perkControllersArray[i].ClearLines();
+      i += 1;
+    };
+  }
+
+  private final func SetScriptableSystemPreviousLevel(stat: gamedataStatType, level: Int32) -> Void {
+    let request: ref<UIScriptableSystemSetPreviousAttributeLevel> = new UIScriptableSystemSetPreviousAttributeLevel();
+    request.stat = stat;
+    request.level = level;
+    this.m_uiScriptableSystem.QueueRequest(request);
+  }
+
+  private final func GetLevelThreshold(level: Int32) -> Int32 {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_levels);
+    while i < limit {
+      if this.m_levels[i].m_level > level {
+        return i;
+      };
+      i += 1;
+    };
+    return 0;
+  }
+
+  private final func GetLevelGradientOffset(level: Int32) -> Float {
+    let previousLevel: Int32;
+    let result: Float = 2160.00;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_levels);
+    while i < limit {
+      if this.m_levels[i].m_level > level {
+        previousLevel = Max(i - 1, 0);
+        result = MinF(result, this.m_levels[previousLevel].m_height);
+      };
+      i += 1;
+    };
+    return -result;
+  }
+
+  private final func GetPointsToNextTier(level: Int32) -> Int32 {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_levels);
+    while i < limit {
+      if this.m_levels[i].m_level > level {
+        return this.m_levels[i].m_level;
+      };
+      i += 1;
+    };
+    return 0;
+  }
+
+  private final func UpdateTiers(level: Int32) -> Void {
+    let stateName: CName;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_tiers);
+    while i < limit {
+      this.m_tiers[i].m_unlocked = level >= this.m_levels[i + 1].m_level;
+      inkWidgetRef.SetVisible(this.m_tiers[i].m_attributeLevelWrapper, this.m_levels[i].m_level > level && this.m_levels[i + 1].m_level > level);
+      if this.m_tiers[i].m_unlocked {
+        stateName = this.m_tiers[i].m_hovered ? n"AvailableHover" : n"Available";
+      } else {
+        stateName = this.m_tiers[i].m_hovered ? n"Hover" : n"Default";
+      };
+      inkWidgetRef.SetState(this.m_tiers[i].m_wrapper, stateName);
+      inkWidgetRef.SetState(this.m_tiers[i].m_attributeLevelWrapper, stateName);
+      i += 1;
+    };
+  }
+
+  private final func UpdatemAttributeRequirementTexts() -> Void {
+    let text: String = GetLocalizedText(PerkAttributeHelper.GetShortNameLocKey(this.m_initData.perkMenuAttribute));
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_attributeRequirementTexts) {
+      inkTextRef.SetText(this.m_attributeRequirementTexts[i], text);
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_levelRequirementTexts) {
+      text = IntToString(this.m_levels[i + 1].m_level);
+      inkTextRef.SetText(this.m_levelRequirementTexts[i], text);
+      i += 1;
+    };
+  }
+
+  private final func SetHighlightData(initialTopOffset: Float) -> Void {
+    let i: Int32;
+    let size: Vector2;
+    let totalPosition: Float = initialTopOffset;
+    ArrayResize(this.m_highlightData, ArraySize(this.m_tiers));
+    i = ArraySize(this.m_tiers) - 1;
+    while i >= 0 {
+      size = inkWidgetRef.GetSize(this.m_tiers[i].m_highlightWidget);
+      this.m_highlightData[i].position = totalPosition;
+      this.m_highlightData[i].height = size.Y;
+      totalPosition += size.Y;
+      i -= 1;
+    };
+  }
+
+  public final func GetHighlightData() -> [PerkTierHighlight] {
+    return this.m_highlightData;
+  }
+
+  public final func SetTierHighlightHover(tierIndex: Int32) -> Void {
+    let stateName: CName;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_tiers) {
+      if i == tierIndex {
+        stateName = this.m_tiers[i].m_unlocked ? n"AvailableHover" : n"Hover";
+      } else {
+        stateName = this.m_tiers[i].m_unlocked ? n"Available" : n"Default";
+      };
+      this.m_tiers[i].m_hovered = i == tierIndex;
+      inkWidgetRef.SetState(this.m_tiers[i].m_wrapper, stateName);
+      inkWidgetRef.SetState(this.m_tiers[i].m_attributeLevelWrapper, stateName);
+      inkWidgetRef.SetState(this.m_tiers[i].m_highlightWidget, i == tierIndex ? n"Hover" : n"Default");
+      i += 1;
+    };
+  }
+
+  private final func StartUnlockAnimation(levelFrom: Int32, levelTo: Int32) -> Void {
+    if IsDefined(this.m_lockAnimProxy) && this.m_lockAnimProxy.IsPlaying() {
+      this.m_lockAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_lockAnimProxy.Stop();
+    };
+    this.m_unlockAnimData.levelFrom = levelFrom;
+    this.m_unlockAnimData.levelTo = levelTo;
+    this.m_lockAnimProxy = this.PlayLibraryAnimation(n"tier_line_unlock");
+    this.m_lockAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnLockAnimFinished");
+    this.m_buttonCustomAnimProxy = this.PlayLibraryAnimation(n"tier_button_anim");
+    this.m_buttonCustomAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnButtonCustomAnimFinished");
+    this.m_attributeButtonController.HoverOut();
+    this.m_attributeButtonController.SetInteractive(false);
+    this.m_attributeButtonController.StopIdleAnimation();
+  }
+
+  protected cb func OnLockAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.AnimateLevelGradient(this.m_unlockAnimData.levelFrom, this.m_unlockAnimData.levelTo);
+  }
+
+  protected cb func OnButtonCustomAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_attributeButtonController.SetInteractive(true);
+    this.m_attributeButtonController.PlayIdleAnimation();
+  }
+
+  private final func AnimateLevelGradient(levelFrom: Int32, levelTo: Int32) -> Void {
+    let offsetFrom: Float = this.GetLevelGradientOffset(levelFrom);
+    let offsetTo: Float = this.GetLevelGradientOffset(levelTo);
+    this.AnimateUnlockBoldLine(this.m_animationBoldLineWidget, offsetFrom, offsetTo);
+    this.m_lineAnimProxy = this.AnimateUnlockLine(this.m_animationLineWidget, offsetFrom, offsetTo, levelTo == 20);
+    this.m_lineAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnLineAnimFinished");
+    this.m_buttonMoveAnimProxy = this.AnimateUnlockLine(this.m_attributeButtonWidget, this.GetButtonAnimOffset(levelFrom), this.GetButtonAnimOffset(levelTo), levelTo == 20);
+    inkWidgetRef.SetOpacity(this.m_animationLineWidget, 1.00);
+    inkWidgetRef.SetOpacity(this.m_attributeButtonWidget, 1.00);
+  }
+
+  protected cb func OnLineAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetOpacity(this.m_lockedLineIcon, 1.00);
+    inkWidgetRef.SetOpacity(this.m_unlockedLineIcon, 0.00);
+  }
+
+  private final func StopTierUnlockAnimations() -> Void {
+    if IsDefined(this.m_lockAnimProxy) && this.m_lockAnimProxy.IsPlaying() {
+      this.m_lockAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_lockAnimProxy.GotoEndAndStop();
+    };
+    if IsDefined(this.m_lineAnimProxy) && this.m_lineAnimProxy.IsPlaying() {
+      this.m_lineAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_lineAnimProxy.GotoEndAndStop();
+    };
+    if IsDefined(this.m_buttonMoveAnimProxy) && this.m_buttonMoveAnimProxy.IsPlaying() {
+      this.m_buttonMoveAnimProxy.GotoEndAndStop();
+    };
+    if IsDefined(this.m_buttonCustomAnimProxy) && this.m_buttonCustomAnimProxy.IsPlaying() {
+      this.m_buttonCustomAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_buttonCustomAnimProxy.GotoEndAndStop();
+      this.m_attributeButtonController.SetInteractive(true);
+    };
+  }
+
+  private final func SetLevelGradient(level: Int32) -> Void {
+    let offset: Float;
+    if IsDefined(this.m_lineAnimProxy) && this.m_lineAnimProxy.IsPlaying() {
+      this.m_lineAnimProxy.Stop();
+    };
+    if IsDefined(this.m_buttonMoveAnimProxy) && this.m_buttonMoveAnimProxy.IsPlaying() {
+      this.m_buttonMoveAnimProxy.Stop();
+    };
+    offset = this.GetLevelGradientOffset(level);
+    inkWidgetRef.SetTranslation(this.m_animationBoldLineWidget, new Vector2(0.00, offset));
+    inkWidgetRef.SetTranslation(this.m_animationLineWidget, new Vector2(0.00, offset));
+    inkWidgetRef.SetTranslation(this.m_attributeButtonWidget, new Vector2(0.00, this.GetButtonAnimOffset(level)));
+    inkWidgetRef.SetOpacity(this.m_lockedLineIcon, 1.00);
+    inkWidgetRef.SetOpacity(this.m_unlockedLineIcon, 0.00);
+    inkWidgetRef.SetOpacity(this.m_animationLineWidget, 1.00);
+    inkWidgetRef.SetOpacity(this.m_attributeButtonWidget, 1.00);
+  }
+
+  private final func GetCachedPerkItemLogicController(perkType: gamedataNewPerkType) -> wref<NewPerksPerkItemLogicController> {
+    return this.m_perksControllers.Get(EnumInt(perkType)) as NewPerksPerkItemLogicController;
+  }
+
+  private final func GetCachedPerkItemLogicController(perkSlotType: gamedataNewPerkSlotType) -> wref<NewPerksPerkItemLogicController> {
+    let container: wref<NewPerksPerkContainerLogicController> = this.GetCachedPerkContainerLogicController(perkSlotType);
+    return container.GetPerkWidgetController();
+  }
+
+  private final func GetCachedPerkContainerLogicController(perkSlotType: gamedataNewPerkSlotType) -> wref<NewPerksPerkContainerLogicController> {
+    return this.m_perksContainersControllers.Get(EnumInt(perkSlotType)) as NewPerksPerkContainerLogicController;
+  }
+
+  private final func GetCachedPerkContainerLogicController(perkType: gamedataNewPerkType) -> wref<NewPerksPerkContainerLogicController> {
+    let controller: wref<NewPerksPerkItemLogicController> = this.GetCachedPerkItemLogicController(perkType);
+    return controller.GetContainer();
+  }
+
+  private final func GetAttributeRequirement(perkType: gamedataNewPerkType) -> Int32 {
+    return RPGManager.GetNewPerkRecord(perkType).Tier().RequiredAttributePoints();
+  }
+
+  private final func GetAttributeRequirement(perkRecord: ref<NewPerk_Record>) -> Int32 {
+    return perkRecord.Tier().RequiredAttributePoints();
+  }
+
+  private final func AttachSlotControllers() -> Void {
+    let category: wref<NewPerkCategory_Record>;
+    let controller: wref<NewPerksPerkContainerLogicController>;
+    let initData: ref<NewPerksPerkItemInitData>;
+    this.m_perksControllers = new inkHashMap();
+    let statType: gamedataStatType = this.m_initData.attributeData.Attribute().StatType();
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_perksList);
+    while i < limit {
+      controller = this.GetCachedPerkContainerLogicController(this.m_perksList[i].Slot().Type());
+      this.m_perksControllers.Insert(EnumInt(this.m_perksList[i].Type()), controller.GetPerkWidgetController());
+      initData = new NewPerksPerkItemInitData();
+      initData.perkRecord = this.m_perksList[i];
+      initData.perkType = this.m_perksList[i].Type();
+      initData.requiredAttributePoints = this.GetAttributeRequirement(this.m_perksList[i].Type());
+      initData.isAttributeRequirementMet = this.m_attributePoints >= initData.requiredAttributePoints;
+      initData.maxPerkLevel = this.m_perksList[i].GetLevelsCount();
+      category = this.m_perksList[i].Category();
+      initData.category = IsDefined(category) ? category.Type() : gamedataNewPerkCategoryType.Invalid;
+      initData.icon = this.m_perksList[i].PerkIcon().GetID();
+      initData.binkRef = this.m_perksList[i].BinkPath();
+      initData.stat = statType;
+      controller.GetPerkWidgetController().Initialize(controller, initData);
+      i += 1;
+    };
+  }
+
+  private final func BuildPerkTree() -> Void {
+    let controller: wref<NewPerksPerkContainerLogicController>;
+    let currentPerkLevel: Int32;
+    let i: Int32;
+    let iLimit: Int32;
+    let isAttributeRequirementMet: Bool;
+    let isEnabled: Bool;
+    let isPerkUnlocked: Bool;
+    let j: Int32;
+    let jLimit: Int32;
+    let perk: gamedataNewPerkType;
+    let perkItemController: wref<NewPerksPerkItemLogicController>;
+    let requiredPerkTypes: array<gamedataNewPerkType>;
+    let requiredPerks: array<wref<NewPerk_Record>>;
+    let subPerk: gamedataNewPerkType;
+    let subPerkItemController: wref<NewPerksPerkItemLogicController>;
+    let subPerkLevel: Int32;
+    let targetSlot: gamedataNewPerkSlotType;
+    let visibleSlots: array<gamedataNewPerkSlotType>;
+    let wireStateToSet: NewPerksWireState;
+    ArrayClear(this.m_enabledControllers);
+    this.m_linksManager.Clear();
+    i = 0;
+    iLimit = ArraySize(this.m_perksList);
+    while i < iLimit {
+      ArrayPush(visibleSlots, this.m_perksList[i].Slot().Type());
+      ArrayClear(requiredPerks);
+      this.m_perksList[i].RequiresPerks(requiredPerks);
+      j = 0;
+      jLimit = ArraySize(requiredPerks);
+      while j < jLimit {
+        controller = this.GetCachedPerkContainerLogicController(requiredPerks[j].Slot().Type());
+        controller.AddLine(visibleSlots[i], this.m_perksList);
+        j += 1;
+      };
+      i += 1;
+    };
+    i = 0;
+    iLimit = ArraySize(this.m_perkControllersArray);
+    while i < iLimit {
+      isEnabled = ArrayContains(visibleSlots, this.m_perkControllersArray[i].GetSlotIdentifier());
+      this.m_perkControllersArray[i].SetEnabled(isEnabled);
+      if isEnabled {
+        ArrayPush(this.m_enabledControllers, this.m_perkControllersArray[i]);
+        perkItemController = this.m_perkControllersArray[i].GetPerkWidgetController();
+        perk = perkItemController.GetPerkType();
+        isPerkUnlocked = this.m_playerDevelopmentSystem.IsNewPerkUnlocked(this.m_player, perk);
+        isAttributeRequirementMet = this.m_attributePoints >= this.GetAttributeRequirement(perk);
+        currentPerkLevel = this.m_playerDevelopmentSystem.IsNewPerkBought(this.m_player, perk);
+        perkItemController.SetUnlocked(isPerkUnlocked);
+        perkItemController.SetAttributeRequirementMet(isAttributeRequirementMet);
+        perkItemController.SetLevel(currentPerkLevel);
+        targetSlot = this.m_perkControllersArray[i].GetSlotIdentifier();
+        this.GetRequiredPerksTypes(perk, requiredPerkTypes);
+        j = 0;
+        jLimit = ArraySize(requiredPerkTypes);
+        while j < jLimit {
+          this.m_linksManager.Push(requiredPerkTypes[j], perk);
+          subPerkItemController = this.GetCachedPerkItemLogicController(requiredPerkTypes[j]);
+          subPerk = subPerkItemController.GetPerkType();
+          subPerkLevel = this.m_playerDevelopmentSystem.IsNewPerkBought(this.m_player, subPerk);
+          wireStateToSet = NewPerksWireState.Default;
+          if isPerkUnlocked || subPerkLevel >= subPerkItemController.GetMaxLevel() && isAttributeRequirementMet {
+            if currentPerkLevel > 0 {
+              wireStateToSet = NewPerksWireState.Bought;
+            } else {
+              wireStateToSet = NewPerksWireState.Available;
+            };
+          };
+          subPerkItemController.GetContainer().SetLinesState(targetSlot, wireStateToSet);
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func ReevaluatePerkAvailability() -> Void {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    let i: Int32;
+    let j: Int32;
+    let perkType: gamedataNewPerkType;
+    let requiredController: wref<NewPerksPerkItemLogicController>;
+    let requiredPerks: array<gamedataNewPerkType>;
+    this.m_playerDevelopmentData.UnlockFreeNewPerks(PlayerDevelopmentData.StatTypeToAttributeDataType(this.m_initData.stat));
+    i = 0;
+    while i < ArraySize(this.m_enabledControllers) {
+      controller = this.m_enabledControllers[i].GetPerkWidgetController();
+      if !controller.IsUnlocked() {
+        perkType = controller.GetPerkType();
+        controller.SetUnlocked(this.m_playerDevelopmentSystem.IsNewPerkUnlocked(this.m_player, perkType));
+        controller.SetAttributeRequirementMet(this.m_attributePoints >= this.GetAttributeRequirement(perkType));
+        ArrayClear(requiredPerks);
+        this.GetRequiredPerksTypes(perkType, requiredPerks);
+        j = 0;
+        while j < ArraySize(requiredPerks) {
+          requiredController = this.GetCachedPerkItemLogicController(requiredPerks[j]);
+          if controller.IsUnlocked() || requiredController.IsMaxed() && controller.IsAttributeRequirementMet() {
+            requiredController = this.GetCachedPerkItemLogicController(requiredPerks[j]);
+            requiredController.GetContainer().SetLinesState(controller.GetSlotIdentifier(), NewPerksWireState.Available);
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func GetAllRequiredPerks(perk: gamedataNewPerkType, finalResult: script_ref<[gamedataNewPerkType]>) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let result: array<gamedataNewPerkType>;
+    this.GetRequiredPerksTypes(perk, result);
+    i = 0;
+    limit = ArraySize(result);
+    while i < limit {
+      this.GetAllRequiredPerks(result[i], finalResult);
+      ArrayPush(Deref(finalResult), result[i]);
+      i += 1;
+    };
+  }
+
+  private final func StopAllPerkAnimations() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_enabledControllers) {
+      this.m_enabledControllers[i].GetPerkWidgetController().StopAllAnimations();
+      i += 1;
+    };
+  }
+
+  private final func AnimateWiresToTargetPerk(target: gamedataNewPerkSlotType, perkPool: script_ref<[gamedataNewPerkType]>) -> Void {
+    let j: Int32;
+    let jLimit: Int32;
+    let proxy: ref<inkAnimProxy>;
+    let wires: array<inkWidgetRef>;
+    let i: Int32 = 0;
+    let iLimit: Int32 = ArraySize(Deref(perkPool));
+    while i < iLimit {
+      wires = this.GetCachedPerkItemLogicController(Deref(perkPool)[i]).GetContainer().GetWires(target);
+      j = 0;
+      jLimit = ArraySize(wires);
+      while j < jLimit {
+        proxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"common_perk_requirement_hover_wire", inkWidgetRef.Get(wires[j]), GetAnimOptionsInfiniteLoop(inkanimLoopType.Cycle));
+        ArrayPush(this.m_activeProxies, proxy);
+        this.FlipHighlightedWireState(wires[j]);
+        ArrayPush(this.m_highlightedWires, wires[j]);
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  private final func FlipHighlightedWireState(wire: inkWidgetRef) -> Void {
+    inkWidgetRef.SetOpacity(wire, 1.00);
+    switch inkWidgetRef.GetState(wire) {
+      case n"Default":
+        inkWidgetRef.SetState(wire, n"LockedHighlight");
+        break;
+      case n"LockedHighlight":
+        inkWidgetRef.SetState(wire, n"Default");
+    };
+  }
+
+  private final func FlipHighlightedPerkState(perk: wref<inkWidget>) -> Void {
+    perk.SetOpacity(1.00);
+    switch perk.GetState() {
+      case n"RequirementNotMet":
+        perk.SetState(n"RequirementNotMetHover");
+        break;
+      case n"RequirementNotMetHover":
+        perk.SetState(n"RequirementNotMet");
+        break;
+      case n"Locked":
+        perk.SetState(n"LockedHover");
+        break;
+      case n"LockedHover":
+        perk.SetState(n"Locked");
+    };
+  }
+
+  public final func StopPathToTargetPerkAnimations() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_activeProxies) {
+      this.m_activeProxies[i].GotoEndAndStop();
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_highlightedWires) {
+      this.FlipHighlightedWireState(this.m_highlightedWires[i]);
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_highlightedPerks) {
+      this.FlipHighlightedPerkState(this.m_highlightedPerks[i]);
+      i += 1;
+    };
+    ArrayClear(this.m_activeProxies);
+    ArrayClear(this.m_highlightedWires);
+    ArrayClear(this.m_highlightedPerks);
+  }
+
+  public final func GetHighligtedPerksHorizontalBoundries() -> Vector2 {
+    let i: Int32;
+    let requiredPerks: array<gamedataNewPerkType>;
+    let boundries: Vector2 = new Vector2(99999.00, 0.00);
+    let widget: wref<inkWidget> = this.GetCachedPerkItemLogicController(this.m_currentHoveredPerkData.m_type).GetRootWidget();
+    let widgetPosition: Vector2 = WidgetUtils.LocalToGlobal(widget);
+    let widgetSize: Vector2 = widget.GetSize();
+    let sizeOffset: Float = widgetSize.X * 1.00 / GameInstance.GetUISystem(this.m_player.GetGame()).GetInverseUIScale();
+    boundries.X = MinF(boundries.X, widgetPosition.X);
+    boundries.Y = MaxF(boundries.Y, widgetPosition.X + sizeOffset);
+    this.GetAllRequiredPerks(this.m_currentHoveredPerkData.m_type, requiredPerks);
+    i = 0;
+    while i < ArraySize(requiredPerks) {
+      widget = this.GetCachedPerkItemLogicController(requiredPerks[i]).GetRootWidget();
+      widgetPosition = WidgetUtils.LocalToGlobal(widget);
+      widgetSize = widget.GetSize();
+      sizeOffset = widgetSize.X * 1.00 / GameInstance.GetUISystem(this.m_player.GetGame()).GetInverseUIScale();
+      boundries.X = MinF(boundries.X, widgetPosition.X);
+      boundries.Y = MaxF(boundries.Y, widgetPosition.X + sizeOffset);
+      i += 1;
+    };
+    return boundries;
+  }
+
+  private final func DimTreeForPerkHighlight(perkData: ref<NewPerkDisplayData>) -> Void {
+    let blacklist: array<gamedataNewPerkSlotType>;
+    let container: wref<NewPerksPerkContainerLogicController>;
+    let i: Int32;
+    let widget: inkWidgetRef;
+    this.ClearUndimProxies(false);
+    this.ClearDimProxies();
+    ArrayClear(this.m_dimmedWidgets);
+    this.GatherPreksInHighlightPath(perkData, blacklist);
+    i = 0;
+    while i < ArraySize(this.m_enabledControllers) {
+      container = this.m_enabledControllers[i];
+      if !ArrayContains(blacklist, container.GetSlotIdentifier()) {
+        widget = container.GetPerkWidget();
+        ArrayPush(this.m_dimmedWidgets, widget);
+        ArrayPush(this.m_dimProxies, inkWidgetRef.PlayAnimation(widget, this.GetDimAnimationForWidget(widget, false)));
+      };
+      this.DimPerkContainerWires(container, blacklist);
+      i += 1;
+    };
+  }
+
+  private final func GatherPreksInHighlightPath(perkData: ref<NewPerkDisplayData>, outArray: script_ref<[gamedataNewPerkSlotType]>) -> Void {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    let i: Int32;
+    let requiredPerks: array<gamedataNewPerkType>;
+    ArrayPush(Deref(outArray), perkData.m_area);
+    this.GetAllRequiredPerks(perkData.m_type, requiredPerks);
+    i = 0;
+    while i < ArraySize(requiredPerks) {
+      controller = this.GetCachedPerkItemLogicController(requiredPerks[i]);
+      ArrayPush(Deref(outArray), controller.GetSlotIdentifier());
+      i += 1;
+    };
+  }
+
+  private final func DimPerkContainerWires(container: wref<NewPerksPerkContainerLogicController>, blacklist: script_ref<[gamedataNewPerkSlotType]>) -> Void {
+    let widget: inkWidgetRef;
+    let wires: array<inkWidgetRef> = container.GetWiresWithTargetBlacklist(blacklist);
+    let i: Int32 = 0;
+    while i < ArraySize(wires) {
+      widget = wires[i];
+      ArrayPush(this.m_dimmedWidgets, widget);
+      ArrayPush(this.m_dimProxies, inkWidgetRef.PlayAnimation(widget, this.GetDimAnimationForWidget(widget, true)));
+      i += 1;
+    };
+  }
+
+  public final func FireDelayedDimming() -> Void {
+    if this.m_perkHovered {
+      this.DimTreeForPerkHighlight(this.m_currentHoveredPerkData);
+    };
+  }
+
+  private final func UndimTree(opt skipUndimAnim: Bool) -> Void {
+    let animation: ref<inkAnimDef>;
+    let i: Int32;
+    let initialOpacity: Float;
+    this.ClearDimProxies();
+    this.ClearUndimProxies(true);
+    if skipUndimAnim {
+      i = 0;
+      while i < ArraySize(this.m_dimmedWidgets) {
+        inkWidgetRef.SetOpacity(this.m_dimmedWidgets[i], 1.00);
+        i += 1;
+      };
+      ArrayClear(this.m_dimmedWidgets);
+    } else {
+      if ArraySize(this.m_dimmedWidgets) > 0 {
+        initialOpacity = inkWidgetRef.GetOpacity(this.m_dimmedWidgets[0]);
+        animation = new inkAnimDef();
+        animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.20, 0.00, initialOpacity, 1.00, inkanimInterpolationMode.EasyIn, inkanimInterpolationType.Sinusoidal));
+        i = 0;
+        while i < ArraySize(this.m_dimmedWidgets) {
+          ArrayPush(this.m_undimProxies, inkWidgetRef.PlayAnimation(this.m_dimmedWidgets[i], animation));
+          i += 1;
+        };
+      };
+    };
+  }
+
+  private final func ClearDimProxies() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_dimProxies) {
+      if IsDefined(this.m_dimProxies[i]) && this.m_dimProxies[i].IsPlaying() {
+        this.m_dimProxies[i].Stop();
+      };
+      i += 1;
+    };
+    ArrayClear(this.m_dimProxies);
+  }
+
+  private final func ClearUndimProxies(gotoEnd: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_undimProxies) {
+      if IsDefined(this.m_undimProxies[i]) && this.m_undimProxies[i].IsPlaying() {
+        if gotoEnd {
+          this.m_undimProxies[i].GotoEndAndStop();
+        } else {
+          this.m_undimProxies[i].Stop();
+        };
+      };
+      i += 1;
+    };
+    ArrayClear(this.m_undimProxies);
+  }
+
+  private final func GetDimAnimationForWidget(widget: inkWidgetRef, isWire: Bool) -> ref<inkAnimDef> {
+    let animation: ref<inkAnimDef> = new inkAnimDef();
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.80, 0.00, inkWidgetRef.GetOpacity(widget), this.GetWidgetDimValue(widget, isWire), inkanimInterpolationMode.EasyIn, inkanimInterpolationType.Linear));
+    return animation;
+  }
+
+  private final func GetWidgetDimValue(widget: inkWidgetRef, isWire: Bool) -> Float {
+    let redOpacity: Float = 0.22;
+    let blueOpacity: Float = 0.05;
+    let goldOpacity: Float = 0.03;
+    if isWire {
+      switch inkWidgetRef.GetState(widget) {
+        case n"Locked":
+        case n"Default":
+          return redOpacity;
+        case n"Available":
+          return this.m_isEspionage ? redOpacity : blueOpacity;
+        case n"Bought":
+          return this.m_isEspionage ? blueOpacity : goldOpacity;
+      };
+    } else {
+      switch inkWidgetRef.GetState(widget) {
+        case n"RequirementNotMet":
+        case n"Locked":
+          return redOpacity;
+        case n"Default":
+          return blueOpacity;
+        case n"PartiallyInvested":
+        case n"FullyInvested":
+        case n"Bought":
+          return this.m_isEspionage ? blueOpacity : goldOpacity;
+      };
+    };
+    return 0.10;
+  }
+
+  public final func OnPerkHoverOver(evt: ref<NewPerkHoverOverEvent>) -> Void {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    let i: Int32;
+    let limit: Int32;
+    let proxy: ref<inkAnimProxy>;
+    let requiredPerks: array<gamedataNewPerkType>;
+    if this.m_isActiveScreen {
+      this.m_perkHovered = true;
+      this.m_currentHoveredPerkData = evt.perkData;
+      if this.m_introFinished {
+        evt.controller.GetRootWidget().SetOpacity(1.00);
+        this.DimTreeForPerkHighlight(evt.perkData);
+      };
+      this.SetCursorContext(n"Hover");
+      this.StopPathToTargetPerkAnimations();
+      this.GetAllRequiredPerks(evt.controller.GetPerkType(), requiredPerks);
+      this.AnimateWiresToTargetPerk(evt.controller.GetSlotIdentifier(), requiredPerks);
+      i = 0;
+      limit = ArraySize(requiredPerks);
+      while i < limit {
+        controller = this.GetCachedPerkItemLogicController(requiredPerks[i]);
+        if !controller.IsMaxed() {
+          proxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"common_perk_requirement_milestone", controller.GetRootWidget(), GetAnimOptionsInfiniteLoop(inkanimLoopType.Cycle));
+          ArrayPush(this.m_activeProxies, proxy);
+          ArrayPush(this.m_highlightedPerks, controller.GetRootWidget());
+        };
+        this.FlipHighlightedPerkState(controller.GetRootWidget());
+        this.AnimateWiresToTargetPerk(controller.GetSlotIdentifier(), requiredPerks);
+        i += 1;
+      };
+      evt.controller.UpdateState();
+    };
+  }
+
+  protected cb func OnPerkHoverOut(evt: ref<NewPerkHoverOutEvent>) -> Bool {
+    if this.m_isActiveScreen {
+      this.m_perkHovered = false;
+      this.StopPathToTargetPerkAnimations();
+    };
+    this.UndimTree();
+  }
+
+  protected cb func OnNewPerkClickEvent(evt: ref<NewPerkClickEvent>) -> Bool {
+    let buyPerkRequrest: ref<BuyNewPerk>;
+    let menuNotification: ref<UIMenuNotificationEvent>;
+    let result: CanSellNewPerkResult;
+    let sellPerkRequest: ref<SellNewPerk>;
+    let soundEvent: ref<PlayNewPerksSoundEvent>;
+    if !this.m_isActiveScreen {
+      return false;
+    };
+    if Equals(evt.action, n"buy_perk") {
+      if evt.controller.IsUnlocked() {
+        buyPerkRequrest = new BuyNewPerk();
+        buyPerkRequrest.Set(this.m_player, evt.controller.GetPerkType());
+        this.m_playerDevelopmentSystem.QueueRequest(buyPerkRequrest);
+        UIInventoryScriptableSystem.GetInstance(this.m_player.GetGame()).QueueRequest(buyPerkRequrest);
+        if !this.m_dataManager.IsPerkUpgradeable(evt.controller.GetNewPerkDisplayData()) {
+          soundEvent = new PlayNewPerksSoundEvent();
+          soundEvent.soundName = n"ui_menu_perk_buy_fail";
+          this.QueueEvent(soundEvent);
+          if evt.controller.IsMaxed() {
+            evt.controller.PlayAnimation(NewPerkCellAnimationType.MaxedLocked);
+          } else {
+            evt.controller.PlayAnimation(NewPerkCellAnimationType.InsufficientPoints);
+          };
+        };
+      } else {
+        menuNotification = new UIMenuNotificationEvent();
+        menuNotification.m_notificationType = UIMenuNotificationType.PerksLocked;
+        GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(menuNotification);
+        evt.controller.PlayAnimation(NewPerkCellAnimationType.Locked);
+        this.IndicateUnmaxedPerksInPath(evt.controller);
+      };
+    } else {
+      if Equals(evt.action, n"sell_perk") {
+        if this.m_initData.isPlayerInCombat {
+          menuNotification = new UIMenuNotificationEvent();
+          menuNotification.m_notificationType = UIMenuNotificationType.InCombatExplicit;
+          GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(menuNotification);
+          evt.controller.PlayAnimation(NewPerkCellAnimationType.SellLocked);
+          return false;
+        };
+        if evt.controller.IsUnlocked() {
+          result = PlayerDevelopmentSystem.CanSellNewPerk(this.m_player, evt.controller.GetPerkType());
+          if !result.success {
+            evt.controller.PlayAnimation(NewPerkCellAnimationType.SellLocked);
+            this.m_sellFailToken = GenericMessageNotification.Show(this.m_gameController, result.title, result.message, GenericMessageNotificationType.Confirm);
+            this.m_sellFailToken.RegisterListener(this, n"OnSellFailed");
+            return false;
+          };
+          sellPerkRequest = new SellNewPerk();
+          sellPerkRequest.Set(this.m_player, evt.controller.GetPerkType());
+          this.m_playerDevelopmentSystem.QueueRequest(sellPerkRequest);
+          UIInventoryScriptableSystem.GetInstance(this.m_player.GetGame()).QueueRequest(sellPerkRequest);
+          if evt.controller.GetLevel() > 0 && evt.controller.GetContainer().AreAnyWiresActive() {
+            menuNotification = new UIMenuNotificationEvent();
+            menuNotification.m_notificationType = UIMenuNotificationType.InventoryActionBlocked;
+            GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(menuNotification);
+            evt.controller.PlayAnimation(NewPerkCellAnimationType.SellLocked);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnSellFailed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_sellFailToken = null;
+  }
+
+  private final func IndicateUnmaxedPerksInPath(controller: wref<NewPerksPerkItemLogicController>) -> Void {
+    let i: Int32;
+    let requiredPerks: array<gamedataNewPerkType>;
+    this.GetAllRequiredPerks(controller.GetPerkType(), requiredPerks);
+    i = 0;
+    while i < ArraySize(requiredPerks) {
+      controller = this.GetCachedPerkItemLogicController(requiredPerks[i]);
+      if !controller.IsMaxed() {
+        controller.PlayAnimation(NewPerkCellAnimationType.Reminder);
+      };
+      i += 1;
+    };
+  }
+
+  private final func GetRequiredPerksTypes(perk: gamedataNewPerkType, result: script_ref<[gamedataNewPerkType]>) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let requiredPerks: array<wref<NewPerk_Record>>;
+    RPGManager.GetNewPerkRecord(perk).RequiresPerks(requiredPerks);
+    i = 0;
+    limit = ArraySize(requiredPerks);
+    while i < limit {
+      ArrayPush(Deref(result), requiredPerks[i].Type());
+      i += 1;
+    };
+  }
+
+  protected cb func OnNewPerkBought(evt: ref<NewPerkBoughtEvent>) -> Bool {
+    let animationToPlay: NewPerkCellAnimationType;
+    let controller: wref<NewPerksPerkItemLogicController>;
+    let currentLevel: Int32;
+    let i: Int32;
+    let limit: Int32;
+    let maxLevel: Int32;
+    let refreshEvent: ref<RefreshPerkTooltipEvent>;
+    let requiredPerks: array<gamedataNewPerkType>;
+    let requirementPerks: wref<NewPerksRequirementsLinks>;
+    let targetSlot: gamedataNewPerkSlotType;
+    let tempController: wref<NewPerksPerkItemLogicController>;
+    if this.m_isActiveScreen {
+      controller = this.GetCachedPerkItemLogicController(evt.perkType);
+      currentLevel = this.m_playerDevelopmentSystem.GetPerkLevel(this.m_player, evt.perkType);
+      controller.SetLevel(currentLevel);
+      targetSlot = controller.GetSlotIdentifier();
+      maxLevel = this.m_playerDevelopmentSystem.GetPerkMaxLevel(this.m_player, evt.perkType);
+      animationToPlay = currentLevel == maxLevel ? NewPerkCellAnimationType.Maxed : NewPerkCellAnimationType.Bought;
+      controller.PlayAnimation(animationToPlay);
+      if currentLevel == maxLevel {
+        requirementPerks = this.m_linksManager.Get(evt.perkType);
+        if requirementPerks != null {
+          i = 0;
+          limit = ArraySize(requirementPerks.linkedPerks);
+          while i < limit {
+            tempController = this.m_perksControllers.Get(EnumInt(requirementPerks.linkedPerks[i])) as NewPerksPerkItemLogicController;
+            if tempController.IsAttributeRequirementMet() {
+              controller.GetContainer().SetLinesState(tempController.GetSlotIdentifier(), NewPerksWireState.Available);
+            };
+            i += 1;
+          };
+        };
+      };
+      this.GetRequiredPerksTypes(evt.perkType, requiredPerks);
+      i = 0;
+      limit = ArraySize(requiredPerks);
+      while i < limit {
+        tempController = this.GetCachedPerkItemLogicController(requiredPerks[i]);
+        tempController.GetContainer().SetLinesState(targetSlot, NewPerksWireState.Bought);
+        i += 1;
+      };
+      refreshEvent = new RefreshPerkTooltipEvent();
+      refreshEvent.target = controller.GetRootCompoundWidget().GetWidgetByIndex(0);
+      refreshEvent.perkData = controller.GetNewPerkDisplayData();
+      this.QueueEvent(refreshEvent);
+      controller.QueueEvent(new UpdatePlayerDevelopmentData());
+      PlayerGameplayRestrictions.PushForceRefreshInputHintsEventToPSM(this.m_player);
+    };
+  }
+
+  protected cb func OnNewPerkSold(evt: ref<NewPerkSoldEvent>) -> Bool {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    let i: Int32;
+    let limit: Int32;
+    let perkLevel: Int32;
+    let refreshEvent: ref<RefreshPerkTooltipEvent>;
+    let requiredPerks: array<gamedataNewPerkType>;
+    let requirementPerks: wref<NewPerksRequirementsLinks>;
+    let targetSlot: gamedataNewPerkSlotType;
+    let tempController: wref<NewPerksPerkItemLogicController>;
+    if this.m_isActiveScreen {
+      controller = this.GetCachedPerkItemLogicController(evt.perkType);
+      perkLevel = this.m_playerDevelopmentSystem.GetPerkLevel(this.m_player, evt.perkType);
+      controller.StopAllAnimations();
+      controller.SetLevel(perkLevel);
+      targetSlot = controller.GetSlotIdentifier();
+      controller.PlayAnimation(NewPerkCellAnimationType.Sold);
+      requirementPerks = this.m_linksManager.Get(evt.perkType);
+      if requirementPerks != null {
+        i = 0;
+        limit = ArraySize(requirementPerks.linkedPerks);
+        while i < limit {
+          tempController = this.m_perksControllers.Get(EnumInt(requirementPerks.linkedPerks[i])) as NewPerksPerkItemLogicController;
+          controller.GetContainer().SetLinesState(tempController.GetSlotIdentifier(), NewPerksWireState.Default);
+          i += 1;
+        };
+      };
+      if perkLevel == 0 {
+        this.GetRequiredPerksTypes(evt.perkType, requiredPerks);
+        i = 0;
+        limit = ArraySize(requiredPerks);
+        while i < limit {
+          tempController = this.GetCachedPerkItemLogicController(requiredPerks[i]);
+          tempController.GetContainer().SetLinesState(targetSlot, NewPerksWireState.Available);
+          i += 1;
+        };
+      };
+      refreshEvent = new RefreshPerkTooltipEvent();
+      refreshEvent.target = controller.GetRootCompoundWidget().GetWidgetByIndex(0);
+      refreshEvent.perkData = controller.GetNewPerkDisplayData();
+      this.QueueEvent(refreshEvent);
+      controller.QueueEvent(new UpdatePlayerDevelopmentData());
+      PlayerGameplayRestrictions.PushForceRefreshInputHintsEventToPSM(this.m_player);
+    };
+  }
+
+  protected cb func OnNewPerkUnlocked(evt: ref<NewPerkUnlockedEvent>) -> Bool {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    if this.m_isActiveScreen {
+      controller = this.GetCachedPerkItemLogicController(evt.perkType);
+      controller.SetUnlocked(true);
+    };
+  }
+
+  protected cb func OnNewPerkLocked(evt: ref<NewPerkLockedEvent>) -> Bool {
+    let controller: wref<NewPerksPerkItemLogicController>;
+    if this.m_isActiveScreen {
+      controller = this.GetCachedPerkItemLogicController(evt.perkType);
+      controller.SetUnlocked(false);
+    };
+  }
+
+  private final func GetSinusoidalTranslationInterpolator(duration: Float, delay: Float, start: Vector2, end: Vector2) -> ref<inkAnimTranslation> {
+    let interpolator: ref<inkAnimTranslation> = new inkAnimTranslation();
+    interpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    interpolator.SetType(inkanimInterpolationType.Sinusoidal);
+    interpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    interpolator.SetDuration(duration);
+    interpolator.SetStartDelay(delay);
+    interpolator.SetStartTranslation(start);
+    interpolator.SetEndTranslation(end);
+    return interpolator;
+  }
+
+  private final func GetLinearTransparencyInterpolator(duration: Float, delay: Float, start: Float, end: Float) -> ref<inkAnimTransparency> {
+    return this.GetLinearTransparencyInterpolator(duration, delay, start, end, inkanimInterpolationMode.EasyIn, inkanimInterpolationType.Sinusoidal);
+  }
+
+  private final func GetLinearTransparencyInterpolator(duration: Float, delay: Float, start: Float, end: Float, mode: inkanimInterpolationMode, type: inkanimInterpolationType) -> ref<inkAnimTransparency> {
+    let interpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    interpolator.SetMode(mode);
+    interpolator.SetType(type);
+    interpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    interpolator.SetDuration(duration);
+    interpolator.SetStartDelay(delay);
+    interpolator.SetStartTransparency(start);
+    interpolator.SetEndTransparency(end);
+    return interpolator;
+  }
+
+  private final func GetUnlockStateOffset(state: Int32) -> Float {
+    if state == ArraySize(this.m_levels) {
+      return -2160.00;
+    };
+    return -this.m_levels[state + 1].m_height;
+  }
+
+  private final func GetAnimationTranslationInterpolator(offsetFrom: Float, offsetTo: Float) -> ref<inkAnimTranslation> {
+    return this.GetSinusoidalTranslationInterpolator(0.45, 0.36, new Vector2(0.00, offsetFrom), new Vector2(0.00, offsetTo));
+  }
+
+  private final func GetAnimationTransparencyInterpolator() -> ref<inkAnimTransparency> {
+    return this.GetLinearTransparencyInterpolator(0.20, 0.36, 1.00, 0.00);
+  }
+
+  private final func GetButtonAnimOffset(level: Int32) -> Float {
+    let offset: Float = this.GetLevelGradientOffset(level);
+    offset += level < this.m_levels[1].m_level ? 130.00 : 90.00;
+    return offset;
+  }
+
+  private final func AnimateUnlockBoldLine(target: inkWidgetRef, offsetFrom: Float, offsetTo: Float) -> Void {
+    let animation: ref<inkAnimDef> = new inkAnimDef();
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.08, 0.00, 0.00, 1.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.08, 0.09, 1.00, 1.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.10, 0.17, 0.00, 0.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.13, 0.27, 1.00, 1.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.10, 0.41, 0.00, 1.00));
+    animation.AddInterpolator(this.GetAnimationTranslationInterpolator(offsetFrom, offsetTo));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.10, 0.95, 1.00, 0.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.13, 1.06, 1.00, 1.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.10, 1.20, 0.00, 0.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.08, 1.30, 1.00, 1.00));
+    animation.AddInterpolator(this.GetLinearTransparencyInterpolator(0.08, 1.39, 1.00, 0.00));
+    inkWidgetRef.PlayAnimation(target, animation);
+  }
+
+  private final func AnimateUnlockLine(target: inkWidgetRef, offsetFrom: Float, offsetTo: Float, opt fadeOut: Bool) -> ref<inkAnimProxy> {
+    let animation: ref<inkAnimDef> = new inkAnimDef();
+    animation.AddInterpolator(this.GetAnimationTranslationInterpolator(offsetFrom, offsetTo));
+    if fadeOut {
+      animation.AddInterpolator(this.GetAnimationTransparencyInterpolator());
+    };
+    return inkWidgetRef.PlayAnimation(target, animation);
+  }
+}
+
+public class NewPerksRequirementsLinksManager extends IScriptable {
+
+  public let m_cache: [ref<NewPerksRequirementsLinks>];
+
+  public final func Get(perk: gamedataNewPerkType) -> ref<NewPerksRequirementsLinks> {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_cache);
+    while i < limit {
+      if Equals(this.m_cache[i].perk, perk) {
+        return this.m_cache[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func Push(perk: gamedataNewPerkType, link: gamedataNewPerkType) -> Void {
+    let targetLink: ref<NewPerksRequirementsLinks>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_cache);
+    while i < limit {
+      if Equals(this.m_cache[i].perk, perk) {
+        targetLink = this.m_cache[i];
+        break;
+      };
+      i += 1;
+    };
+    if targetLink == null {
+      targetLink = new NewPerksRequirementsLinks();
+      targetLink.perk = perk;
+      ArrayPush(this.m_cache, targetLink);
+    };
+    ArrayPush(targetLink.linkedPerks, link);
+  }
+
+  public final func Clear() -> Void {
+    ArrayClear(this.m_cache);
+  }
+}

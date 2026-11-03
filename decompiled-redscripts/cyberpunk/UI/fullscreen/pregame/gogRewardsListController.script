@@ -1,0 +1,164 @@
+
+public class GogRewardsListController extends inkLogicController {
+
+  private edit let m_containerWidget: inkWidgetRef;
+
+  private edit let m_scrollArea: inkWidgetRef;
+
+  private edit let m_sizeRefWrapper: inkWidgetRef;
+
+  private edit let m_cyberpunkShopUrl: inkWidgetRef;
+
+  private edit let m_scrollBarRequiredHeight: Int32;
+
+  private edit let m_disconnectBtn: inkWidgetRef;
+
+  private let m_shouldUpdateLayout: Bool;
+
+  private let m_signOutEnabled: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    if Equals(GetPlatformShortName(), "emporium") {
+      inkWidgetRef.SetVisible(this.m_cyberpunkShopUrl, false);
+    };
+    inkWidgetRef.RegisterToCallback(this.m_disconnectBtn, n"OnRelease", this, n"OnDisconnectClicked");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_disconnectBtn, n"OnRelease", this, n"OnDisconnectClicked");
+  }
+
+  public final func EnableSignOut(value: Bool) -> Void {
+    this.m_signOutEnabled = value;
+    inkWidgetRef.SetVisible(this.m_disconnectBtn, this.m_signOutEnabled);
+  }
+
+  protected cb func OnDisconnectClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_signOutEnabled && (evt.IsAction(n"click") || evt.IsAction(n"tap")) {
+      this.QueueEvent(new DisconnectClickedEvent());
+    };
+  }
+
+  public final func UpdateRewardsList(const rewards: [ref<GogRewardEntryData>]) -> Void {
+    let groupController: wref<GogRewardsGroupController>;
+    let groupWidget: wref<inkWidget>;
+    let groups: array<array<ref<GogRewardEntryData>>>;
+    let groupsNames: array<CName>;
+    let i: Int32;
+    let limit: Int32;
+    ArrayPush(groupsNames, n"default");
+    ArrayPush(groupsNames, n"ep1");
+    ArrayPush(groupsNames, n"twitch");
+    ArrayPush(groupsNames, n"amazon");
+    ArrayGrow(groups, ArraySize(groupsNames));
+    i = 0;
+    limit = ArraySize(rewards);
+    while i < limit {
+      ArrayPush(groups[this.GetGroupIndex(rewards[i].group)], rewards[i]);
+      i += 1;
+    };
+    i = 0;
+    limit = ArraySize(groups);
+    while i < limit {
+      if ArraySize(groups[i]) > 0 {
+        groupWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_containerWidget), n"RewardGroupWidget");
+        groupController = groupWidget.GetController() as GogRewardsGroupController;
+        groupController.UpdateGroup(groupsNames[i], groups[i]);
+      };
+      i += 1;
+    };
+    this.m_shouldUpdateLayout = true;
+  }
+
+  private final func GetGroupIndex(const groupName: CName) -> Int32 {
+    if Equals(groupName, n"ep1") {
+      return 1;
+    };
+    if Equals(groupName, n"twitch") {
+      return 2;
+    };
+    if Equals(groupName, n"amazon") {
+      return 3;
+    };
+    return 0;
+  }
+
+  protected cb func OnArrangeChildrenComplete() -> Bool {
+    if this.m_shouldUpdateLayout {
+      this.QueueEvent(new DelayedUpdateLayoutEvent());
+      this.m_shouldUpdateLayout = false;
+    };
+  }
+
+  protected cb func OnDelayedUpdateLayoutEvent(evt: ref<DelayedUpdateLayoutEvent>) -> Bool {
+    let height: Float = inkWidgetRef.GetDesiredHeight(this.m_sizeRefWrapper);
+    if height < Cast<Float>(this.m_scrollBarRequiredHeight) {
+      inkWidgetRef.SetHeight(this.m_scrollArea, height);
+    };
+    this.QueueEvent(new DelayedUpdateLayoutCompletedEvent());
+  }
+}
+
+public class GogRewardsGroupController extends inkLogicController {
+
+  private edit let m_label: inkTextRef;
+
+  private edit let m_containerWidget: inkWidgetRef;
+
+  public final func UpdateGroup(const groupName: CName, const rewards: [ref<GogRewardEntryData>]) -> Void {
+    let entryController: wref<GogRewardEntryController>;
+    let entryWidget: wref<inkWidget>;
+    let i: Int32;
+    let limit: Int32;
+    let state: CName = this.GroupNameToState(groupName);
+    inkTextRef.SetText(this.m_label, this.GroupNameToLabelText(groupName));
+    inkWidgetRef.SetState(this.m_label, state);
+    i = 0;
+    limit = ArraySize(rewards);
+    while i < limit {
+      entryWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_containerWidget), Equals(rewards[i].slotType, n"weapon") ? n"WideRewardEntry" : n"RewardEntry");
+      entryController = entryWidget.GetController() as GogRewardEntryController;
+      entryController.UpdateRewardDetails(rewards[i].icon, rewards[i].isUnlocked ? state : n"Airdrop", rewards[i].isUnlocked, Equals(rewards[i].slotType, n"outfit"));
+      entryWidget.RegisterToCallback(n"OnHoverOver", this, n"OnEntryHoverOver");
+      entryWidget.RegisterToCallback(n"OnHoverOut", this, n"OnEntryHoverOut");
+      i += 1;
+    };
+  }
+
+  protected cb func OnEntryHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    let hoverEvent: ref<GogRewardsEntryHoverOver> = new GogRewardsEntryHoverOver();
+    hoverEvent.widget = evt.GetCurrentTarget();
+    hoverEvent.controller = hoverEvent.widget.GetController() as GogRewardEntryController;
+    this.QueueEvent(hoverEvent);
+  }
+
+  protected cb func OnEntryHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.QueueEvent(new GogRewardsEntryHoverOut());
+  }
+
+  private final func GroupNameToLabelText(const groupName: CName) -> String {
+    if Equals(groupName, n"ep1") {
+      return "LocKey#93674";
+    };
+    if Equals(groupName, n"twitch") {
+      return "LocKey#94328";
+    };
+    if Equals(groupName, n"amazon") {
+      return "LocKey#94947";
+    };
+    return "LocKey#15435";
+  }
+
+  private final func GroupNameToState(const groupName: CName) -> CName {
+    if Equals(groupName, n"ep1") {
+      return n"EP1";
+    };
+    if Equals(groupName, n"twitch") {
+      return n"Twitch";
+    };
+    if Equals(groupName, n"amazon") {
+      return n"Amazon";
+    };
+    return n"Default";
+  }
+}

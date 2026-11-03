@@ -1,0 +1,535 @@
+
+public class VendorDataManager extends IScriptable {
+
+  private let m_VendorObject: wref<GameObject>;
+
+  private let m_BuyingCart: [VendorShoppingCartItem];
+
+  private let m_SellingCart: [VendorShoppingCartItem];
+
+  private let m_VendorID: TweakDBID;
+
+  private let m_VendingBlacklist: [EVendorMode];
+
+  private let m_TimeToCompletePurchase: Float;
+
+  protected let m_UIBBEquipment: ref<UI_EquipmentDef>;
+
+  private let m_InventoryBBID: ref<CallbackHandle>;
+
+  private let m_EquipmentBBID: ref<CallbackHandle>;
+
+  private let m_openTime: GameTime;
+
+  public final func Initialize(vendor: wref<GameObject>, const vendingTerminalSetup: script_ref<VendingTerminalSetup>) -> Void {
+    this.m_VendorObject = vendor;
+    this.m_VendorID = Deref(vendingTerminalSetup).m_vendorTweakID;
+    this.m_VendingBlacklist = Deref(vendingTerminalSetup).m_vendingBlacklist;
+    this.m_TimeToCompletePurchase = Deref(vendingTerminalSetup).m_timeToCompletePurchase;
+    MarketSystem.OnVendorMenuOpen(this.m_VendorObject);
+  }
+
+  public final func Initialize(owner: wref<GameObject>, entityID: EntityID) -> Void {
+    this.m_TimeToCompletePurchase = 0.00;
+    this.m_VendorObject = GameInstance.FindEntityByID(owner.GetGame(), entityID) as GameObject;
+    this.m_VendorID = MarketSystem.GetVendorID(this.m_VendorObject);
+    MarketSystem.OnVendorMenuOpen(this.m_VendorObject);
+  }
+
+  public final func UpdateOpenTime(gameInstance: GameInstance) -> Void {
+    this.m_openTime = GameInstance.GetTimeSystem(gameInstance).GetGameTime();
+  }
+
+  public final func GetOpenTime() -> GameTime {
+    return this.m_openTime;
+  }
+
+  public final func GetVendorInstance() -> wref<GameObject> {
+    return this.m_VendorObject;
+  }
+
+  public final func GetVendorID() -> TweakDBID {
+    return this.m_VendorID;
+  }
+
+  public final func GetLocalPlayer() -> wref<PlayerPuppet> {
+    return VendorDataManager.GetLocalPlayer(this.m_VendorObject.GetGame());
+  }
+
+  public final static func GetLocalPlayer(game: GameInstance) -> wref<PlayerPuppet> {
+    return GameInstance.GetPlayerSystem(game).GetLocalPlayerMainGameObject() as PlayerPuppet;
+  }
+
+  public final func GetVendorRecord() -> wref<Vendor_Record> {
+    return TweakDBInterface.GetVendorRecord(this.m_VendorID);
+  }
+
+  public final func GetVendorName() -> String {
+    return TweakDBInterface.GetVendorRecord(this.m_VendorID).LocalizedName();
+  }
+
+  public final func GetVendorDescription() -> String {
+    return TweakDBInterface.GetVendorRecord(this.m_VendorID).LocalizedDescription();
+  }
+
+  public final func GetLocalPlayerCurrencyAmount() -> Int32 {
+    return VendorDataManager.GetLocalPlayerCurrencyAmount(this.GetLocalPlayer());
+  }
+
+  public final static func GetLocalPlayerCurrencyAmount(player: wref<GameObject>) -> Int32 {
+    return GameInstance.GetTransactionSystem(player.GetGame()).GetItemQuantity(player, MarketSystem.Money());
+  }
+
+  public final func GetVendorInventoryItems() -> [ref<VendorGameItemData>] {
+    let inventory: array<ref<VendorGameItemData>>;
+    let itemData: ref<gameItemData>;
+    let vendorItemData: ref<VendorGameItemData>;
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    let vendorStock: array<SItemStack> = MarketSystem.GetVendorItemsForSale(this.m_VendorObject, true);
+    let i: Int32 = 0;
+    while i < ArraySize(vendorStock) {
+      vendorItemData = new VendorGameItemData();
+      itemData = transactionSys.GetItemData(this.m_VendorObject, vendorStock[i].itemID);
+      if !IsDefined(itemData) {
+      } else {
+        vendorItemData.itemData = itemData;
+        vendorItemData.itemStack = vendorStock[i];
+        ArrayPush(inventory, vendorItemData);
+      };
+      i += 1;
+    };
+    return inventory;
+  }
+
+  public final func GetVendorSoldItems() -> ref<SoldItemsCache> {
+    return MarketSystem.GetVendorSoldItems(this.m_VendorObject);
+  }
+
+  public final func GetRipperDocItems() -> [ref<VendorGameItemData>] {
+    let inventory: array<ref<VendorGameItemData>>;
+    let itemData: ref<gameItemData>;
+    let vendorItemData: ref<VendorGameItemData>;
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    let cyberwareStock: array<SItemStack> = MarketSystem.GetVendorCyberwareForSale(this.m_VendorObject, true);
+    let i: Int32 = 0;
+    while i < ArraySize(cyberwareStock) {
+      vendorItemData = new VendorGameItemData();
+      itemData = transactionSys.GetItemData(this.m_VendorObject, cyberwareStock[i].itemID);
+      vendorItemData.itemData = itemData;
+      vendorItemData.itemStack = cyberwareStock[i];
+      ArrayPush(inventory, vendorItemData);
+      i += 1;
+    };
+    return inventory;
+  }
+
+  public final func GetGlamDocItems() -> [ref<VendorGameItemData>] {
+    let inventory: array<ref<VendorGameItemData>>;
+    let itemData: ref<gameItemData>;
+    let tags: array<CName>;
+    let vendorItemData: ref<VendorGameItemData>;
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    let stock: array<SItemStack> = MarketSystem.GetVendorItemsForSale(this.m_VendorObject, false);
+    let i: Int32 = 0;
+    while i < ArraySize(stock) {
+      tags = RPGManager.GetItemRecord(stock[i].itemID).Tags();
+      if !ArrayContains(tags, n"Glamdoc") {
+      } else {
+        vendorItemData = new VendorGameItemData();
+        itemData = transactionSys.GetItemData(this.m_VendorObject, stock[i].itemID);
+        vendorItemData.itemData = itemData;
+        vendorItemData.itemStack = stock[i];
+        ArrayPush(inventory, vendorItemData);
+      };
+      i += 1;
+    };
+    return inventory;
+  }
+
+  public final func GetItemsPlayerCanSell() -> [ref<gameItemData>] {
+    let itemData: ref<gameItemData>;
+    let sellItemData: array<ref<gameItemData>>;
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    let playerStock: array<SItemStack> = MarketSystem.GetItemsPlayerCanSell(this.m_VendorObject, false, false);
+    let i: Int32 = 0;
+    while i < ArraySize(playerStock) {
+      itemData = transactionSys.GetItemData(GetPlayer(this.m_VendorObject.GetGame()), playerStock[i].itemID);
+      ArrayPush(sellItemData, itemData);
+      i += 1;
+    };
+    return sellItemData;
+  }
+
+  public final func ArePlayerQuestItemsHidden() -> Bool {
+    let tagsToFilterOut: array<CName> = this.GetVendorRecord().CustomerFilterTags();
+    return ArrayContains(tagsToFilterOut, n"Quest");
+  }
+
+  public final func GetItemsPlayerCanSellFast(player: wref<GameObject>, opt excludeEquipped: Bool) -> [wref<gameItemData>] {
+    let equipmentSystem: ref<EquipmentSystem>;
+    let i: Int32;
+    let result: array<wref<gameItemData>>;
+    let vendorRecord: wref<Vendor_Record> = this.GetVendorRecord();
+    let tagsToFilterOut: array<CName> = vendorRecord.CustomerFilterTags();
+    let requiredTags: array<CName> = vendorRecord.CustomerInverseFilterTags();
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(player.GetGame());
+    transactionSystem.GetItemListFilteredByTags(player, requiredTags, tagsToFilterOut, result);
+    if excludeEquipped {
+      equipmentSystem = EquipmentSystem.GetInstance(player);
+      i = ArraySize(result) - 1;
+      while i >= 0 {
+        if equipmentSystem.IsEquipped(player, result[i].GetID()) {
+          ArrayErase(result, i);
+        };
+        i -= 1;
+      };
+    };
+    return result;
+  }
+
+  public final func CanPlayerSellItem(itemID: ItemID) -> Bool {
+    return MarketSystem.CanPlayerSellItem(this.m_VendorObject, itemID, false, false);
+  }
+
+  public final func GetStorageItems() -> [ref<gameItemData>] {
+    let gameItemList: array<ref<gameItemData>>;
+    let i: Int32;
+    let itemList: array<wref<gameItemData>>;
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    transactionSys.GetItemList(this.m_VendorObject, itemList);
+    i = 0;
+    while i < ArraySize(itemList) {
+      ArrayPush(gameItemList, itemList[i]);
+      i += 1;
+    };
+    return gameItemList;
+  }
+
+  public final func BuyItemFromVendor(itemData: wref<gameItemData>, amount: Int32, opt requestId: Int32) -> Void {
+    let buyRequest: ref<BuyRequest>;
+    let buyRequestData: TransactionRequestData;
+    let uiSys: ref<UISystem> = GameInstance.GetUISystem(this.m_VendorObject.GetGame());
+    let evt: ref<VendorBoughtItemEvent> = new VendorBoughtItemEvent();
+    ArrayPush(evt.items, itemData.GetID());
+    uiSys.QueueEvent(evt);
+    buyRequestData.itemID = itemData.GetID();
+    buyRequestData.quantity = amount;
+    buyRequest = new BuyRequest();
+    buyRequest.owner = this.m_VendorObject;
+    buyRequest.requestID = requestId;
+    ArrayPush(buyRequest.items, buyRequestData);
+    MarketSystem.GetInstance(this.m_VendorObject.GetGame()).QueueRequest(buyRequest);
+  }
+
+  public final func BuybackItemFromVendor(itemData: wref<gameItemData>, amount: Int32, opt requestId: Int32) -> Void {
+    let buybackRequest: ref<BuybackRequest>;
+    let buybackRequestData: TransactionRequestData;
+    let uiSys: ref<UISystem> = GameInstance.GetUISystem(this.m_VendorObject.GetGame());
+    let evt: ref<VendorBoughtItemEvent> = new VendorBoughtItemEvent();
+    ArrayPush(evt.items, itemData.GetID());
+    uiSys.QueueEvent(evt);
+    buybackRequestData.itemID = itemData.GetID();
+    buybackRequestData.quantity = amount;
+    buybackRequest = new BuybackRequest();
+    buybackRequest.owner = this.m_VendorObject;
+    buybackRequest.requestID = requestId;
+    ArrayPush(buybackRequest.items, buybackRequestData);
+    MarketSystem.GetInstance(this.m_VendorObject.GetGame()).QueueRequest(buybackRequest);
+  }
+
+  public final func SellItemToVendor(itemData: wref<gameItemData>, amount: Int32, opt requestId: Int32) -> Void {
+    let amounts: array<Int32>;
+    let itemsData: array<wref<gameItemData>>;
+    ArrayPush(itemsData, itemData);
+    ArrayPush(amounts, amount);
+    this.SellItemsToVendor(itemsData, amounts, requestId);
+  }
+
+  public final func SellItemsToVendor(const itemsData: script_ref<[wref<gameItemData>]>, const amounts: script_ref<[Int32]>, opt requestId: Int32) -> Void {
+    let sellRequestData: TransactionRequestData;
+    let sellRequest: ref<SellRequest> = new SellRequest();
+    sellRequest.owner = this.m_VendorObject;
+    sellRequest.requestID = requestId;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(itemsData));
+    while i < limit {
+      sellRequestData.itemID = Deref(itemsData)[i].GetID();
+      sellRequestData.quantity = Deref(amounts)[i];
+      sellRequestData.powerLevel = Deref(itemsData)[i].GetStatValueByType(gamedataStatType.PowerLevel);
+      ArrayPush(sellRequest.items, sellRequestData);
+      i += 1;
+    };
+    MarketSystem.GetInstance(this.m_VendorObject.GetGame()).QueueRequest(sellRequest);
+  }
+
+  public final func TransferItem(source: wref<GameObject>, target: wref<GameObject>, itemData: wref<gameItemData>, amount: Int32) -> Void {
+    let transactionSys: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_VendorObject.GetGame());
+    transactionSys.TransferItem(source, target, itemData.GetID(), amount);
+  }
+
+  public final func GetBuyingPrice(itemID: ItemID) -> Int32 {
+    return MarketSystem.GetBuyPrice(this.m_VendorObject, itemID);
+  }
+
+  public final func GetSellingPrice(itemID: ItemID) -> Int32 {
+    return RPGManager.CalculateSellPrice(this.m_VendorObject.GetGame(), this.m_VendorObject, itemID);
+  }
+
+  public final func Checkout(andEquip: Bool) -> Bool {
+    let itemsToBuy: array<ItemID>;
+    let itemsToSell: array<ItemID>;
+    this.GetItemIDsFromCart(itemsToBuy, this.m_BuyingCart);
+    this.GetItemIDsFromCart(itemsToSell, this.m_SellingCart);
+    this.ClearBuyingCart();
+    this.ClearSellingCart();
+    return false;
+  }
+
+  public final func ClearCart() -> Void {
+    this.ClearBuyingCart();
+    this.ClearSellingCart();
+  }
+
+  private final func ClearBuyingCart() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_BuyingCart) {
+      this.BuyItemFromVendor(this.m_BuyingCart[i].itemData, this.m_BuyingCart[i].amount);
+      i += 1;
+    };
+    ArrayClear(this.m_BuyingCart);
+  }
+
+  private final func ClearSellingCart() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_SellingCart) {
+      this.SellItemToVendor(this.m_SellingCart[i].itemData, this.m_SellingCart[i].amount);
+      i += 1;
+    };
+    ArrayClear(this.m_SellingCart);
+  }
+
+  public final func NumItemsInBuyingCart() -> Int32 {
+    return ArraySize(this.m_BuyingCart);
+  }
+
+  public final func NumItemsInSellingCart() -> Int32 {
+    return ArraySize(this.m_SellingCart);
+  }
+
+  public final func NumItemsInAllCarts() -> Int32 {
+    return this.NumItemsInBuyingCart() + this.NumItemsInSellingCart();
+  }
+
+  public final func TotalNumItemsInAllCarts() -> Int32 {
+    return this.GetTotalAmountInCart(this.m_BuyingCart) + this.GetTotalAmountInCart(this.m_SellingCart);
+  }
+
+  public final func AddToBuyingCart(itemToAdd: wref<gameItemData>) -> ECartOperationResult {
+    let returnValue: ECartOperationResult = this.CanAddToBuyingCart(itemToAdd);
+    if Equals(returnValue, ECartOperationResult.Success) {
+      this.AddToCart(itemToAdd, this.m_BuyingCart);
+    };
+    return returnValue;
+  }
+
+  public final func AddToSellingCart(itemToAdd: wref<gameItemData>) -> ECartOperationResult {
+    let returnValue: ECartOperationResult = this.CanAddToSellingCart(itemToAdd);
+    if Equals(returnValue, ECartOperationResult.Success) {
+      this.AddToCart(itemToAdd, this.m_SellingCart);
+    };
+    return returnValue;
+  }
+
+  public final func RemoveFromBuyingCart(itemToRemove: wref<gameItemData>) -> ECartOperationResult {
+    if this.RemoveFromCart(itemToRemove, this.m_BuyingCart) {
+      return ECartOperationResult.Success;
+    };
+    return ECartOperationResult.NotInCart;
+  }
+
+  public final func RemoveFromSellingCart(itemToRemove: wref<gameItemData>) -> ECartOperationResult {
+    if this.RemoveFromCart(itemToRemove, this.m_SellingCart) {
+      return ECartOperationResult.Success;
+    };
+    return ECartOperationResult.NotInCart;
+  }
+
+  private final func CanAddToBuyingCart(itemToAdd: wref<gameItemData>) -> ECartOperationResult {
+    let itemQuantity: Int32 = itemToAdd.GetQuantity();
+    if itemQuantity == 0 {
+      return ECartOperationResult.NoItems;
+    };
+    if this.GetAmountInBuiyngCart(itemToAdd) >= itemQuantity {
+      return ECartOperationResult.AllItems;
+    };
+    return ECartOperationResult.Success;
+  }
+
+  private final func CanAddToSellingCart(itemToAdd: wref<gameItemData>) -> ECartOperationResult {
+    let itemQuantity: Int32 = itemToAdd.GetQuantity();
+    if itemQuantity == 0 {
+      return ECartOperationResult.NoItems;
+    };
+    if this.GetAmountInSellingCart(itemToAdd) >= itemQuantity {
+      return ECartOperationResult.AllItems;
+    };
+    if itemToAdd.HasTag(n"Quest") {
+      return ECartOperationResult.QuestItem;
+    };
+    return ECartOperationResult.Success;
+  }
+
+  public final func GetAmountInBuiyngCart(item: wref<gameItemData>) -> Int32 {
+    return this.GetAmountInCart(item, this.m_BuyingCart);
+  }
+
+  public final func GetAmountInSellingCart(item: wref<gameItemData>) -> Int32 {
+    return this.GetAmountInCart(item, this.m_SellingCart);
+  }
+
+  public final func GetItemDataFromBuyingCart(items: script_ref<[wref<gameItemData>]>) -> Void {
+    return this.GetItemDataFromCart(items, this.m_BuyingCart);
+  }
+
+  public final func GetItemDataFromSellingCart(items: script_ref<[wref<gameItemData>]>) -> Void {
+    return this.GetItemDataFromCart(items, this.m_SellingCart);
+  }
+
+  public final func GetTimeToCompletePurchase() -> Float {
+    return this.m_TimeToCompletePurchase;
+  }
+
+  public final func GetPriceInBuyingCart() -> Int32 {
+    let price: Int32 = 0;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_BuyingCart);
+    while i < limit {
+      price += this.m_BuyingCart[i].amount * this.GetBuyingPrice(this.m_BuyingCart[i].itemData.GetID());
+      i += 1;
+    };
+    return price;
+  }
+
+  public final func GetPriceInSellingCart() -> Int32 {
+    let price: Int32 = 0;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_SellingCart);
+    while i < limit {
+      price += this.m_BuyingCart[i].amount * this.GetSellingPrice(this.m_SellingCart[i].itemData.GetID());
+      i += 1;
+    };
+    return price;
+  }
+
+  private final func AddToCart(itemToAdd: wref<gameItemData>, out cart: [VendorShoppingCartItem]) -> Void {
+    let i: Int32;
+    let limit: Int32;
+    let quantityToAdd: Int32 = itemToAdd.GetQuantity();
+    if quantityToAdd > 0 {
+      i = 0;
+      limit = ArraySize(cart);
+      while i < limit {
+        if cart[i].itemData == itemToAdd {
+          if cart[i].amount < quantityToAdd {
+            cart[i].amount += 1;
+            return;
+          };
+        };
+        i += 1;
+      };
+      ArrayPush(cart, new VendorShoppingCartItem(itemToAdd, 1));
+    };
+  }
+
+  private final func RemoveFromCart(itemToAdd: wref<gameItemData>, out cart: [VendorShoppingCartItem]) -> Bool {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(cart);
+    while i < limit {
+      if cart[i].itemData == itemToAdd {
+        if cart[i].amount > 0 {
+          cart[i].amount -= 1;
+          if cart[i].amount == 0 {
+            ArrayErase(cart, i);
+          };
+          return true;
+        };
+        return false;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func GetTotalAmountInCart(const cart: script_ref<[VendorShoppingCartItem]>) -> Int32 {
+    let outValue: Int32 = 0;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(cart));
+    while i < limit {
+      outValue += Deref(cart)[i].amount;
+      i += 1;
+    };
+    return outValue;
+  }
+
+  private final func GetAmountInCart(itemToAdd: wref<gameItemData>, const cart: script_ref<[VendorShoppingCartItem]>) -> Int32 {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(cart));
+    while i < limit {
+      if Deref(cart)[i].itemData == itemToAdd {
+        return Deref(cart)[i].amount;
+      };
+      i += 1;
+    };
+    return 0;
+  }
+
+  private final func GetItemDataFromCart(items: script_ref<[wref<gameItemData>]>, const cart: script_ref<[VendorShoppingCartItem]>) -> Void {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(cart));
+    while i < limit {
+      if Deref(cart)[i].amount > 0 {
+        ArrayPush(Deref(items), Deref(cart)[i].itemData);
+      };
+      i += 1;
+    };
+  }
+
+  public final func GetItemIDsFromCart(itemIds: script_ref<[ItemID]>, const cart: script_ref<[VendorShoppingCartItem]>) -> Void {
+    let j: Int32;
+    let limitJ: Int32;
+    let i: Int32 = 0;
+    let limitI: Int32 = ArraySize(Deref(cart));
+    while i < limitI {
+      j = 0;
+      limitJ = Deref(cart)[i].amount;
+      while j < limitJ {
+        ArrayPush(Deref(itemIds), Deref(cart)[i].itemData.GetID());
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  public final func ProcessTooltipsData(vendorMode: EVendorMode, tooltipsData: script_ref<[ref<ATooltipData>]>) -> Void {
+    let itemTooltipData: ref<InventoryTooltipData>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(tooltipsData));
+    while i < limit {
+      itemTooltipData = Deref(tooltipsData)[i] as InventoryTooltipData;
+      if IsDefined(itemTooltipData) {
+        if itemTooltipData.isEquipped {
+          itemTooltipData.price = 0.00;
+        } else {
+          if Equals(vendorMode, EVendorMode.BuyItems) {
+            itemTooltipData.price = Cast<Float>(this.GetBuyingPrice(itemTooltipData.itemID));
+          } else {
+            if Equals(vendorMode, EVendorMode.SellItems) {
+              itemTooltipData.price = Cast<Float>(this.GetSellingPrice(itemTooltipData.itemID));
+            };
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+}

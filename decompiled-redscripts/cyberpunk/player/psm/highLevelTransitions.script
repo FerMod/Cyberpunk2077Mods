@@ -1,0 +1,1021 @@
+
+public abstract class HighLevelTransition extends DefaultTransition {
+
+  public final func BlockMovement(const scriptInterface: ref<StateGameScriptInterface>, val: Bool) -> Void {
+    if Equals(val, true) {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoMovement");
+    } else {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoMovement");
+    };
+  }
+
+  public final func ForceEmptyHands(stateContext: ref<StateContext>, val: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"ForceEmptyHands", val, true);
+  }
+
+  public final func IsForceEmptyHands(stateContext: ref<StateContext>) -> Bool {
+    return stateContext.GetBoolParameter(n"ForceEmptyHands", true);
+  }
+
+  public final func ForceTemporaryUnequip(stateContext: ref<StateContext>, val: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"forcedTemporaryUnequip", val, true);
+  }
+
+  public final func ForceSafeState(stateContext: ref<StateContext>) -> Void {
+    stateContext.SetPermanentBoolParameter(n"ForceSafeState", true, true);
+  }
+
+  public final func ForceReadyState(stateContext: ref<StateContext>) -> Void {
+    stateContext.SetPermanentBoolParameter(n"ForceReadyState", true, true);
+  }
+
+  public final func ForceExitToStand(stateContext: ref<StateContext>) -> Void {
+    if stateContext.GetConditionBool(n"CrouchToggled") {
+      stateContext.SetConditionBoolParameter(n"CrouchToggled", false, true);
+    };
+  }
+
+  public final func ResetForceWalkSpeed(stateContext: ref<StateContext>) -> Void {
+    stateContext.SetPermanentFloatParameter(n"ForceWalkSpeed", -1.00, true);
+  }
+
+  public final func SetTier2LocomotionSlow(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionSlow") {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionSlow");
+    };
+  }
+
+  public final func SetTier2Locomotion(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2Locomotion") {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2Locomotion");
+    };
+  }
+
+  public final func SetTier2LocomotionFast(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionFast") {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionFast");
+    };
+  }
+
+  public final func RemoveTier2LocomotionSlow(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionSlow");
+  }
+
+  public final func RemoveTier2Locomotion(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2Locomotion");
+  }
+
+  public final func RemoveTier2LocomotionFast(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Tier2LocomotionFast");
+  }
+
+  public final func RemoveAllTierLocomotions(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveTier2LocomotionSlow(scriptInterface);
+    this.RemoveTier2Locomotion(scriptInterface);
+    this.RemoveTier2LocomotionFast(scriptInterface);
+  }
+
+  public final func ActivateTier3Locomotion(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    swapEvent.stateMachineName = n"LocomotionTier3";
+    player.QueueEvent(swapEvent);
+  }
+
+  public final func ActivateTier4Locomotion(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    swapEvent.stateMachineName = n"LocomotionTier4";
+    player.QueueEvent(swapEvent);
+  }
+
+  public final func ActivateTier5Locomotion(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    swapEvent.stateMachineName = n"LocomotionTier5";
+    player.QueueEvent(swapEvent);
+  }
+
+  public final func ActivateWorkspotLocomotion(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    swapEvent.stateMachineName = n"LocomotionWorkspot";
+    player.QueueEvent(swapEvent);
+  }
+
+  public final func ForceDefaultLocomotion(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    swapEvent.stateMachineName = n"Locomotion";
+    swapEvent.tryHotSwap = true;
+    player.QueueEvent(swapEvent);
+  }
+
+  protected final func GetCurrentHealthPerc(scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    let ownerID: StatsObjectID = Cast<StatsObjectID>(scriptInterface.ownerEntityID);
+    let gameInstance: GameInstance = scriptInterface.owner.GetGame();
+    let health: Float = GameInstance.GetStatPoolsSystem(gameInstance).GetStatPoolValue(ownerID, gamedataStatPoolType.Health);
+    return health;
+  }
+
+  protected final func SetPlayerVitalsAnimFeatureData(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, val: Int32, stateDuration: Float) -> Void {
+    let animFeature: ref<AnimFeature_PlayerVitals> = new AnimFeature_PlayerVitals();
+    animFeature.state = val;
+    animFeature.stateDuration = stateDuration;
+    scriptInterface.SetAnimationParameterFeature(n"PlayerVitals", animFeature);
+  }
+
+  protected final const func GetDeathType(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> EDeathType {
+    let deathType: EDeathType;
+    if scriptInterface.IsFalling() {
+      deathType = EDeathType.Air;
+    } else {
+      if stateContext.IsStateMachineActive(n"LocomotionSwimming") {
+        deathType = EDeathType.Swimming;
+      } else {
+        deathType = EDeathType.Ground;
+      };
+    };
+    return deathType;
+  }
+
+  protected final func SetDeathCameraParameters(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let param: StateResultCName = this.GetStaticCNameParameter("onEnterCameraParamsName");
+    if param.valid {
+      stateContext.SetPermanentCNameParameter(n"LocomotionCameraParams", param.value, true);
+      if stateContext.IsStateMachineActive(n"Vehicle") {
+        stateContext.SetPermanentCNameParameter(n"VehicleCameraParams", param.value, true);
+      };
+      this.UpdateCameraParams(stateContext, scriptInterface);
+    };
+  }
+
+  protected final const func IsDeathMenuBlocked(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return GameInstance.GetQuestsSystem(scriptInterface.owner.GetGame()).GetFact(n"block_death_menu") == 1;
+  }
+
+  protected final func StartDeathEffects(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.EvaluateSettingCustomDeathAnimation(stateContext, scriptInterface);
+    DefaultTransition.RemoveAllBreathingEffects(scriptInterface);
+    this.ForceTemporaryUnequip(stateContext, true);
+    this.SetIsResurrectionAllowedBasedOnState(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 1);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vitals, 1);
+    this.SetPlayerVitalsAnimFeatureData(stateContext, scriptInterface, 1, TweakDBInterface.GetFloat(t"player.deathMenu.delayToDisplay", 3.00));
+    scriptInterface.GetAudioSystem().Play(n"global_death_enter");
+    scriptInterface.GetAudioSystem().Play(n"ui_death");
+  }
+
+  protected final func SetIsResurrectionAllowedBasedOnState(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let locomotionState: gamePSMDetailedLocomotionStates;
+    let wasPlayerForceKilled: Bool;
+    if scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatType.ForcePreventResurrect) == 0.00 {
+      if this.HasSecondHeart(scriptInterface) {
+        locomotionState = IntEnum<gamePSMDetailedLocomotionStates>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.LocomotionDetailed));
+        wasPlayerForceKilled = StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.owner, t"BaseStatusEffect.ForceKill");
+        if NotEquals(locomotionState, gamePSMDetailedLocomotionStates.DeathLand) && !wasPlayerForceKilled {
+          stateContext.SetPermanentBoolParameter(n"isResurrectionAllowed", true, true);
+          return;
+        };
+      };
+    };
+    stateContext.SetPermanentBoolParameter(n"isResurrectionAllowed", false, true);
+    if !this.IsDeathMenuBlocked(scriptInterface) {
+      this.SetBlackboardBoolVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.DisplayDeathMenu, true);
+    };
+    scriptInterface.GetStatPoolsSystem().RequestSettingStatPoolValueIgnoreChangeMode(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatPoolType.Health, 0.00, null);
+  }
+
+  protected final func SetPlayerDeathAnimFeatureData(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, val: Int32) -> Void {
+    let animFeature: ref<AnimFeature_PlayerDeathAnimation> = new AnimFeature_PlayerDeathAnimation();
+    animFeature.animation = val;
+    scriptInterface.SetAnimationParameterFeature(n"DeathAnimation", animFeature);
+  }
+
+  protected final func EvaluateSettingCustomDeathAnimation(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let setAnimInt: Int32;
+    if this.GetStaticIntParameterDefault("DEBUG_forceSetDeathAnimation", -1) > 0 {
+      setAnimInt = this.GetStaticIntParameterDefault("DEBUG_forceSetDeathAnimation", -1);
+    } else {
+      if StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.NetwatcherGeneral") {
+        setAnimInt = 1;
+      } else {
+        setAnimInt = 0;
+      };
+    };
+    this.SetPlayerDeathAnimFeatureData(stateContext, scriptInterface, setAnimInt);
+  }
+
+  protected final const func IsResurrectionAllowed(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"isResurrectionAllowed", true);
+  }
+
+  protected final const func CanPlayerSwim(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>, depthThresholdAndTolerance: Float) -> Bool {
+    let deepEnough: Bool;
+    let depthRaycastDestination: Vector4;
+    let playerFeetPosition: Vector4;
+    let waterLevel: Float;
+    if stateContext.IsStateMachineActive(n"Vehicle") {
+      return false;
+    };
+    if stateContext.IsStateMachineActive(n"LocomotionTakedown") {
+      return false;
+    };
+    playerFeetPosition = DefaultTransition.GetPlayerPosition(scriptInterface);
+    depthRaycastDestination = playerFeetPosition;
+    depthRaycastDestination.Z = depthRaycastDestination.Z - 2.00;
+    deepEnough = false;
+    if scriptInterface.GetWaterLevel(playerFeetPosition, depthRaycastDestination, waterLevel) {
+      deepEnough = playerFeetPosition.Z - waterLevel <= depthThresholdAndTolerance;
+    };
+    return deepEnough;
+  }
+
+  public func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let glpID: TweakDBID;
+    let glpSys: ref<GameplayLogicPackageSystem>;
+    if this.GetGLP(glpID) {
+      glpSys = scriptInterface.GetGameplayLogicPackageSystem();
+      if IsDefined(glpSys) {
+        glpSys.ApplyPackage(scriptInterface.executionOwner, scriptInterface.executionOwner, glpID);
+      };
+    };
+  }
+
+  public func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let glpID: TweakDBID;
+    let glpSys: ref<GameplayLogicPackageSystem>;
+    if this.GetGLP(glpID) {
+      glpSys = scriptInterface.GetGameplayLogicPackageSystem();
+      if IsDefined(glpSys) {
+        glpSys.RemovePackage(scriptInterface.executionOwner, glpID);
+      };
+    };
+  }
+
+  private final func GetGLP(out glpID: TweakDBID) -> Bool {
+    glpID = TDBID.Create(this.GetStaticStringParameterDefault("gameplayLogicPackageID", ""));
+    return TDBID.IsValid(glpID);
+  }
+
+  protected final const func HasSecondHeart(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatType.HasSecondHeart) > 0.00;
+  }
+}
+
+public class ExplorationDecisions extends HighLevelTransition {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class ExplorationEvents extends HighLevelTransition {
+
+  public final func OnEnterFromSwimming(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.StopStatPoolDecayAndRegenerate(scriptInterface, gamedataStatPoolType.Oxygen);
+    this.DisableCameraBobbing(stateContext, scriptInterface, false);
+    this.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_SceneSystem>;
+    PlayerPuppet.ReevaluateAllBreathingEffects(scriptInterface.owner as PlayerPuppet);
+    this.BlockMovement(scriptInterface, false);
+    this.ResetForceFlags(stateContext);
+    this.ResetForceWalkSpeed(stateContext);
+    this.RemoveAllTierLocomotions(scriptInterface);
+    this.ForceDefaultLocomotion(stateContext, scriptInterface);
+    GameObject.PlaySoundEvent(scriptInterface.owner, n"ST_Health_Status_Hi_Set_State");
+    this.ClearSceneGameplayOverrides(scriptInterface);
+    animFeature = new AnimFeature_SceneSystem();
+    animFeature.tier = 0;
+    scriptInterface.SetAnimationParameterFeature(n"Scene", animFeature);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 1);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vitals, 0);
+    this.SetPlayerVitalsAnimFeatureData(stateContext, scriptInterface, 0, 0.00);
+    this.SetPlayerDeathAnimFeatureData(stateContext, scriptInterface, 0);
+    scriptInterface.GetAudioSystem().Play(n"global_death_exit");
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected final func ClearSceneGameplayOverrides(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_SceneGameplayOverrides> = new AnimFeature_SceneGameplayOverrides();
+    scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.SceneAimForced, false);
+    scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.SceneSafeForced, false);
+    animFeature.aimForced = false;
+    animFeature.safeForced = false;
+    animFeature.isAimOutTimeOverridden = false;
+    animFeature.aimOutTimeOverride = 0.00;
+    scriptInterface.SetAnimationParameterFeature(n"SceneGameplayOverrides", animFeature);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+}
+
+public class SwimmingDecisions extends HighLevelTransition {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.CanPlayerSwim(stateContext, scriptInterface, this.GetStaticFloatParameterDefault("depthTreshold", 1.20) + this.GetStaticFloatParameterDefault("tolerance", 0.10));
+  }
+
+  protected final const func ToExploration(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let depthTreshold: Float;
+    let findSeabedDestination: Vector4;
+    let findSeabedResult: TraceResult;
+    let findSeabedSource: Vector4;
+    let findWaterDestination: Vector4;
+    let foundWater: Bool;
+    let maxDepth: Float;
+    let playerDistanceFromFloor: Float;
+    let playerFeetPosition: Vector4;
+    let tolerance: Float;
+    let tooShallow: Bool;
+    let validFloorPosition: Bool;
+    let waterLevel: Float;
+    if DefaultTransition.GetBlackboardIntVariable(scriptInterface.executionOwner, GetAllBlackboardDefs().PlayerStateMachine.Swimming) == 3 {
+      return true;
+    };
+    maxDepth = 100.00;
+    playerFeetPosition = DefaultTransition.GetPlayerPosition(scriptInterface);
+    findWaterDestination = playerFeetPosition;
+    findWaterDestination.Z = findWaterDestination.Z + maxDepth;
+    foundWater = scriptInterface.GetWaterLevel(playerFeetPosition, findWaterDestination, waterLevel);
+    if foundWater {
+      depthTreshold = this.GetStaticFloatParameterDefault("depthTreshold", -1.20);
+      tolerance = this.GetStaticFloatParameterDefault("tolerance", -0.10);
+      findSeabedSource = playerFeetPosition;
+      findSeabedSource.Z = waterLevel;
+      findSeabedDestination = playerFeetPosition;
+      findSeabedDestination.Z = findSeabedDestination.Z + depthTreshold + tolerance;
+      findSeabedResult = scriptInterface.RaycastWithASingleGroup(findSeabedSource, findSeabedDestination, n"PlayerBlocker");
+      if TraceResult.IsValid(findSeabedResult) {
+        playerDistanceFromFloor = playerFeetPosition.Z - findSeabedResult.position.Z;
+        validFloorPosition = playerDistanceFromFloor > 0.00 && playerDistanceFromFloor < AbsF(tolerance);
+        tooShallow = validFloorPosition && findSeabedResult.position.Z - waterLevel > depthTreshold - tolerance;
+      };
+    };
+    return !foundWater || tooShallow;
+  }
+
+  protected final const func ToDeath(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    let playerID: StatsObjectID = Cast<StatsObjectID>(player.GetEntityID());
+    let gi: GameInstance = scriptInterface.owner.GetGame();
+    let isDead: Bool = GameInstance.GetStatPoolsSystem(gi).HasStatPoolValueReachedMin(playerID, gamedataStatPoolType.Health);
+    if isDead {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class SwimmingEvents extends HighLevelTransition {
+
+  public final func OnEnterFromSceneTierII(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    stateContext.SetPermanentBoolParameter(n"enteredWaterFromSceneTierII", true, true);
+    this.OnEnter(stateContext, scriptInterface);
+  }
+
+  public final func OnEnterFromSceneTierIV(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_SceneSystem>;
+    let playerPuppet: ref<PlayerPuppet>;
+    stateContext.SetPermanentBoolParameter(n"enteredWaterFromSceneTierIV", true, true);
+    PlayerPuppet.ReevaluateAllBreathingEffects(scriptInterface.owner as PlayerPuppet);
+    this.BlockMovement(scriptInterface, false);
+    this.ResetForceFlags(stateContext);
+    this.ResetForceWalkSpeed(stateContext);
+    this.RemoveAllTierLocomotions(scriptInterface);
+    GameObject.PlaySoundEvent(scriptInterface.owner, n"ST_Health_Status_Hi_Set_State");
+    this.ClearSceneGameplayOverrides(scriptInterface);
+    animFeature = new AnimFeature_SceneSystem();
+    animFeature.tier = 0;
+    scriptInterface.SetAnimationParameterFeature(n"Scene", animFeature);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 1);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vitals, 0);
+    this.SetPlayerVitalsAnimFeatureData(stateContext, scriptInterface, 0, 0.00);
+    this.SetPlayerDeathAnimFeatureData(stateContext, scriptInterface, 0);
+    scriptInterface.GetAudioSystem().Play(n"global_death_exit");
+    playerPuppet = scriptInterface.owner as PlayerPuppet;
+    if IsDefined(playerPuppet) {
+      playerPuppet.GetFPPCameraComponent().SceneDisableBlendingToStaticPosition();
+    };
+    this.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    swapEvent.stateMachineName = n"LocomotionSwimming";
+    swapEvent.tryHotSwap = true;
+    scriptInterface.owner.QueueEvent(swapEvent);
+    this.PlaySound(n"lcm_falling_wind_loop_end", scriptInterface);
+    this.DisableCameraBobbing(stateContext, scriptInterface, true);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.VehicleNoInteraction");
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 6);
+    this.ForceDisableToggleWalk(stateContext);
+    scriptInterface.GetSpatialQueriesSystem().GetPlayerObstacleSystem().SetIsSwimming(true, scriptInterface.owner);
+  }
+
+  protected final func ClearSceneGameplayOverrides(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_SceneGameplayOverrides> = new AnimFeature_SceneGameplayOverrides();
+    scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.SceneAimForced, false);
+    scriptInterface.localBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.SceneSafeForced, false);
+    animFeature.aimForced = false;
+    animFeature.safeForced = false;
+    animFeature.isAimOutTimeOverridden = false;
+    animFeature.aimOutTimeOverride = 0.00;
+    scriptInterface.SetAnimationParameterFeature(n"SceneGameplayOverrides", animFeature);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if stateContext.GetBoolParameter(n"enteredWaterFromSceneTierII", true) {
+      stateContext.RemovePermanentBoolParameter(n"enteredWaterFromSceneTierII");
+      stateContext.SetTemporaryBoolParameter(n"requestReEnteringScene", true, true);
+    };
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.VehicleNoInteraction");
+    scriptInterface.GetSpatialQueriesSystem().GetPlayerObstacleSystem().SetIsSwimming(false, scriptInterface.owner);
+    super.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class AiControlledDecisions extends HighLevelTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isPlayerControlled: StateResultBool;
+    let playerPuppet: ref<PlayerPuppet> = DefaultTransition.GetPlayerPuppet(scriptInterface);
+    let aiComponent: ref<AIComponent> = playerPuppet.GetAIControllerComponent();
+    if aiComponent == null {
+      return false;
+    };
+    isPlayerControlled = stateContext.GetTemporaryBoolParameter(n"playerControlled");
+    return isPlayerControlled.valid && !isPlayerControlled.value;
+  }
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isPlayerControlled: StateResultBool = stateContext.GetTemporaryBoolParameter(n"playerControlled");
+    return isPlayerControlled.valid && isPlayerControlled.value;
+  }
+}
+
+public class AiControlledEvents extends HighLevelTransition {
+
+  public func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ForceIdle(stateContext);
+    super.OnEnter(stateContext, scriptInterface);
+    this.ForceDisableToggleWalk(stateContext);
+  }
+}
+
+public class DeathEvents extends HighLevelTransition {
+
+  protected let isDyingEffectPlaying: Bool;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if DefaultTransition.GetBlackboardIntVariable(scriptInterface.executionOwner, GetAllBlackboardDefs().PlayerStateMachine.Vitals) != 1 {
+      this.StartDeathEffects(stateContext, scriptInterface);
+    };
+    if !this.IsDeathMenuBlocked(scriptInterface) && !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner as PlayerPuppet, t"BaseStatusEffect.CerberusGrabAttackEffect01") && !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner as PlayerPuppet, t"BaseStatusEffect.CerberusGrabAttackEffectBack") {
+      this.StartEffect(scriptInterface, n"dying");
+      this.isDyingEffectPlaying = true;
+    };
+    super.OnEnter(stateContext, scriptInterface);
+    this.ForceDisableToggleWalk(stateContext);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.isDyingEffectPlaying {
+      this.StopEffect(scriptInterface, n"dying");
+      this.isDyingEffectPlaying = false;
+    };
+    super.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class DeathDecisions extends HighLevelTransition {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if player.GetPuppetPS().GetIsDead() {
+      return true;
+    };
+    if scriptInterface.GetStatPoolsSystem().HasStatPoolValueReachedMin(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatPoolType.Health) {
+      return true;
+    };
+    if this.HasSecondHeart(scriptInterface) && scriptInterface.GetStatPoolsSystem().IsStatPoolAdded(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatPoolType.Health) {
+      if GameInstance.GetGodModeSystem(scriptInterface.GetGame()).HasGodMode(scriptInterface.ownerEntityID, gameGodModeType.Invulnerable) {
+        return false;
+      };
+      return scriptInterface.GetStatPoolsSystem().GetStatPoolValue(Cast<StatsObjectID>(scriptInterface.ownerEntityID), gamedataStatPoolType.Health, true) <= 1.10;
+    };
+    return false;
+  }
+}
+
+public class DeathDecisionsWithResurrection extends HighLevelTransition {
+
+  protected final const func ToResurrect(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsResurrectionAllowed(stateContext, scriptInterface) {
+      if this.GetInStateTime() >= this.GetStaticFloatParameterDefault("stateDuration", 3.00) {
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class GroundDeathDecisions extends DeathDecisionsWithResurrection {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetDeathType(stateContext, scriptInterface), EDeathType.Ground);
+  }
+}
+
+public class GroundDeathEvents extends DeathEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.BlockMovement(scriptInterface, true);
+    this.SetDeathCameraParameters(stateContext, scriptInterface);
+    super.OnEnter(stateContext, scriptInterface);
+  }
+}
+
+public class AirDeathDecisions extends DeathDecisionsWithResurrection {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetDeathType(stateContext, scriptInterface), EDeathType.Air);
+  }
+
+  protected final const func ToSwimmingDeath(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.CanPlayerSwim(stateContext, scriptInterface, this.GetStaticFloatParameterDefault("depthTreshold", 1.20) + this.GetStaticFloatParameterDefault("tolerance", 0.10));
+  }
+}
+
+public class SwimmingDeathDecisions extends DeathDecisionsWithResurrection {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetDeathType(stateContext, scriptInterface), EDeathType.Swimming);
+  }
+}
+
+public class SwimmingDeathEvents extends DeathEvents {
+
+  protected final func SetSwimming(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let swapEvent: ref<PSMAddOnDemandStateMachine> = new PSMAddOnDemandStateMachine();
+    swapEvent.stateMachineName = n"LocomotionSwimming";
+    swapEvent.tryHotSwap = true;
+    scriptInterface.owner.QueueEvent(swapEvent);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.EvaluateSettingCustomDeathAnimation(stateContext, scriptInterface);
+    this.ForceFreeze(stateContext);
+    if !stateContext.IsStateMachineActive(n"LocomotionSwimming") {
+      this.SetSwimming(stateContext, scriptInterface);
+    };
+    super.OnEnter(stateContext, scriptInterface);
+  }
+}
+
+public class ResurrectDecisions extends HighLevelTransition {
+
+  protected final const func ToExploration(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if StatusEffectHelper.GetStatusEffectByID(scriptInterface.owner, t"BaseStatusEffect.SecondHeart").GetRemainingDuration() <= 0.00 {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func ToDeath(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let state: gamePSMLandingState = IntEnum<gamePSMLandingState>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Landing));
+    return Equals(state, gamePSMLandingState.DeathLand) || Equals(state, gamePSMLandingState.VeryHardLand);
+  }
+}
+
+public class ResurrectEvents extends HighLevelTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.owner, t"BaseStatusEffect.SecondHeart");
+    this.ForceFreeze(stateContext);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 1);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vitals, 2);
+    this.SetPlayerVitalsAnimFeatureData(stateContext, scriptInterface, 2, 2.00);
+    scriptInterface.PushAnimationEvent(n"PlayerResurrect");
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let playerPuppet: ref<PlayerPuppet>;
+    this.SendResurrectEvent(scriptInterface);
+    this.ForceTemporaryUnequip(stateContext, false);
+    scriptInterface.PushAnimationEvent(n"PlayerResurrected");
+    playerPuppet = scriptInterface.executionOwner as PlayerPuppet;
+    if playerPuppet.IsControlledByLocalPeer() {
+      GameInstance.GetDebugVisualizerSystem(scriptInterface.GetGame()).ClearAll();
+    };
+    if Equals(this.GetDeathType(stateContext, scriptInterface), EDeathType.Swimming) {
+      this.StopStatPoolDecayAndRegenerate(scriptInterface, gamedataStatPoolType.Oxygen);
+    };
+    super.OnExit(stateContext, scriptInterface);
+  }
+
+  private final func SendResurrectEvent(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    let resurrectEvent: ref<ResurrectEvent> = new ResurrectEvent();
+    player.QueueEvent(resurrectEvent);
+  }
+}
+
+public class InspectionDecisions extends HighLevelTransition {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let inspectionComponent: ref<InspectionComponent> = (scriptInterface.owner as PlayerPuppet).GetInspectionComponent();
+    if IsDefined(inspectionComponent) {
+      return inspectionComponent.GetIsPlayerInspecting();
+    };
+    return false;
+  }
+
+  protected final const func ToExploration(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if scriptInterface.IsActionJustPressed(n"InspectionClose") {
+      return true;
+    };
+    return !(scriptInterface.owner as PlayerPuppet).GetInspectionComponent().GetIsPlayerInspecting();
+  }
+}
+
+public class InspectionEvents extends HighLevelTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ForceEmptyHands(stateContext, true);
+    this.ForceIdle(stateContext);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 1);
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let evt: ref<InspectionEvent> = new InspectionEvent();
+    evt.enabled = false;
+    (scriptInterface.owner as PlayerPuppet).QueueEvent(evt);
+    super.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class MinigameDecisions extends HighLevelTransition {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.IsInMinigame(scriptInterface) && this.IsInLocomotionState(stateContext, n"workspot");
+  }
+
+  protected final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsInMinigame(scriptInterface);
+  }
+}
+
+public class MinigameEvents extends HighLevelTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ForceEmptyHands(stateContext, true);
+    this.ForceFreeze(stateContext);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 0);
+    super.OnEnter(stateContext, scriptInterface);
+  }
+}
+
+public class SceneTierInitialDecisions extends SceneTierAbstract {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if EnumInt(this.GetCurrentSceneTier(stateContext)) > 1 || stateContext.GetBoolParameter(n"requestReEnteringScene", true) {
+      if stateContext.GetBoolParameter(n"enteredWaterFromSceneTierII", true) || stateContext.IsStateMachineActive(n"LocomotionTakedown") {
+        return false;
+      };
+      return true;
+    };
+    return false;
+  }
+}
+
+public abstract class SceneTierAbstract extends HighLevelTransition {
+
+  protected final const func GetCurrentSceneTier(const stateContext: ref<StateContext>) -> GameplayTier {
+    let requestedSceneTier: GameplayTier = GameplayTier.Undefined;
+    let sceneTier: ref<SceneTierData> = this.GetCurrentSceneTierData(stateContext);
+    if IsDefined(sceneTier) {
+      requestedSceneTier = sceneTier.tier;
+    };
+    return requestedSceneTier;
+  }
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Undefined;
+  }
+}
+
+public abstract class SceneTierAbstractDecisions extends SceneTierAbstract {
+
+  protected final const func ToExploration(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier1_FullGameplay) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public abstract class SceneTierAbstractEvents extends SceneTierAbstract {
+
+  public func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let sceneTier: ref<SceneTierData>;
+    let animFeature: ref<AnimFeature_SceneSystem> = new AnimFeature_SceneSystem();
+    animFeature.tier = EnumInt(this.SceneTierToEnter());
+    scriptInterface.SetAnimationParameterFeature(n"Scene", animFeature);
+    this.ResetForceFlags(stateContext);
+    sceneTier = this.GetCurrentSceneTierData(stateContext);
+    if IsDefined(sceneTier) {
+      if IsClient() {
+        stateContext.SetPermanentBoolParameter(n"EmptyHandsForcedByTierChange", sceneTier.emptyHands, true);
+      };
+      this.ForceEmptyHands(stateContext, sceneTier.emptyHands);
+    };
+    this.ForceDisableToggleWalk(stateContext);
+    this.ForceDefaultLocomotion(stateContext, scriptInterface);
+    this.UpdateCameraParams(stateContext, scriptInterface);
+    if animFeature.tier == 4 || animFeature.tier == 5 {
+      DefaultTransition.GetPlayerPuppet(scriptInterface).GetFPPCameraComponent().ResetCurrentGameplayInput();
+    };
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let currentHighLevelState: Int32;
+    let desiredHighLevelState: Int32;
+    let sceneTier: ref<SceneTierData>;
+    this.SetAudioParameter(n"g_player_health", this.GetCurrentHealthPerc(scriptInterface), scriptInterface);
+    sceneTier = this.GetCurrentSceneTierData(stateContext);
+    if IsDefined(sceneTier) {
+      if NotEquals(sceneTier.emptyHands, this.IsForceEmptyHands(stateContext)) {
+        if IsClient() {
+          stateContext.SetPermanentBoolParameter(n"EmptyHandsForcedByTierChange", sceneTier.emptyHands, true);
+        };
+        this.ForceEmptyHands(stateContext, sceneTier.emptyHands);
+      };
+      currentHighLevelState = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel);
+      desiredHighLevelState = EnumInt(this.SceneTierToEnter());
+      if currentHighLevelState != desiredHighLevelState {
+        this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, desiredHighLevelState);
+      };
+    };
+  }
+}
+
+public class SceneTierIIDecisions extends SceneTierAbstractDecisions {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier2_StagedGameplay;
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier2_StagedGameplay);
+  }
+}
+
+public class SceneTierIIEvents extends SceneTierAbstractEvents {
+
+  public let m_cachedSpeedValue: Float;
+
+  public let m_maxSpeedStat: ref<gameStatModifierData>;
+
+  public let m_currentSpeedMovementPreset: Tier2WalkType;
+
+  public let m_currentSpeedValue: Float;
+
+  public let m_currentLocomotionState: CName;
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier2_StagedGameplay;
+  }
+
+  protected final const func GetSceneTier2Data(const stateContext: ref<StateContext>) -> ref<SceneTier2Data> {
+    let tier2Data: ref<SceneTier2Data> = this.GetCurrentSceneTierData(stateContext) as SceneTier2Data;
+    return tier2Data;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let statSystem: ref<StatsSystem>;
+    let ownerID: StatsObjectID = Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID);
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetTier2Locomotion(scriptInterface);
+    this.ForceSafeState(stateContext);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 2);
+    this.m_cachedSpeedValue = this.UpdateSpeedValue(stateContext, scriptInterface);
+    this.m_maxSpeedStat = RPGManager.CreateStatModifier(gamedataStatType.MaxSpeed, gameStatModifierType.Additive, this.m_cachedSpeedValue);
+    statSystem = scriptInterface.GetStatsSystem();
+    statSystem.AddModifier(ownerID, this.m_maxSpeedStat);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let ownerID: StatsObjectID = Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID);
+    super.OnExit(stateContext, scriptInterface);
+    scriptInterface.GetStatsSystem().RemoveModifier(ownerID, this.m_maxSpeedStat);
+    this.RemoveAllTierLocomotions(scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+    this.UpdateLocomotionStatsBasedOnMovementType(stateContext, scriptInterface);
+    if scriptInterface.IsActionJustPressed(n"MeleeAttack") {
+      this.QueueActionBlocked(scriptInterface);
+    };
+  }
+
+  protected final func UpdateLocomotionStatsBasedOnMovementType(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let statSystem: ref<StatsSystem> = scriptInterface.GetStatsSystem();
+    let ownerID: StatsObjectID = Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID);
+    let speedValue: Float = this.UpdateSpeedValue(stateContext, scriptInterface);
+    if speedValue != this.m_cachedSpeedValue {
+      this.m_cachedSpeedValue = speedValue;
+      scriptInterface.GetStatsSystem().RemoveModifier(ownerID, this.m_maxSpeedStat);
+      this.m_maxSpeedStat = RPGManager.CreateStatModifier(gamedataStatType.MaxSpeed, gameStatModifierType.Additive, this.m_cachedSpeedValue);
+      statSystem.AddModifier(ownerID, this.m_maxSpeedStat);
+    };
+  }
+
+  protected final func UpdateSpeedValue(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    let speedValue: Float;
+    let currentMovementPreset: Tier2WalkType = this.GetCurrentTier2MovementPreset(stateContext);
+    let currentLocomotionState: CName = stateContext.GetStateMachineCurrentState(n"Locomotion");
+    if Equals(currentMovementPreset, this.m_currentSpeedMovementPreset) && Equals(currentLocomotionState, this.m_currentLocomotionState) {
+      return this.m_currentSpeedValue;
+    };
+    switch currentMovementPreset {
+      case Tier2WalkType.Slow:
+        this.RemoveTier2Locomotion(scriptInterface);
+        this.RemoveTier2LocomotionFast(scriptInterface);
+        this.SetTier2LocomotionSlow(scriptInterface);
+        this.UpdateMaxSpeedBasedOnPlayerState(currentLocomotionState, currentMovementPreset, speedValue);
+        break;
+      case Tier2WalkType.Normal:
+        this.RemoveTier2LocomotionSlow(scriptInterface);
+        this.RemoveTier2LocomotionFast(scriptInterface);
+        this.SetTier2Locomotion(scriptInterface);
+        this.UpdateMaxSpeedBasedOnPlayerState(currentLocomotionState, currentMovementPreset, speedValue);
+        break;
+      case Tier2WalkType.Fast:
+        this.RemoveTier2LocomotionSlow(scriptInterface);
+        this.RemoveTier2Locomotion(scriptInterface);
+        this.SetTier2LocomotionFast(scriptInterface);
+        this.UpdateMaxSpeedBasedOnPlayerState(currentLocomotionState, currentMovementPreset, speedValue);
+        break;
+      default:
+        this.RemoveAllTierLocomotions(scriptInterface);
+        this.SetTier2Locomotion(scriptInterface);
+        speedValue = 0.00;
+    };
+    this.m_currentSpeedValue = speedValue;
+    this.m_currentSpeedMovementPreset = currentMovementPreset;
+    this.m_currentLocomotionState = currentLocomotionState;
+    return speedValue;
+  }
+
+  protected final func UpdateMaxSpeedBasedOnPlayerState(locomotionStateName: CName, movementPreset: Tier2WalkType, out speedValue: Float) -> Void {
+    switch movementPreset {
+      case Tier2WalkType.Slow:
+        if Equals(locomotionStateName, n"stand") {
+          speedValue = this.GetStaticFloatParameterDefault("slowWalkSpeed", -1.30);
+        } else {
+          if Equals(locomotionStateName, n"sprint") {
+            speedValue = this.GetStaticFloatParameterDefault("slowJogSpeed", -2.50);
+          } else {
+            if Equals(locomotionStateName, n"crouch") {
+              speedValue = this.GetStaticFloatParameterDefault("slowCrouchSpeed", 0.00);
+            };
+          };
+        };
+        break;
+      case Tier2WalkType.Normal:
+        if Equals(locomotionStateName, n"stand") {
+          speedValue = this.GetStaticFloatParameterDefault("normalWalkSpeed", 0.00);
+        } else {
+          if Equals(locomotionStateName, n"sprint") {
+            speedValue = this.GetStaticFloatParameterDefault("normalJogSpeed", 0.00);
+          } else {
+            if Equals(locomotionStateName, n"crouch") {
+              speedValue = this.GetStaticFloatParameterDefault("normalCrouchSpeed", 0.00);
+            };
+          };
+        };
+        break;
+      case Tier2WalkType.Fast:
+        if Equals(locomotionStateName, n"stand") {
+          speedValue = this.GetStaticFloatParameterDefault("fastWalkSpeed", 0.00);
+        } else {
+          if Equals(locomotionStateName, n"sprint") {
+            speedValue = this.GetStaticFloatParameterDefault("fastJogSpeed", 0.00);
+          } else {
+            if Equals(locomotionStateName, n"crouch") {
+              speedValue = this.GetStaticFloatParameterDefault("fastCrouchSpeed", 0.00);
+            };
+          };
+        };
+        break;
+      default:
+        speedValue = 0.00;
+    };
+  }
+
+  protected final const func GetCurrentTier2MovementPreset(stateContext: ref<StateContext>) -> Tier2WalkType {
+    let sceneTier2Data: ref<SceneTier2Data> = this.GetSceneTier2Data(stateContext);
+    return sceneTier2Data.walkType;
+  }
+
+  private final func QueueActionBlocked(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+    scriptInterface.GetUISystem().QueueEvent(notificationEvent);
+  }
+}
+
+public class SceneTierIIIDecisions extends SceneTierAbstractDecisions {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier3_LimitedGameplay;
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier3_LimitedGameplay);
+  }
+}
+
+public class SceneTierIIIEvents extends SceneTierAbstractEvents {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier3_LimitedGameplay;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.ActivateTier3Locomotion(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 3);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+}
+
+public class SceneTierIVDecisions extends SceneTierAbstractDecisions {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier4_FPPCinematic;
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier4_FPPCinematic);
+  }
+
+  protected final const func ToSwimming(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier1_FullGameplay) {
+      return this.CanPlayerSwim(stateContext, scriptInterface, this.GetStaticFloatParameterDefault("depthTreshold", 1.20) + this.GetStaticFloatParameterDefault("tolerance", 0.10));
+    };
+    return false;
+  }
+}
+
+public class SceneTierIVEvents extends SceneTierAbstractEvents {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier4_FPPCinematic;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.ActivateTier4Locomotion(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 4);
+  }
+}
+
+public class SceneTierVDecisions extends SceneTierAbstractDecisions {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier5_Cinematic;
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetCurrentSceneTier(stateContext), GameplayTier.Tier5_Cinematic);
+  }
+}
+
+public class SceneTierVEvents extends SceneTierAbstractEvents {
+
+  protected const func SceneTierToEnter() -> GameplayTier {
+    return GameplayTier.Tier5_Cinematic;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    if StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.BreathingLow") {
+      DefaultTransition.RemoveAllBreathingEffects(scriptInterface);
+    };
+    this.ActivateTier5Locomotion(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.HighLevel, 5);
+  }
+}

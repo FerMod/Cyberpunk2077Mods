@@ -1,0 +1,24 @@
+
+public class ReloadWeaponEffector extends Effector {
+
+  private let m_owner: wref<GameObject>;
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let reloadEvent: ref<ForceResetAmmoEvent>;
+    this.m_owner = owner;
+    let weapon: wref<WeaponObject> = ScriptedPuppet.GetWeaponRight(this.m_owner);
+    if IsDefined(weapon) {
+      reloadEvent = new ForceResetAmmoEvent();
+      reloadEvent.SetTargetValue(Cast<Int32>(WeaponObject.GetMagazineCapacity(weapon)));
+      reloadEvent.SetIsLeftHandWeapon(false);
+      this.m_owner.QueueEvent(reloadEvent);
+    };
+    weapon = ScriptedPuppet.GetWeaponLeft(this.m_owner);
+    if IsDefined(weapon) {
+      reloadEvent = new ForceResetAmmoEvent();
+      reloadEvent.SetTargetValue(Cast<Int32>(WeaponObject.GetMagazineCapacity(weapon)));
+      reloadEvent.SetIsLeftHandWeapon(true);
+      this.m_owner.QueueEvent(reloadEvent);
+    };
+  }
+}

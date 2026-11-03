@@ -1,0 +1,63 @@
+
+public class PropagateStatusEffectInAreaEffector extends ApplyEffectToDismemberedEffector {
+
+  private let m_statusEffect: TweakDBID;
+
+  private let m_range: Float;
+
+  private let m_duration: Float;
+
+  private let m_applicationTarget: CName;
+
+  private let m_propagateToInstigator: Bool;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_statusEffect = TweakDBInterface.GetForeignKey(record + t".statusEffect", t"NewPerks.Intelligence_Left_Milestone_2.preventInQueueAgain");
+    this.m_range = TweakDBInterface.GetFloat(record + t".range", 2.00);
+    this.m_duration = TweakDBInterface.GetFloat(record + t".duration", 0.00);
+    this.m_applicationTarget = TweakDBInterface.GetCName(record + t"applicationTarget", n"None");
+    this.m_propagateToInstigator = TweakDBInterface.GetBool(record + t".propagateToInstigator", true);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  private final func ProcessAction(owner: ref<GameObject>) -> Void {
+    let effect: ref<EffectInstance>;
+    let i: Int32;
+    let targetPosition: Vector4;
+    let targets: array<wref<GameObject>>;
+    let dismembermentInfo: DismembermentInstigatedInfo = this.GetDismembermentInfo();
+    if dismembermentInfo.wasTargetAlreadyDead || dismembermentInfo.wasTargetAlreadyDefeated {
+      return;
+    };
+    if Equals(this.m_applicationTarget, n"Dismemberment") {
+      targetPosition = dismembermentInfo.targetPosition;
+    } else {
+      if this.GetApplicationTarget(owner, this.m_applicationTarget, targets) {
+        i = 0;
+        while i < ArraySize(targets) {
+          targetPosition = targets[i].GetWorldPosition();
+          i += 1;
+        };
+      } else {
+        return;
+      };
+    };
+    if this.m_propagateToInstigator {
+      effect = GameInstance.GetGameEffectSystem(owner.GetGame()).CreateEffectStatic(n"applyStatusEffect", n"inRange", owner);
+    } else {
+      effect = GameInstance.GetGameEffectSystem(owner.GetGame()).CreateEffectStatic(n"applyStatusEffect", n"inRangeNoInstigator", owner);
+    };
+    EffectData.SetVector(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.position, targetPosition);
+    EffectData.SetFloat(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.radius, this.m_range);
+    EffectData.SetFloat(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.duration, this.m_duration);
+    EffectData.SetVariant(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.statusEffect, ToVariant(this.m_statusEffect));
+    effect.Run();
+  }
+}

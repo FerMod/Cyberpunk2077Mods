@@ -1,0 +1,228 @@
+
+public abstract class ConsumableTransitions extends DefaultTransition {
+
+  protected final func IsUsingFluffConsumable(stateContext: ref<StateContext>) -> Bool {
+    let activeItem: ItemID = this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable");
+    let itemType: gamedataItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(activeItem)).ItemType().Type();
+    if Equals(itemType, gamedataItemType.Con_Edible) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final func ChangeConsumableAnimFeature(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, newState: Bool) -> Void {
+    let activeItem: ItemID = this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable");
+    let itemType: gamedataItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(activeItem)).ItemType().Type();
+    let inCombat: Bool = (scriptInterface.GetPlayerSystem().GetLocalPlayerMainGameObject() as PlayerPuppet).IsInCombat();
+    let isPerkFasterHealingUnlocked: Bool = PlayerDevelopmentSystem.GetData(scriptInterface.executionOwner).IsNewPerkBought(gamedataNewPerkType.Tech_Left_Perk_2_3) > 0;
+    let consumableAnimFeature: ref<AnimFeature_ConsumableAnimation> = new AnimFeature_ConsumableAnimation();
+    consumableAnimFeature.useConsumable = newState;
+    switch itemType {
+      case gamedataItemType.Con_Injector:
+        consumableAnimFeature.consumableType = 0;
+        if inCombat && isPerkFasterHealingUnlocked {
+          consumableAnimFeature.animationScale = 1.65;
+        } else {
+          consumableAnimFeature.animationScale = 1.15;
+        };
+        break;
+      case gamedataItemType.Con_Inhaler:
+        consumableAnimFeature.consumableType = 1;
+        if inCombat && isPerkFasterHealingUnlocked {
+          consumableAnimFeature.animationScale = 1.50;
+        } else {
+          consumableAnimFeature.animationScale = 1.15;
+        };
+    };
+    scriptInterface.SetAnimationParameterFeature(n"ConsumableFeature", consumableAnimFeature, scriptInterface.executionOwner);
+  }
+
+  protected final func SetItemInLeftHand(scriptInterface: ref<StateGameScriptInterface>, newState: Bool) -> Void {
+    let animFeature: ref<AnimFeature_LeftHandItem> = new AnimFeature_LeftHandItem();
+    animFeature.itemInLeftHand = newState;
+    scriptInterface.SetAnimationParameterFeature(n"LeftHandItem", animFeature, scriptInterface.executionOwner);
+  }
+
+  protected final const func GetConsumableCastPoint(consumableItem: ItemID) -> Float {
+    let castPoint: Float = TweakDBInterface.GetConsumableItemRecord(ItemID.GetTDBID(consumableItem)).CastPoint();
+    return castPoint;
+  }
+
+  protected final const func GetConsumableCycleDuration(consumableItem: ItemID) -> Float {
+    let cycleDuration: Float = TweakDBInterface.GetConsumableItemRecord(ItemID.GetTDBID(consumableItem)).CycleDuration();
+    return cycleDuration;
+  }
+
+  protected final const func GetConsumableInitBlendDuration(consumableItem: ItemID) -> Float {
+    return TweakDBInterface.GetConsumableItemRecord(ItemID.GetTDBID(consumableItem)).InitBlendDuration();
+  }
+
+  protected final const func GetConsumableRemovePoint(consumableItem: ItemID) -> Float {
+    return TweakDBInterface.GetConsumableItemRecord(ItemID.GetTDBID(consumableItem)).RemovePoint();
+  }
+
+  protected final const func ForceUnequipEvent(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let unequipEndEvent: ref<UnequipEnd> = new UnequipEnd();
+    unequipEndEvent.SetSlotID(t"AttachmentSlots.WeaponLeft");
+    scriptInterface.executionOwner.QueueEvent(unequipEndEvent);
+  }
+
+  protected final func SetLeftHandAnimationAnimFeature(scriptInterface: ref<StateGameScriptInterface>, newState: Bool) -> Void {
+    let animFeature: ref<AnimFeature_LeftHandAnimation> = new AnimFeature_LeftHandAnimation();
+    animFeature.lockLeftHandAnimation = newState;
+    scriptInterface.SetAnimationParameterFeature(n"LeftHandAnimation", animFeature, scriptInterface.executionOwner);
+  }
+}
+
+public class ConsumableStartupDecisions extends ConsumableTransitions {
+
+  protected final const func ToConsumableUse(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetConsumableInitBlendDuration(this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable"));
+  }
+}
+
+public class ConsumableStartupEvents extends ConsumableTransitions {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let blackboard: ref<IBlackboard>;
+    let containerConsumable: ItemID;
+    let weapon: ref<ItemObject>;
+    let ts: ref<TransactionSystem> = scriptInterface.GetTransactionSystem();
+    let healingItem: ref<gameItemData> = ts.GetItemData(scriptInterface.owner, EquipmentSystem.GetData(scriptInterface.owner).GetActiveConsumable());
+    let isBloodPumpEquipped: Bool = Equals(n"BloodPump", TweakDBInterface.GetCName(ItemID.GetTDBID(healingItem.GetID()) + t".cyberwareType", n"None"));
+    let isHealingUninterruptable: Bool = !isBloodPumpEquipped;
+    if DefaultTransition.GetPlayerPuppet(scriptInterface).GetIsInWorkspotFinisher() && !isBloodPumpEquipped {
+      return;
+    };
+    if isHealingUninterruptable {
+      stateContext.SetPermanentBoolParameter(n"UninterruptableHealing", true, true);
+    };
+    blackboard = scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    containerConsumable = FromVariant<ItemID>(blackboard.GetVariant(GetAllBlackboardDefs().UI_QuickSlotsData.containerConsumable));
+    if ItemID.IsValid(containerConsumable) {
+      this.SetItemIDWrapperPermanentParameter(stateContext, n"consumable", containerConsumable);
+      blackboard.SetVariant(GetAllBlackboardDefs().UI_QuickSlotsData.containerConsumable, ToVariant(ItemID.None()));
+      blackboard.SetVariant(GetAllBlackboardDefs().UI_QuickSlotsData.consumableBeingUsed, ToVariant(containerConsumable));
+    } else {
+      this.SetItemIDWrapperPermanentParameter(stateContext, n"consumable", EquipmentSystem.GetData(scriptInterface.executionOwner).GetActiveConsumable());
+      blackboard.SetVariant(GetAllBlackboardDefs().UI_QuickSlotsData.consumableBeingUsed, ToVariant(EquipmentSystem.GetData(scriptInterface.executionOwner).GetActiveConsumable()));
+    };
+    if !this.IsUsingFluffConsumable(stateContext) {
+      this.ForceDisableVisionMode(stateContext);
+      this.ChangeConsumableAnimFeature(stateContext, scriptInterface, true);
+      this.SetItemInLeftHand(scriptInterface, true);
+      scriptInterface.PushAnimationEvent(n"UseConsumable");
+      scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().PlayerPerkData).SetUint(GetAllBlackboardDefs().PlayerPerkData.StartedUsingHealingItemOrCyberware, scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().PlayerPerkData).GetUint(GetAllBlackboardDefs().PlayerPerkData.StartedUsingHealingItemOrCyberware) + 1u);
+      weapon = scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponRight");
+      if IsDefined(weapon) {
+        StateGameScriptInterface.PushAnimationEventToItem(weapon, n"UseConsumable");
+      };
+    };
+    this.SetLeftHandAnimationAnimFeature(scriptInterface, true);
+    stateContext.SetTemporaryBoolParameter(n"CameraContext_ConsumableStartup", true, true);
+    this.UpdateCameraParams(stateContext, scriptInterface);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.executionOwner.GetGame()).PlayAnimation(n"Booster", false);
+  }
+}
+
+public class ConsumableUseDecisions extends ConsumableTransitions {
+
+  protected final const func ToConsumableCleanup(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let hasConsumable: Bool = scriptInterface.GetTransactionSystem().HasItem(scriptInterface.executionOwner, this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable"));
+    if this.GetInStateTime() > this.GetConsumableCycleDuration(this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable")) {
+      return true;
+    };
+    if this.IsInLadderState(stateContext) || this.IsInLocomotionState(stateContext, n"climb") || this.IsInHighLevelState(stateContext, n"swimming") || scriptInterface.executionOwner.IsDead() || !hasConsumable {
+      stateContext.SetTemporaryBoolParameter(n"forceExit", true, true);
+      return true;
+    };
+    return false;
+  }
+}
+
+public class ConsumableUseEvents extends ConsumableTransitions {
+
+  public let effectsApplied: Bool;
+
+  public let modelRemoved: Bool;
+
+  public let activeConsumable: ItemID;
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.effectsApplied = false;
+    this.modelRemoved = false;
+    this.activeConsumable = this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable");
+    this.SetLeftHandAnimationAnimFeature(scriptInterface, true);
+    this.UpdateCameraParams(stateContext, scriptInterface);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let transactionSystem: ref<TransactionSystem>;
+    if !this.effectsApplied && this.GetInStateTime() >= this.GetConsumableCastPoint(this.activeConsumable) {
+      transactionSystem = scriptInterface.GetTransactionSystem();
+      if transactionSystem.HasItem(scriptInterface.executionOwner, this.activeConsumable) {
+        if ItemID.IsOfTDBID(this.activeConsumable, t"Items.Old_Inhaler") || ItemID.IsOfTDBID(this.activeConsumable, t"Items.Old_Injector") {
+          ItemActionsHelper.ConsumeItem(scriptInterface.executionOwner, this.activeConsumable, false);
+        } else {
+          ItemActionsHelper.UseHealCharge(scriptInterface.executionOwner, this.activeConsumable);
+          this.AdvanceGyroTutorial(scriptInterface);
+        };
+        this.effectsApplied = true;
+        GameInstance.GetTelemetrySystem(scriptInterface.executionOwner.GetGame()).LogConsumableUsed(scriptInterface.executionOwner, this.activeConsumable);
+      };
+    };
+    if this.effectsApplied && !this.modelRemoved && this.GetInStateTime() > this.GetConsumableRemovePoint(this.GetItemIDFromWrapperPermanentParameter(stateContext, n"consumable")) {
+      this.ForceUnequipEvent(scriptInterface);
+      this.modelRemoved = true;
+    };
+  }
+
+  private final func AdvanceGyroTutorial(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let evtUI: ref<GyroTutorialUIEvent>;
+    let questSystem: ref<QuestsSystem>;
+    let playerPuppet: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(scriptInterface.GetGame()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    if IsDefined(playerPuppet) && playerPuppet.IsInGyroTutorial() {
+      questSystem = GameInstance.GetQuestsSystem(scriptInterface.GetGame());
+      if questSystem.GetFact(n"gyro_inhaler_tutorial") > 0 && questSystem.GetFact(n"gyro_inhaler_tutorial_seen") == 0 {
+        evtUI = new GyroTutorialUIEvent();
+        evtUI.actionName = n"UseConsumable_Tutorial";
+        evtUI.actionPatternTutorialName = n"UseConsumable";
+        GameInstance.GetUISystem(scriptInterface.GetGame()).QueueEvent(evtUI);
+      };
+    };
+  }
+}
+
+public class ConsumableCleanupEvents extends ConsumableTransitions {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmIdent: StateMachineIdentifier;
+    let unequipType: gameEquipAnimationType;
+    let psmRemove: ref<PSMRemoveOnDemandStateMachine> = new PSMRemoveOnDemandStateMachine();
+    this.SetLeftHandAnimationAnimFeature(scriptInterface, false);
+    psmIdent.definitionName = n"Consumable";
+    psmRemove.stateMachineIdentifier = psmIdent;
+    scriptInterface.executionOwner.QueueEvent(psmRemove);
+    if stateContext.GetBoolParameter(n"forceExit") {
+      unequipType = gameEquipAnimationType.Instant;
+    } else {
+      unequipType = gameEquipAnimationType.Default;
+    };
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipConsumable, unequipType);
+  }
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let blackboard: ref<IBlackboard>;
+    let blackboardSystem: ref<BlackboardSystem>;
+    stateContext.SetPermanentBoolParameter(n"UninterruptableHealing", false, true);
+    this.SetLeftHandAnimationAnimFeature(scriptInterface, false);
+    this.ClearItemIDWrapperPermanentParameter(stateContext, n"consumable");
+    this.ChangeConsumableAnimFeature(stateContext, scriptInterface, false);
+    this.SetItemInLeftHand(scriptInterface, false);
+    blackboardSystem = scriptInterface.GetBlackboardSystem();
+    blackboard = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetBool(GetAllBlackboardDefs().UI_QuickSlotsData.dpadHintRefresh, true);
+    blackboard.SignalBool(GetAllBlackboardDefs().UI_QuickSlotsData.dpadHintRefresh);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipConsumable, gameEquipAnimationType.Instant);
+  }
+}

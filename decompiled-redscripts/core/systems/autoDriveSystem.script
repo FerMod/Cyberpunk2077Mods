@@ -1,0 +1,450 @@
+
+public class AutodriveHealthChangeListener extends CustomValueStatPoolsListener {
+
+  public let m_autodriveSystem: wref<AutoDriveSystem>;
+
+  public func OnStatPoolValueChanged(oldValue: Float, newValue: Float, percToPoints: Float) -> Void {
+    if IsDefined(this.m_autodriveSystem) {
+      this.m_autodriveSystem.QueueRequest(new UpdateAutodriveStateAfterVehicleHealthChange());
+    };
+  }
+}
+
+public class AutodriveQuestContentLockListener extends ScriptQuestContentLockListener {
+
+  public let m_autodriveSystem: wref<AutoDriveSystem>;
+
+  protected cb func OnBlocked(source: CName) -> Bool {
+    if Equals(source, n"sq024_race_active") {
+      if IsDefined(this.m_autodriveSystem) {
+        this.m_autodriveSystem.QueueRequest(new UpdateAutodriveStateAfterQuestLockChange());
+      };
+    };
+  }
+
+  protected cb func OnUnblocked(source: CName) -> Bool {
+    if Equals(source, n"sq024_race_active") {
+      if IsDefined(this.m_autodriveSystem) {
+        this.m_autodriveSystem.QueueRequest(new UpdateAutodriveStateAfterQuestLockChange());
+      };
+    };
+  }
+}
+
+public class AutodriveForceBrakesCallbackListener extends vehicleForceBrakesCallbackListener {
+
+  public let m_autodriveSystem: wref<AutoDriveSystem>;
+
+  protected cb func OnForceBrakeComplete(wasInterrupted: Bool) -> Bool {
+    this.m_autodriveSystem.QueueRequest(new UpdateAutodriveStateOnVehicleForceBrakeEnd());
+  }
+}
+
+public class AutoDriveSystem extends NativeAutodriveSystem {
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_playerVehicleStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerCombatStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerRightWeaponStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerLeftWeaponStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerMeleeWeaponStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerAttachedCallbackID: Uint32;
+
+  private let m_playerDetachedCallbackID: Uint32;
+
+  private let m_vehicleHealthListener: ref<AutodriveHealthChangeListener>;
+
+  private let m_autodriveQuestContentLockListener: ref<AutodriveQuestContentLockListener>;
+
+  public final const func GetAutodriveAvailable() -> Bool {
+    let healthThreshold: Float;
+    let mountedVehicle: ref<VehicleObject>;
+    let psmBB: ref<IBlackboard>;
+    let psmMeleeWeaponState: Int32;
+    let psmRangedWeaponState: Int32;
+    let psmState: Int32;
+    let vehicleHealth: Float;
+    if !IsDefined(this.m_player) || !IsDefined(this.m_player.GetMountedVehicle()) {
+      return false;
+    };
+    mountedVehicle = this.m_player.GetMountedVehicle();
+    if !mountedVehicle.IsPlayerVehicle() {
+      return false;
+    };
+    if mountedVehicle.IsInQuestOrScenePhysicsState() {
+      return false;
+    };
+    if mountedVehicle.IsVehicleAccelerateQuickhackActive() || mountedVehicle.IsVehicleForceBrakesQuickhackActive() {
+      return false;
+    };
+    psmBB = this.m_player.GetPlayerStateMachineBlackboard();
+    psmRangedWeaponState = psmBB.GetInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon);
+    if this.GetAutodriveEnabled() && psmRangedWeaponState == 8 {
+      return false;
+    };
+    psmMeleeWeaponState = psmBB.GetInt(GetAllBlackboardDefs().PlayerStateMachine.MeleeWeapon);
+    if this.GetAutodriveEnabled() && (psmMeleeWeaponState == 11 || psmMeleeWeaponState == 13 || psmMeleeWeaponState == 19 || psmMeleeWeaponState == 15 || psmMeleeWeaponState == 20 || psmMeleeWeaponState == 21 || psmMeleeWeaponState == 14 || psmMeleeWeaponState == 16 || psmMeleeWeaponState == 17 || psmMeleeWeaponState == 18) {
+      return false;
+    };
+    psmState = psmBB.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat);
+    if psmState == 1 && !this.GetAutodriveEnabled() {
+      return false;
+    };
+    psmState = psmBB.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    if psmState != 1 && psmState != 3 && psmState != 6 {
+      return false;
+    };
+    vehicleHealth = GameInstance.GetStatPoolsSystem(this.GetGameInstance()).GetStatPoolValue(Cast<StatsObjectID>(mountedVehicle.GetEntityID()), gamedataStatPoolType.Health, true);
+    healthThreshold = TDB.GetFloat(t"Vehicle.autodrive_settings.healthDeactivationThreshold");
+    if vehicleHealth <= healthThreshold {
+      return false;
+    };
+    if GameInstance.GetQuestsContentSystem(this.GetGameInstance()).IsTokensActivationBlockedBySource(n"sq024_race_active") {
+      return false;
+    };
+    if NotEquals(this.CheckCurrentLaneValidity(), gameAutodriveLaneValidityResult.OnValidLane) {
+      return false;
+    };
+    return true;
+  }
+
+  public final const func GetDistanceToCurrentDestination() -> Float {
+    let playerVehicle: ref<VehicleObject> = this.GetAutodriveVehicle();
+    if IsDefined(playerVehicle) && this.GetAutodriveEnabled() {
+      return Cast<Float>(FloorF(playerVehicle.GetCurrentSlotLocalPathLength() - playerVehicle.GetCurrentSlotLocalPathProgression()));
+    };
+    return 0.00;
+  }
+
+  public final const func GetEstimatedTimeToArrival() -> Float {
+    let playerVehicle: ref<VehicleObject> = this.GetAutodriveVehicle();
+    if IsDefined(playerVehicle) {
+      return playerVehicle.GetCurrentSlotEstimatedTimeToArrival();
+    };
+    return 0.00;
+  }
+
+  private func OnAttach() -> Void {
+    if this.m_playerAttachedCallbackID == 0u {
+      this.m_playerAttachedCallbackID = GameInstance.GetPlayerSystem(this.GetGameInstance()).RegisterPlayerPuppetAttachedCallback(this, n"OnPlayerAttachedCallback");
+    };
+    if this.m_playerDetachedCallbackID == 0u {
+      this.m_playerDetachedCallbackID = GameInstance.GetPlayerSystem(this.GetGameInstance()).RegisterPlayerPuppetDetachedCallback(this, n"OnPlayerDetachedCallback");
+    };
+  }
+
+  private func OnDetach() -> Void {
+    if this.m_playerAttachedCallbackID > 0u {
+      GameInstance.GetPlayerSystem(this.GetGameInstance()).UnregisterPlayerPuppetAttachedCallback(this.m_playerAttachedCallbackID);
+      this.m_playerAttachedCallbackID = 0u;
+    };
+    if this.m_playerDetachedCallbackID > 0u {
+      GameInstance.GetPlayerSystem(this.GetGameInstance()).UnregisterPlayerPuppetDetachedCallback(this.m_playerDetachedCallbackID);
+      this.m_playerDetachedCallbackID = 0u;
+    };
+  }
+
+  private final func OnPlayerAttachedCallback(playerPuppet: ref<GameObject>) -> Void {
+    this.m_player = playerPuppet as PlayerPuppet;
+    if IsDefined(this.m_player) {
+      this.m_autodriveQuestContentLockListener = new AutodriveQuestContentLockListener();
+      this.m_autodriveQuestContentLockListener.m_autodriveSystem = this;
+      GameInstance.GetQuestsContentSystem(this.GetGameInstance()).RegisterLockListener(this.m_autodriveQuestContentLockListener);
+      this.m_playerVehicleStateCallbackHandle = this.GetActiveVehicleDataBB().RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.VehPlayerStateData, this, n"OnPlayerVehicleChange");
+      this.m_playerCombatStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Combat, this, n"OnPlayerStateChange");
+      this.m_playerRightWeaponStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this, n"OnWeaponStateChange");
+      this.m_playerLeftWeaponStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, this, n"OnWeaponStateChange");
+      this.m_playerMeleeWeaponStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.MeleeWeapon, this, n"OnMeleeWeaponStateChange");
+      this.SignalAutodriveAvailable();
+    };
+  }
+
+  private final func OnPlayerDetachedCallback(playerPuppet: ref<GameObject>) -> Void {
+    if IsDefined(this.m_player) {
+      GameInstance.GetQuestsContentSystem(this.GetGameInstance()).UnregisterLockListener(this.m_autodriveQuestContentLockListener);
+      this.GetActiveVehicleDataBB().UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.VehPlayerStateData, this.m_playerVehicleStateCallbackHandle);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Combat, this.m_playerCombatStateCallbackHandle);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this.m_playerRightWeaponStateCallbackHandle);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, this.m_playerLeftWeaponStateCallbackHandle);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.MeleeWeapon, this.m_playerMeleeWeaponStateCallbackHandle);
+    };
+  }
+
+  private final func OnAutodriveToggled(enabled: Bool, isDelamain: Bool) -> Void {
+    let delamainTaxiSystem: wref<DelamainTaxiSystem>;
+    if enabled {
+      this.SetFreeRoamEnabled(Equals(this.GetAutodriveDestinationType(), gameAutodriveDestinationType.None));
+      SetFactValue(this.GetGameInstance(), n"disable_combat_events", 1);
+      SetFactValue(this.GetGameInstance(), n"player_in_autodrive", 1);
+      SaveLocksManager.RequestSaveLockAdd(this.m_player.GetGame(), n"Autodrive");
+    } else {
+      this.m_player.QueueEvent(new vehicleRequestTPPCameraSoftResetEvent());
+      SetFactValue(this.GetGameInstance(), n"disable_combat_events", 0);
+      SetFactValue(this.GetGameInstance(), n"player_in_autodrive", 0);
+      SaveLocksManager.RequestSaveLockRemove(this.m_player.GetGame(), n"Autodrive");
+      if isDelamain {
+        delamainTaxiSystem = GameInstance.GetScriptableSystemsContainer(this.GetGameInstance()).Get(n"DelamainTaxiSystem") as DelamainTaxiSystem;
+        delamainTaxiSystem.QueueRequest(new CancelDriveIfNecessaryRequest());
+      };
+    };
+  }
+
+  private final func OnEnableAutoDriveRequest(request: ref<EnableAutoDriveRequest>) -> Void {
+    let laneValidity: gameAutodriveLaneValidityResult = this.CheckCurrentLaneValidity();
+    if Equals(laneValidity, gameAutodriveLaneValidityResult.NotOnRoad) {
+      this.HighlightValidRoadsOnMinimap();
+      this.SendNotification("LocKey#96670", SimpleMessageType.Autodrive);
+      return;
+    };
+    if Equals(laneValidity, gameAutodriveLaneValidityResult.NotOnValidLane) {
+      this.HighlightValidRoadsOnMinimap();
+      this.SendNotification("LocKey#96671", SimpleMessageType.Autodrive);
+      return;
+    };
+    if !request.isDelamain && !this.GetAutodriveAvailable() {
+      return;
+    };
+    this.SetAutodriveEnabled(true, request.isDelamain);
+  }
+
+  private final func OnDisableAutoDriveRequest(request: ref<DisableAutoDriveRequest>) -> Void {
+    this.SetAutodriveEnabled(false);
+  }
+
+  private final func OnToggleFreeRoamRequest(request: ref<ToggleFreeRoamRequest>) -> Void {
+    if this.GetFreeRoamEnabled() && Equals(this.GetAutodriveDestinationType(), gameAutodriveDestinationType.None) {
+      return;
+    };
+    this.SetFreeRoamEnabled(!this.GetFreeRoamEnabled());
+  }
+
+  private final func OnUpdateAutoDriveAvailabilityRequest(request: ref<UpdateAutoDriveAvailabilityRequest>) -> Void {
+    this.SignalAutodriveAvailable();
+  }
+
+  private final func OnSendAutoDriveNotificationRequest(request: ref<SendAutoDriveNotificationRequest>) -> Void {
+    this.SendNotification(request.locKey, request.isDelamain ? SimpleMessageType.DelamainTaxi : SimpleMessageType.Autodrive);
+  }
+
+  private final func OnStopAutoDriveRequest(request: ref<StopAutoDriveRequest>) -> Void {
+    if this.GetAutodriveEnabled() {
+      this.SendNotification(request.locKey, request.isDelamain ? SimpleMessageType.DelamainTaxi : SimpleMessageType.Autodrive);
+      this.SetAutodriveEnabled(false, request.isDelamain);
+    };
+  }
+
+  private final func OnStopAutoDriveOnDestinationReachedRequest(request: ref<StopAutoDriveOnDestinationReachedRequest>) -> Void {
+    let delamainTaxiSystem: wref<DelamainTaxiSystem>;
+    let playerVehicle: ref<VehicleObject> = this.GetAutodriveVehicle();
+    let mappinSystem: wref<MappinSystem> = GameInstance.GetMappinSystem(this.GetGameInstance());
+    let messagelocKey: String = "LocKey#96672";
+    let messageType: SimpleMessageType = SimpleMessageType.Autodrive;
+    if IsDefined(playerVehicle) && IsDefined(mappinSystem) && this.GetAutodriveEnabled() {
+      this.StopPlayerVehicle();
+      if IsDefined(mappinSystem.GetMappin(mappinSystem.GetDelamainTrackedMappinID())) {
+        mappinSystem.UnregisterMappin(mappinSystem.GetDelamainTrackedMappinID());
+        delamainTaxiSystem = GameInstance.GetScriptableSystemsContainer(this.GetGameInstance()).Get(n"DelamainTaxiSystem") as DelamainTaxiSystem;
+        delamainTaxiSystem.QueueRequest(new DelamainTaxiArrivedRequest());
+        messagelocKey = "LocKey#97066";
+        messageType = SimpleMessageType.DelamainTaxi;
+      };
+      this.SendNotification(messagelocKey, messageType);
+      this.SetAutodriveEnabled(false);
+    };
+  }
+
+  protected cb func OnReachedWorldBoundary() -> Bool {
+    this.QueueRequest(new StopAutoDriveOnDestinationReachedRequest());
+  }
+
+  private final func OnStopAutoDriveOnTeleportRequest(request: ref<StopAutoDriveOnTeleportRequest>) -> Void {
+    let playerVehicle: ref<VehicleObject> = this.GetAutodriveVehicle();
+    if IsDefined(playerVehicle) && this.GetAutodriveEnabled() {
+      this.StopPlayerVehicle();
+      this.SetAutodriveEnabled(false);
+    };
+  }
+
+  private final func OnUpdateAutodriveOnDestinationChangeRequest(request: ref<UpdateAutodriveOnDestinationChangeRequest>) -> Void {
+    if Equals(this.GetAutodriveDestinationType(), gameAutodriveDestinationType.None) {
+      this.SetAutodriveEnabled(false);
+    };
+  }
+
+  private final func OnPlayerVehicleChange(data: Variant) -> Void {
+    let newData: VehEntityPlayerStateData = FromVariant<VehEntityPlayerStateData>(data);
+    if newData.state == 1 || newData.state == 6 {
+      if EntityID.IsDefined(newData.entID) {
+        this.m_vehicleHealthListener = new AutodriveHealthChangeListener();
+        this.m_vehicleHealthListener.m_autodriveSystem = this;
+        GameInstance.GetStatPoolsSystem(this.GetGameInstance()).RequestRegisteringListener(Cast<StatsObjectID>(newData.entID), gamedataStatPoolType.Health, this.m_vehicleHealthListener);
+      };
+    } else {
+      if IsDefined(this.m_vehicleHealthListener) && EntityID.IsDefined(newData.entID) {
+        GameInstance.GetStatPoolsSystem(this.GetGameInstance()).RequestUnregisteringListener(Cast<StatsObjectID>(newData.entID), gamedataStatPoolType.Health, this.m_vehicleHealthListener);
+        this.m_vehicleHealthListener = null;
+      };
+    };
+    this.SignalAutodriveAvailable();
+    this.StopAutodriveIfNecessary(true);
+  }
+
+  private final func OnPlayerStateChange(value: Int32) -> Void {
+    if !this.GetAutodriveIsDelamain() {
+      this.SignalAutodriveAvailable();
+      this.StopAutodriveIfNecessary(false);
+    };
+  }
+
+  private final func OnWeaponStateChange(value: Int32) -> Void {
+    if !this.GetAutodriveIsDelamain() {
+      if this.GetAutodriveEnabled() && value == 8 {
+        this.SendNotification("LocKey#97386", SimpleMessageType.Autodrive);
+      };
+      this.SignalAutodriveAvailable();
+      this.StopAutodriveIfNecessary(false);
+    };
+  }
+
+  private final func OnMeleeWeaponStateChange(value: Int32) -> Void {
+    if !this.GetAutodriveIsDelamain() {
+      if this.GetAutodriveEnabled() && (value == 11 || value == 13 || value == 19 || value == 15 || value == 20 || value == 21 || value == 14 || value == 16 || value == 17 || value == 18) {
+        this.SendNotification("LocKey#97386", SimpleMessageType.Autodrive);
+      };
+      this.SignalAutodriveAvailable();
+      this.StopAutodriveIfNecessary(false);
+    };
+  }
+
+  private final func OnUpdateAutodriveStateAfterVehicleHealthChangeRequest(request: ref<UpdateAutodriveStateAfterVehicleHealthChange>) -> Void {
+    this.SignalAutodriveAvailable();
+    this.StopAutodriveIfNecessary(false);
+  }
+
+  private final func OnUpdateAutodriveStateAfterQuestLockChange(request: ref<UpdateAutodriveStateAfterQuestLockChange>) -> Void {
+    this.SignalAutodriveAvailable();
+    this.StopAutodriveIfNecessary(true);
+  }
+
+  private final func OnUpdateAutodriveStateOnVehicleQuickHackChange(request: ref<UpdateAutodriveStateOnVehicleQuickHackChange>) -> Void {
+    this.SignalAutodriveAvailable();
+    this.StopAutodriveIfNecessary(false);
+  }
+
+  private final func OnAutoDriveHitRequest(request: ref<AutoDriveHitRequest>) -> Void {
+    this.SendNotification("LocKey#97386", SimpleMessageType.Autodrive);
+    this.SetAutodriveEnabled(false);
+    this.SignalAutodriveAvailable();
+  }
+
+  private final func SignalAutodriveAvailable() -> Void {
+    this.GetAutodriveDataBB().SetBool(this.GetAutodriveDataBBDef().AutoDriveAvailable, this.GetAutodriveAvailable());
+  }
+
+  private final func StopAutodriveIfNecessary(stopVehicleIfDeactivated: Bool) -> Void {
+    let delamainTaxiSystem: wref<DelamainTaxiSystem>;
+    let mappinSystem: wref<MappinSystem>;
+    let request: ref<CancelDelamainRideRequest>;
+    if this.GetAutodriveEnabled() && !this.GetAutodriveAvailable() {
+      if stopVehicleIfDeactivated {
+        this.StopPlayerVehicle();
+        if this.GetAutodriveIsDelamain() {
+          mappinSystem = GameInstance.GetMappinSystem(this.GetGameInstance());
+          mappinSystem.UnregisterMappin(mappinSystem.GetDelamainTrackedMappinID());
+          delamainTaxiSystem = GameInstance.GetScriptableSystemsContainer(this.GetGameInstance()).Get(n"DelamainTaxiSystem") as DelamainTaxiSystem;
+          request = new CancelDelamainRideRequest();
+          request.forceExit = false;
+          delamainTaxiSystem.QueueRequest(request);
+        };
+      };
+      this.SetAutodriveEnabled(false);
+    };
+  }
+
+  private final func StopPlayerVehicle() -> Void {
+    let callbackListener: ref<AutodriveForceBrakesCallbackListener>;
+    let playerVehicle: ref<VehicleObject> = this.GetAutodriveVehicle();
+    if IsDefined(playerVehicle) {
+      callbackListener = new AutodriveForceBrakesCallbackListener();
+      callbackListener.m_autodriveSystem = this;
+      this.StartListeningForPlayerMoveInputs();
+      playerVehicle.ForceBrakesUntilStoppedOrFor(10.00, callbackListener);
+    };
+  }
+
+  private final func StartListeningForPlayerMoveInputs() -> Void {
+    this.m_player.RegisterInputListener(this, n"TurnX");
+    this.m_player.RegisterInputListener(this, n"Accelerate");
+    this.m_player.RegisterInputListener(this, n"Decelerate");
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let playerVehicle: ref<VehicleObject> = GetMountedVehicle(this.m_player);
+    if ListenerAction.IsAction(action, n"Accelerate") || ListenerAction.IsAction(action, n"Decelerate") || ListenerAction.IsAction(action, n"TurnX") {
+      if IsDefined(playerVehicle) {
+        this.StopListeningForPlayerMoveInputs();
+        playerVehicle.ForceBrakesUntilStoppedOrFor(0.00);
+      };
+    };
+  }
+
+  private final func OnUpdateAutodriveStateOnVehicleForceBrakeEnd(request: ref<UpdateAutodriveStateOnVehicleForceBrakeEnd>) -> Void {
+    this.StopListeningForPlayerMoveInputs();
+  }
+
+  private final func StopListeningForPlayerMoveInputs() -> Void {
+    this.m_player.UnregisterInputListener(this, n"TurnX");
+    this.m_player.UnregisterInputListener(this, n"Accelerate");
+    this.m_player.UnregisterInputListener(this, n"Decelerate");
+  }
+
+  private final const func SendNotification(const message: String, type: SimpleMessageType) -> Void {
+    let warningMsg: SimpleScreenMessage;
+    warningMsg.isShown = true;
+    warningMsg.duration = 1.50;
+    warningMsg.message = message;
+    warningMsg.type = type;
+    GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_Notifications).SetVariant(GetAllBlackboardDefs().UI_Notifications.WarningMessage, ToVariant(warningMsg), true);
+  }
+
+  private final func HighlightValidRoadsOnMinimap() -> Void {
+    let request: MinimapLayerHighlightRequest;
+    let requestData: LayerHighlightRequestData;
+    requestData.highlightColor = new HDRColor(0.16, 1.30, 1.41, 1.00);
+    requestData.highlightDuration = 1.50;
+    requestData.blinkCount = 3.00;
+    request.data = requestData;
+    request.layer = minimapuiELayerType.Road;
+    this.GetMapBB().SetVariant(this.GetMapBBDef().minimapLayerHighlightRequest, ToVariant(request), true);
+  }
+
+  private final const func GetActiveVehicleDataBB() -> ref<IBlackboard> {
+    return GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.GetActiveVehicleDataBBDef());
+  }
+
+  private final const func GetActiveVehicleDataBBDef() -> ref<UI_ActiveVehicleDataDef> {
+    return GetAllBlackboardDefs().UI_ActiveVehicleData;
+  }
+
+  private final const func GetAutodriveDataBB() -> ref<IBlackboard> {
+    return GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.GetAutodriveDataBBDef());
+  }
+
+  private final const func GetAutodriveDataBBDef() -> ref<UI_AutodriveDataDef> {
+    return GetAllBlackboardDefs().UI_AutodriveData;
+  }
+
+  private final const func GetMapBB() -> ref<IBlackboard> {
+    return GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(this.GetMapBBDef());
+  }
+
+  private final const func GetMapBBDef() -> ref<UI_MapDef> {
+    return GetAllBlackboardDefs().UI_Map;
+  }
+}

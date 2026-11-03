@@ -1,0 +1,78 @@
+
+public class WeaponFirstReloadStatePrereqState extends PrereqState {
+
+  public let m_listenerWeaponInt: ref<CallbackHandle>;
+
+  public let m_listenerActiveWeaponVariant: ref<CallbackHandle>;
+
+  public let m_weaponObj: wref<WeaponObject>;
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_reloaded: Bool;
+
+  public final func CheckIfPlayerWeaponChanged() -> Void {
+    let weaponObj: ref<WeaponObject> = ScriptedPuppet.GetActiveWeapon(this.m_owner);
+    if weaponObj != this.m_weaponObj {
+      this.m_weaponObj = weaponObj;
+      this.m_reloaded = false;
+    };
+  }
+
+  protected cb func OnWeaponStateUpdate(value: Int32) -> Bool {
+    this.CheckIfPlayerWeaponChanged();
+    if Equals(IntEnum<gamePSMRangedWeaponStates>(value), gamePSMRangedWeaponStates.Reload) {
+      this.m_reloaded = true;
+    };
+    this.OnChanged(!this.m_reloaded);
+  }
+
+  protected cb func OnInventoryChangeStateUpdate(value: Variant) -> Bool {
+    this.CheckIfPlayerWeaponChanged();
+    this.OnChanged(!this.m_reloaded);
+  }
+}
+
+public class WeaponFirstReloadStatePrereq extends IScriptablePrereq {
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let bb2: ref<IBlackboard>;
+    let castedState: ref<WeaponFirstReloadStatePrereqState> = state as WeaponFirstReloadStatePrereqState;
+    castedState.m_owner = context as GameObject;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      bb = player.GetPlayerStateMachineBlackboard();
+      castedState.m_listenerWeaponInt = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState, n"OnWeaponStateUpdate");
+      bb2 = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+      castedState.m_listenerActiveWeaponVariant = bb2.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.RightWeaponRecordID, castedState, n"OnInventoryChangeStateUpdate");
+    };
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let bb: ref<IBlackboard>;
+    let bb2: ref<IBlackboard>;
+    let castedState: ref<WeaponFirstReloadStatePrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState = state as WeaponFirstReloadStatePrereqState;
+      bb = player.GetPlayerStateMachineBlackboard();
+      if IsDefined(castedState.m_listenerWeaponInt) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState.m_listenerWeaponInt);
+      };
+      bb2 = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+      if IsDefined(castedState.m_listenerActiveWeaponVariant) {
+        bb2.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.RightWeaponRecordID, castedState.m_listenerActiveWeaponVariant);
+      };
+    };
+  }
+
+  protected const func OnApplied(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let castedState: ref<WeaponFirstReloadStatePrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState.OnChanged(true);
+    };
+  }
+}

@@ -1,0 +1,73 @@
+
+public abstract native class gameItemData extends IScriptable {
+
+  public final native func GetID() -> ItemID;
+
+  public final native func GetName() -> CName;
+
+  public final native func GetNameAsString() -> String;
+
+  public final native func GetQuantity() -> Int32;
+
+  public final native func HasAttachmentSlot(slotID: TweakDBID) -> Bool;
+
+  public final native func HasPlacementSlot(slotID: TweakDBID) -> Bool;
+
+  public final native const func HasTag(tag: CName) -> Bool;
+
+  public final native const func HasAnyOfTags(tags: [CName]) -> Bool;
+
+  public final native func SetDynamicTag(tag: CName) -> Bool;
+
+  public final native func RemoveDynamicTag(tag: CName) -> Bool;
+
+  public final native func GetDynamicTags() -> [CName];
+
+  public final native func GetTimestamp() -> GameTime;
+
+  public final native func GetStatValueByType(type: gamedataStatType) -> Float;
+
+  public final native func GetBareStatValueByType(type: gamedataStatType) -> Float;
+
+  public final native func HasStatData(type: gamedataStatType) -> Bool;
+
+  public final native func GetStatsObjectID() -> StatsObjectID;
+
+  public final native func HasPartInSlot(slotID: TweakDBID) -> Bool;
+
+  public final native func ReinitializePlayerStats(gameInstance: GameInstance, ownerID: EntityID) -> Void;
+
+  public final native func GetItemPart(out part: InnerItemData, slotId: TweakDBID) -> Void;
+
+  public final native func GetItemParts(out parts: [InnerItemData]) -> Void;
+
+  public final native func GetTemporaryStatBundle() -> ref<StatsBundleHandler>;
+
+  public final native func GetItemType() -> gamedataItemType;
+
+  public final native func GetLocalizedItemType() -> CName;
+
+  public final native func UsesVariants() -> Bool;
+
+  public final native func GetVariant() -> Int32;
+
+  public final native func AddStatsOnEquip(objectAttachedTo: ref<GameObject>) -> Void;
+
+  public final native func SubtractStatsOnUnequip(objectDetachedFrom: ref<GameObject>) -> Void;
+
+  public final native func GetEmptySlotsOnItem(out emptySlots: [TweakDBID]) -> Void;
+
+  public final native func GetUsedSlotsOnItem(out usedSlots: [TweakDBID]) -> Void;
+
+  public final func CanDualWield(owner: wref<GameObject>) -> Bool {
+    let itemRecord: ref<Item_Record>;
+    let questSystem: ref<QuestsSystem>;
+    let canDualWield: Bool = this.HasTag(n"DualWield") && PlayerDevelopmentSystem.GetData(owner).IsNewPerkBoughtAnyLevel(gamedataNewPerkType.Cool_Central_Milestone_2);
+    if canDualWield && this.HasTag(n"QuestPreventDualWield") {
+      questSystem = GameInstance.GetQuestsSystem(owner.GetGame());
+      itemRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.GetID()));
+      canDualWield = questSystem.GetFact(itemRecord.QuestFactPreventDualWield()) > 0;
+    };
+    return canDualWield;
+  }
+}

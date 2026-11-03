@@ -1,0 +1,514 @@
+
+public class AutoDriveController extends inkHUDGameController {
+
+  public edit let m_inputHintContainer: inkWidgetRef;
+
+  public edit let m_autoDriveContentContainer: inkWidgetRef;
+
+  public edit let m_countersContainer: inkWidgetRef;
+
+  public edit let m_freeRoamHeaderContainer: inkWidgetRef;
+
+  public edit let m_remainingDistanceCounterContainer: inkWidgetRef;
+
+  public edit let m_remainingDistanceCounterText: inkTextRef;
+
+  public edit let m_remainingTimeCounterContainer: inkWidgetRef;
+
+  public edit let m_remainingTimeCounterText: inkTextRef;
+
+  private let m_gameInstance: GameInstance;
+
+  private let m_autoDriveSystem: wref<AutoDriveSystem>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_autodriveBB: wref<IBlackboard>;
+
+  private let m_autodriveBBDef: ref<UI_AutodriveDataDef>;
+
+  private let m_quickslotBB: wref<IBlackboard>;
+
+  private let m_quickslotBBDef: ref<UI_QuickSlotsDataDef>;
+
+  private let m_fakeUpdateProxy: ref<inkAnimProxy>;
+
+  private let m_autoDriveEnabledCallbackHandle: ref<CallbackHandle>;
+
+  private let m_cinematicCameraCallbackHandle: ref<CallbackHandle>;
+
+  private let m_autoDriveAvailableCallbackHandle: ref<CallbackHandle>;
+
+  private let m_freeRoamEnabledCallbackHandle: ref<CallbackHandle>;
+
+  private let m_radialWheelCallbackHandle: ref<CallbackHandle>;
+
+  private let m_upperBodyStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_playerVehicleStateCallbackHandle: ref<CallbackHandle>;
+
+  private let m_q000StartedListenerId: Uint32;
+
+  private let m_dpadHintsVisibilityEnabledListenerId: Uint32;
+
+  private let m_remainingDistanceCounterTextParams: ref<inkTextParams>;
+
+  private let m_remainingTimeCounterTextParams: ref<inkTextParams>;
+
+  private let m_inputHintVisibilityAnimProxy: ref<inkAnimProxy>;
+
+  private let m_inputHintVisible: Bool;
+
+  private let m_wheelIconAnimProxy: ref<inkAnimProxy>;
+
+  private let m_wheelAnimationEnabled: Bool;
+
+  private let m_isHoldingDirectionInput: Bool;
+
+  private let m_slowCloseAnimProxy: ref<inkAnimProxy>;
+
+  private let m_slowCloseAnimIsReversed: Bool;
+
+  private let m_containerAnimProxy: ref<inkAnimProxy>;
+
+  private let m_containerVisible: Bool;
+
+  private let m_containerAnimationPlaying: Bool;
+
+  private let m_rootAnimProxy: ref<inkAnimProxy>;
+
+  @default(AutoDriveController, true)
+  private let m_rootVisible: Bool;
+
+  private let m_activeDriveType: AutoDriveDriveType;
+
+  private let m_headerAnimProxy: ref<inkAnimProxy>;
+
+  private let m_inputHintDriveTypeAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_gameInstance = this.GetPlayerControlledObject().GetGame();
+    this.m_autoDriveSystem = GameInstance.GetScriptableSystemsContainer(this.m_gameInstance).Get(n"AutoDriveSystem") as AutoDriveSystem;
+    this.m_autodriveBBDef = GetAllBlackboardDefs().UI_AutodriveData;
+    this.m_autodriveBB = GameInstance.GetBlackboardSystem(this.m_gameInstance).Get(this.m_autodriveBBDef);
+    this.m_quickslotBBDef = GetAllBlackboardDefs().UI_QuickSlotsData;
+    this.m_quickslotBB = GameInstance.GetBlackboardSystem(this.m_gameInstance).Get(this.m_quickslotBBDef);
+    this.InitTextDisplays();
+    this.m_autoDriveEnabledCallbackHandle = this.m_autodriveBB.RegisterListenerBool(this.m_autodriveBBDef.AutoDriveEnabled, this, n"OnAutoDriveStateChanged");
+    this.SetContainerVisibility(this.m_autodriveBB.GetBool(this.m_autodriveBBDef.AutoDriveEnabled), true, true);
+    this.m_cinematicCameraCallbackHandle = this.m_autodriveBB.RegisterListenerBool(this.m_autodriveBBDef.CinematicCameraActive, this, n"OnCinematicCameraChanged");
+    this.OnCinematicCameraChanged(this.m_autodriveBB.GetBool(this.m_autodriveBBDef.CinematicCameraActive));
+    this.m_radialWheelCallbackHandle = this.m_quickslotBB.RegisterListenerBool(this.m_quickslotBBDef.UIRadialContextRequest, this, n"OnRadialMenuShown");
+    this.OnRadialMenuShown(this.m_quickslotBB.GetBool(this.m_quickslotBBDef.UIRadialContextRequest));
+    this.m_autoDriveAvailableCallbackHandle = this.m_autodriveBB.RegisterListenerBool(this.m_autodriveBBDef.AutoDriveAvailable, this, n"OnAutoDriveAvailabilityChanged");
+    this.OnAutoDriveAvailabilityChanged(this.m_autodriveBB.GetBool(this.m_autodriveBBDef.AutoDriveAvailable));
+    this.m_freeRoamEnabledCallbackHandle = this.m_autodriveBB.RegisterListenerBool(this.m_autodriveBBDef.FreeRoamEnabled, this, n"OnFreeRoamStateChanged");
+    this.UpdateActiveDriveType(false);
+    this.SetAvailabilityUpdateEnabled(true);
+    this.GetRootWidget().RegisterToCallback(n"OnSlowCloseAnimationThresholdCallback", this, n"OnSlowCloseAnimationThreshold");
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_player = playerPuppet as PlayerPuppet;
+    if IsDefined(this.m_player) {
+      this.m_q000StartedListenerId = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"q000_started", this, n"OnFactChange");
+      this.m_dpadHintsVisibilityEnabledListenerId = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"dpad_hints_visibility_enabled", this, n"OnFactChange");
+      this.m_upperBodyStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody, this, n"OnUpperBodyStateUpdated");
+      this.m_playerVehicleStateCallbackHandle = this.m_player.GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnVehicleStateUpdated");
+      this.UpdateInputHintVisibility(true, true);
+      this.m_player.RegisterInputListener(this, n"HoldAutodrive");
+      this.m_player.RegisterInputListener(this, n"ToggleAutodrive");
+      this.m_player.RegisterInputListener(this, n"TurnX");
+      this.m_player.RegisterInputListener(this, n"Accelerate");
+      this.m_player.RegisterInputListener(this, n"Decelerate");
+      this.m_player.RegisterInputListener(this, n"LeanFB");
+      this.m_player.RegisterInputListener(this, n"RockFB");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_autodriveBB.UnregisterListenerBool(this.m_autodriveBBDef.AutoDriveEnabled, this.m_autoDriveEnabledCallbackHandle);
+    this.m_autodriveBB.UnregisterListenerBool(this.m_autodriveBBDef.CinematicCameraActive, this.m_cinematicCameraCallbackHandle);
+    this.m_autodriveBB.UnregisterListenerBool(this.m_autodriveBBDef.AutoDriveAvailable, this.m_autoDriveAvailableCallbackHandle);
+    this.m_autodriveBB.UnregisterListenerBool(this.m_autodriveBBDef.FreeRoamEnabled, this.m_freeRoamEnabledCallbackHandle);
+    this.m_quickslotBB.UnregisterListenerBool(this.m_quickslotBBDef.UIRadialContextRequest, this.m_radialWheelCallbackHandle);
+    this.SetAvailabilityUpdateEnabled(false);
+    this.GetRootWidget().UnregisterFromCallback(n"OnSlowCloseAnimationThresholdCallback", this, n"OnSlowCloseAnimationThreshold");
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    if IsDefined(this.m_player) {
+      GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"q000_started", this.m_q000StartedListenerId);
+      GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"dpad_hints_visibility_enabled", this.m_dpadHintsVisibilityEnabledListenerId);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerUint(GetAllBlackboardDefs().InputSchemes.Scheme, this.m_upperBodyStateCallbackHandle);
+      this.m_player.GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.m_playerVehicleStateCallbackHandle);
+      this.m_player.UnregisterInputListener(this, n"HoldAutodrive");
+      this.m_player.UnregisterInputListener(this, n"ToggleAutodrive");
+      this.m_player.UnregisterInputListener(this, n"TurnX");
+      this.m_player.UnregisterInputListener(this, n"Accelerate");
+      this.m_player.UnregisterInputListener(this, n"Decelerate");
+      this.m_player.UnregisterInputListener(this, n"LeanFB");
+      this.m_player.UnregisterInputListener(this, n"RockFB");
+    };
+  }
+
+  private final func InitTextDisplays() -> Void {
+    this.m_remainingDistanceCounterTextParams = new inkTextParams();
+    this.m_remainingDistanceCounterTextParams.AddMeasurement("DISTANCE", 0.00, EMeasurementUnit.Meter);
+    this.m_remainingDistanceCounterTextParams.AddString("UNIT", GetLocalizedText(NameToString(MeasurementUtils.GetUnitLocalizationKey(UILocalizationHelper.GetSystemBaseUnit()))));
+    inkTextRef.SetText(this.m_remainingDistanceCounterText, "{DISTANCE}{UNIT}", this.m_remainingDistanceCounterTextParams);
+    this.m_remainingTimeCounterTextParams = new inkTextParams();
+    this.m_remainingTimeCounterTextParams.AddTime("TIME", 0);
+    inkTextRef.SetText(this.m_remainingTimeCounterText, "{TIME,time,mm:ss}", this.m_remainingTimeCounterTextParams);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if !this.m_inputHintVisible {
+      return true;
+    };
+    if ListenerAction.IsAction(action, n"HoldAutodrive") && Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) && !this.IsAnimationPlaying() {
+      this.PlayLibraryAnimation(n"onUse");
+      if this.m_autoDriveSystem.GetAutodriveEnabled() {
+        this.m_autoDriveSystem.QueueRequest(new DisableAutoDriveRequest());
+      } else {
+        this.m_autoDriveSystem.QueueRequest(new EnableAutoDriveRequest());
+      };
+    } else {
+      if ListenerAction.IsAction(action, n"ToggleAutodrive") && ListenerAction.IsButtonJustReleased(action) {
+        if this.m_autoDriveSystem.GetAutodriveEnabled() {
+          this.m_autoDriveSystem.QueueRequest(new ToggleFreeRoamRequest());
+        };
+      } else {
+        if (ListenerAction.IsAction(action, n"Accelerate") || ListenerAction.IsAction(action, n"Decelerate") || ListenerAction.IsAction(action, n"LeanFB") || ListenerAction.IsAction(action, n"RockFB")) && !this.IsAnimationPlaying() {
+          if AbsF(ListenerAction.GetValue(action)) >= 0.10 {
+            if this.m_autoDriveSystem.GetAutodriveEnabled() {
+              this.m_autoDriveSystem.QueueRequest(new DisableAutoDriveRequest());
+            };
+          };
+        };
+      };
+    };
+    if !this.m_containerVisible {
+      return true;
+    };
+    if ListenerAction.IsAction(action, n"TurnX") {
+      this.m_isHoldingDirectionInput = AbsF(ListenerAction.GetValue(action)) >= 0.10;
+      this.UpdateSlowCloseAnimationState();
+    };
+  }
+
+  private final func OnAutoDriveStateChanged(state: Bool) -> Void {
+    if state {
+      this.SetContainerVisibility(!this.m_autoDriveSystem.GetAutodriveIsDelamain(), false, false);
+      this.SetWheelAnimationEnabled(true);
+      this.SetDataUpdateEnabled(true);
+      this.UpdateActiveDriveType(true);
+      this.UpdateUIData();
+    } else {
+      this.SetContainerVisibility(false, false, false);
+      this.SetWheelAnimationEnabled(false);
+      this.SetDataUpdateEnabled(false);
+      this.UpdateUIData();
+    };
+    this.UpdateInputHintState();
+  }
+
+  private final func OnCinematicCameraChanged(active: Bool) -> Void {
+    this.GetRootWidget().SetVisible(!active);
+  }
+
+  private final func SetContainerVisibility(visible: Bool, instant: Bool, force: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.dependsOnTimeDilation = false;
+    if Equals(visible, this.m_containerVisible) && !force {
+      return;
+    };
+    this.m_containerVisible = visible;
+    if this.m_containerAnimProxy.IsValid() && this.m_containerAnimProxy.IsPlaying() {
+      this.m_containerAnimProxy.Stop();
+    };
+    if instant {
+      inkWidgetRef.SetVisible(this.m_autoDriveContentContainer, visible);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_autoDriveContentContainer, true);
+    this.m_containerAnimProxy = this.PlayLibraryAnimation(visible ? n"autoDriveOpen" : n"autoDriveClose", playbackOptions);
+    this.m_containerAnimationPlaying = true;
+    this.m_containerAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnContainerAnimationFinished");
+  }
+
+  protected cb func OnContainerAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_containerAnimationPlaying = false;
+    this.m_containerAnimProxy = null;
+  }
+
+  protected cb func OnRadialMenuShown(value: Bool) -> Bool {
+    this.SetRootVisibility(!value);
+  }
+
+  private final func SetRootVisibility(visible: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.dependsOnTimeDilation = false;
+    if Equals(visible, this.m_rootVisible) {
+      return;
+    };
+    this.m_rootVisible = visible;
+    if this.m_rootAnimProxy.IsValid() && this.m_rootAnimProxy.IsPlaying() {
+      this.m_rootAnimProxy.Stop();
+    };
+    this.m_rootAnimProxy = this.PlayLibraryAnimation(visible ? n"showRoot" : n"hideRoot", playbackOptions);
+  }
+
+  private final func OnAutoDriveAvailabilityChanged(state: Bool) -> Void {
+    this.UpdateInputHintState();
+  }
+
+  private final func OnFreeRoamStateChanged(state: Bool) -> Void {
+    this.SetActiveDriveType(state ? AutoDriveDriveType.FreeRoam : AutoDriveDriveType.GoToDestination, false);
+  }
+
+  private final func UpdateActiveDriveType(force: Bool) -> Void {
+    this.SetActiveDriveType(this.m_autodriveBB.GetBool(this.m_autodriveBBDef.FreeRoamEnabled) ? AutoDriveDriveType.FreeRoam : AutoDriveDriveType.GoToDestination, force);
+  }
+
+  private final func SetActiveDriveType(type: AutoDriveDriveType, force: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.dependsOnTimeDilation = false;
+    if !force && Equals(type, this.m_activeDriveType) {
+      return;
+    };
+    this.m_activeDriveType = type;
+    if this.m_headerAnimProxy.IsValid() && this.m_headerAnimProxy.IsPlaying() {
+      this.m_headerAnimProxy.Stop();
+    };
+    if this.m_inputHintDriveTypeAnimProxy.IsValid() && this.m_inputHintDriveTypeAnimProxy.IsPlaying() {
+      this.m_inputHintDriveTypeAnimProxy.GotoEndAndStop();
+    };
+    if Equals(type, AutoDriveDriveType.GoToDestination) {
+      this.m_remainingDistanceCounterTextParams.UpdateMeasurement("DISTANCE", 0.00, EMeasurementUnit.Meter);
+      this.m_remainingTimeCounterTextParams.UpdateTime("TIME", 0);
+    };
+    if !this.m_autodriveBB.GetBool(this.m_autodriveBBDef.AutoDriveDelamain) {
+      this.m_headerAnimProxy = this.PlayLibraryAnimation(Equals(type, AutoDriveDriveType.GoToDestination) ? n"showCounters" : n"showFreeRoamHeader", playbackOptions);
+      this.m_inputHintDriveTypeAnimProxy = this.PlayLibraryAnimation(Equals(type, AutoDriveDriveType.GoToDestination) ? n"switchToGoToDestination" : n"switchToFreeroam", playbackOptions);
+    };
+  }
+
+  private final func OnVehicleStateUpdated(value: Int32) -> Void {
+    this.UpdateInputHintVisibility(false, false);
+  }
+
+  private final func OnUpperBodyStateUpdated(value: Int32) -> Void {
+    this.UpdateInputHintVisibility(false, false);
+  }
+
+  private final func OnFactChange(factValue: Int32) -> Void {
+    this.UpdateInputHintVisibility(false, false);
+  }
+
+  private final func ShouldInputHintBeVisible() -> Bool {
+    let playerVehicleState: Int32;
+    if !IsDefined(this.m_player) {
+      return false;
+    };
+    if Cast<Bool>(GameInstance.GetQuestsSystem(this.m_gameInstance).GetFact(n"q000_started")) && !Cast<Bool>(GameInstance.GetQuestsSystem(this.m_gameInstance).GetFact(n"dpad_hints_visibility_enabled")) {
+      return false;
+    };
+    playerVehicleState = this.m_player.GetPlayerStateMachineBlackboard().GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    if playerVehicleState != 1 {
+      return false;
+    };
+    if this.m_autodriveBB.GetBool(this.m_autodriveBBDef.CinematicCameraActive) {
+      return false;
+    };
+    return true;
+  }
+
+  private final func UpdateInputHintVisibility(instant: Bool, force: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    let previousProgression: Float = -1.00;
+    playbackOptions.dependsOnTimeDilation = false;
+    let visible: Bool = this.ShouldInputHintBeVisible();
+    if Equals(visible, this.m_inputHintVisible) && !force {
+      inkWidgetRef.SetVisible(this.m_inputHintContainer, visible);
+      return;
+    };
+    this.m_inputHintVisible = visible;
+    if this.m_inputHintVisibilityAnimProxy.IsValid() && this.m_inputHintVisibilityAnimProxy.IsPlaying() {
+      previousProgression = this.m_inputHintVisibilityAnimProxy.GetProgression();
+      this.m_inputHintVisibilityAnimProxy.Stop();
+    };
+    if instant {
+      inkWidgetRef.SetVisible(this.m_inputHintContainer, visible);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_inputHintContainer, true);
+    this.m_inputHintVisibilityAnimProxy = this.PlayLibraryAnimation(visible ? n"showInputHint" : n"hideInputHint", playbackOptions);
+    if previousProgression >= 0.00 {
+      this.m_inputHintVisibilityAnimProxy.SetNormalizedPosition(1.00 - previousProgression, true);
+    };
+  }
+
+  private final func UpdateInputHintState() -> Void {
+    let autodriveAvailable: Bool = this.m_autodriveBB.GetBool(this.m_autodriveBBDef.AutoDriveAvailable);
+    let autodriveEnabled: Bool = this.m_autodriveBB.GetBool(this.m_autodriveBBDef.AutoDriveEnabled);
+    inkWidgetRef.Get(this.m_inputHintContainer).SetState(autodriveAvailable || autodriveEnabled ? n"Default" : n"Unavailable");
+  }
+
+  private final func SetWheelAnimationEnabled(enabled: Bool) -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.dependsOnTimeDilation = true;
+    if Equals(this.m_wheelAnimationEnabled, enabled) {
+      return;
+    };
+    this.m_wheelAnimationEnabled = enabled;
+    if this.m_wheelIconAnimProxy.IsValid() && this.m_wheelIconAnimProxy.IsPlaying() {
+      this.m_wheelIconAnimProxy.Stop();
+    };
+    if enabled {
+      animOptions.loopType = inkanimLoopType.Cycle;
+      animOptions.loopInfinite = true;
+      this.m_wheelIconAnimProxy = this.PlayLibraryAnimation(n"wheelSwivel", animOptions);
+    } else {
+      this.m_wheelIconAnimProxy = this.PlayLibraryAnimation(n"wheelRest", animOptions);
+    };
+  }
+
+  protected cb func OnDataUpdate(proxy: ref<inkAnimProxy>) -> Bool {
+    this.UpdateUIData();
+  }
+
+  private final func UpdateUIData() -> Void {
+    if !IsDefined(this.m_autoDriveSystem) {
+      return;
+    };
+    if NotEquals(this.m_autoDriveSystem.GetAutodriveDestinationType(), gameAutodriveDestinationType.None) {
+      inkWidgetRef.SetVisible(this.m_remainingDistanceCounterContainer, true);
+      this.m_remainingDistanceCounterTextParams.UpdateMeasurement("DISTANCE", Cast<Float>(FloorF(this.m_autodriveBB.GetFloat(this.m_autodriveBBDef.DestinationRemainingLength))), EMeasurementUnit.Meter);
+      inkWidgetRef.SetVisible(this.m_remainingTimeCounterContainer, true);
+      this.m_remainingTimeCounterTextParams.UpdateTime("TIME", FloorF(this.m_autodriveBB.GetFloat(this.m_autodriveBBDef.DestinationRemainingTime)));
+    } else {
+      inkWidgetRef.SetVisible(this.m_remainingDistanceCounterContainer, false);
+      inkWidgetRef.SetVisible(this.m_remainingTimeCounterContainer, false);
+    };
+  }
+
+  protected cb func OnAvailabilityUpdate(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_autoDriveSystem.QueueRequest(new UpdateAutoDriveAvailabilityRequest());
+  }
+
+  private final func UpdateSlowCloseAnimationState() -> Void {
+    let animOptions: inkAnimOptions;
+    if this.m_isHoldingDirectionInput {
+      if !this.m_slowCloseAnimProxy.IsPlaying() {
+        animOptions.dependsOnTimeDilation = false;
+        animOptions.playReversed = false;
+        this.StartSlowCloseAnimProxy(animOptions);
+      } else {
+        if this.m_slowCloseAnimIsReversed {
+          this.ChangeSlowCloseAnimationDirection();
+        };
+      };
+    } else {
+      if this.m_slowCloseAnimProxy.IsPlaying() && !this.m_slowCloseAnimIsReversed {
+        this.ChangeSlowCloseAnimationDirection();
+      };
+    };
+  }
+
+  private final func ChangeSlowCloseAnimationDirection() -> Void {
+    let animOptions: inkAnimOptions;
+    let progression: Float;
+    if this.m_slowCloseAnimProxy.IsValid() && this.m_slowCloseAnimProxy.IsPlaying() {
+      progression = this.m_slowCloseAnimProxy.GetProgression();
+      animOptions.dependsOnTimeDilation = false;
+      animOptions.playReversed = !this.m_slowCloseAnimIsReversed;
+      if animOptions.playReversed {
+        animOptions.applyCustomTimeDilation = true;
+        animOptions.customTimeDilation = 3.00;
+      };
+      this.StartSlowCloseAnimProxy(animOptions);
+      this.m_slowCloseAnimProxy.SetNormalizedPosition(1.00 - progression, true);
+    };
+  }
+
+  private final func StartSlowCloseAnimProxy(animOptions: inkAnimOptions) -> Void {
+    if this.m_slowCloseAnimProxy.IsValid() && this.m_slowCloseAnimProxy.IsPlaying() {
+      this.m_slowCloseAnimProxy.Stop();
+    };
+    this.m_slowCloseAnimIsReversed = animOptions.playReversed;
+    this.m_slowCloseAnimProxy = this.PlayLibraryAnimation(n"autoDriveCloseSlowly", animOptions);
+  }
+
+  protected cb func OnSlowCloseAnimationThreshold(target: wref<inkWidget>) -> Bool {
+    if this.m_autoDriveSystem.GetAutodriveEnabled() {
+      this.m_autoDriveSystem.QueueRequest(new DisableAutoDriveRequest());
+      this.m_containerVisible = false;
+    };
+  }
+
+  private final func SetDataUpdateEnabled(on: Bool) -> Void {
+    let alphaInterpolator: ref<inkAnimTransparency>;
+    let anim: ref<inkAnimDef>;
+    let animOptions: inkAnimOptions;
+    if on {
+      anim = new inkAnimDef();
+      alphaInterpolator = new inkAnimTransparency();
+      alphaInterpolator.SetDuration(1.00);
+      alphaInterpolator.SetStartTransparency(1.00);
+      alphaInterpolator.SetEndTransparency(1.00);
+      alphaInterpolator.SetType(inkanimInterpolationType.Linear);
+      alphaInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+      anim.AddInterpolator(alphaInterpolator);
+      animOptions.playReversed = false;
+      animOptions.executionDelay = 0.00;
+      animOptions.loopType = inkanimLoopType.Cycle;
+      animOptions.loopInfinite = true;
+      this.m_fakeUpdateProxy = this.GetRootWidget().PlayAnimationWithOptions(anim, animOptions);
+      this.m_fakeUpdateProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnDataUpdate");
+    } else {
+      if this.m_fakeUpdateProxy.IsPlaying() {
+        this.m_fakeUpdateProxy.Stop();
+        this.m_fakeUpdateProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnDataUpdate");
+      };
+    };
+  }
+
+  private final func SetAvailabilityUpdateEnabled(on: Bool) -> Void {
+    let alphaInterpolator: ref<inkAnimTransparency>;
+    let anim: ref<inkAnimDef>;
+    let animOptions: inkAnimOptions;
+    if on {
+      anim = new inkAnimDef();
+      alphaInterpolator = new inkAnimTransparency();
+      alphaInterpolator.SetDuration(0.20);
+      alphaInterpolator.SetStartTransparency(1.00);
+      alphaInterpolator.SetEndTransparency(1.00);
+      alphaInterpolator.SetType(inkanimInterpolationType.Linear);
+      alphaInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+      anim.AddInterpolator(alphaInterpolator);
+      animOptions.playReversed = false;
+      animOptions.executionDelay = 0.00;
+      animOptions.loopType = inkanimLoopType.Cycle;
+      animOptions.loopInfinite = true;
+      this.m_fakeUpdateProxy = this.GetRootWidget().PlayAnimationWithOptions(anim, animOptions);
+      this.m_fakeUpdateProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnAvailabilityUpdate");
+    } else {
+      if this.m_fakeUpdateProxy.IsPlaying() {
+        this.m_fakeUpdateProxy.Stop();
+        this.m_fakeUpdateProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnAvailabilityUpdate");
+      };
+    };
+  }
+
+  private final const func IsAnimationPlaying() -> Bool {
+    return this.m_containerAnimationPlaying || this.m_inputHintVisibilityAnimProxy.IsValid() && this.m_inputHintVisibilityAnimProxy.IsPlaying();
+  }
+}
+
+public class AutoDriveAnimationEventListener extends inkLogicController {
+
+  protected cb func OnSlowCloseAnimationThresholdEvent() -> Bool {
+    this.GetRootWidget().CallCustomCallback(n"OnSlowCloseAnimationThresholdCallback");
+  }
+}

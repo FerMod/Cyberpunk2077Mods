@@ -1,0 +1,979 @@
+
+public class ApplyObjectActionEffector extends Effector {
+
+  public let m_actionID: TweakDBID;
+
+  public let m_triggered: Bool;
+
+  public let m_probability: Float;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_actionID = TDBID.Create(TweakDBInterface.GetString(record + t".actionID", ""));
+    this.m_probability = TweakDBInterface.GetFloat(record + t".probability", 1.00);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let action: ref<PuppetAction>;
+    let rand: Float;
+    if !this.m_triggered {
+      rand = RandRangeF(0.00, 1.00);
+      if rand <= this.m_probability {
+        action = new PuppetAction();
+        action.RegisterAsRequester(owner.GetEntityID());
+        action.SetExecutor(GetPlayer(owner.GetGame()));
+        action.SetObjectActionID(this.m_actionID);
+        action.SetUp((owner as ScriptedPuppet).GetPuppetPS());
+        if action.CanPayCost(null, true) {
+          action.ProcessRPGAction(owner.GetGame());
+          this.m_triggered = true;
+        };
+      };
+    };
+  }
+}
+
+public class WeaponMalfunctionHudEffector extends Effector {
+
+  public let m_bb: wref<IBlackboard>;
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.m_bb = GameInstance.GetBlackboardSystem(owner.GetGame()).Get(GetAllBlackboardDefs().UI_Hacking);
+    this.m_bb.SetBool(GetAllBlackboardDefs().UI_Hacking.ammoIndicator, true);
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    this.m_bb.SetBool(GetAllBlackboardDefs().UI_Hacking.ammoIndicator, false);
+  }
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    this.m_bb.SetBool(GetAllBlackboardDefs().UI_Hacking.ammoIndicator, false);
+  }
+}
+
+public class MadnessEffector extends Effector {
+
+  public let m_squadMembers: [EntityID];
+
+  public let m_owner: wref<ScriptedPuppet>;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void;
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let evt: ref<MadnessDebuff>;
+    let link: ref<PuppetDeviceLinkPS>;
+    let secSys: ref<SecuritySystemControllerPS>;
+    this.m_owner = owner as ScriptedPuppet;
+    if !IsDefined(this.m_owner) {
+      return;
+    };
+    AISquadHelper.GetSquadmatesID(this.m_owner, this.m_squadMembers);
+    GameObject.PlayVoiceOver(this.m_owner, n"stlh_call", n"Scripts:OnVoiceOverQuickHackFeedbackEvent");
+    AIActionHelper.TargetAllSquadMembers(this.m_owner);
+    link = this.m_owner.GetDeviceLink();
+    if IsDefined(link) {
+      secSys = link.GetSecuritySystem();
+      if IsDefined(secSys) {
+        evt = new MadnessDebuff();
+        evt.object = this.m_owner;
+        link.GetPersistencySystem().QueuePSEvent(secSys.GetID(), secSys.GetClassName(), evt);
+      };
+    };
+    NPCPuppet.SetTemporaryThreatCalculationType(this.m_owner, EAIThreatCalculationType.Madness);
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void;
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    if !IsDefined(this.m_owner) || !this.m_owner.IsAttached() {
+      return;
+    };
+    if ArraySize(this.m_squadMembers) == 0 {
+      return;
+    };
+    NPCPuppet.RemoveTemporaryThreatCalculationType(this.m_owner);
+  }
+}
+
+public class PingSquadEffector extends Effector {
+
+  public let m_squadMembers: [EntityID];
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_oldSquadAttitude: ref<AttitudeAgent>;
+
+  public let m_quickhackLevel: Float;
+
+  public let m_data: ref<FocusForcedHighlightData>;
+
+  public let m_squadName: CName;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_quickhackLevel = TweakDBInterface.GetFloat(record + t".level", 1.00);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.m_owner = owner;
+    if !IsDefined(owner) {
+      return;
+    };
+    AISquadHelper.GetSquadmatesID(owner as ScriptedPuppet, this.m_squadMembers);
+    this.m_squadName = AISquadHelper.GetSquadName(owner as ScriptedPuppet);
+    if !IsNameValid(this.m_squadName) {
+      return;
+    };
+    this.MarkSquad(true, owner);
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    this.MarkSquad(false, owner);
+  }
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    if !IsDefined(this.m_owner) || !this.m_owner.IsAttached() {
+      return;
+    };
+    this.MarkSquad(false, this.m_owner);
+  }
+
+  public final func MarkSquad(mark: Bool, root: ref<GameObject>) -> Void {
+    let game: GameInstance;
+    let i: Int32;
+    let networkSystem: ref<NetworkSystem>;
+    let pingID: TweakDBID;
+    let playerID: EntityID;
+    let statusEffectsystem: ref<StatusEffectSystem>;
+    let target: wref<GameObject>;
+    if !IsDefined(root) {
+      return;
+    };
+    game = root.GetGame();
+    if !GameInstance.IsValid(game) {
+      return;
+    };
+    networkSystem = GameInstance.GetScriptableSystemsContainer(game).Get(n"NetworkSystem") as NetworkSystem;
+    if !IsDefined(networkSystem) {
+      return;
+    };
+    if mark {
+      if networkSystem.IsSquadMarkedWithPing(this.m_squadName) {
+        return;
+      };
+      this.RegisterMarkedSquadInNetworkSystem(game);
+    } else {
+      if !networkSystem.IsSquadMarkedWithPing(this.m_squadName) {
+        return;
+      };
+      this.UnregisterMarkedSquadInNetworkSystem(game);
+    };
+    statusEffectsystem = GameInstance.GetStatusEffectSystem(game);
+    if !IsDefined(statusEffectsystem) {
+      return;
+    };
+    pingID = this.GetPingLevel(this.m_quickhackLevel);
+    playerID = GameInstance.GetPlayerSystem(game).GetLocalPlayerMainGameObject().GetEntityID();
+    i = 0;
+    while i < ArraySize(this.m_squadMembers) {
+      target = GameInstance.FindEntityByID(game, this.m_squadMembers[i]) as GameObject;
+      if !IsDefined(target) || target == root {
+      } else {
+        if mark {
+          if !statusEffectsystem.HasStatusEffect(this.m_squadMembers[i], pingID) {
+            StatusEffectHelper.ApplyStatusEffect(target, pingID, playerID);
+          };
+        } else {
+          if statusEffectsystem.HasStatusEffect(this.m_squadMembers[i], pingID) {
+            StatusEffectHelper.RemoveStatusEffect(target, pingID);
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func RegisterMarkedSquadInNetworkSystem(game: GameInstance) -> Void {
+    let request: ref<AddPingedSquadRequest>;
+    if GameInstance.IsValid(game) {
+      request = new AddPingedSquadRequest();
+      request.squadName = this.m_squadName;
+      GameInstance.QueueScriptableSystemRequest(game, n"NetworkSystem", request);
+    };
+  }
+
+  private final func UnregisterMarkedSquadInNetworkSystem(game: GameInstance) -> Void {
+    let request: ref<RemovePingedSquadRequest>;
+    if GameInstance.IsValid(game) {
+      request = new RemovePingedSquadRequest();
+      request.squadName = this.m_squadName;
+      GameInstance.QueueScriptableSystemRequest(game, n"NetworkSystem", request);
+    };
+  }
+
+  public final func GetPingLevel(level: Float) -> TweakDBID {
+    switch level {
+      case 1.00:
+        return t"BaseStatusEffect.PingMarkStatusEffect";
+      case 2.00:
+        return t"BaseStatusEffect.PingLvl2MarkStatusEffect";
+      case 3.00:
+        return t"BaseStatusEffect.PingLvl2MarkStatusEffect";
+      case 4.00:
+        return t"BaseStatusEffect.PingLvl4MarkStatusEffect";
+      default:
+        return t"BaseStatusEffect.PingMarkStatusEffect";
+    };
+    return t"BaseStatusEffect.PingMarkStatusEffect";
+  }
+}
+
+public class RefreshPingEffector extends Effector {
+
+  public let m_squadMembers: [EntityID];
+
+  public let m_owner: wref<GameObject>;
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.m_owner = owner;
+    let statValue: Float = GameInstance.GetStatsSystem(owner.GetGame()).GetStatValue(Cast<StatsObjectID>(GameInstance.GetPlayerSystem(owner.GetGame()).GetLocalPlayerMainGameObject().GetEntityID()), gamedataStatType.RefreshesPingOnQuickhack);
+    AISquadHelper.GetSquadmatesID(owner as ScriptedPuppet, this.m_squadMembers);
+    ArrayPush(this.m_squadMembers, owner.GetEntityID());
+    if !IsDefined(owner) {
+      return;
+    };
+    if statValue == 1.00 {
+      this.RefreshSquad(owner);
+    };
+  }
+
+  public final func RefreshSquad(root: ref<GameObject>) -> Void {
+    let appliedEffects: array<ref<StatusEffect>>;
+    let j: Int32;
+    let pingRecord: ref<StatusEffect_Record>;
+    let tags: array<CName>;
+    let target: wref<GameObject>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_squadMembers) {
+      target = GameInstance.FindEntityByID(root.GetGame(), this.m_squadMembers[i]) as GameObject;
+      GameInstance.GetStatusEffectSystem(target.GetGame()).GetAppliedEffects(target.GetEntityID(), appliedEffects);
+      if !IsDefined(target) || ArraySize(appliedEffects) == 0 {
+      } else {
+        j = 0;
+        while j < ArraySize(appliedEffects) {
+          pingRecord = appliedEffects[j].GetRecord();
+          tags = pingRecord.GameplayTags();
+          if ArrayContains(tags, n"Ping") {
+            StatusEffectHelper.ApplyStatusEffect(target, pingRecord.GetID(), GameInstance.GetPlayerSystem(target.GetGame()).GetLocalPlayerMainGameObject().GetEntityID());
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+}
+
+public class RefreshQhWithTagInAreaEffector extends Effector {
+
+  public let m_tags: [CName];
+
+  public let m_range: Float;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_tags = TDB.GetCNameArray(record + t".tags");
+    this.m_range = TDB.GetFloat(record + t".range");
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let targets: array<ref<NPCPuppet>>;
+    if !IsDefined(owner) || ArraySize(this.m_tags) == 0 {
+      return;
+    };
+    targets = owner.GetNPCsAroundObject(this.m_range);
+    this.RefreshQhStatusEffects(owner, targets);
+  }
+
+  private final func RefreshQhStatusEffects(owner: ref<GameObject>, targets: [ref<NPCPuppet>]) -> Void {
+    let appliedEffects: array<ref<StatusEffect>>;
+    let foundAllTags: Bool;
+    let j: Int32;
+    let k: Int32;
+    let record: ref<StatusEffect_Record>;
+    let tags: array<CName>;
+    let target: ref<NPCPuppet>;
+    let statusEffectSystem: ref<StatusEffectSystem> = GameInstance.GetStatusEffectSystem(owner.GetGame());
+    let i: Int32 = 0;
+    while i < ArraySize(targets) {
+      target = targets[i];
+      ArrayClear(appliedEffects);
+      statusEffectSystem.GetAppliedEffects(target.GetEntityID(), appliedEffects);
+      if ArraySize(appliedEffects) == 0 {
+      } else {
+        j = 0;
+        while j < ArraySize(appliedEffects) {
+          record = appliedEffects[j].GetRecord();
+          tags = record.GameplayTags();
+          foundAllTags = true;
+          k = 0;
+          while k < ArraySize(this.m_tags) {
+            if !ArrayContains(tags, this.m_tags[k]) {
+              foundAllTags = false;
+              break;
+            };
+            k += 1;
+          };
+          if foundAllTags {
+            statusEffectSystem.RemoveStatusEffect(target.GetEntityID(), record.GetID());
+            statusEffectSystem.ApplyStatusEffect(target.GetEntityID(), record.GetID(), GameObject.GetTDBID(owner), owner.GetEntityID(), appliedEffects[j].GetStackCount());
+            break;
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+  }
+}
+
+public class SetFriendlyEffector extends Effector {
+
+  public let m_target: wref<GameObject>;
+
+  public let m_duration: Float;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_duration = TweakDBInterface.GetFloat(record + t".duration", 10.00);
+  }
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    let puppet: ref<ScriptedPuppet> = this.m_target as ScriptedPuppet;
+    if !IsDefined(puppet) || !puppet.IsAttached() {
+      return;
+    };
+    if Equals(puppet.GetNPCType(), gamedataNPCType.Drone) {
+      StatusEffectHelper.ApplyStatusEffect(puppet, t"BaseStatusEffect.ForceKill");
+    };
+    if Equals(puppet.GetNPCType(), gamedataNPCType.Android) {
+      if StatusEffectSystem.ObjectHasStatusEffectOfType(puppet, gamedataStatusEffectType.AndroidTurnOn) {
+        GameInstance.GetStatusEffectSystem(puppet.GetGame()).RemoveStatusEffect(this.m_target.GetEntityID(), t"BaseStatusEffect.AndroidTurnOn");
+        StatusEffectHelper.ApplyStatusEffect(puppet, t"BaseStatusEffect.AndroidTurnOff");
+      };
+    };
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let currentRole: ref<AIRole>;
+    let smi: ref<SquadScriptInterface>;
+    this.m_target = owner;
+    let player: ref<ScriptedPuppet> = GameInstance.GetPlayerSystem(owner.GetGame()).GetLocalPlayerMainGameObject() as ScriptedPuppet;
+    this.ChangeAttitude(owner, player);
+    AIActionHelper.SetFriendlyTargetAllSquadMembers(owner);
+    if AISquadHelper.GetSquadMemberInterface(player, smi) {
+      smi.Join(owner);
+    };
+    currentRole = (owner as ScriptedPuppet).GetAIControllerComponent().GetCurrentRole();
+    if Equals(currentRole.GetRoleEnum(), EAIRole.Follower) {
+      AIHumanComponent.SetCurrentRole(owner, new AINoRole());
+    };
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Drone) {
+      this.SetAnimFeature(owner as ScriptedPuppet);
+    };
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Android) {
+      if StatusEffectSystem.ObjectHasStatusEffectOfType(owner, gamedataStatusEffectType.AndroidTurnOff) {
+        StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.AndroidTurnOn");
+      };
+    };
+    if RPGManager.GetStatValueFromObject(owner.GetGame(), GetPlayer(owner.GetGame()), gamedataStatType.CanBuffMechanicalsOnTakeControl) > 0.00 {
+      StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.CombatHacking_Area_04_Perk_1_Buff_Level_1");
+    };
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Drone) {
+      StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.ForceKill");
+    };
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Android) {
+      if StatusEffectSystem.ObjectHasStatusEffectOfType(owner, gamedataStatusEffectType.AndroidTurnOn) {
+        GameInstance.GetStatusEffectSystem(owner.GetGame()).RemoveStatusEffect(owner.GetEntityID(), t"BaseStatusEffect.AndroidTurnOn");
+        StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.AndroidTurnOff");
+      };
+    };
+  }
+
+  protected final func ChangeAttitude(owner: wref<GameObject>, target: wref<GameObject>) -> Bool {
+    let currentTarget: wref<GameObject>;
+    let i: Int32;
+    let ownerAttitudeAgent: ref<AttitudeAgent>;
+    let targetAttitudeAgent: ref<AttitudeAgent>;
+    let targetSquadMembers: array<wref<Entity>>;
+    if !IsDefined(owner) || !IsDefined(target) {
+      return false;
+    };
+    ownerAttitudeAgent = owner.GetAttitudeAgent();
+    targetAttitudeAgent = target.GetAttitudeAgent();
+    if !IsDefined(ownerAttitudeAgent) || !IsDefined(targetAttitudeAgent) {
+      return false;
+    };
+    if AISquadHelper.GetSquadmates(target as ScriptedPuppet, targetSquadMembers) {
+      i = 0;
+      while i < ArraySize(targetSquadMembers) {
+        currentTarget = targetSquadMembers[i] as GameObject;
+        if !IsDefined(currentTarget) || currentTarget == owner {
+        } else {
+          ownerAttitudeAgent.SetAttitudeTowards(currentTarget.GetAttitudeAgent(), EAIAttitude.AIA_Friendly);
+        };
+        i += 1;
+      };
+    };
+    ownerAttitudeAgent.SetAttitudeGroup(targetAttitudeAgent.GetAttitudeGroup());
+    ownerAttitudeAgent.SetAttitudeTowards(targetAttitudeAgent, EAIAttitude.AIA_Friendly);
+    return true;
+  }
+
+  protected final func SetAnimFeature(owner: wref<ScriptedPuppet>) -> Void {
+    let setFriendlyOverride: ref<AnimFeature_StatusEffect> = new AnimFeature_StatusEffect();
+    setFriendlyOverride.state = 1;
+    setFriendlyOverride.duration = 8.00;
+    AnimationControllerComponent.ApplyFeatureToReplicate(owner, n"SetFriendlyOverride", setFriendlyOverride);
+  }
+}
+
+public class AndroidTurnOnEffector extends Effector {
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Android) {
+      if StatusEffectSystem.ObjectHasStatusEffectOfType(owner, gamedataStatusEffectType.AndroidTurnOff) {
+        GameInstance.GetStatusEffectSystem(owner.GetGame()).RemoveStatusEffect(owner.GetEntityID(), t"BaseStatusEffect.AndroidTurnOff");
+      };
+    };
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void;
+
+  protected func Uninitialize(game: GameInstance) -> Void;
+}
+
+public class AndroidTurnOffEffector extends Effector {
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    if Equals((owner as ScriptedPuppet).GetNPCType(), gamedataNPCType.Android) {
+      if StatusEffectSystem.ObjectHasStatusEffectOfType(owner, gamedataStatusEffectType.AndroidTurnOn) {
+        GameInstance.GetStatusEffectSystem(owner.GetGame()).RemoveStatusEffect(owner.GetEntityID(), t"BaseStatusEffect.AndroidTurnOn");
+      };
+    };
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void;
+
+  protected func Uninitialize(game: GameInstance) -> Void;
+}
+
+public class SpreadInitEffector extends Effector {
+
+  public let m_objectActionRecord: wref<ObjectAction_Record>;
+
+  public let m_effectorRecord: ref<SpreadInitEffector_Record>;
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_applyOverclock: Bool;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_effectorRecord = TweakDBInterface.GetSpreadInitEffectorRecord(record);
+    this.m_applyOverclock = TweakDBInterface.GetBool(record + t".applyOverclock", true);
+    if IsDefined(this.m_effectorRecord) {
+      this.m_objectActionRecord = this.m_effectorRecord.ObjectAction();
+    };
+    this.m_player = GetPlayer(game);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let actionName: String;
+    let range: Float;
+    let spreadCount: Int32;
+    let statsSystem: ref<StatsSystem>;
+    let randomOverclockRoll: Float = RandRangeF(0.00, 1.00);
+    if !IsDefined(owner) || !IsDefined(this.m_objectActionRecord) || !IsDefined(this.m_effectorRecord) {
+      return;
+    };
+    if !IsDefined(this.m_player) {
+      return;
+    };
+    statsSystem = GameInstance.GetStatsSystem(this.m_player.GetGame());
+    if !IsDefined(statsSystem) {
+      return;
+    };
+    actionName = NameToString(this.m_objectActionRecord.ActionName());
+    spreadCount = this.m_effectorRecord.SpreadCount();
+    if spreadCount < 0 {
+      spreadCount = Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackSpreadNumber));
+      if StrEndsWith(actionName, "Blind") {
+        spreadCount += Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackBlindSpreadNumber));
+      } else {
+        if StrEndsWith(actionName, "Contagion") {
+          spreadCount += Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackContagionSpreadNumber));
+        } else {
+          if StrEndsWith(actionName, "BlackWall") {
+            spreadCount += Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackBlackWallSpreadNumber));
+          };
+        };
+      };
+    };
+    range = Cast<Float>(this.m_effectorRecord.SpreadDistance());
+    if range < 0.00 {
+      range = statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackSpreadDistance);
+    };
+    range += statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackSpreadDistanceIncrease);
+    spreadCount += this.m_effectorRecord.BonusJumps();
+    if this.m_applyOverclock && randomOverclockRoll <= statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.OverclockSpreadChance) {
+      spreadCount += Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.QuickHackOverclockSpreadNumber));
+    };
+    if spreadCount <= 0 || range <= 0.00 {
+      return;
+    };
+    if this.m_applyOverclock {
+      statsSystem.AddModifier(Cast<StatsObjectID>(owner.GetEntityID()), RPGManager.CreateStatModifier(gamedataStatType.SpreadToken, gameStatModifierType.Additive, 1.00) as gameConstantStatModifierData);
+    };
+    HackingDataDef.AddItemToSpreadMap(this.m_player, this.m_objectActionRecord.ObjectActionUI(), spreadCount, range);
+  }
+}
+
+public class SpreadEffector extends Effector {
+
+  public let m_objectActionRecord: wref<ObjectAction_Record>;
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_effectorRecord: ref<SpreadEffector_Record>;
+
+  public let m_spreadToAllTargetsInTheArea: Bool;
+
+  public let m_applyOverclock: Bool;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    let instigatorPrereqs: array<wref<IPrereq_Record>>;
+    this.m_effectorRecord = TweakDBInterface.GetSpreadEffectorRecord(record);
+    this.m_spreadToAllTargetsInTheArea = TweakDBInterface.GetBool(record + t".spreadToAllTargetsInTheArea", false);
+    this.m_applyOverclock = TweakDBInterface.GetBool(record + t".applyOverclock", true);
+    if IsDefined(this.m_effectorRecord) {
+      this.m_objectActionRecord = this.m_effectorRecord.ObjectAction();
+    };
+    this.m_player = GetPlayer(game);
+    if IsDefined(this.m_player) {
+      this.m_objectActionRecord.InstigatorPrereqs(instigatorPrereqs);
+      if !RPGManager.CheckPrereqs(instigatorPrereqs, this.m_player) {
+        this.m_objectActionRecord = null;
+        return;
+      };
+    };
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let effect: ref<EffectInstance>;
+    let range: Float;
+    let spreadCount: Int32;
+    if !IsDefined(owner) || !IsDefined(this.m_objectActionRecord) {
+      return;
+    };
+    if !IsDefined(this.m_player) {
+      return;
+    };
+    if !HackingDataDef.GetValuesFromSpreadMap(this.m_player, this.m_objectActionRecord.ObjectActionUI(), spreadCount, range) {
+      GameInstance.GetStatsSystem(owner.GetGame()).RemoveModifier(Cast<StatsObjectID>(owner.GetEntityID()), RPGManager.CreateStatModifier(gamedataStatType.SpreadToken, gameStatModifierType.Additive, 1.00) as gameConstantStatModifierData);
+      return;
+    };
+    if spreadCount <= 0 {
+      return;
+    };
+    if this.m_applyOverclock && GameInstance.GetStatsSystem(owner.GetGame()).GetStatValue(Cast<StatsObjectID>(owner.GetEntityID()), gamedataStatType.SpreadToken) < 1.00 {
+      return;
+    };
+    effect = GameInstance.GetGameEffectSystem(owner.GetGame()).CreateEffectStatic(n"forceVisionAppearanceOnNPC", this.m_effectorRecord.EffectTag(), this.m_player);
+    if !IsDefined(effect) {
+      return;
+    };
+    EffectData.SetVector(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.position, owner.GetWorldPosition());
+    EffectData.SetFloat(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.radius, range);
+    EffectData.SetFloat(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.maxPathLength, range * 2.00);
+    EffectData.SetEntity(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.entity, owner);
+    EffectData.SetVariant(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.statusEffect, ToVariant(this.m_objectActionRecord));
+    EffectData.SetInt(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.attackNumber, spreadCount);
+    EffectData.SetBool(effect.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.debugBool, this.m_spreadToAllTargetsInTheArea);
+    if !effect.Run() {
+      return;
+    };
+  }
+}
+
+public class SpreadAreaEffector extends Effector {
+
+  public let m_maxTargetNum: Int32;
+
+  public let m_range: Float;
+
+  public let m_objectActionsRecord: [wref<ObjectAction_Record>];
+
+  public let m_player: wref<PlayerPuppet>;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    let objectActionRecord: ref<ObjectAction_Record>;
+    this.m_maxTargetNum = TDB.GetInt(record + t".maxTargetNum");
+    this.m_range = TDB.GetFloat(record + t".range");
+    let objectActionsTDBID: array<TweakDBID> = TDB.GetForeignKeyArray(record + t".objectActions");
+    let i: Int32 = 0;
+    while i < ArraySize(objectActionsTDBID) {
+      objectActionRecord = TweakDBInterface.GetObjectActionRecord(objectActionsTDBID[i]);
+      ArrayPush(this.m_objectActionsRecord, objectActionRecord);
+      i += 1;
+    };
+    this.m_player = GetPlayer(game);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let action: ref<PuppetAction>;
+    let gameplayRoleComponent: ref<GameplayRoleComponent>;
+    let i: Int32;
+    let j: Int32;
+    let target: ref<NPCPuppet>;
+    let targets: array<ref<NPCPuppet>>;
+    let totalTargetNum: Int32;
+    let visualData: ref<GameplayRoleMappinData>;
+    if !IsDefined(owner) || ArraySize(this.m_objectActionsRecord) == 0 || !IsDefined(this.m_player) {
+      return;
+    };
+    if this.m_range <= 0.00 {
+      return;
+    };
+    targets = owner.GetNPCsAroundObject(this.m_range);
+    i = 0;
+    totalTargetNum = 0;
+    while i < ArraySize(targets) {
+      target = targets[i];
+      if !IsDefined(target) || !TDBID.IsValid(target.GetRecord().ContentAssignmentHandle().GetID()) {
+      } else {
+        gameplayRoleComponent = target.GetGameplayRoleComponent();
+        j = 0;
+        while j < ArraySize(this.m_objectActionsRecord) {
+          action = new PuppetAction();
+          action.RegisterAsRequester(target.GetEntityID());
+          action.SetExecutor(owner);
+          action.SetObjectActionID(this.m_objectActionsRecord[j].GetID());
+          action.SetUp(target.GetPuppetPS());
+          action.SetDisableSpread(true);
+          if action.CanPayCost(null, true) {
+            action.ProcessRPGAction(target.GetGame(), gameplayRoleComponent);
+          };
+          if IsDefined(action.GetInteractionIcon()) && IsDefined(gameplayRoleComponent) && !gameplayRoleComponent.HasActiveMappin(gamedataMappinVariant.QuickHackVariant) {
+            visualData = new GameplayRoleMappinData();
+            visualData.statPoolType = gamedataStatPoolType.QuickHackUpload;
+            visualData.m_duration = action.GetActivationTime();
+            visualData.m_textureID = action.GetInteractionIcon().TexturePartID().GetID();
+            visualData.m_visibleThroughWalls = true;
+            gameplayRoleComponent.ToggleMappin(gamedataMappinVariant.QuickHackVariant, true, true, visualData);
+          };
+          j += 1;
+        };
+        totalTargetNum += 1;
+        if this.m_maxTargetNum > 0 && totalTargetNum == this.m_maxTargetNum {
+          return;
+        };
+      };
+      i += 1;
+    };
+  }
+}
+
+public class EffectExecutor_Spread extends EffectExecutor_Scripted {
+
+  public let m_objectActionRecord: wref<ObjectAction_Record>;
+
+  public let m_prevEntity: wref<Entity>;
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_spreadToAllTargetsInTheArea: Bool;
+
+  public final func Init(ctx: EffectScriptContext) -> Bool {
+    let variantValue: Variant;
+    this.m_player = GetPlayer(EffectScriptContext.GetGameInstance(ctx));
+    if !IsDefined(this.m_player) {
+      return false;
+    };
+    if !EffectData.GetEntity(EffectScriptContext.GetSharedData(ctx), GetAllBlackboardDefs().EffectSharedData.entity, this.m_prevEntity) {
+      return false;
+    };
+    if !EffectData.GetVariant(EffectScriptContext.GetSharedData(ctx), GetAllBlackboardDefs().EffectSharedData.statusEffect, variantValue) {
+      return false;
+    };
+    if !EffectData.GetBool(EffectScriptContext.GetSharedData(ctx), GetAllBlackboardDefs().EffectSharedData.debugBool, this.m_spreadToAllTargetsInTheArea) {
+      return false;
+    };
+    this.m_objectActionRecord = FromVariant<wref<ObjectAction_Record>>(variantValue);
+    if !IsDefined(this.m_objectActionRecord) {
+      return false;
+    };
+    return true;
+  }
+
+  public final func Process(ctx: EffectScriptContext, applierCtx: EffectExecutionScriptContext) -> Bool {
+    let createAIQuickHackActionEvent: ref<CreateAIQuickHackActionEvent>;
+    let i: Int32;
+    let prereqsToCheck: array<wref<IPrereq_Record>>;
+    let result: Bool;
+    let targetActionRecords: array<wref<ObjectAction_Record>>;
+    let targetPrereqs: array<wref<ObjectActionPrereq_Record>>;
+    let target: wref<ScriptedPuppet> = EffectExecutionScriptContext.GetTarget(applierCtx) as ScriptedPuppet;
+    if !IsDefined(target) || !ScriptedPuppet.IsActive(target) {
+      return true;
+    };
+    if target.IsPlayer() {
+      return true;
+    };
+    if target == this.m_prevEntity {
+      return true;
+    };
+    if Equals(GameObject.GetAttitudeTowards(target, this.m_player), EAIAttitude.AIA_Friendly) {
+      return true;
+    };
+    if !target.IsAggressive() {
+      return true;
+    };
+    if !target.IsQuickHackAble() {
+      return true;
+    };
+    target.GetRecord().ObjectActions(targetActionRecords);
+    i = 0;
+    while i < ArraySize(targetActionRecords) {
+      if targetActionRecords[i].ObjectActionUI() == this.m_objectActionRecord.ObjectActionUI() {
+        result = true;
+        break;
+      };
+      i += 1;
+    };
+    if Equals(result, false) {
+      return true;
+    };
+    if this.m_objectActionRecord.GetTargetActivePrereqsCount() > 0 {
+      this.m_objectActionRecord.TargetActivePrereqs(targetPrereqs);
+      i = 0;
+      while i < ArraySize(targetPrereqs) {
+        if targetPrereqs[i].GetFailureConditionPrereqCount() > 0 {
+          targetPrereqs[i].FailureConditionPrereq(prereqsToCheck);
+          if !RPGManager.CheckPrereqs(prereqsToCheck, target) {
+            return true;
+          };
+        };
+        i += 1;
+      };
+    };
+    result = HackingDataDef.DecrementCountFromSpreadMap(this.m_player, this.m_objectActionRecord.ObjectActionUI());
+    GameInstance.GetStatsSystem(target.GetGame()).RemoveModifier(Cast<StatsObjectID>(target.GetEntityID()), RPGManager.CreateStatModifier(gamedataStatType.SpreadToken, gameStatModifierType.Additive, 1.00) as gameConstantStatModifierData);
+    createAIQuickHackActionEvent = new CreateAIQuickHackActionEvent();
+    createAIQuickHackActionEvent.m_requester = target.GetEntityID();
+    createAIQuickHackActionEvent.m_objectActionID = this.m_objectActionRecord.GetID();
+    createAIQuickHackActionEvent.m_puppetPS = target.GetPuppetPS();
+    this.m_player.QueueEvent(createAIQuickHackActionEvent);
+    if result {
+      GameInstance.GetStatsSystem(target.GetGame()).AddModifier(Cast<StatsObjectID>(target.GetEntityID()), RPGManager.CreateStatModifier(gamedataStatType.SpreadToken, gameStatModifierType.Additive, 1.00) as gameConstantStatModifierData);
+    };
+    if this.m_spreadToAllTargetsInTheArea && result {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class SortOut_Contagion extends EffectObjectGroupFilter_Scripted {
+
+  public final func Process(out ctx: EffectScriptContext, out filterCtx: EffectGroupFilterScriptContext) -> Bool {
+    let dataObjectAction: Variant;
+    let i: Int32;
+    let j: Int32;
+    let numAgents: Int32;
+    let sortedTarget: ref<ScriptedPuppet>;
+    let sortedTargets: array<ref<ScriptedPuppet>>;
+    let target: ref<ScriptedPuppet>;
+    let targets: array<ref<ScriptedPuppet>>;
+    if !EffectData.GetVariant(EffectScriptContext.GetSharedData(ctx), GetAllBlackboardDefs().EffectSharedData.statusEffect, dataObjectAction) {
+      return false;
+    };
+    if !this.IsContagion(FromVariant<wref<ObjectAction_Record>>(dataObjectAction)) {
+      return false;
+    };
+    numAgents = EffectGroupFilterScriptContext.GetNumAgents(filterCtx);
+    i = 0;
+    while i < numAgents {
+      target = EffectGroupFilterScriptContext.GetEntity(filterCtx, i) as ScriptedPuppet;
+      if IsDefined(target) {
+        ArrayPush(targets, target);
+      };
+      i = i + 1;
+    };
+    sortedTargets = this.SortTargetsByStatusEffect(targets);
+    ArrayClear(filterCtx.resultIndices);
+    i = 0;
+    while i < ArraySize(sortedTargets) {
+      sortedTarget = sortedTargets[i];
+      if sortedTarget != null {
+        j = 0;
+        while j < numAgents {
+          target = EffectGroupFilterScriptContext.GetEntity(filterCtx, j) as ScriptedPuppet;
+          if sortedTarget == target {
+            ArrayPush(filterCtx.resultIndices, j);
+            break;
+          };
+          j = j + 1;
+        };
+      };
+      i += 1;
+    };
+    return true;
+  }
+
+  private final func IsContagion(objectAction: ref<ObjectAction_Record>) -> Bool {
+    if StrContains(objectAction.ObjectActionUI().Name(), "ContagionHack") {
+      return true;
+    };
+    return false;
+  }
+
+  private final func SortTargetsByStatusEffect(const targets: script_ref<[ref<ScriptedPuppet>]>) -> [ref<ScriptedPuppet>] {
+    let sortedTargets: array<ref<ScriptedPuppet>>;
+    let sortedTargetsWithStatus: array<ref<ScriptedPuppet>>;
+    let sortedTargetsWithoutStatus: array<ref<ScriptedPuppet>>;
+    let i: Int32 = ArraySize(Deref(targets));
+    while i > 0 {
+      if !StatusEffectSystem.ObjectHasStatusEffectWithTag(Deref(targets)[i], n"ContagionPoison") {
+        if !ArrayContains(sortedTargetsWithoutStatus, Deref(targets)[i]) {
+          ArrayInsert(sortedTargetsWithoutStatus, 0, Deref(targets)[i]);
+        };
+      };
+      i -= 1;
+    };
+    i = 0;
+    while i < ArraySize(Deref(targets)) {
+      if StatusEffectSystem.ObjectHasStatusEffectWithTag(Deref(targets)[i], n"ContagionPoison") {
+        if !ArrayContains(sortedTargetsWithStatus, Deref(targets)[i]) {
+          ArrayPush(sortedTargetsWithStatus, Deref(targets)[i]);
+        };
+      };
+      i += 1;
+    };
+    sortedTargets = sortedTargetsWithoutStatus;
+    i = ArraySize(sortedTargetsWithoutStatus);
+    while i < ArraySize(sortedTargetsWithoutStatus) + ArraySize(sortedTargetsWithStatus) {
+      ArrayInsert(sortedTargets, i, sortedTargetsWithStatus[i - ArraySize(sortedTargetsWithoutStatus)]);
+      i += 1;
+    };
+    return sortedTargets;
+  }
+}
+
+public class RevealPlayerPositionEffector extends Effector {
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void;
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void;
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void;
+}
+
+public class ForceMoveInCombatEffector extends Effector {
+
+  public let m_aiComponent: ref<AIHumanComponent>;
+
+  public let m_commandStarted: Bool;
+
+  private final static func GetCommandName() -> CName {
+    return n"AICommsCallMoveToCommand";
+  }
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void;
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    let commandID: Uint32;
+    if !this.m_commandStarted {
+      return;
+    };
+    commandID = Cast<Uint32>(this.m_aiComponent.GetActiveCommandID(n"AICommsCallMoveToCommand"));
+    if commandID >= 0u {
+      if this.m_aiComponent.IsCommandExecuting(n"AICommsCallMoveToCommand", false) {
+        this.m_aiComponent.StopExecutingCommandById(commandID, true);
+      } else {
+        if this.m_aiComponent.IsCommandWaiting(n"AICommsCallMoveToCommand", false) {
+          this.m_aiComponent.CancelCommandById(commandID, true);
+        };
+      };
+    };
+  }
+
+  protected final func StartMovement(owner: ref<GameObject>, end: AIPositionSpec, desiredDistance: Float, movementType: moveMovementType) -> Void {
+    let player: ref<GameObject> = GameInstance.GetPlayerSystem(owner.GetGame()).GetLocalPlayerControlledGameObject();
+    let moveCommand: ref<AICommsCallMoveToCommand> = new AICommsCallMoveToCommand();
+    moveCommand.movementTarget = end;
+    AIPositionSpec.SetEntity(moveCommand.facingTarget, EntityGameInterface.GetEntity(player.GetEntity()));
+    moveCommand.ignoreNavigation = false;
+    moveCommand.desiredDistanceFromTarget = desiredDistance;
+    moveCommand.movementType = movementType;
+    moveCommand.finishWhenDestinationReached = true;
+    this.m_aiComponent = (owner as ScriptedPuppet).GetAIControllerComponent();
+    this.m_aiComponent.SendCommand(moveCommand);
+    this.m_commandStarted = true;
+  }
+}
+
+public class ForceMoveInCombatWhistleEffector extends ForceMoveInCombatEffector {
+
+  public let m_targetPosition: Vector4;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    let player: ref<GameObject> = GameInstance.GetPlayerSystem(game).GetLocalPlayerControlledGameObject();
+    super.Initialize(record, game, parentRecord);
+    this.m_targetPosition = player.GetWorldPosition();
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let end: AIPositionSpec;
+    let endWorldPosition: WorldPosition;
+    let proxy: ref<GameObject>;
+    UpdateWhistlePosition.TryGetDesiredWhistlePosition(owner, this.m_targetPosition, this.m_targetPosition, proxy);
+    WorldPosition.SetVector4(endWorldPosition, this.m_targetPosition);
+    AIPositionSpec.SetWorldPosition(end, endWorldPosition);
+    this.StartMovement(owner, end, 3.00, moveMovementType.Walk);
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    StatusEffectHelper.RemoveStatusEffectsWithTag(owner, n"CombatWhistle");
+  }
+}
+
+public class ForceMoveInCombatCommsCallEffector extends ForceMoveInCombatEffector {
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let end: AIPositionSpec;
+    AIPositionSpec.SetEntity(end, EntityGameInterface.GetEntity(this.GetInstigator().GetEntity()));
+    this.StartMovement(owner, end, 2.00, moveMovementType.Walk);
+    GameObject.PlayVoiceOver(owner, n"stlh_call", n"Scripts:ForceMoveInCombatCommsCallEffector");
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    StatusEffectHelper.RemoveStatusEffectsWithTag(owner, n"CommsCallHelper");
+  }
+}
+
+public class ApplyLegendaryWhistleEffector extends Effector {
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let instigatorEntityID: EntityID = GetPlayer(owner.GetGame()).GetEntityID();
+    let targetEntityID: EntityID = owner.GetEntityID();
+    if !EntityID.IsDefined(instigatorEntityID) || !EntityID.IsDefined(targetEntityID) {
+      return;
+    };
+    if NPCPuppet.IsInCombat(owner as ScriptedPuppet) || !StatusEffectSystem.ObjectHasStatusEffectWithTag(owner, n"Whistle") || StatusEffectSystem.ObjectHasStatusEffectWithTag(owner, n"WhistleTurnAway") {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(owner, n"WhistleTurnAway");
+      StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.WhistleLvl4", instigatorEntityID, this.GetProxyEntityID());
+      return;
+    };
+    StatusEffectHelper.RemoveStatusEffectsWithTag(owner, n"Whistle");
+    StatusEffectHelper.ApplyStatusEffect(owner, t"BaseStatusEffect.WhistleLvl4_TurnAway", instigatorEntityID, this.GetProxyEntityID());
+  }
+}

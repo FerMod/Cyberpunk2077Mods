@@ -1,0 +1,523 @@
+
+public native class TimeskipGameController extends inkGameController {
+
+  private edit let m_currentTimeLabel: inkTextRef;
+
+  private edit let m_tragetTimeLabel: inkTextRef;
+
+  private edit let m_diffTimeLabel: inkTextRef;
+
+  private edit let m_rootContainerRef: inkWidgetRef;
+
+  private edit let m_currentTimePointerRef: inkWidgetRef;
+
+  private edit let m_targetTimePointerRef: inkWidgetRef;
+
+  private edit let m_timeBarRef: inkWidgetRef;
+
+  private edit let m_circleGradientRef: inkWidgetRef;
+
+  private edit let m_startCircleGradientRef: inkWidgetRef;
+
+  private edit let m_mouseHitTestRef: inkWidgetRef;
+
+  private edit let m_dayIconRef: inkWidgetRef;
+
+  private edit let m_nightIconRef: inkWidgetRef;
+
+  private edit let m_morningIconRef: inkWidgetRef;
+
+  private edit let m_eveningIconRef: inkWidgetRef;
+
+  private edit let m_weatherIcon: inkImageRef;
+
+  @default(TimeskipGameController, intro)
+  private edit let m_intoAnimation: CName;
+
+  @default(TimeskipGameController, outro_cancel)
+  private edit let m_outroCancelAnimation: CName;
+
+  @default(TimeskipGameController, outro_finish)
+  private edit let m_outroFinishedAnimation: CName;
+
+  @default(TimeskipGameController, progress)
+  private edit let m_progressAnimation: CName;
+
+  @default(TimeskipGameController, finishing)
+  private edit let m_finishingAnimation: CName;
+
+  @default(TimeskipGameController, loop_from)
+  private edit let m_loopAnimationMarkerFrom: CName;
+
+  @default(TimeskipGameController, loop_to)
+  private edit let m_loopAnimationMarkerTo: CName;
+
+  @default(TimeskipGameController, mouseHoverOver)
+  private edit let m_mouseHoverOverAnimation: CName;
+
+  @default(TimeskipGameController, mouseHoverOut)
+  private edit let m_mouseHoverOutAnimation: CName;
+
+  private edit let m_outroAnimDuration: Float;
+
+  private let m_player: wref<GameObject>;
+
+  private let m_data: ref<TimeSkipPopupData>;
+
+  private let m_gameInstance: GameInstance;
+
+  private let m_timeSystem: ref<TimeSystem>;
+
+  private let m_currentTimeTextParams: ref<inkTextParams>;
+
+  private let m_targetTimeTextParams: ref<inkTextParams>;
+
+  private let m_diffTimeTextParams: ref<inkTextParams>;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  private let m_progressAnimProxy: ref<inkAnimProxy>;
+
+  private let m_hoverAnimProxy: ref<inkAnimProxy>;
+
+  private let m_currentTime: GameTime;
+
+  @default(TimeskipGameController, 1)
+  private let m_hoursToSkip: Int32;
+
+  private let m_currentTimeAngle: Float;
+
+  private let m_targetTimeAngle: Float;
+
+  private let m_axisInputCache: Vector2;
+
+  @default(TimeskipGameController, false)
+  private let m_inputEnabled: Bool;
+
+  @default(TimeskipGameController, 310)
+  private let m_radius: Float;
+
+  @default(TimeskipGameController, 0.1)
+  private let m_axisInputThreshold: Float;
+
+  @default(TimeskipGameController, 3)
+  private let m_animationDurationMin: Float;
+
+  @default(TimeskipGameController, 6)
+  private let m_animationDurationMax: Float;
+
+  @default(TimeskipGameController, 0f)
+  private let m_diff: Float;
+
+  private let m_timeSkipped: Bool;
+
+  private let m_mouseInputEnabled: Bool;
+
+  private let scenarioEvt: ref<TimeSkipFinishEvent>;
+
+  @default(TimeskipGameController, false)
+  private let m_hoveredOver: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let cursorEvent: ref<TimeSkipCursorInitFinishedEvent>;
+    let deadzoneConfig: ref<ConfigVarFloat>;
+    let controlsGroupBase: CName = n"/controls";
+    let deadzoneSettingName: CName = n"Axis_DeadzoneInnerFix";
+    this.m_player = this.GetPlayerControlledObject();
+    this.m_player.RegisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.m_gameInstance = (this.GetOwnerEntity() as GameObject).GetGame();
+    this.m_timeSystem = GameInstance.GetTimeSystem(this.m_gameInstance);
+    if GameInstance.GetSettingsSystem(this.m_player.GetGame()).HasVar(controlsGroupBase, deadzoneSettingName) {
+      deadzoneConfig = GameInstance.GetSettingsSystem(this.m_player.GetGame()).GetVar(controlsGroupBase, deadzoneSettingName) as ConfigVarFloat;
+    };
+    if IsDefined(deadzoneConfig) {
+      this.m_axisInputThreshold = deadzoneConfig.GetValue();
+    } else {
+      this.m_axisInputThreshold = 0.35;
+    };
+    this.m_data = this.GetRootWidget().GetUserData(n"TimeSkipPopupData") as TimeSkipPopupData;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnMouseInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnGlobalAxisInput");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitTestRef, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitTestRef, n"OnHoverOut", this, n"OnHoverOut");
+    this.PlayAnimation(this.m_intoAnimation);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroFinished");
+    cursorEvent = new TimeSkipCursorInitFinishedEvent();
+    this.QueueEvent(cursorEvent);
+    GameInstance.GetTimeSystem(this.m_player.GetGame()).SetTimeDilation(n"TimeSkip", 0.00);
+    GameInstance.GetGodModeSystem(this.m_player.GetGame()).AddGodMode(this.m_player.GetEntityID(), gameGodModeType.Invulnerable, n"TimeSkip");
+    this.DisplayTimeCurrent();
+    this.UpdateTargetTime(this.m_currentTimeAngle + 0.79);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    GameInstance.GetTimeSystem(this.m_player.GetGame()).UnsetTimeDilation(n"TimeSkip");
+    GameInstance.GetGodModeSystem(this.m_player.GetGame()).RemoveGodMode(this.m_player.GetEntityID(), gameGodModeType.Invulnerable, n"TimeSkip");
+  }
+
+  protected cb func OnIntroFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_inputEnabled = true;
+    if this.m_hoveredOver {
+      this.m_mouseInputEnabled = true;
+    };
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hoveredOver = true;
+    if !this.m_inputEnabled {
+      return false;
+    };
+    this.m_mouseInputEnabled = true;
+    if IsDefined(this.m_hoverAnimProxy) {
+      this.m_hoverAnimProxy.Stop();
+    };
+    this.m_hoverAnimProxy = this.PlayLibraryAnimation(this.m_mouseHoverOverAnimation);
+    inkWidgetRef.SetState(this.m_timeBarRef, this.m_mouseInputEnabled || !this.m_player.PlayerLastUsedKBM() ? n"Active" : n"Default");
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hoveredOver = false;
+    if !this.m_inputEnabled {
+      return false;
+    };
+    this.m_mouseInputEnabled = false;
+    if IsDefined(this.m_hoverAnimProxy) {
+      this.m_hoverAnimProxy.Stop();
+    };
+    this.m_hoverAnimProxy = this.PlayLibraryAnimation(this.m_mouseHoverOutAnimation);
+    inkWidgetRef.SetState(this.m_timeBarRef, this.m_mouseInputEnabled || !this.m_player.PlayerLastUsedKBM() ? n"Active" : n"Default");
+  }
+
+  protected cb func OnTimeSkipCursorInitFinishedEvent(e: ref<TimeSkipCursorInitFinishedEvent>) -> Bool {
+    if !this.m_player.PlayerLastUsedKBM() {
+      this.SetCursorContext(n"Hide");
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsAction(action, n"__DEVICE_CHANGED__") {
+      if this.m_player.PlayerLastUsedKBM() {
+        this.SetCursorContext(n"Show");
+        inkWidgetRef.SetState(this.m_timeBarRef, this.m_mouseInputEnabled ? n"Active" : n"Default");
+      } else {
+        this.SetCursorContext(n"Hide");
+        inkWidgetRef.SetState(this.m_timeBarRef, n"Active");
+      };
+    };
+  }
+
+  protected cb func OnMouseInput(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"jcms_x") || e.IsAction(n"jcms_y") {
+      this.SetCursorContext(n"Show");
+    };
+    if this.m_mouseInputEnabled && (e.IsAction(n"mouse_x") || e.IsAction(n"mouse_y") || e.IsAction(n"touch_fast_pan_x") || e.IsAction(n"touch_fast_pan_y") || e.IsAction(n"jcms_x") || e.IsAction(n"jcms_y")) {
+      this.ProcessMouseInput(e.GetScreenSpacePosition());
+    };
+  }
+
+  protected cb func OnGlobalAxisInput(e: ref<inkPointerEvent>) -> Bool {
+    let value: Float = e.GetAxisData();
+    if e.IsAction(n"popup_axisX") || e.IsAction(n"popup_axisX_right") {
+      if AbsF(value) > this.m_axisInputThreshold {
+        this.m_axisInputCache.X = value;
+        this.SetCursorContext(n"Hide");
+      };
+    } else {
+      if e.IsAction(n"popup_axisY") || e.IsAction(n"popup_axisY_right") {
+        if AbsF(value) > this.m_axisInputThreshold {
+          this.m_axisInputCache.Y = value;
+          this.SetCursorContext(n"Hide");
+        };
+      };
+    };
+  }
+
+  protected cb func OnGlobalInput(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsHandled() {
+      return false;
+    };
+    if e.IsAction(n"click") || e.IsAction(n"one_click_confirm") {
+      this.PlayRumble(RumbleStrength.Light, RumbleType.Pulse, RumblePosition.Right);
+      e.Handle();
+      this.Apply();
+    } else {
+      if e.IsAction(n"cancel") {
+        e.Handle();
+        this.Cancel();
+      } else {
+        if e.IsAction(n"right_button") && this.m_inputEnabled {
+          this.UpdateTargetTime(6.28);
+        } else {
+          if e.IsAction(n"left_button") && this.m_inputEnabled {
+            this.UpdateTargetTime(3.14);
+          } else {
+            if e.IsAction(n"up_button") && this.m_inputEnabled {
+              this.UpdateTargetTime(4.71);
+            } else {
+              if e.IsAction(n"down_button") && this.m_inputEnabled {
+                this.UpdateTargetTime(1.57);
+              } else {
+                if e.IsAction(n"time_skip_increase") && this.m_inputEnabled {
+                  this.UpdateTargetTime(this.m_targetTimeAngle + 0.26);
+                } else {
+                  if e.IsAction(n"time_skip_decrease") && this.m_inputEnabled {
+                    this.UpdateTargetTime(this.m_targetTimeAngle - 0.26);
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func Apply() -> Void {
+    let currentTime: GameTime;
+    let hours: Int32;
+    let playbackOptions: inkAnimOptions;
+    if !this.m_inputEnabled {
+      return;
+    };
+    this.m_inputEnabled = false;
+    if this.m_hoursToSkip > 0 {
+      currentTime = this.m_timeSystem.GetGameTime();
+      hours = GameTime.Hours(currentTime) + this.m_hoursToSkip;
+      this.m_timeSystem.SetGameTimeByHMS(hours, GameTime.Minutes(currentTime), GameTime.Seconds(currentTime), n"ui_menu_timeskip");
+      GameTimeUtils.FastForwardPlayerState(this.GetPlayerControlledObject());
+      this.PlayTictocAnimation();
+      playbackOptions.toMarker = this.m_loopAnimationMarkerFrom;
+      this.PlayAnimation(this.m_progressAnimation, playbackOptions);
+      this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnStartProgressionLoop");
+    };
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_map_timeskip");
+  }
+
+  protected cb func OnStartProgressionLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.toMarker = this.m_loopAnimationMarkerTo;
+    playbackOptions.fromMarker = this.m_loopAnimationMarkerFrom;
+    playbackOptions.loopInfinite = true;
+    playbackOptions.loopType = inkanimLoopType.PingPong;
+    this.PlayAnimation(this.m_progressAnimation, playbackOptions);
+  }
+
+  private final func PlayTictocAnimation() -> Void {
+    let animRotDef: ref<inkAnimDef>;
+    let animRotInterp: ref<inkAnimRotation>;
+    let animationDuration: Float = this.m_hoursToSkip > 4 ? this.m_animationDurationMax : this.m_animationDurationMin - this.m_outroAnimDuration;
+    let animEffectDef: ref<inkAnimDef> = new inkAnimDef();
+    let animEffectInterp: ref<inkAnimEffect> = new inkAnimEffect();
+    animEffectInterp.SetStartDelay(0.00);
+    animEffectInterp.SetEffectType(inkEffectType.RadialWipe);
+    animEffectInterp.SetEffectName(n"RadialWipe");
+    animEffectInterp.SetParamName(n"transition");
+    animEffectInterp.SetDirection(inkanimInterpolationDirection.To);
+    animEffectInterp.SetEndValue(0.00);
+    animEffectInterp.SetDuration(animationDuration);
+    animEffectDef.AddInterpolator(animEffectInterp);
+    inkWidgetRef.PlayAnimation(this.m_timeBarRef, animEffectDef);
+    animRotDef = new inkAnimDef();
+    animRotInterp = new inkAnimRotation();
+    animRotInterp.SetStartDelay(0.00);
+    animRotInterp.SetStartRotation(0.00);
+    animRotInterp.SetEndRotation(this.m_diff);
+    animRotInterp.SetDuration(animationDuration);
+    animRotInterp.SetIsAdditive(true);
+    animRotInterp.SetGoShortPath(false);
+    animRotDef.AddInterpolator(animRotInterp);
+    this.m_progressAnimProxy = inkWidgetRef.PlayAnimation(this.m_currentTimePointerRef, animRotDef);
+    this.m_progressAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnProgressAnimationFinished");
+  }
+
+  protected cb func OnProgressAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    this.m_progressAnimProxy = null;
+    if this.m_timeSkipped {
+      this.PlayAnimation(this.m_outroFinishedAnimation);
+      this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAfterFinishing");
+      GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_map_timeskip_stop");
+    } else {
+      playbackOptions.toMarker = this.m_loopAnimationMarkerFrom;
+      this.PlayAnimation(this.m_finishingAnimation, playbackOptions);
+      this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnStartFinishingLoop");
+      GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_map_timeskip_stop");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Both);
+      inkImageRef.SetTexturePart(this.m_weatherIcon, this.GetWeatherIcon());
+      this.m_progressAnimProxy = null;
+    };
+  }
+
+  protected cb func OnStartFinishingLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.fromMarker = this.m_loopAnimationMarkerFrom;
+    playbackOptions.toMarker = this.m_loopAnimationMarkerTo;
+    playbackOptions.loopInfinite = true;
+    playbackOptions.loopType = inkanimLoopType.PingPong;
+    this.PlayAnimation(this.m_finishingAnimation, playbackOptions);
+  }
+
+  protected cb func OnTimeSkipFinishedEvent(e: ref<TimeSkipFinishedEvent>) -> Bool {
+    this.m_timeSkipped = true;
+    if !IsDefined(this.m_progressAnimProxy) || !this.m_progressAnimProxy.IsPlaying() {
+      this.PlayAnimation(this.m_outroFinishedAnimation);
+      this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAfterFinishing");
+    };
+  }
+
+  private final func Cancel() -> Void {
+    if !this.m_inputEnabled {
+      return;
+    };
+    this.m_inputEnabled = false;
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+    this.PlayAnimation(this.m_outroCancelAnimation);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAfterCanceling");
+  }
+
+  protected cb func OnCloseAfterCanceling(proxy: ref<inkAnimProxy>) -> Bool {
+    let data: ref<TimeSkipPopupCloseData> = new TimeSkipPopupCloseData();
+    this.m_data.token.TriggerCallback(data);
+    this.scenarioEvt = new TimeSkipFinishEvent();
+    this.QueueBroadcastEvent(this.scenarioEvt);
+  }
+
+  protected cb func OnCloseAfterFinishing(proxy: ref<inkAnimProxy>) -> Bool {
+    let evt: ref<ForceCloseHubMenuEvent> = new ForceCloseHubMenuEvent();
+    this.QueueBroadcastEvent(evt);
+    this.scenarioEvt = new TimeSkipFinishEvent();
+    this.QueueBroadcastEvent(this.scenarioEvt);
+  }
+
+  protected cb func OnUpdate(timeDelta: Float) -> Bool {
+    let angle: Float;
+    let diff: Float;
+    let h: Int32;
+    if !this.m_inputEnabled {
+      if IsDefined(this.m_progressAnimProxy) && this.m_progressAnimProxy.IsPlaying() {
+        angle = Deg2Rad(inkWidgetRef.GetRotation(this.m_currentTimePointerRef));
+        if angle > this.m_targetTimeAngle {
+          diff = Rad2Deg(6.28 - angle + this.m_targetTimeAngle);
+        } else {
+          diff = Rad2Deg(this.m_targetTimeAngle - angle);
+        };
+        this.UpdateIconStates(angle, this.m_targetTimeAngle);
+        h = RoundF(diff / 360.00 * 24.00);
+        this.SetTimeSkipText(this.m_diffTimeLabel, this.m_diffTimeTextParams, h);
+        GameTimeUtils.SetGameTimeText(this.m_currentTimeLabel, this.m_currentTimeTextParams, this.m_currentTime + (this.m_hoursToSkip - h) * 3600);
+      };
+    } else {
+      if AbsF(this.m_axisInputCache.Y) > this.m_axisInputThreshold || AbsF(this.m_axisInputCache.X) > this.m_axisInputThreshold {
+        angle = AtanF(this.m_axisInputCache.X, this.m_axisInputCache.Y) - 1.57;
+        this.UpdateTargetTime(angle);
+      };
+    };
+    this.m_axisInputCache.Y = 0.00;
+    this.m_axisInputCache.X = 0.00;
+  }
+
+  private final func DisplayTimeCurrent() -> Void {
+    let a: Float;
+    let hourse: Int32;
+    let minutes: Int32;
+    GameTimeUtils.UpdateGameTimeText(this.m_timeSystem, this.m_currentTimeLabel, this.m_currentTimeTextParams);
+    this.m_currentTime = this.m_timeSystem.GetGameTime();
+    hourse = GameTime.Hours(this.m_currentTime);
+    minutes = GameTime.Minutes(this.m_currentTime);
+    a = (Cast<Float>(hourse) / 24.00 + Cast<Float>(minutes) / 1440.00) * 360.00;
+    this.m_currentTimeAngle = Deg2Rad(a) + 1.57;
+    this.m_currentTimeAngle = this.m_currentTimeAngle % 6.28;
+    inkWidgetRef.SetRotation(this.m_currentTimePointerRef, Rad2Deg(this.m_currentTimeAngle));
+    inkWidgetRef.SetRotation(this.m_circleGradientRef, Rad2Deg(this.m_currentTimeAngle + 1.57));
+    inkWidgetRef.SetRotation(this.m_startCircleGradientRef, Rad2Deg(this.m_currentTimeAngle + 1.57));
+  }
+
+  private final func ProcessMouseInput(mousePos: Vector2) -> Void {
+    let angle: Float;
+    let localPos: Vector2;
+    let rootSize: Vector2;
+    let rootWidget: wref<inkWidget>;
+    if this.m_inputEnabled {
+      rootWidget = this.GetRootWidget();
+      localPos = WidgetUtils.GlobalToLocal(inkWidgetRef.Get(this.m_rootContainerRef), mousePos);
+      rootSize = rootWidget.GetSize();
+      angle = AtanF(localPos.Y - rootSize.Y / 2.00, localPos.X - rootSize.X / 2.00);
+      this.UpdateTargetTime(angle);
+    };
+  }
+
+  private final func UpdateTargetTime(angle: Float) -> Void {
+    let barWidget: wref<inkWidget>;
+    let dx: Float;
+    let dy: Float;
+    let hoursToSkip: Int32;
+    this.m_targetTimeAngle = (angle + 6.28) % 6.28;
+    if this.m_currentTimeAngle > this.m_targetTimeAngle {
+      this.m_diff = Rad2Deg(6.28 - this.m_currentTimeAngle + this.m_targetTimeAngle);
+    } else {
+      this.m_diff = Rad2Deg(this.m_targetTimeAngle - this.m_currentTimeAngle);
+    };
+    hoursToSkip = FloorF(this.m_diff / 360.00 * 24.00) + 1;
+    if hoursToSkip != this.m_hoursToSkip {
+      this.m_hoursToSkip = hoursToSkip;
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+    };
+    dx = CosF(this.m_targetTimeAngle) * this.m_radius;
+    dy = SinF(this.m_targetTimeAngle) * this.m_radius;
+    inkWidgetRef.SetMargin(this.m_targetTimePointerRef, dx, dy, 0.00, 0.00);
+    GameTimeUtils.UpdateGameTimeText(this.m_timeSystem, this.m_tragetTimeLabel, this.m_targetTimeTextParams, this.m_hoursToSkip * 3600);
+    this.SetTimeSkipText(this.m_diffTimeLabel, this.m_diffTimeTextParams, this.m_hoursToSkip);
+    barWidget = inkWidgetRef.Get(this.m_timeBarRef);
+    barWidget.SetEffectParamValue(inkEffectType.RadialWipe, n"RadialWipe", n"startAngle", Rad2Deg(6.28 - this.m_targetTimeAngle));
+    barWidget.SetEffectParamValue(inkEffectType.RadialWipe, n"RadialWipe", n"transition", this.m_diff / 360.00);
+    inkWidgetRef.SetOpacity(this.m_startCircleGradientRef, Cast<Float>(this.m_hoursToSkip) / 24.00);
+    this.UpdateIconStates(this.m_currentTimeAngle, this.m_targetTimeAngle);
+  }
+
+  private final func PlayAnimation(animationName: CName, opt playbackOptions: inkAnimOptions) -> Void {
+    if IsDefined(this.m_animProxy) && this.m_animProxy.IsPlaying() {
+      this.m_animProxy.Stop(true);
+    };
+    this.m_animProxy = this.PlayLibraryAnimation(animationName, playbackOptions);
+  }
+
+  private final func UpdateIconStates(startAngle: Float, finishAngle: Float) -> Void {
+    inkWidgetRef.SetState(this.m_dayIconRef, this.IsBetween(startAngle, finishAngle, 4.71) ? n"Passed" : n"Default");
+    inkWidgetRef.SetState(this.m_nightIconRef, this.IsBetween(startAngle, finishAngle, 1.57) ? n"Passed" : n"Default");
+    inkWidgetRef.SetState(this.m_morningIconRef, this.IsBetween(startAngle, finishAngle, 3.14) ? n"Passed" : n"Default");
+    inkWidgetRef.SetState(this.m_eveningIconRef, this.IsBetween(startAngle, finishAngle, 6.28) ? n"Passed" : n"Default");
+  }
+
+  private final func IsBetween(start: Float, end: Float, mid: Float) -> Bool {
+    end = end - start < 0.00 ? end - start + 360.00 : end - start;
+    mid = mid - start < 0.00 ? mid - start + 360.00 : mid - start;
+    return mid < end;
+  }
+
+  private final func SetTimeSkipText(textWidgetRef: inkTextRef, textParamsRef: ref<inkTextParams>, hours: Int32) -> Void {
+    if textParamsRef == null {
+      textParamsRef = new inkTextParams();
+      textParamsRef.AddNumber("value", hours);
+      inkTextRef.SetLocalizedText(textWidgetRef, n"UI-Time-WaitHours", textParamsRef);
+    } else {
+      textParamsRef.UpdateNumber("value", hours);
+    };
+  }
+
+  private final func GetWeatherIcon() -> CName {
+    let iconName: CName;
+    let rainIntensity: worldRainIntensity = GameInstance.GetWeatherSystem(this.m_gameInstance).GetRainIntensityType();
+    switch rainIntensity {
+      case worldRainIntensity.HeavyRain:
+        iconName = n"icon_weather_heavyRain";
+        break;
+      case worldRainIntensity.LightRain:
+        iconName = n"icon_weather_lightRain";
+        break;
+      case worldRainIntensity.NoRain:
+        iconName = n"icon_weather_cloudy";
+    };
+    return iconName;
+  }
+}

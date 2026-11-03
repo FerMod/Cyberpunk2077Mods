@@ -1,0 +1,603 @@
+
+public class WardrobeSetEditorUIDelayCallback extends DelayCallback {
+
+  public let m_owner: wref<WardrobeSetEditorUIController>;
+
+  public func Call() -> Void {
+    this.m_owner.EquipCurrentSetVisuals();
+  }
+}
+
+public class WardrobeSetEditorUIController extends inkLogicController {
+
+  private edit let m_itemsGridWidget: inkWidgetRef;
+
+  private edit let m_itemGridText: inkTextRef;
+
+  private edit let m_sortingDropdown: inkWidgetRef;
+
+  private edit let m_sortingButton: inkWidgetRef;
+
+  private edit let m_hideFaceButton: inkWidgetRef;
+
+  private edit let m_hideHeadButton: inkWidgetRef;
+
+  private edit let m_emptyGridText: inkWidgetRef;
+
+  private edit let m_wearButton: inkWidgetRef;
+
+  private edit let m_takeOffButton: inkWidgetRef;
+
+  private edit let m_resetButton: inkWidgetRef;
+
+  private let m_itemGridClassifier: ref<ItemModeGridClassifier>;
+
+  private let m_itemGridDataView: ref<WardrobeItemGridView>;
+
+  private let m_itemGridDataSource: ref<ScriptableDataSource>;
+
+  private let m_tooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_InventoryManager: ref<InventoryDataManagerV2>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  private let m_wardrobeSystem: wref<WardrobeSystem>;
+
+  private let m_equipmentAreaCategoryEventQueue: [ref<EquipmentAreaCategoryCreated>];
+
+  private let m_equipmentAreaCategories: [ref<EquipmentAreaCategory>];
+
+  private let m_itemsPositionProvider: ref<ItemPositionProvider>;
+
+  private let m_comparisonResolver: ref<ItemPreferredComparisonResolver>;
+
+  private let m_wardrobeGameController: wref<WardrobeUIGameController>;
+
+  private let m_areaSlotControllers: [wref<InventoryItemDisplayController>];
+
+  private let m_hiddenEquipmentAreas: [gamedataEquipmentArea];
+
+  private let m_currentEquipmentArea: gamedataEquipmentArea;
+
+  private let m_currentSet: ref<ClothingSet>;
+
+  private let m_setButtonController: wref<ClothingSetController>;
+
+  private let m_previewController: wref<WardrobeSetPreviewGameController>;
+
+  private let m_delaySystem: wref<DelaySystem>;
+
+  private let m_delayedTimeoutCallbackId: DelayID;
+
+  @default(WardrobeSetEditorUIController, 0.5f)
+  private let m_timeoutPeroid: Float;
+
+  private let m_displayContextData: ref<ItemDisplayContextData>;
+
+  public final func Initialize(player: wref<PlayerPuppet>, tooltipsManager: wref<gameuiTooltipsManager>, buttonHintsController: wref<ButtonHints>, gameController: wref<WardrobeUIGameController>) -> Void {
+    let virtualGrid: ref<inkGridController>;
+    this.m_player = player;
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.m_displayContextData = ItemDisplayContextData.Make(this.m_player, ItemDisplayContext.GearPanel);
+    this.m_displayContextData.AddTag(n"Wardrobe");
+    this.m_wardrobeGameController = gameController;
+    this.m_tooltipsManager = tooltipsManager;
+    this.m_buttonHintsController = buttonHintsController;
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_equipmentSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    this.m_wardrobeSystem = GameInstance.GetWardrobeSystem(this.m_player.GetGame());
+    this.m_delaySystem = GameInstance.GetDelaySystem(this.m_player.GetGame());
+    this.m_itemGridClassifier = new ItemModeGridClassifier();
+    this.m_itemGridDataView = new WardrobeItemGridView();
+    this.m_itemGridDataSource = new ScriptableDataSource();
+    this.m_itemsPositionProvider = new ItemPositionProvider();
+    virtualGrid = inkWidgetRef.Get(this.m_itemsGridWidget).GetController() as inkGridController;
+    this.m_itemGridDataView.SetSource(this.m_itemGridDataSource);
+    virtualGrid.SetClassifier(this.m_itemGridClassifier);
+    virtualGrid.SetSource(this.m_itemGridDataView);
+    virtualGrid.SetProvider(this.m_itemsPositionProvider);
+    this.m_itemGridDataView.EnableSorting();
+    this.m_itemGridDataView.SetSortMode(ItemSortMode.Default);
+    this.m_itemGridDataView.SetFilterType(ItemFilterCategory.Invalid);
+    inkWidgetRef.SetVisible(this.m_itemsGridWidget, false);
+    this.m_comparisonResolver = ItemPreferredComparisonResolver.Make(this.m_InventoryManager);
+    this.m_itemGridDataView.BindUIScriptableSystem(this.m_uiScriptableSystem);
+    this.m_currentSet = new ClothingSet();
+    this.SetupDropdown();
+    this.SetupControlButtons();
+  }
+
+  private final func SetupDropdown() -> Void {
+    let controller: ref<DropdownListController>;
+    let data: ref<DropdownItemData>;
+    let sortingButtonController: ref<DropdownButtonController>;
+    inkWidgetRef.RegisterToCallback(this.m_sortingButton, n"OnRelease", this, n"OnSortingButtonClicked");
+    controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+    sortingButtonController = inkWidgetRef.GetController(this.m_sortingButton) as DropdownButtonController;
+    controller.Setup(this, SortingDropdownData.GeVisualsDropdownOptions());
+    data = SortingDropdownData.GetDropdownOption(controller.GetData(), ItemSortMode.Default);
+    sortingButtonController.SetData(data);
+    this.m_itemGridDataView.SetSortMode(FromVariant<ItemSortMode>(data.identifier));
+  }
+
+  private final func SetupControlButtons() -> Void {
+    inkWidgetRef.RegisterToCallback(this.m_wearButton, n"OnRelease", this, n"OnWearButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_takeOffButton, n"OnRelease", this, n"OnTakeOffButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_resetButton, n"OnRelease", this, n"OnResetButtonClicked");
+  }
+
+  protected cb func OnWearButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if this.m_setButtonController != null {
+        this.SaveSet();
+        this.m_wardrobeGameController.SetEquippedState(this.m_setButtonController.GetClothingSet().setID);
+        this.UpdateButtonVisibility();
+      };
+    };
+  }
+
+  protected cb func OnTakeOffButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if this.m_setButtonController != null {
+        this.SaveSet();
+        this.m_wardrobeGameController.SetEquippedState(gameWardrobeClothingSetIndex.INVALID);
+        this.UpdateButtonVisibility();
+      };
+    };
+  }
+
+  protected cb func OnResetButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if this.m_setButtonController != null {
+        this.m_wardrobeGameController.ResetSet(this.m_setButtonController.GetClothingSet().setID);
+        this.OpenSet(this.m_setButtonController);
+        this.UpdateButtonVisibility();
+      };
+    };
+  }
+
+  private final func UpdateButtonVisibility() -> Void {
+    inkWidgetRef.SetVisible(this.m_wearButton, !this.m_setButtonController.GetEquipped());
+    inkWidgetRef.SetVisible(this.m_takeOffButton, this.m_setButtonController.GetEquipped());
+    inkWidgetRef.SetVisible(this.m_resetButton, this.m_setButtonController.GetClothingSetChanged());
+  }
+
+  protected cb func OnDropdownItemClickedEvent(evt: ref<DropdownItemClickedEvent>) -> Bool {
+    let sortingButtonController: ref<DropdownButtonController>;
+    let identifier: ItemSortMode = FromVariant<ItemSortMode>(evt.identifier);
+    let data: ref<DropdownItemData> = SortingDropdownData.GetDropdownOption((inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController).GetData(), identifier);
+    if IsDefined(data) {
+      sortingButtonController = inkWidgetRef.GetController(this.m_sortingButton) as DropdownButtonController;
+      sortingButtonController.SetData(data);
+      this.m_itemGridDataView.SetSortMode(identifier);
+    };
+  }
+
+  protected cb func OnSortingButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: ref<DropdownListController>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_wardrobeGameController.PlayWardrobeSound(n"Button", n"OnPress");
+      controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+      controller.Toggle();
+    };
+  }
+
+  public final func OpenSet(setButtonController: wref<ClothingSetController>) -> Void {
+    let callback: ref<WardrobeSetEditorUIDelayCallback> = new WardrobeSetEditorUIDelayCallback();
+    callback.m_owner = this;
+    this.m_setButtonController = setButtonController;
+    this.m_currentSet = setButtonController.GetClothingSet();
+    inkTextRef.SetText(this.m_itemGridText, " ");
+    inkWidgetRef.SetVisible(this.m_itemsGridWidget, false);
+    if IsDefined(this.m_delaySystem) {
+      this.m_delaySystem.CancelCallback(this.m_delayedTimeoutCallbackId);
+      this.m_delayedTimeoutCallbackId = this.m_delaySystem.DelayCallback(callback, this.m_timeoutPeroid, false);
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_delaySystem.CancelCallback(this.m_delayedTimeoutCallbackId);
+    inkWidgetRef.UnregisterFromCallback(this.m_wearButton, n"OnRelease", this, n"OnWearButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_takeOffButton, n"OnRelease", this, n"OnTakeOffButtonClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_resetButton, n"OnRelease", this, n"OnResetButtonClicked");
+    this.m_InventoryManager.UnInitialize();
+  }
+
+  protected cb func OnEquipmentAreaCategoryCreated(e: ref<EquipmentAreaCategoryCreated>) -> Bool {
+    let equipmentAreaCategory: ref<EquipmentAreaCategory>;
+    let equipmentAreaController: ref<InventoryItemDisplayEquipmentArea>;
+    let equipmentAreaDisplays: ref<EquipmentAreaDisplays>;
+    let equipmentAreas: array<gamedataEquipmentArea>;
+    let i: Int32;
+    let j: Int32;
+    let numberOfSlots: Int32;
+    if IsDefined(this.m_InventoryManager) {
+      equipmentAreaCategory = new EquipmentAreaCategory();
+      equipmentAreaCategory.parentCategory = e.categoryController;
+      ArrayPush(this.m_equipmentAreaCategories, equipmentAreaCategory);
+      i = 0;
+      while i < ArraySize(e.equipmentAreasControllers) {
+        equipmentAreaController = e.equipmentAreasControllers[i];
+        equipmentAreaDisplays = new EquipmentAreaDisplays();
+        equipmentAreas = equipmentAreaController.GetEquipmentAreas();
+        j = 0;
+        while j < ArraySize(equipmentAreas) {
+          ArrayPush(equipmentAreaDisplays.equipmentAreas, equipmentAreas[j]);
+          j += 1;
+        };
+        equipmentAreaDisplays.displaysRoot = equipmentAreaController.GetRootWidget();
+        ArrayPush(equipmentAreaCategory.areaDisplays, equipmentAreaDisplays);
+        numberOfSlots = equipmentAreaController.GetNumberOfSlots();
+        this.PopulateArea(equipmentAreaDisplays.displaysRoot as inkCompoundWidget, equipmentAreaDisplays, numberOfSlots, equipmentAreas);
+        i += 1;
+      };
+    } else {
+      ArrayPush(this.m_equipmentAreaCategoryEventQueue, e);
+    };
+  }
+
+  private final func PopulateArea(targetRoot: wref<inkCompoundWidget>, container: ref<EquipmentAreaDisplays>, numberOfSlots: Int32, const equipmentAreas: script_ref<[gamedataEquipmentArea]>) -> Void {
+    let availableItems: array<InventoryItemData>;
+    let currentEquipmentArea: gamedataEquipmentArea;
+    let i: Int32;
+    let itemCount: Int32;
+    let slot: wref<InventoryItemDisplayController>;
+    while ArraySize(container.displayControllers) > numberOfSlots {
+      slot = ArrayPop(container.displayControllers);
+      targetRoot.RemoveChild(slot.GetRootWidget());
+    };
+    while ArraySize(container.displayControllers) < numberOfSlots {
+      slot = ItemDisplayUtils.SpawnCommonSlotController(this, targetRoot, n"visualDisplay") as InventoryItemDisplayController;
+      ArrayPush(container.displayControllers, slot);
+    };
+    i = 0;
+    while i < numberOfSlots {
+      currentEquipmentArea = gamedataEquipmentArea.Invalid;
+      if IsDefined(container.displayControllers[i]) {
+        currentEquipmentArea = Deref(equipmentAreas)[0];
+        availableItems = this.m_wardrobeSystem.GetFilteredInventoryItemsData(currentEquipmentArea, this.m_InventoryManager);
+        itemCount = ArraySize(availableItems);
+        container.displayControllers[i].BindVisualSlot(currentEquipmentArea, itemCount, i, ItemDisplayContext.GearPanel);
+        ArrayPush(this.m_areaSlotControllers, container.displayControllers[i]);
+      };
+      i += 1;
+    };
+  }
+
+  private final func SetAreaSlotHighlights(equipmentArea: gamedataEquipmentArea) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      this.m_areaSlotControllers[i].SetHighlighted(Equals(this.m_areaSlotControllers[i].GetEquipmentArea(), equipmentArea));
+      i += 1;
+    };
+  }
+
+  public final func SaveSet() -> Void {
+    let displayData: InventoryItemDisplayData;
+    let i: Int32;
+    let slotInfo: SSlotVisualInfo;
+    let wardrobeSetAddedEvent: ref<UIScriptableSystemWardrobeSetAdded>;
+    ArrayClear(this.m_currentSet.clothingList);
+    i = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      if ArrayContains(this.m_hiddenEquipmentAreas, this.m_areaSlotControllers[i].GetEquipmentArea()) {
+        this.UpdateEquipementSlot(this.m_areaSlotControllers[i], this.m_areaSlotControllers[i].GetEquipmentArea());
+        this.SetAreaSlotCovered(this.m_areaSlotControllers[i], true);
+      };
+      displayData = this.m_areaSlotControllers[i].GetItemDisplayData();
+      slotInfo.areaType = displayData.m_equipmentArea;
+      slotInfo.visualItem = this.m_wardrobeSystem.GetStoredItemID(ItemID.GetTDBID(displayData.m_itemID));
+      ArrayPush(this.m_currentSet.clothingList, slotInfo);
+      i += 1;
+    };
+    if ArraySize(this.m_currentSet.clothingList) > 0 {
+      this.m_wardrobeSystem.PushBackClothingSet(this.m_currentSet);
+    };
+    this.m_setButtonController.SetClothingSetChanged(false);
+    if !this.m_setButtonController.GetDefined() {
+      wardrobeSetAddedEvent = new UIScriptableSystemWardrobeSetAdded();
+      wardrobeSetAddedEvent.wardrobeSet = this.m_currentSet.setID;
+      this.m_uiScriptableSystem.QueueRequest(wardrobeSetAddedEvent);
+    };
+    this.m_setButtonController.SetDefined(true);
+  }
+
+  public final func EquipCurrentSetVisuals() -> Void {
+    this.EquipSetVisuals(this.m_currentSet);
+    this.m_setButtonController.SetClothingSetChanged(false);
+    this.UpdateButtonVisibility();
+    this.SetAreaSlotHighlights(gamedataEquipmentArea.Invalid);
+  }
+
+  protected final func EquipSetVisuals(set: ref<ClothingSet>) -> Void {
+    let itemEquipped: Bool;
+    let itemInventoryData: InventoryItemData;
+    let j: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      itemEquipped = false;
+      j = 0;
+      while j < ArraySize(set.clothingList) {
+        if Equals(this.m_areaSlotControllers[i].GetEquipmentArea(), set.clothingList[j].areaType) {
+          itemInventoryData = this.m_InventoryManager.GetInventoryItemDataFromItemID(set.clothingList[j].visualItem);
+          if ItemID.IsValid(InventoryItemData.GetID(itemInventoryData)) {
+            this.EquipItem(this.m_areaSlotControllers[i].GetEquipmentArea(), itemInventoryData);
+            itemEquipped = true;
+          };
+          break;
+        };
+        j += 1;
+      };
+      if !itemEquipped {
+        this.UnequipItem(this.m_areaSlotControllers[i].GetEquipmentArea());
+      };
+      i += 1;
+    };
+  }
+
+  public final func SendVisualEquipRequest() -> Void {
+    let request: ref<EquipWardrobeSetRequest> = new EquipWardrobeSetRequest();
+    request.owner = this.m_player;
+    request.setID = this.m_currentSet.setID;
+    this.m_equipmentSystem.QueueRequest(request);
+  }
+
+  protected cb func OnEquipmentClick(evt: ref<ItemDisplayClickEvent>) -> Bool {
+    let eventDisplayData: InventoryItemDisplayData = evt.display.GetItemDisplayData();
+    let currentDisplayData: InventoryItemDisplayData = this.GetItemDisplayByEquipmentArea(this.m_currentEquipmentArea).GetItemDisplayData();
+    if ArrayContains(this.m_hiddenEquipmentAreas, evt.display.GetEquipmentArea()) {
+      if evt.actionName.IsAction(n"click") || evt.actionName.IsAction(n"tap") {
+        this.m_wardrobeGameController.PlayWardrobeSound(n"Item", n"OnCraftFailed");
+      };
+      return true;
+    };
+    if (evt.actionName.IsAction(n"click") || evt.actionName.IsAction(n"tap")) && (Equals(evt.display.GetDisplayContext(), ItemDisplayContext.GearPanel) || Equals(evt.display.GetDisplayContext(), ItemDisplayContext.ItemChooser)) {
+      this.m_wardrobeGameController.PlayWardrobeSound(n"Button", n"OnPress");
+      this.m_currentEquipmentArea = evt.display.GetEquipmentArea();
+      this.SetAreaSlotHighlights(this.m_currentEquipmentArea);
+      this.UpdateAvailableItems(this.m_currentEquipmentArea);
+      inkTextRef.SetText(this.m_itemGridText, GetLocalizedText(evt.display.GetSlotName()));
+    } else {
+      if (evt.actionName.IsAction(n"equip_item") || evt.actionName.IsAction(n"double_tap")) && NotEquals(evt.display.GetDisplayContext(), ItemDisplayContext.GearPanel) && NotEquals(evt.display.GetDisplayContext(), ItemDisplayContext.ItemChooser) {
+        if eventDisplayData.m_itemID != currentDisplayData.m_itemID {
+          this.m_wardrobeGameController.PlayWardrobeSound(n"Item", n"OnBuy");
+          this.EquipItem(this.m_currentEquipmentArea, evt.itemData);
+          this.UpdateAvailableItems(this.m_currentEquipmentArea);
+        };
+      } else {
+        if (evt.actionName.IsAction(n"unequip_item") || evt.actionName.IsAction(n"double_tap")) && (Equals(evt.display.GetDisplayContext(), ItemDisplayContext.GearPanel) || Equals(evt.display.GetDisplayContext(), ItemDisplayContext.ItemChooser)) {
+          if ItemID.IsValid(eventDisplayData.m_itemID) {
+            this.UnequipItem(evt.display.GetEquipmentArea());
+            this.m_buttonHintsController.RemoveButtonHint(n"unequip_item");
+            if Equals(this.m_currentEquipmentArea, evt.display.GetEquipmentArea()) {
+              this.UpdateAvailableItems(this.m_currentEquipmentArea);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnEquipmentkHoverOver(evt: ref<ItemDisplayHoverOverEvent>) -> Bool {
+    let itemTooltipData: ref<ATooltipData>;
+    let slotName: String;
+    let slotHidden: Bool = ArrayContains(this.m_hiddenEquipmentAreas, evt.display.GetEquipmentArea());
+    if !slotHidden && !InventoryItemData.IsEmpty(evt.itemData) {
+      itemTooltipData = this.m_InventoryManager.GetTooltipDataForVisualItem(evt.itemData, InventoryItemData.IsEquipped(evt.itemData), this.m_displayContextData);
+      this.m_tooltipsManager.ShowTooltipAtWidget(n"visualTooltip", evt.widget, itemTooltipData, gameuiETooltipPlacement.RightTop, true);
+      WardrobeSystem.SendWardrobeInspectItemRequest(this.m_player.GetGame(), InventoryItemData.GetID(evt.itemData));
+    } else {
+      slotName = GetLocalizedText(evt.display.GetSlotName());
+      this.m_tooltipsManager.ShowTooltipAtWidget(0, evt.widget, this.m_InventoryManager.GetTooltipForEmptySlot(slotName), gameuiETooltipPlacement.RightTop, true);
+    };
+    if !slotHidden {
+      this.SetButtonHintsHoverOver(evt.display);
+    };
+  }
+
+  protected cb func OnEquipmentHoverOut(evt: ref<ItemDisplayHoverOutEvent>) -> Bool {
+    this.m_tooltipsManager.HideTooltips();
+    this.SetButtonHintsHoverOut();
+  }
+
+  private final func SetButtonHintsHoverOver(display: ref<InventoryItemDisplayController>) -> Void {
+    if Equals(display.GetDisplayContext(), ItemDisplayContext.GearPanel) {
+      this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("UI-Settings-ButtonMappings-Actions-Select"));
+      if !InventoryItemData.IsEmpty(display.GetItemData()) {
+        this.m_buttonHintsController.AddButtonHint(n"unequip_item", GetLocalizedText("UI-UserActions-Unequip"));
+      };
+    } else {
+      this.m_buttonHintsController.AddButtonHint(n"equip_item", GetLocalizedText("UI-UserActions-Equip"));
+    };
+  }
+
+  private final func EquipItem(equipmentArea: gamedataEquipmentArea, const inventoryItemData: script_ref<InventoryItemData>) -> Void {
+    this.m_setButtonController.SetClothingSetChanged(true);
+    this.UpdateButtonVisibility();
+    this.m_previewController.PreviewEquipItem(InventoryItemData.GetID(inventoryItemData));
+    this.UpdateEquipementSlot(this.GetItemDisplayByEquipmentArea(equipmentArea), equipmentArea, Deref(inventoryItemData));
+    this.ProcessHiddenSlots();
+  }
+
+  private final func UnequipItem(equipmentArea: gamedataEquipmentArea) -> Void {
+    this.m_setButtonController.SetClothingSetChanged(true);
+    this.UpdateButtonVisibility();
+    this.m_previewController.PreviewUnequipFromEquipmentArea(equipmentArea);
+    this.UpdateEquipementSlot(this.GetItemDisplayByEquipmentArea(equipmentArea), equipmentArea);
+    this.ProcessHiddenSlots();
+  }
+
+  private final func GetItemInSlot(area: gamedataEquipmentArea) -> ItemID {
+    let displayData: InventoryItemDisplayData;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      displayData = this.m_areaSlotControllers[i].GetItemDisplayData();
+      if Equals(displayData.m_equipmentArea, area) {
+        return displayData.m_itemID;
+      };
+      i += 1;
+    };
+    return ItemID.None();
+  }
+
+  private final func UpdateEquipementSlot(itemDisplay: wref<InventoryItemDisplayController>, equipmentArea: gamedataEquipmentArea, opt inventoryItemData: InventoryItemData) -> Void {
+    let availableItems: array<InventoryItemData>;
+    let itemsCount: Int32;
+    if InventoryItemData.IsEmpty(inventoryItemData) {
+      availableItems = this.m_wardrobeSystem.GetFilteredInventoryItemsData(equipmentArea, this.m_InventoryManager);
+      itemsCount = ArraySize(availableItems);
+    };
+    itemDisplay.InvalidateVisualContent(inventoryItemData, itemsCount, !InventoryItemData.IsEmpty(inventoryItemData));
+  }
+
+  private final func UpdateAvailableItems(equipmentArea: gamedataEquipmentArea) -> Void {
+    let availableItemTDBID: TweakDBID;
+    let availableItems: array<InventoryItemData>;
+    let data: ref<WardrobeWrappedInventoryItemData>;
+    let i: Int32;
+    let itemRecord: wref<Item_Record>;
+    let itemTDBIDInSlot: TweakDBID;
+    let virtualWrappedData: array<ref<IScriptable>>;
+    if Equals(equipmentArea, gamedataEquipmentArea.Invalid) {
+      return;
+    };
+    availableItems = this.m_wardrobeSystem.GetFilteredInventoryItemsData(equipmentArea, this.m_InventoryManager);
+    itemTDBIDInSlot = ItemID.GetTDBID(this.GetItemInSlot(equipmentArea));
+    inkWidgetRef.SetVisible(this.m_itemsGridWidget, true);
+    i = 0;
+    while i < ArraySize(availableItems) {
+      availableItemTDBID = ItemID.GetTDBID(InventoryItemData.GetID(availableItems[i]));
+      if itemTDBIDInSlot == availableItemTDBID {
+      } else {
+        data = new WardrobeWrappedInventoryItemData();
+        data.ItemData = availableItems[i];
+        data.ItemTemplate = 0u;
+        data.ComparisonState = this.m_comparisonResolver.GetItemComparisonState(data.ItemData);
+        data.IsNew = this.m_uiScriptableSystem.IsWardrobeItemNew(InventoryItemData.GetID(availableItems[i]));
+        itemRecord = TweakDBInterface.GetItemRecord(availableItemTDBID);
+        data.AppearanceName = NameToString(itemRecord.AppearanceName());
+        InventoryItemData.SetGameItemData(data.ItemData, this.m_InventoryManager.GetPlayerItemData(InventoryItemData.GetID(availableItems[i])));
+        ArrayPush(virtualWrappedData, data);
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_emptyGridText, ArraySize(availableItems) <= 0);
+    this.m_itemGridDataSource.Reset(virtualWrappedData);
+  }
+
+  private final func SetButtonHintsHoverOut() -> Void {
+    this.m_buttonHintsController.RemoveButtonHint(n"unequip_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"equip_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"select");
+  }
+
+  private final func GetItemDisplayByEquipmentArea(equipmentArea: gamedataEquipmentArea) -> wref<InventoryItemDisplayController> {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      if Equals(this.m_areaSlotControllers[i].GetEquipmentArea(), equipmentArea) {
+        return this.m_areaSlotControllers[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func ProcessHiddenSlots() -> Void {
+    let i: Int32;
+    let itemID: ItemID;
+    let j: Int32;
+    let slotArea: gamedataEquipmentArea;
+    let tagArea: gamedataEquipmentArea;
+    let viusaltags: array<CName>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_player.GetGame());
+    ArrayClear(this.m_hiddenEquipmentAreas);
+    i = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      slotArea = this.m_areaSlotControllers[i].GetEquipmentArea();
+      itemID = this.m_areaSlotControllers[i].GetItemID();
+      if InventoryItemData.IsEmpty(this.m_areaSlotControllers[i].GetItemData()) {
+      } else {
+        viusaltags = transactionSystem.GetVisualTagsByItemID(itemID, this.m_previewController.GetGamePuppet());
+        j = 0;
+        while j < ArraySize(viusaltags) {
+          tagArea = this.VisualTagToEquipmentArea(viusaltags[j]);
+          if NotEquals(tagArea, gamedataEquipmentArea.Invalid) && !ArrayContains(this.m_hiddenEquipmentAreas, tagArea) {
+            ArrayPush(this.m_hiddenEquipmentAreas, tagArea);
+          };
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_areaSlotControllers) {
+      slotArea = this.m_areaSlotControllers[i].GetEquipmentArea();
+      this.SetAreaSlotCovered(this.m_areaSlotControllers[i], ArrayContains(this.m_hiddenEquipmentAreas, slotArea));
+      i += 1;
+    };
+  }
+
+  private final func SetAreaSlotCovered(slotConstroller: wref<InventoryItemDisplayController>, isCovered: Bool) -> Void {
+    let availableItems: array<InventoryItemData>;
+    let inventoryItemData: InventoryItemData;
+    let itemsCount: Int32;
+    let showEquipped: Bool;
+    slotConstroller.SetWardrobeDisabled(isCovered);
+    inventoryItemData = slotConstroller.GetItemData();
+    if InventoryItemData.IsEmpty(inventoryItemData) && !isCovered {
+      availableItems = this.m_wardrobeSystem.GetFilteredInventoryItemsData(slotConstroller.GetEquipmentArea(), this.m_InventoryManager);
+      itemsCount = ArraySize(availableItems);
+    };
+    showEquipped = !InventoryItemData.IsEmpty(inventoryItemData) && !isCovered;
+    slotConstroller.InvalidateVisualContent(inventoryItemData, itemsCount, showEquipped);
+    (slotConstroller as VisualDisplayController).SetIconsVisible(!isCovered);
+  }
+
+  private final func VisualTagToEquipmentArea(tag: CName) -> gamedataEquipmentArea {
+    switch tag {
+      case n"hide_H1":
+        return gamedataEquipmentArea.Head;
+      case n"hide_F1":
+        return gamedataEquipmentArea.Face;
+      case n"hide_T2":
+        return gamedataEquipmentArea.OuterChest;
+      case n"hide_T1":
+        return gamedataEquipmentArea.InnerChest;
+      case n"hide_L1":
+        return gamedataEquipmentArea.Legs;
+      case n"hide_S1":
+        return gamedataEquipmentArea.Feet;
+      default:
+        return gamedataEquipmentArea.Invalid;
+    };
+  }
+
+  protected cb func OnRegisterPreviewControllerEvent(evt: ref<RegisterPreviewControllerEvent>) -> Bool {
+    this.m_previewController = evt.controller;
+    this.m_previewController.PreviewUnequipFromSlot(t"AttachmentSlots.Outfit");
+    this.m_previewController.PreviewUnequipFromSlot(t"AttachmentSlots.WeaponLeft");
+    this.m_previewController.PreviewUnequipFromSlot(t"AttachmentSlots.WeaponRight");
+    this.OpenSet(this.m_setButtonController);
+  }
+
+  public final func GetPreviewController() -> wref<WardrobeSetPreviewGameController> {
+    return this.m_previewController;
+  }
+}
+
+public class WardrobeItemGridView extends CommonItemsGridView {
+
+  public func SortItem(left: ref<IScriptable>, right: ref<IScriptable>) -> Bool {
+    let leftItem: ref<WardrobeWrappedInventoryItemData> = left as WardrobeWrappedInventoryItemData;
+    let rightItem: ref<WardrobeWrappedInventoryItemData> = right as WardrobeWrappedInventoryItemData;
+    return UnicodeStringCompare(leftItem.AppearanceName, rightItem.AppearanceName) > 0;
+  }
+}

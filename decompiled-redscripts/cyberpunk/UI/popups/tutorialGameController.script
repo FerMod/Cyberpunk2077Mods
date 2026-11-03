@@ -1,0 +1,589 @@
+
+public native class TutorialPopupGameController extends inkGameController {
+
+  public edit let m_actionHint: inkWidgetRef;
+
+  public edit let m_popupPanel: inkWidgetRef;
+
+  public edit let m_popupFullscreenPanel: inkWidgetRef;
+
+  public edit let m_fullscreenButtonContainerWidgetPath: CName;
+
+  public edit let m_popupBlockingPanel: inkWidgetRef;
+
+  public edit let m_popupFullscreenRightPanel: inkWidgetRef;
+
+  private let m_data: wref<TutorialPopupData>;
+
+  private let m_prevData: ref<TutorialPopupData>;
+
+  private let m_inputBlocked: Bool;
+
+  private let m_gamePaused: Bool;
+
+  private let m_isShownBbId: ref<CallbackHandle>;
+
+  private let m_isHoldAction: Bool;
+
+  private let m_isJoyconDetachPatternTutorial: Bool;
+
+  @default(TutorialPopupGameController, into_popup)
+  private let m_animIntroPopup: CName;
+
+  @default(TutorialPopupGameController, into_popup_modal)
+  private let m_animIntroPopupModal: CName;
+
+  @default(TutorialPopupGameController, into_fullscreen_left)
+  private let m_animIntroFullscreenLeft: CName;
+
+  @default(TutorialPopupGameController, into_fullscreen_right)
+  private let m_animIntroFullscreenRight: CName;
+
+  @default(TutorialPopupGameController, outro_popup)
+  private let m_animOutroPopup: CName;
+
+  @default(TutorialPopupGameController, outro_popup_modal)
+  private let m_animOutroPopupModal: CName;
+
+  @default(TutorialPopupGameController, outro_fullscreen_left)
+  private let m_animOutroFullscreenLeft: CName;
+
+  @default(TutorialPopupGameController, outro_fullscreen_right)
+  private let m_animOutroFullscreenRight: CName;
+
+  private let m_animIntro: CName;
+
+  private let m_animOutro: CName;
+
+  private let m_targetPopup: inkWidgetRef;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_targetPosition: PopupPosition;
+
+  private let m_onInputDeviceChangedCallbackID: ref<CallbackHandle>;
+
+  private let m_joyconDualStyleChangedListener: ref<CallbackHandle>;
+
+  private let m_uiContextIsActive: Bool;
+
+  private final native func RequestVisualState() -> Void;
+
+  private final native func RestorePreviousVisualState() -> Void;
+
+  private final native func AdaptToScreenComposition() -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RequestVisualState();
+    this.m_data = this.GetRootWidget().GetUserData(n"TutorialPopupData") as TutorialPopupData;
+    this.m_data.gyroTutorialProgress = 0;
+    this.m_targetPosition = this.m_data.position;
+    if this.m_data.closeAtInput {
+      this.BlockInput(true);
+    };
+    if this.m_data.pauseGame {
+      this.PauseGame(true);
+      this.PlaySound(n"GameMenu", n"OnOpen");
+    };
+    if !this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).GetBool(GetAllBlackboardDefs().InputSchemes.IsJoyconDualStyle) && this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UIGameData).GetBool(GetAllBlackboardDefs().UIGameData.DetachTutorialPopup_IsShown) {
+      this.ShowDetachTutorialPopup();
+    } else {
+      this.SetupView();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.RestorePreviousVisualState();
+    if this.m_inputBlocked {
+      this.BlockInput(false);
+    };
+    if this.m_gamePaused {
+      this.PauseGame(false);
+    };
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_onInputDeviceChangedCallbackID = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).RegisterListenerUint(GetAllBlackboardDefs().InputSchemes.Device, this, n"OnInputDeviceChanged");
+    if (playerPuppet as PlayerPuppet).IsInGyroTutorial() {
+      this.m_joyconDualStyleChangedListener = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).RegisterListenerBool(GetAllBlackboardDefs().InputSchemes.IsJoyconDualStyle, this, n"OnJoyconDualStyleChanged");
+    };
+    if this.m_inputBlocked {
+      playerPuppet.RegisterInputListener(this, n"UI_Apply");
+      playerPuppet.RegisterInputListener(this, n"UI_Cancel");
+      playerPuppet.RegisterInputListener(this, n"ChoiceApply");
+    };
+    this.RegisterGyroInputListeners(playerPuppet);
+    if this.m_data.gyroTutorialProgress > 0 && this.m_data.gyroTutorialProgress <= this.m_data.gyroTutorialProgressMax {
+      this.UpdateTutorialUiText();
+    };
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    if IsDefined(this.m_onInputDeviceChangedCallbackID) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).UnregisterListenerUint(GetAllBlackboardDefs().InputSchemes.Device, this.m_onInputDeviceChangedCallbackID);
+    };
+    if IsDefined(this.m_joyconDualStyleChangedListener) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).UnregisterListenerBool(GetAllBlackboardDefs().InputSchemes.IsJoyconDualStyle, this.m_joyconDualStyleChangedListener);
+    };
+    if this.m_inputBlocked {
+      this.GetPlayerControlledObject().UnregisterInputListener(this);
+    };
+    if this.m_uiContextIsActive {
+      this.ChangeUIContext(false);
+    };
+  }
+
+  protected cb func OnInputDeviceChanged(value: Uint32) -> Bool {
+    let popupController: ref<TutorialPopupDisplayController>;
+    let inputDevice: InputDevice = IntEnum<InputDevice>(Cast<Uint8>(value));
+    let inputScheme: InputScheme = IntEnum<InputScheme>(Cast<Uint8>(this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).GetUint(GetAllBlackboardDefs().InputSchemes.Scheme)));
+    if inkWidgetRef.IsValid(this.m_targetPopup) {
+      popupController = inkWidgetRef.GetController(this.m_targetPopup) as TutorialPopupDisplayController;
+      popupController.Refresh(inputDevice, inputScheme);
+    };
+  }
+
+  public final func CloseTutorial() -> Void {
+    let bb: ref<IBlackboard>;
+    if this.m_animationProxy != null {
+      this.m_animationProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_animationProxy.Stop();
+      this.m_animationProxy = null;
+    };
+    this.m_animationProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(this.m_animOutro, inkWidgetRef.Get(this.m_targetPopup));
+    this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutro");
+    this.PlaySound(n"GameMenu", n"OnClose");
+    bb = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UIGameData);
+    if bb.GetBool(GetAllBlackboardDefs().UIGameData.DetachTutorialPopup_IsShown) {
+      bb.SetBool(GetAllBlackboardDefs().UIGameData.DetachTutorialPopup_IsShown, false);
+    };
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent>;
+    if !this.m_isJoyconDetachPatternTutorial && !this.m_isHoldAction && e.IsAction(n"close_tutorial") {
+      this.CloseTutorial();
+    } else {
+      if this.m_isJoyconDetachPatternTutorial && e.IsAction(n"OpenPauseMenu_Tutorial") {
+        menuEvent = new inkMenuInstance_SpawnEvent();
+        menuEvent.Init(n"OnOpenPauseMenu");
+        GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(menuEvent);
+      };
+    };
+  }
+
+  protected cb func OnHold(e: ref<inkPointerEvent>) -> Bool {
+    let progress: Float = e.GetHoldProgress();
+    if !this.m_isJoyconDetachPatternTutorial && this.m_isHoldAction && progress >= 1.00 && e.IsAction(n"close_tutorial") {
+      this.CloseTutorial();
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let actionName: String = NameToString(ListenerAction.GetName(action));
+    let actionPatternTutorialName: String = NameToString(ListenerAction.GetPatternTutorialName(action));
+    if NotEquals(actionName, "") {
+      if this.m_data.gyroTutorialProgress < 0 {
+        this.m_data.gyroTutorialProgress = 0;
+      } else {
+        if this.m_data.gyroTutorialProgress <= this.m_data.gyroTutorialProgressMax {
+          this.SetGyroTutorialFact(actionName, actionPatternTutorialName);
+          this.UpdateTutorialUiText();
+        } else {
+          this.PauseGame(false);
+        };
+      };
+    };
+  }
+
+  public final func ChangeUIContext(value: Bool) -> Void {
+    let psmEvent: ref<PSMPostponedParameterBool>;
+    this.m_uiContextIsActive = value;
+    if value {
+      psmEvent = new PSMPostponedParameterBool();
+      psmEvent.id = n"OnUIContextActive";
+    } else {
+      psmEvent = new PSMPostponedParameterBool();
+      psmEvent.id = n"OnUIContextInactive";
+    };
+    psmEvent.value = true;
+    this.GetPlayerControlledObject().QueueEvent(psmEvent);
+  }
+
+  public final func SetupTutorialPopupView() -> Void {
+    this.BlockInput(this.m_data.closeAtInput);
+    this.PauseGame(this.m_data.pauseGame);
+    this.ContinueButtonSetState(!this.m_isJoyconDetachPatternTutorial, this.m_data.gyroTutorialProgress > 0);
+    this.SetupView();
+    this.ChangeUIContext(this.m_data.pauseGame);
+    this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UIGameData).SetBool(GetAllBlackboardDefs().UIGameData.DetachTutorialPopup_IsShown, this.m_isJoyconDetachPatternTutorial);
+  }
+
+  public final func ShowDetachTutorialPopup() -> Void {
+    this.m_prevData = new TutorialPopupData();
+    this.CopyPopupData(this.m_data, this.m_prevData);
+    this.CopyPopupData(new DetachTutorialPopupData(), this.m_data);
+    this.m_isJoyconDetachPatternTutorial = true;
+    this.SetupTutorialPopupView();
+  }
+
+  public final func CopyPopupData(from: ref<TutorialPopupData>, to: ref<TutorialPopupData>) -> Void {
+    to.title = from.title;
+    to.message = from.message;
+    to.videoType = from.videoType;
+    to.video = from.video;
+    to.pauseGame = from.pauseGame;
+    to.isModal = from.isModal;
+    to.closeAtInput = from.closeAtInput;
+    to.position = from.position;
+    to.gyroTutorialProgress = from.gyroTutorialProgress;
+  }
+
+  protected cb func OnJoyconDualStyleChanged(value: Bool) -> Bool {
+    if this.m_isJoyconDetachPatternTutorial && value {
+      if this.m_prevData != null {
+        this.CopyPopupData(this.m_prevData, this.m_data);
+        this.m_prevData = null;
+        this.m_isJoyconDetachPatternTutorial = false;
+        this.SetupTutorialPopupView();
+      } else {
+        this.CloseTutorial();
+      };
+    } else {
+      if !value {
+        this.ShowDetachTutorialPopup();
+      };
+    };
+  }
+
+  protected cb func OnGyroTutorialUIEvent(evt: ref<GyroTutorialUIEvent>) -> Bool {
+    let actionName: String = NameToString(evt.actionName);
+    let actionPatternTutorialName: String = NameToString(evt.actionPatternTutorialName);
+    this.SetGyroTutorialFact(actionName, actionPatternTutorialName);
+    if this.m_data.gyroTutorialProgress > 0 && this.m_data.gyroTutorialProgress <= this.m_data.gyroTutorialProgressMax {
+      this.UpdateTutorialUiText();
+    };
+  }
+
+  private final func ContinueButtonSetState(isEnabled: Bool, isHoldAction: Bool) -> Void {
+    let inputDisplayController: ref<inkInputDisplayController>;
+    let widgetPath: CName = this.m_fullscreenButtonContainerWidgetPath + n"/inputDisplayController";
+    let widget: wref<inkWidget> = this.GetWidget(widgetPath);
+    if IsDefined(widget) {
+      inputDisplayController = widget.GetController() as inkInputDisplayController;
+      if IsDefined(inputDisplayController) {
+        this.m_isHoldAction = isHoldAction;
+        inputDisplayController.SetInputAction(n"close_tutorial");
+        inputDisplayController.SetHoldIndicatorType(isEnabled && isHoldAction ? inkInputHintHoldIndicationType.Hold : inkInputHintHoldIndicationType.Press);
+      };
+    };
+    widgetPath = this.m_fullscreenButtonContainerWidgetPath + n"/inputDisplayController/container/inputRoot/inputIcon";
+    widget = this.GetWidget(widgetPath);
+    if IsDefined(widget) {
+      widget.BindProperty(n"tintColor", isEnabled ? n"MainColors.Blue" : n"MainColors.Grey");
+    };
+    widgetPath = this.m_fullscreenButtonContainerWidgetPath + n"/inputDisplayController/container/inputRoot/inputText";
+    widget = this.GetWidget(widgetPath);
+    if IsDefined(widget) {
+      widget.BindProperty(n"tintColor", isEnabled ? n"MainColors.Blue" : n"MainColors.Grey");
+    };
+    widgetPath = this.m_fullscreenButtonContainerWidgetPath + n"/action";
+    widget = this.GetWidget(widgetPath);
+    if IsDefined(widget) {
+      widget.BindProperty(n"tintColor", isEnabled ? n"MainColors.Red" : n"MainColors.Grey");
+    };
+  }
+
+  private final func RegisterGyroInputListeners(owner: ref<GameObject>) -> Void {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(owner.GetGame());
+    this.m_data.hasGyroTutorialCounter = questSystem.GetFact(n"gyro_tutorial_show_counter") == 1;
+    if questSystem.GetFact(n"gyro_light_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_light_attack_tutorial_seen") == 0 {
+      owner.RegisterInputListener(this, this.m_inputBlocked ? n"MeleeAttack_Tutorial" : n"MeleeAttack");
+      this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_light_attack_tutorial");
+    } else {
+      if questSystem.GetFact(n"gyro_strong_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_strong_attack_tutorial_seen") == 0 {
+        owner.RegisterInputListener(this, this.m_inputBlocked ? n"MeleeAttack_Tutorial" : n"MeleeAttack");
+        this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_strong_attack_tutorial");
+      } else {
+        if questSystem.GetFact(n"gyro_charged_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_charged_attack_tutorial_seen") == 0 {
+          owner.RegisterInputListener(this, this.m_inputBlocked ? n"MeleeAttack_Tutorial" : n"MeleeAttack");
+          this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_charged_attack_tutorial");
+        } else {
+          if questSystem.GetFact(n"gyro_reload_tutorial") > 0 && questSystem.GetFact(n"gyro_reload_tutorial_seen") == 0 {
+            owner.RegisterInputListener(this, this.m_inputBlocked ? n"Reload_Tutorial" : n"Reload");
+            this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_reload_tutorial");
+          } else {
+            if questSystem.GetFact(n"gyro_dodge_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_tutorial_seen") == 0 {
+              owner.RegisterInputListener(this, this.m_inputBlocked ? n"Dodge_Tutorial" : n"Dodge");
+              this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_tutorial");
+            } else {
+              if questSystem.GetFact(n"gyro_dodge_left_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_left_tutorial_seen") == 0 {
+                owner.RegisterInputListener(this, this.m_inputBlocked ? n"Dodge_Tutorial" : n"Dodge");
+                this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_left_tutorial");
+              } else {
+                if questSystem.GetFact(n"gyro_dodge_right_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_right_tutorial_seen") == 0 {
+                  owner.RegisterInputListener(this, this.m_inputBlocked ? n"Dodge_Tutorial" : n"Dodge");
+                  this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_right_tutorial");
+                } else {
+                  if questSystem.GetFact(n"gyro_inhaler_tutorial") > 0 && questSystem.GetFact(n"gyro_inhaler_tutorial_seen") == 0 {
+                    owner.RegisterInputListener(this, this.m_inputBlocked ? n"UseConsumable_Tutorial" : n"UseConsumable");
+                    this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_inhaler_tutorial");
+                  } else {
+                    if questSystem.GetFact(n"gyro_detach_tutorial") > 0 && questSystem.GetFact(n"gyro_detach_tutorial_seen") == 0 {
+                      this.m_isJoyconDetachPatternTutorial = !this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).GetBool(GetAllBlackboardDefs().InputSchemes.IsJoyconDualStyle);
+                      this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_detach_tutorial");
+                    } else {
+                      if questSystem.GetFact(n"gyro_settings_tutorial") > 0 && questSystem.GetFact(n"gyro_settings_tutorial_seen") == 0 {
+                        this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_settings_tutorial");
+                      } else {
+                        if questSystem.GetFact(n"gyro_sensor_reset_tutorial") > 0 && questSystem.GetFact(n"gyro_sensor_reset_tutorial_seen") == 0 {
+                          this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_sensor_reset_tutorial");
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    if this.m_data.gyroTutorialProgress > 0 || Equals(this.m_data.title, "LocKey#97281") {
+      this.ContinueButtonSetState(!this.m_isJoyconDetachPatternTutorial, true);
+    };
+  }
+
+  public final func SetGyroTutorialFact(actionName: String, actionPatternTutorialName: String) -> Void {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame());
+    if questSystem.GetFact(n"gyro_tutorial_show_counter") == 0 && this.m_data.gyroTutorialProgress + 1 > this.m_data.gyroTutorialProgressMax {
+      this.m_data.gyroTutorialProgress = this.m_data.gyroTutorialProgressMax - 1;
+    };
+    if StrContains(actionName, "MeleeAttack") {
+      if StrContains(actionPatternTutorialName, "MeleeAttack_Normal") && questSystem.GetFact(n"gyro_light_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_light_attack_tutorial_seen") == 0 {
+        questSystem.SetFact(n"gyro_light_attack_tutorial", this.m_data.gyroTutorialProgress + 1);
+        this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_light_attack_tutorial");
+      } else {
+        if StrContains(actionPatternTutorialName, "MeleeAttack_Heavy") && questSystem.GetFact(n"gyro_strong_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_strong_attack_tutorial_seen") == 0 {
+          questSystem.SetFact(n"gyro_strong_attack_tutorial", this.m_data.gyroTutorialProgress + 1);
+          this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_strong_attack_tutorial");
+        } else {
+          if StrContains(actionPatternTutorialName, "MeleeAttack_Charge") && questSystem.GetFact(n"gyro_charged_attack_tutorial") > 0 && questSystem.GetFact(n"gyro_charged_attack_tutorial_seen") == 0 {
+            questSystem.SetFact(n"gyro_charged_attack_tutorial", this.m_data.gyroTutorialProgress + 1);
+            this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_charged_attack_tutorial");
+          };
+        };
+      };
+    } else {
+      if Equals(actionName, "Reload_Tutorial") && questSystem.GetFact(n"gyro_reload_tutorial") > 0 && questSystem.GetFact(n"gyro_reload_tutorial_seen") == 0 {
+        questSystem.SetFact(n"gyro_reload_tutorial", this.m_data.gyroTutorialProgress + 1);
+        this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_reload_tutorial");
+      } else {
+        if (Equals(actionName, "Dodge_Tutorial") || StrContains(actionPatternTutorialName, "Dodge")) && questSystem.GetFact(n"gyro_dodge_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_tutorial_seen") == 0 {
+          questSystem.SetFact(n"gyro_dodge_tutorial", this.m_data.gyroTutorialProgress + 1);
+          this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_tutorial");
+        } else {
+          if (Equals(actionName, "Dodge_Tutorial") || StrContains(actionPatternTutorialName, "Dodge")) && questSystem.GetFact(n"gyro_dodge_left_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_left_tutorial_seen") == 0 {
+            questSystem.SetFact(n"gyro_dodge_left_tutorial", this.m_data.gyroTutorialProgress + 1);
+            this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_left_tutorial");
+          } else {
+            if (Equals(actionName, "Dodge_Tutorial") || StrContains(actionPatternTutorialName, "Dodge")) && questSystem.GetFact(n"gyro_dodge_right_tutorial") > 0 && questSystem.GetFact(n"gyro_dodge_right_tutorial_seen") == 0 {
+              questSystem.SetFact(n"gyro_dodge_right_tutorial", this.m_data.gyroTutorialProgress + 1);
+              this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_dodge_right_tutorial");
+            } else {
+              if Equals(actionName, "UseConsumable_Tutorial") && questSystem.GetFact(n"gyro_inhaler_tutorial") > 0 && questSystem.GetFact(n"gyro_inhaler_tutorial_seen") == 0 {
+                questSystem.SetFact(n"gyro_inhaler_tutorial", this.m_data.gyroTutorialProgress + 1);
+                this.m_data.gyroTutorialProgress = questSystem.GetFact(n"gyro_inhaler_tutorial");
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  public final func UpdateTutorialUiText() -> Void {
+    let inputBB: ref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes);
+    let inputDevice: InputDevice = IntEnum<InputDevice>(Cast<Uint8>(inputBB.GetUint(GetAllBlackboardDefs().InputSchemes.Device)));
+    let inputScheme: InputScheme = IntEnum<InputScheme>(Cast<Uint8>(inputBB.GetUint(GetAllBlackboardDefs().InputSchemes.Scheme)));
+    let displayController: ref<TutorialPopupDisplayController> = inkWidgetRef.GetController(this.m_targetPopup) as TutorialPopupDisplayController;
+    displayController.SetData(this.m_data, inputDevice, inputScheme);
+  }
+
+  private final func BlockInput(value: Bool) -> Void {
+    if NotEquals(this.m_inputBlocked, value) {
+      this.m_inputBlocked = value;
+      if this.m_inputBlocked {
+        this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+        this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnHold");
+      } else {
+        this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+        this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnHold");
+      };
+    };
+  }
+
+  private final func PauseGame(value: Bool) -> Void {
+    if NotEquals(this.m_gamePaused, value) {
+      this.m_gamePaused = value;
+      if value {
+        GameInstance.GetTimeSystem(this.GetPlayerControlledObject().GetGame()).SetTimeDilation(n"UI_TutorialPopup", 0.00);
+        GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"global_tutorial_open");
+      } else {
+        GameInstance.GetTimeSystem(this.GetPlayerControlledObject().GetGame()).UnsetTimeDilation(n"UI_TutorialPopup");
+        GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"ui_menu_tutorial_close");
+        GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"global_tutorial_close");
+      };
+    };
+  }
+
+  private final func SetupView() -> Void {
+    let isMouserActive: Bool;
+    let targetMargin: inkMargin;
+    this.GetRootWidget().SetVisible(true);
+    inkWidgetRef.SetVisible(this.m_popupPanel, false);
+    inkWidgetRef.SetVisible(this.m_popupFullscreenPanel, false);
+    inkWidgetRef.SetVisible(this.m_popupBlockingPanel, false);
+    inkWidgetRef.SetVisible(this.m_popupFullscreenRightPanel, false);
+    if Equals(this.m_data.title, "LocKey#19637") && Equals(this.m_data.message, "LocKey#19639") {
+      isMouserActive = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes).GetBool(GetAllBlackboardDefs().InputSchemes.IsMouserActive);
+      if isMouserActive {
+        return;
+      };
+    };
+    if this.m_animationProxy != null {
+      this.m_animationProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_animationProxy.Stop();
+      this.m_animationProxy = null;
+    };
+    if this.m_data.isModal {
+      if Equals(this.m_data.position, PopupPosition.UpperRight) || Equals(this.m_data.position, PopupPosition.LowerRight) {
+        this.m_targetPopup = this.m_popupFullscreenRightPanel;
+        this.m_animIntro = this.m_animIntroFullscreenRight;
+        this.m_animOutro = this.m_animOutroFullscreenRight;
+      } else {
+        this.m_targetPopup = this.m_popupFullscreenPanel;
+        this.m_animIntro = this.m_animIntroFullscreenLeft;
+        this.m_animOutro = this.m_animOutroFullscreenLeft;
+      };
+      inkWidgetRef.SetVisible(this.m_targetPopup, true);
+      targetMargin = inkWidgetRef.GetMargin(this.m_targetPopup);
+      targetMargin.left += this.m_data.margin.left;
+      targetMargin.top += this.m_data.margin.top;
+      targetMargin.right += this.m_data.margin.right;
+      targetMargin.bottom += this.m_data.margin.bottom;
+      inkWidgetRef.SetMargin(this.m_targetPopup, targetMargin);
+    } else {
+      if this.m_data.closeAtInput {
+        this.m_targetPopup = this.m_popupBlockingPanel;
+        this.m_animIntro = this.m_animIntroPopupModal;
+        this.m_animOutro = this.m_animOutroPopupModal;
+      } else {
+        this.m_targetPopup = this.m_popupPanel;
+        this.m_animIntro = this.m_animIntroPopup;
+        this.m_animOutro = this.m_animOutroPopup;
+      };
+      inkWidgetRef.SetVisible(this.m_targetPopup, true);
+      targetMargin = inkWidgetRef.GetMargin(this.m_targetPopup);
+      targetMargin.left += this.m_data.margin.left;
+      targetMargin.top += this.m_data.margin.top;
+      targetMargin.right += this.m_data.margin.right;
+      targetMargin.bottom += this.m_data.margin.bottom;
+      inkWidgetRef.SetMargin(this.m_targetPopup, targetMargin);
+      this.m_targetPosition = this.m_data.position;
+      switch this.m_targetPosition {
+        case PopupPosition.UpperRight:
+          inkWidgetRef.SetAnchorPoint(this.m_targetPopup, 1.00, 0.00);
+          inkWidgetRef.SetAnchor(this.m_targetPopup, inkEAnchor.TopRight);
+          break;
+        case PopupPosition.UpperLeft:
+          inkWidgetRef.SetAnchorPoint(this.m_targetPopup, 0.00, 0.00);
+          inkWidgetRef.SetAnchor(this.m_targetPopup, inkEAnchor.TopLeft);
+          break;
+        case PopupPosition.LowerLeft:
+          inkWidgetRef.SetAnchorPoint(this.m_targetPopup, 0.00, 1.00);
+          inkWidgetRef.SetAnchor(this.m_targetPopup, inkEAnchor.BottomLeft);
+          this.AdaptToDpadHints();
+          break;
+        case PopupPosition.LowerRight:
+          inkWidgetRef.SetAnchorPoint(this.m_targetPopup, 1.00, 1.00);
+          inkWidgetRef.SetAnchor(this.m_targetPopup, inkEAnchor.BottomRight);
+          break;
+        case PopupPosition.Center:
+        case PopupPosition.Undefined:
+          inkWidgetRef.SetAnchorPoint(this.m_targetPopup, 0.50, 0.50);
+          inkWidgetRef.SetAnchor(this.m_targetPopup, inkEAnchor.Centered);
+      };
+    };
+    this.UpdateTutorialUiText();
+    this.AdaptToScreenComposition();
+    this.m_animationProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(this.m_animIntro, inkWidgetRef.Get(this.m_targetPopup));
+    this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntro");
+  }
+
+  private final func AdaptToBlackBars(offset: Float) -> Void {
+    let popupTranslation: Vector2 = inkWidgetRef.GetTranslation(this.m_targetPopup);
+    switch this.m_targetPosition {
+      case PopupPosition.LowerLeft:
+      case PopupPosition.UpperLeft:
+        popupTranslation.X += offset;
+        inkWidgetRef.SetTranslation(this.m_targetPopup, popupTranslation);
+        break;
+      case PopupPosition.UpperRight:
+      case PopupPosition.LowerRight:
+        popupTranslation.X -= offset;
+        inkWidgetRef.SetTranslation(this.m_targetPopup, popupTranslation);
+        break;
+      case PopupPosition.Center:
+      case PopupPosition.Undefined:
+        return;
+    };
+  }
+
+  private final func AdaptToHudSafezones(safezones: Vector2) -> Void {
+    let targetMargin: inkMargin = inkWidgetRef.GetMargin(this.m_targetPopup);
+    targetMargin.left += this.m_data.margin.left;
+    targetMargin.top += this.m_data.margin.top;
+    targetMargin.right += this.m_data.margin.right;
+    targetMargin.bottom += this.m_data.margin.bottom;
+    switch this.m_targetPosition {
+      case PopupPosition.UpperLeft:
+        targetMargin.left += safezones.X;
+        targetMargin.top += safezones.Y;
+        break;
+      case PopupPosition.LowerLeft:
+        targetMargin.left += safezones.X;
+        targetMargin.bottom += safezones.Y;
+        break;
+      case PopupPosition.LowerRight:
+        targetMargin.right += safezones.X;
+        targetMargin.bottom += safezones.Y;
+        break;
+      case PopupPosition.UpperRight:
+        targetMargin.right += safezones.X;
+        targetMargin.top += safezones.Y;
+        break;
+      default:
+    };
+    inkWidgetRef.SetMargin(this.m_targetPopup, targetMargin);
+  }
+
+  private final func AdaptToDpadHints() -> Void {
+    let isBiggerHudEnabled: Bool = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).GetHudScalingOverride() > 1.00;
+    let targetMargin: inkMargin = inkWidgetRef.GetMargin(this.m_targetPopup);
+    if targetMargin.bottom > 0.00 {
+      targetMargin.bottom += isBiggerHudEnabled ? 300.00 : 200.00;
+      inkWidgetRef.SetMargin(this.m_targetPopup, targetMargin);
+    };
+  }
+
+  protected cb func OnIntro(anim: ref<inkAnimProxy>) -> Bool {
+    if this.m_gamePaused {
+      GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"ui_menu_tutorial_open");
+    };
+  }
+
+  protected cb func OnOutro(anim: ref<inkAnimProxy>) -> Bool {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}

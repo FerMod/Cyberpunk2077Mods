@@ -1,0 +1,94 @@
+
+public class TooltipAnimationController extends inkLogicController {
+
+  private edit let m_tooltipContainer: inkWidgetRef;
+
+  private let m_tooltipAnimHideDef: ref<inkAnimDef>;
+
+  private let m_tooltipDelayedShowDef: ref<inkAnimDef>;
+
+  private let m_tooltipAnimHide: ref<inkAnimProxy>;
+
+  private let m_tooltipDelayedShow: ref<inkAnimProxy>;
+
+  @default(TooltipAnimationController, 0.4)
+  private let m_axisDataThreshold: Float;
+
+  @default(TooltipAnimationController, 0.9)
+  private let m_mouseDataThreshold: Float;
+
+  private let m_isHidden: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+    this.m_tooltipAnimHideDef = this.GetShowingAnimation();
+    this.m_tooltipDelayedShowDef = this.GetHidingAnimation();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnAxisInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnAxisInput");
+  }
+
+  protected cb func OnAxisInput(evt: ref<inkPointerEvent>) -> Bool {
+    let axisData: Float = evt.GetAxisData();
+    if (evt.IsAction(n"left_stick_x") || evt.IsAction(n"left_stick_y")) && AbsF(axisData) > this.m_axisDataThreshold || (evt.IsAction(n"mouse_x") || evt.IsAction(n"mouse_y")) && AbsF(axisData) > this.m_mouseDataThreshold || (evt.IsAction(n"jcms_x") || evt.IsAction(n"jcms_y")) && AbsF(axisData) > this.m_mouseDataThreshold {
+      if IsDefined(this.m_tooltipAnimHide) && this.m_tooltipAnimHide.IsPlaying() {
+      } else {
+        if IsDefined(this.m_tooltipDelayedShow) && this.m_tooltipDelayedShow.IsPlaying() {
+          this.m_tooltipDelayedShow.Stop(true);
+          this.m_tooltipDelayedShow = inkWidgetRef.PlayAnimation(this.m_tooltipContainer, this.m_tooltipDelayedShowDef);
+          this.m_tooltipDelayedShow.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShown");
+        } else {
+          if IsDefined(this.m_tooltipAnimHide) {
+            this.m_tooltipAnimHide.Stop(true);
+            this.m_tooltipAnimHide = null;
+          };
+          this.m_tooltipAnimHide = inkWidgetRef.PlayAnimation(this.m_tooltipContainer, this.m_tooltipAnimHideDef);
+          this.m_tooltipAnimHide.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHidden");
+        };
+      };
+    };
+  }
+
+  protected cb func OnHidden(proxy: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_tooltipDelayedShow) {
+      this.m_tooltipDelayedShow.Stop(true);
+      this.m_tooltipDelayedShow = null;
+    };
+    this.m_tooltipDelayedShow = inkWidgetRef.PlayAnimation(this.m_tooltipContainer, this.m_tooltipDelayedShowDef);
+    this.m_tooltipDelayedShow.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShown");
+    this.m_isHidden = true;
+  }
+
+  protected cb func OnShown(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_isHidden = false;
+  }
+
+  private final func GetShowingAnimation() -> ref<inkAnimDef> {
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.10);
+    transparencyInterpolator.SetStartDelay(0.10);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Exponential);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetStartTransparency(0.00);
+    transparencyInterpolator.SetEndTransparency(1.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    return transparencyAnimation;
+  }
+
+  private final func GetHidingAnimation() -> ref<inkAnimDef> {
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.05);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.To);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Exponential);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetEndTransparency(0.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    return transparencyAnimation;
+  }
+}

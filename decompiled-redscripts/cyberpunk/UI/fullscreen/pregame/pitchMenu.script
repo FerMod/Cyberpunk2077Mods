@@ -1,0 +1,234 @@
+
+public class PitchMenuGameController extends gameuiMenuGameController {
+
+  private edit let m_defaultInputHintRef: inkWidgetRef;
+
+  private edit let m_alreadyRegisteredInputHintRef: inkWidgetRef;
+
+  private edit let m_guestTitleRef: inkWidgetRef;
+
+  private edit let m_signedInTitleContainerRef: inkWidgetRef;
+
+  private edit let m_usernameRef: inkTextRef;
+
+  private let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_alreadySignedIn: Bool;
+
+  private let m_onlineSystem: wref<IOnlineSystem>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  @default(PitchMenuGameController, false)
+  private let m_signinPopupDisplayed: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_onlineSystem = GameInstance.GetOnlineSystem(this.GetPlayerControlledObject().GetGame());
+    this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.m_alreadySignedIn = this.m_requestHandler.GetIsSignedIn();
+    if this.m_alreadySignedIn {
+      inkWidgetRef.SetVisible(this.m_defaultInputHintRef, false);
+      inkWidgetRef.SetVisible(this.m_alreadyRegisteredInputHintRef, true);
+      inkWidgetRef.SetVisible(this.m_guestTitleRef, false);
+      inkTextRef.SetText(this.m_usernameRef, this.m_onlineSystem.GetGalaxyPersonaName());
+    } else {
+      inkWidgetRef.SetVisible(this.m_defaultInputHintRef, true);
+      inkWidgetRef.SetVisible(this.m_alreadyRegisteredInputHintRef, false);
+      inkWidgetRef.SetVisible(this.m_guestTitleRef, true);
+      inkWidgetRef.SetVisible(this.m_signedInTitleContainerRef, false);
+    };
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_alreadySignedIn && evt.IsAction(n"system_notification_confirm") {
+      this.PlaySound(n"Button", n"OnPress");
+      if !this.m_signinPopupDisplayed {
+        this.m_signinPopupDisplayed = true;
+        this.ShowSignInPopup();
+      };
+      inkWidgetRef.SetVisible(this.m_defaultInputHintRef, false);
+      inkWidgetRef.SetVisible(this.m_alreadyRegisteredInputHintRef, false);
+    };
+    if evt.IsAction(n"back") {
+      this.LeavePitchMenu();
+    };
+  }
+
+  private final func ShowSignInPopup() -> Void {
+    let pitchSignInPopupEvent: ref<PitchSignInPopupEvent> = new PitchSignInPopupEvent();
+    this.QueueBroadcastEvent(pitchSignInPopupEvent);
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+      inkWidgetRef.SetVisible(this.m_defaultInputHintRef, true);
+      inkWidgetRef.SetVisible(this.m_alreadyRegisteredInputHintRef, false);
+    } else {
+      if Equals(evt.status, GOGRewardsSystemStatus.Registered) {
+        inkWidgetRef.SetVisible(this.m_defaultInputHintRef, false);
+        inkWidgetRef.SetVisible(this.m_alreadyRegisteredInputHintRef, true);
+        inkWidgetRef.SetVisible(this.m_signedInTitleContainerRef, true);
+      };
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(d: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = d;
+  }
+
+  protected cb func OnPitchSignInPopupClosed(evt: ref<PitchSignInPopupClosedEvent>) -> Bool {
+    this.LeavePitchMenu();
+  }
+
+  private final func LeavePitchMenu() -> Void {
+    this.m_eventDispatcher.SpawnEvent(n"OnPitchSignInCloseRequest");
+    this.m_uiSystem.UpdatePitchScreenLastSeenPatch();
+    if !this.m_uiSystem.GetHasTelemetryScreenBeenDisplayed() {
+      this.m_eventDispatcher.SpawnEvent(n"OnSwitchToTelemetryScreen");
+    } else {
+      this.m_eventDispatcher.SpawnEvent(n"OnMainMenu");
+    };
+  }
+}
+
+public class PitchSignInController extends BaseGOGProfileController {
+
+  private edit let m_qrCodeContainerRef: inkWidgetRef;
+
+  private edit let m_hyperlinkRef: inkTextRef;
+
+  private edit let m_hyperlinkButtonRef: inkWidgetRef;
+
+  private let m_data: ref<PitchSignInPopupData>;
+
+  private let m_signInQrCodeController: wref<SignInQrCodeController>;
+
+  private let m_signinUrl: String;
+
+  protected cb func OnInitialize() -> Bool {
+    let playbackOptions: inkAnimOptions;
+    let uiSystem: ref<UISystem> = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    uiSystem.RequestNewVisualState(n"inkPauseMenuState");
+    this.m_data = this.GetRootWidget().GetUserData(n"PitchSignInPopupData") as PitchSignInPopupData;
+    this.m_signInQrCodeController = inkWidgetRef.GetController(this.m_qrCodeContainerRef) as SignInQrCodeController;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+    playbackOptions.loopInfinite = true;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    this.PlayLibraryAnimation(n"loop", playbackOptions);
+    inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+    this.GetSystemRequestsHandler().RequestSaveUserSettings();
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+      this.m_signinUrl = evt.registerURL;
+      inkTextRef.SetText(this.m_hyperlinkRef, this.m_signinUrl);
+      inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef, true);
+      this.m_signInQrCodeController.UpdateQrCode(evt.qrCodePNGBlob);
+    } else {
+      if Equals(evt.status, GOGRewardsSystemStatus.Registered) || Equals(evt.status, GOGRewardsSystemStatus.Error) {
+        this.Close();
+      };
+    };
+  }
+
+  protected cb func OnPressHyperlink(evt: ref<inkPointerEvent>) -> Bool {
+    if !IsConsolePlatform() {
+      if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+        evt.Handle();
+        if NotEquals(this.m_signinUrl, "") {
+          this.OpenProfileUrl(this.m_signinUrl);
+        };
+      };
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() && evt.IsAction(n"cancel") {
+      if evt.GetTarget() != inkWidgetRef.Get(this.m_hyperlinkRef) {
+        evt.Handle();
+        this.Close();
+      };
+    };
+  }
+
+  public final func Close() -> Void {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}
+
+public class SettingsTakeoutController extends BaseGOGProfileController {
+
+  private edit let m_qrCodeContainerRef: inkWidgetRef;
+
+  private edit let m_hyperlinkRef: inkTextRef;
+
+  private edit let m_hyperlinkButtonRef: inkWidgetRef;
+
+  private let m_data: ref<TelemetryTakeoutPopupData>;
+
+  private let m_signInQrCodeController: wref<SignInQrCodeController>;
+
+  private let m_takeoutUrl: String;
+
+  protected cb func OnInitialize() -> Bool {
+    let playbackOptions: inkAnimOptions;
+    let uiSystem: ref<UISystem> = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    uiSystem.RequestNewVisualState(n"inkPauseMenuState");
+    this.m_data = this.GetRootWidget().GetUserData(n"TelemetryTakeoutPopupData") as TelemetryTakeoutPopupData;
+    this.m_signInQrCodeController = inkWidgetRef.GetController(this.m_qrCodeContainerRef) as SignInQrCodeController;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef, true);
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+    this.RequestTakeoutTelemetryURL();
+    playbackOptions.loopInfinite = true;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    this.PlayLibraryAnimation(n"loop", playbackOptions);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+  }
+
+  protected cb func OnTakeoutTelemetryURLGenerated(evt: ref<TakeoutTelemetryURLGenerated>) -> Bool {
+    this.m_takeoutUrl = evt.takeoutURL;
+    this.m_signInQrCodeController.UpdateQrCode(evt.qrCodePNGBlob);
+  }
+
+  protected cb func OnPressHyperlink(evt: ref<inkPointerEvent>) -> Bool {
+    if !IsConsolePlatform() {
+      if evt.IsAction(n"click") {
+        evt.Handle();
+        this.OpenProfileUrl(this.m_takeoutUrl);
+      };
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() && evt.IsAction(n"close_popup") {
+      if evt.GetTarget() != inkWidgetRef.Get(this.m_hyperlinkRef) {
+        evt.Handle();
+        this.Close();
+      };
+    };
+  }
+
+  private final func Close() -> Void {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}

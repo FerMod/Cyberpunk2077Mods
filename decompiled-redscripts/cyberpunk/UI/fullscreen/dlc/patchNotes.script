@@ -1,0 +1,152 @@
+
+public class PatchNotesGameController extends inkGameController {
+
+  private edit let m_notesContainerRef: inkCompoundRef;
+
+  private edit let m_patch20TitleContainerRef: inkWidgetRef;
+
+  private edit let m_patch21TitleContainerRef: inkWidgetRef;
+
+  private edit let m_patch22TitleContainerRef: inkWidgetRef;
+
+  private edit let m_patch23TitleContainerRef: inkWidgetRef;
+
+  private edit let m_patch25TitleContainerRef: inkWidgetRef;
+
+  @default(PatchNotesGameController, item)
+  private edit let m_itemLibraryName: CName;
+
+  @default(PatchNotesGameController, intro)
+  private edit let m_introAnimationName: CName;
+
+  private edit let m_outroAnimationName: CName;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_introAnimProxy: ref<inkAnimProxy>;
+
+  @default(PatchNotesGameController, true)
+  private let m_isInputBlocked: Bool;
+
+  private let m_data: ref<PatchNotesPopupData>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_data = this.GetRootWidget().GetUserData(n"PatchNotesPopupData") as PatchNotesPopupData;
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.PlaySound(n"GameMenu", n"OnOpen");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_PatchNotes");
+    this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult_PatchNotes");
+    this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch1500_NextGen);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch1600);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2100);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2200);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2300);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2400);
+    this.m_uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2500);
+    this.m_uiSystem.QueueMenuEvent(n"OnRequestPatchNotes");
+    this.PlayAnimation(this.m_introAnimationName);
+    this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimationFinished");
+    this.PopulateNotesList();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPress", this, n"OnPressClose");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_PatchNotes");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult_PatchNotes");
+  }
+
+  private final func PopulateNotesList() -> Void {
+    inkCompoundRef.ReorderChild(this.m_notesContainerRef, inkWidgetRef.Get(this.m_patch25TitleContainerRef), inkCompoundRef.GetNumChildren(this.m_notesContainerRef) - 1);
+    this.SpawnNote(n"UI-DLC-PatchNotes2500-ClampdownQuestTitle", n"UI-DLC-PatchNotes2500-ClampdownQuestDescription", n"2_5_clampdown_quest");
+    this.SpawnNote(n"UI-DLC-PatchNotes2400-AkimboTitle", n"UI-DLC-PatchNotes2400-AkimboDescription", n"2_4_akimbo");
+    this.SpawnNote(n"UI-DLC-PatchNotes2400-CityTourTitle", n"UI-DLC-PatchNotes2400-CityTourDescription", n"2_4_city_tour");
+    this.SpawnNote(n"UI-DLC-PatchNotes2400-PimpMyChromeTitle", n"UI-DLC-PatchNotes2400-PimpMyChromeDescription", n"2_4_pimp_my_chrome");
+    inkCompoundRef.ReorderChild(this.m_notesContainerRef, inkWidgetRef.Get(this.m_patch23TitleContainerRef), inkCompoundRef.GetNumChildren(this.m_notesContainerRef) - 1);
+    this.SpawnNote(n"UI-DLC-PatchNotes2300-AutodriveTitle", n"UI-DLC-PatchNotes2300-AutodriveDescription", n"2_3_autodrive");
+    this.SpawnNote(n"UI-DLC-PatchNotes2300-NewCarsTitle", n"UI-DLC-PatchNotes2300-NewCarsDescription", n"2_3_new_cars");
+    this.SpawnNote(n"UI-DLC-PatchNotes2300-PhotomodeTitle", n"UI-DLC-PatchNotes2300-PhotomodeDescription", n"2_3_photomode");
+    inkCompoundRef.ReorderChild(this.m_notesContainerRef, inkWidgetRef.Get(this.m_patch22TitleContainerRef), inkCompoundRef.GetNumChildren(this.m_notesContainerRef) - 1);
+    this.SpawnNote(n"UI-DLC-PatchNotes2200-YourStyleTitle", n"UI-DLC-PatchNotes2200-YourStyleDescription", n"2_2_your_style");
+    this.SpawnNote(n"UI-DLC-PatchNotes2200-PhotomodeTitle", n"UI-DLC-PatchNotes2200-PhotomodeDescription", n"2_2_photomode");
+    this.SpawnNote(n"UI-DLC-PatchNotes2200-YourRideTitle", n"UI-DLC-PatchNotes2200-YourRideDescription", n"2_2_your_ride");
+    inkCompoundRef.ReorderChild(this.m_notesContainerRef, inkWidgetRef.Get(this.m_patch21TitleContainerRef), inkCompoundRef.GetNumChildren(this.m_notesContainerRef) - 1);
+    this.SpawnNote(n"UI-DLC-PatchNotes2100-HangoutsTitle", n"UI-DLC-PatchNotes2100-HangoutsDescription", n"2_1_hangouts");
+    this.SpawnNote(n"UI-DLC-PatchNotes2100-MetroTitle", n"UI-DLC-PatchNotes2100-MetroDescription", n"2_1_metro");
+    this.SpawnNote(n"UI-DLC-PatchNotes2100-RadioportTitle", n"UI-DLC-PatchNotes2100-RadioportDescription", n"2_1_pocket_radio");
+    inkCompoundRef.ReorderChild(this.m_notesContainerRef, inkWidgetRef.Get(this.m_patch20TitleContainerRef), inkCompoundRef.GetNumChildren(this.m_notesContainerRef) - 1);
+    this.SpawnNote(n"UI-DLC-PatchNotes2000-VehicleCombatTitle", n"UI-DLC-PatchNotes2000-VehicleCombatDescription", n"Police_Chase_Vehicle_Combat");
+    this.SpawnNote(n"UI-DLC-PatchNotes2000-PoliceSystemTitle", n"UI-DLC-PatchNotes2000-PoliceSystemDescription", n"MaxTac");
+    this.SpawnNote(n"UI-DLC-PatchNotes2000-PerksTitle", n"UI-DLC-PatchNotes2000-PerksDescription", n"Skill_and_perk");
+    this.SpawnNote(n"UI-DLC-PatchNotes2000-CyberwareTitle", n"UI-DLC-PatchNotes2000-CyberwareDescription", n"Cyberware");
+    this.SpawnNote(n"UI-DLC-PatchNotes2000-AiimprovementsTitle", n"UI-DLC-PatchNotes2000-AiimprovementsDescription", n"AI_improvements");
+  }
+
+  private final func Close() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.PlaySound(n"Button", n"OnPress");
+    this.PlaySound(n"GameMenu", n"OnClose");
+    if NotEquals(this.m_outroAnimationName, n"None") {
+      this.PlayAnimation(this.m_outroAnimationName);
+    } else {
+      playbackOptions.playReversed = true;
+      this.PlayAnimation(this.m_introAnimationName, playbackOptions);
+    };
+    this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+    this.m_isInputBlocked = true;
+  }
+
+  private final func PlayAnimation(animationName: CName, opt playbackOptions: inkAnimOptions) -> Void {
+    if IsDefined(this.m_introAnimProxy) && this.m_introAnimProxy.IsPlaying() {
+      this.m_introAnimProxy.Stop(true);
+    };
+    this.m_introAnimProxy = this.PlayLibraryAnimation(animationName, playbackOptions);
+  }
+
+  private final func SpawnNote(title: CName, description: CName, imagePart: CName) -> Void {
+    let itemCtrl: wref<DlcDescriptionController>;
+    let data: ref<DlcDescriptionData> = new DlcDescriptionData();
+    data.m_title = title;
+    data.m_description = description;
+    data.m_imagePart = imagePart;
+    let widget: ref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_notesContainerRef), this.m_itemLibraryName);
+    if IsDefined(widget) {
+      itemCtrl = widget.GetController() as DlcDescriptionController;
+      itemCtrl.SetData(data);
+    };
+  }
+
+  protected cb func OnGlobalRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_isInputBlocked {
+      if evt.IsAction(n"close_popup") {
+        this.PlaySound(n"Button", n"OnPress");
+        this.Close();
+      };
+    };
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.Close();
+    };
+  }
+
+  protected cb func OnIntroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_isInputBlocked = false;
+    this.m_introAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimationFinished");
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_uiSystem.QueueMenuEvent(n"OnRequetClosePatchNotes");
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}

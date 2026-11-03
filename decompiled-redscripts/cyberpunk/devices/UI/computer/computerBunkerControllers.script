@@ -1,0 +1,1058 @@
+
+public class BaseBunkerComputerGameController extends gameuiBaseBunkerComputerGameController {
+
+  public edit let m_factsSet: BunkerSystemsFactsSet;
+
+  @default(BaseBunkerComputerGameController, q305_gate_closed)
+  public edit let m_gateClosedFact: CName;
+
+  protected final func GetGame() -> GameInstance {
+    let gameInstance: GameInstance;
+    let gameObject: ref<GameObject> = this.GetOwnerEntity() as GameObject;
+    if IsDefined(gameObject) {
+      gameInstance = gameObject.GetGame();
+    };
+    return gameInstance;
+  }
+
+  protected final func SetStatusOffline(controller: wref<inkLogicController>, fact: CName) -> Void {
+    this.SetStatusOffline(controller, GetFact(this.GetGame(), fact) > 0);
+  }
+
+  protected final func SetStatusOffline(controller: wref<inkLogicController>, isOffline: Bool) -> Void {
+    let isGateClosed: Bool = GetFact(this.GetGame(), this.m_gateClosedFact) > 0;
+    let statusController: ref<SystemStatusLogicController> = controller as SystemStatusLogicController;
+    if IsDefined(statusController) {
+      statusController.SetOffline(isOffline, isGateClosed);
+    };
+  }
+
+  protected final func GetCurrentSystem() -> BunkerSystems {
+    let sysIndex: Int32 = GetFact(this.GetGame(), n"q305_server_index");
+    let system: BunkerSystems = BunkerSystems.MAX;
+    if sysIndex >= 0 && sysIndex < 4 {
+      system = IntEnum<BunkerSystems>(sysIndex);
+    };
+    return system;
+  }
+
+  protected final func GetCurrentSystemFact(factsSet: script_ref<BunkerSystemsFactsSet>) -> CName {
+    let fact: CName;
+    let system: BunkerSystems = this.GetCurrentSystem();
+    if NotEquals(system, BunkerSystems.MAX) {
+      switch system {
+        case BunkerSystems.ALPHA:
+          fact = Deref(factsSet).ALPHA_FACT;
+          break;
+        case BunkerSystems.BRAVO:
+          fact = Deref(factsSet).BRAVO_FACT;
+          break;
+        case BunkerSystems.SIERRA:
+          fact = Deref(factsSet).SIERRA_FACT;
+          break;
+        case BunkerSystems.VICTOR:
+          fact = Deref(factsSet).VICTOR_FACT;
+      };
+    };
+    return fact;
+  }
+}
+
+public class StatusScreenGameController extends BaseBunkerComputerGameController {
+
+  protected edit let m_alphaSys: inkWidgetRef;
+
+  protected edit let m_bravoSys: inkWidgetRef;
+
+  protected edit let m_sierraSys: inkWidgetRef;
+
+  protected edit let m_victorSys: inkWidgetRef;
+
+  protected edit let m_sierraBackupSys: inkWidgetRef;
+
+  protected edit let m_victorBackupSys: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.UpdateStatus();
+  }
+
+  protected final func UpdateStatus() -> Void {
+    let isAlphaOffline: Bool = GetFact(this.GetGame(), this.m_factsSet.ALPHA_FACT) > 0;
+    let isBravoOffline: Bool = GetFact(this.GetGame(), this.m_factsSet.BRAVO_FACT) > 0;
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_alphaSys), isAlphaOffline);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_bravoSys), isBravoOffline);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_sierraSys), this.m_factsSet.SIERRA_FACT);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_victorSys), this.m_factsSet.VICTOR_FACT);
+    inkWidgetRef.SetVisible(this.m_sierraBackupSys, !isAlphaOffline || !isBravoOffline);
+    inkWidgetRef.SetVisible(this.m_victorBackupSys, !isAlphaOffline || !isBravoOffline);
+    inkWidgetRef.SetVisible(this.m_sierraSys, isAlphaOffline && isBravoOffline);
+    inkWidgetRef.SetVisible(this.m_victorSys, isAlphaOffline && isBravoOffline);
+  }
+}
+
+public class SystemStatusLogicController extends inkLogicController {
+
+  public edit let m_onlineRoot: inkWidgetRef;
+
+  public edit let m_offlineRoot: inkWidgetRef;
+
+  public edit let m_onlineIco: inkWidgetRef;
+
+  public edit let m_offlineIco: inkWidgetRef;
+
+  public edit let m_sysIndicator: inkWidgetRef;
+
+  public edit let m_statusBackground: inkWidgetRef;
+
+  public edit let m_statusBackgroundProxy: ref<inkAnimProxy>;
+
+  public edit let m_stateAnimName: CName;
+
+  public edit const let m_widgetsToColor: [inkWidgetRef];
+
+  public edit const let m_textStatuses: [inkTextRef];
+
+  protected cb func OnInitialize() -> Bool {
+    this.GetRootWidget().SetVisible(false);
+    this.PlayStateAnim(inkWidgetRef.Get(this.m_onlineIco), inkWidgetRef.Get(this.m_sysIndicator), inkWidgetRef.Get(this.m_offlineIco));
+  }
+
+  public final func SetOffline(offline: Bool, isGateClosed: Bool) -> Void {
+    let count: Int32;
+    let i: Int32;
+    let offlineName: CName = n"Offline";
+    let onlineName: CName = n"Online";
+    inkWidgetRef.SetVisible(this.m_onlineRoot, !offline);
+    inkWidgetRef.SetVisible(this.m_offlineRoot, offline);
+    count = ArraySize(this.m_widgetsToColor);
+    i = 0;
+    while i < count {
+      inkWidgetRef.SetState(this.m_widgetsToColor[i], offline ? offlineName : onlineName);
+      i = i + 1;
+    };
+    count = ArraySize(this.m_textStatuses);
+    i = 0;
+    while i < count {
+      inkTextRef.SetLocalizedTextScript(this.m_textStatuses[i], offline ? "LocKey#93580" : "LocKey#93579");
+      i = i + 1;
+    };
+    this.m_statusBackgroundProxy.Stop();
+    if isGateClosed && !offline {
+      this.m_statusBackgroundProxy = this.PlayStateAnim(inkWidgetRef.Get(this.m_statusBackground), null, null);
+    };
+    this.GetRootWidget().SetVisible(true);
+  }
+
+  private final func PlayStateAnim(target1: ref<inkWidget>, target2: ref<inkWidget>, target3: ref<inkWidget>) -> ref<inkAnimProxy> {
+    let playbackOptions: inkAnimOptions;
+    let targets: ref<inkWidgetsSet>;
+    if NotEquals(this.m_stateAnimName, n"None") {
+      targets = new inkWidgetsSet();
+      if IsDefined(target1) {
+        targets.Select(target1);
+      };
+      if IsDefined(target2) {
+        targets.Select(target2);
+      };
+      if IsDefined(target3) {
+        targets.Select(target3);
+      };
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      return this.PlayLibraryAnimationOnTargets(this.m_stateAnimName, targets, playbackOptions);
+    };
+    return null;
+  }
+}
+
+public class GateStatusLogicController extends inkLogicController {
+
+  public edit let m_textStatus: inkTextRef;
+
+  public final func PrepareToOpen() -> Void {
+    inkTextRef.SetLocalizedTextScript(this.m_textStatus, "LocKey#93596");
+  }
+
+  public final func SetGateState(unlocked: Bool, showState: Bool) -> Void {
+    if showState {
+      inkTextRef.SetLocalizedTextScript(this.m_textStatus, unlocked ? "LocKey#93597" : "LocKey#93598");
+    };
+  }
+}
+
+public class OpeningGateScreenGameController extends BaseBunkerComputerGameController {
+
+  public edit let m_systemConsole: inkWidgetRef;
+
+  public edit let m_gateScheme: inkWidgetRef;
+
+  public edit let m_backButton: inkWidgetRef;
+
+  @default(OpeningGateScreenGameController, idle_state)
+  public edit let m_idleAnimName: CName;
+
+  @default(OpeningGateScreenGameController, loop_state)
+  public edit let m_loopAnimName: CName;
+
+  @default(OpeningGateScreenGameController, failure_state)
+  public edit let m_failureAnimName: CName;
+
+  @default(OpeningGateScreenGameController, success_state)
+  public edit let m_successAnimName: CName;
+
+  @default(OpeningGateScreenGameController, popup2_intro)
+  public edit let m_failurePopupIntroAnimName: CName;
+
+  @default(OpeningGateScreenGameController, popup1_intro)
+  public edit let m_successPopupIntroAnimName: CName;
+
+  @default(OpeningGateScreenGameController, popup2_loop)
+  public edit let m_failurePopupAnimName: CName;
+
+  @default(OpeningGateScreenGameController, popup1_loop)
+  public edit let m_successPopupAnimName: CName;
+
+  @default(OpeningGateScreenGameController, q305_open_the_gate)
+  public edit let m_gateIsOpenedFact: CName;
+
+  @default(OpeningGateScreenGameController, Q305_gate_chain_beginning)
+  public edit let m_gateChainBeginningFact: CName;
+
+  @default(OpeningGateScreenGameController, 2.5f)
+  public edit let m_gotoLoopDelay: Float;
+
+  @default(OpeningGateScreenGameController, 6.f)
+  public edit let m_goBackDelay: Float;
+
+  public let m_isGateOpened: Bool;
+
+  public let m_systemsStatus: [Bool];
+
+  public let m_currentLoopIndex: Int32;
+
+  public let m_currentSystemIndex: Int32;
+
+  @default(OpeningGateScreenGameController, 3)
+  public let m_phasesCount: Int32;
+
+  @default(OpeningGateScreenGameController, OpeningGateScreenState.Unknown)
+  public let m_state: OpeningGateScreenState;
+
+  public let m_idleAnimProxy: ref<inkAnimProxy>;
+
+  public let m_loopAnimProxy: ref<inkAnimProxy>;
+
+  public let m_resultAnimProxy: ref<inkAnimProxy>;
+
+  public let m_resultPopupIntroAnimProxy: ref<inkAnimProxy>;
+
+  public let m_resultPopupAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    let gameInstance: GameInstance = this.GetGame();
+    ArrayPush(this.m_systemsStatus, GetFact(gameInstance, this.m_factsSet.ALPHA_FACT) > 0);
+    ArrayPush(this.m_systemsStatus, GetFact(gameInstance, this.m_factsSet.BRAVO_FACT) > 0);
+    ArrayPush(this.m_systemsStatus, GetFact(gameInstance, this.m_factsSet.SIERRA_FACT) > 0);
+    ArrayPush(this.m_systemsStatus, GetFact(gameInstance, this.m_factsSet.VICTOR_FACT) > 0);
+    this.m_isGateOpened = GetFact(gameInstance, this.m_gateIsOpenedFact) > 0;
+    if !this.m_isGateOpened && this.CanGateBeOpened() {
+      SetFactValue(gameInstance, this.m_gateChainBeginningFact, 1);
+    };
+    this.AddTimer(n"GotoLoop", this.m_gotoLoopDelay);
+    this.SetState(OpeningGateScreenState.Idle);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.LeaveState(this.m_state);
+  }
+
+  protected cb func OnTimer(timerName: CName) -> Bool {
+    let webPageController: ref<WebPage>;
+    if Equals(timerName, n"GotoLoop") {
+      this.ResetTimer(n"GotoLoop");
+      this.SetState(OpeningGateScreenState.Loop);
+    } else {
+      if Equals(timerName, n"GoBack") {
+        webPageController = this.GetRootWidget().GetController() as WebPage;
+        webPageController.ActivateCanvasLink(inkWidgetRef.Get(this.m_backButton));
+      };
+    };
+  }
+
+  public final func SetState(state: OpeningGateScreenState) -> Void {
+    if NotEquals(this.m_state, state) {
+      this.LeaveState(this.m_state);
+      this.m_state = state;
+      this.GotoState(this.m_state);
+    };
+  }
+
+  public final func LeaveState(state: OpeningGateScreenState) -> Void {
+    switch state {
+      case OpeningGateScreenState.Idle:
+        this.LeaveStateIdle();
+        break;
+      case OpeningGateScreenState.Loop:
+        this.LeaveStateLoop();
+        break;
+      case OpeningGateScreenState.Open:
+        this.LeaveStateOpen();
+        break;
+      case OpeningGateScreenState.Result:
+        this.LeaveStateResult();
+    };
+  }
+
+  public final func GotoState(state: OpeningGateScreenState) -> Void {
+    switch state {
+      case OpeningGateScreenState.Idle:
+        this.GotoStateIdle();
+        break;
+      case OpeningGateScreenState.Loop:
+        this.GotoStateLoop();
+        break;
+      case OpeningGateScreenState.Open:
+        this.GotoStateOpen();
+        break;
+      case OpeningGateScreenState.Result:
+        this.GotoStateResult();
+    };
+  }
+
+  public final func GotoStateIdle() -> Void {
+    let playbackOptions: inkAnimOptions;
+    let controller: ref<SystemConsoleLogicController> = inkWidgetRef.GetController(this.m_systemConsole) as SystemConsoleLogicController;
+    if IsDefined(controller) {
+      controller.InitSystems(this.m_systemsStatus, this.m_isGateOpened);
+    };
+    if !this.m_isGateOpened {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      if NotEquals(this.m_idleAnimName, n"None") {
+        this.m_idleAnimProxy = this.PlayLibraryAnimation(this.m_idleAnimName, playbackOptions);
+      };
+    } else {
+      this.SetState(OpeningGateScreenState.Result);
+    };
+  }
+
+  public final func LeaveStateIdle() -> Void {
+    this.m_idleAnimProxy.GotoEndAndStop();
+  }
+
+  public final func GotoStateLoop() -> Void {
+    let count: Int32;
+    let i: Int32;
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.m_currentLoopIndex = 0;
+    this.m_currentSystemIndex = 0;
+    this.PrepareToOpen();
+    if NotEquals(this.m_loopAnimName, n"None") {
+      this.m_loopAnimProxy = this.PlayLibraryAnimation(this.m_loopAnimName, playbackOptions);
+      this.m_loopAnimProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnEndLoop");
+    };
+    if !IsDefined(this.m_loopAnimProxy) {
+      count = ArraySize(this.m_systemsStatus) * this.m_phasesCount;
+      i = 0;
+      while i < count {
+        this.TryToOpen();
+        i = i + 1;
+      };
+    };
+  }
+
+  public final func LeaveStateLoop() -> Void {
+    this.m_loopAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+    this.m_loopAnimProxy.Stop();
+  }
+
+  protected cb func OnEndLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    this.TryToOpen();
+  }
+
+  public final func PrepareToOpen() -> Void {
+    let sysConsoleController: ref<SystemConsoleLogicController> = inkWidgetRef.GetController(this.m_systemConsole) as SystemConsoleLogicController;
+    if IsDefined(sysConsoleController) {
+      sysConsoleController.PrepareToOpen(IntEnum<BunkerSystems>(this.m_currentSystemIndex));
+    };
+  }
+
+  public final func TryToOpen() -> Void {
+    let sysConsoleController: ref<SystemConsoleLogicController>;
+    let unlocked: Bool;
+    let phase: Int32 = this.m_currentLoopIndex % this.m_phasesCount;
+    if phase == 0 {
+      sysConsoleController = inkWidgetRef.GetController(this.m_systemConsole) as SystemConsoleLogicController;
+      if IsDefined(sysConsoleController) {
+        sysConsoleController.SetGateState(IntEnum<BunkerSystems>(this.m_currentSystemIndex), this.m_systemsStatus[this.m_currentSystemIndex]);
+      };
+    } else {
+      if phase == 2 {
+        unlocked = this.m_systemsStatus[this.m_currentSystemIndex];
+        this.m_currentSystemIndex = this.m_currentSystemIndex + 1;
+        if !unlocked {
+          this.SetState(OpeningGateScreenState.Result);
+        } else {
+          this.PrepareToOpen();
+          if Equals(IntEnum<BunkerSystems>(this.m_currentSystemIndex), BunkerSystems.MAX) {
+            this.SetState(OpeningGateScreenState.Open);
+          };
+        };
+      };
+    };
+    this.m_currentLoopIndex = this.m_currentLoopIndex + 1;
+  }
+
+  public final func GotoStateOpen() -> Void {
+    let gateSchemeController: ref<GateSchemeLogicController> = inkWidgetRef.GetController(this.m_gateScheme) as GateSchemeLogicController;
+    if IsDefined(gateSchemeController) {
+      gateSchemeController.RegisterToCallback(n"JobIsDone", this, n"OnJobIsDone");
+      gateSchemeController.OpenGate(this.GetGame());
+    };
+  }
+
+  public final func LeaveStateOpen() -> Void {
+    let gateSchemeController: ref<GateSchemeLogicController> = inkWidgetRef.GetController(this.m_gateScheme) as GateSchemeLogicController;
+    if IsDefined(gateSchemeController) {
+      gateSchemeController.UnregisterFromCallback(n"JobIsDone", this, n"OnJobIsDone");
+    };
+  }
+
+  protected cb func OnJobIsDone(target: wref<inkWidget>) -> Bool {
+    this.SetState(OpeningGateScreenState.Result);
+  }
+
+  public final func GotoStateResult() -> Void {
+    let playbackOptions: inkAnimOptions;
+    let canGateBeOpened: Bool = this.CanGateBeOpened();
+    let animName: CName = canGateBeOpened ? this.m_successAnimName : this.m_failureAnimName;
+    let popupIntroAnimName: CName = canGateBeOpened ? this.m_successPopupIntroAnimName : this.m_failurePopupIntroAnimName;
+    let popupAnimName: CName = canGateBeOpened ? this.m_successPopupAnimName : this.m_failurePopupAnimName;
+    playbackOptions.executionDelay = 2.00;
+    if NotEquals(popupIntroAnimName, n"None") {
+      this.m_resultPopupIntroAnimProxy = this.PlayLibraryAnimation(popupIntroAnimName, playbackOptions);
+    };
+    playbackOptions.executionDelay = 0.00;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if NotEquals(animName, n"None") {
+      this.m_resultAnimProxy = this.PlayLibraryAnimation(animName, playbackOptions);
+    };
+    if NotEquals(popupAnimName, n"None") {
+      this.m_resultPopupAnimProxy = this.PlayLibraryAnimation(popupAnimName, playbackOptions);
+    };
+    if !canGateBeOpened {
+      this.AddTimer(n"GoBack", this.m_goBackDelay);
+    } else {
+      SetFactValue(this.GetGame(), this.m_gateIsOpenedFact, 1);
+    };
+  }
+
+  public final func LeaveStateResult() -> Void {
+    this.m_resultAnimProxy.Stop();
+    this.m_resultPopupAnimProxy.Stop();
+    this.m_resultPopupIntroAnimProxy.Stop();
+  }
+
+  public final const func CanGateBeOpened() -> Bool {
+    let count: Int32 = ArraySize(this.m_systemsStatus);
+    let i: Int32 = 0;
+    while i < count {
+      if !this.m_systemsStatus[i] {
+        return false;
+      };
+      i = i + 1;
+    };
+    return true;
+  }
+}
+
+public class SystemConsoleLogicController extends inkLogicController {
+
+  public edit let m_alphaSys: inkWidgetRef;
+
+  public edit let m_bravoSys: inkWidgetRef;
+
+  public edit let m_sierraSys: inkWidgetRef;
+
+  public edit let m_victorSys: inkWidgetRef;
+
+  public final func InitSystems(systemsStatus: [Bool], isGateOpened: Bool) -> Void {
+    let controller: ref<GateStatusLogicController>;
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_alphaSys), systemsStatus[0]);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_bravoSys), systemsStatus[1]);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_sierraSys), systemsStatus[2]);
+    this.SetStatusOffline(inkWidgetRef.GetController(this.m_victorSys), systemsStatus[3]);
+    controller = inkWidgetRef.GetControllerByType(this.m_alphaSys, n"GateStatusLogicController") as GateStatusLogicController;
+    this.SetGateState(controller, isGateOpened, false);
+    controller = inkWidgetRef.GetControllerByType(this.m_bravoSys, n"GateStatusLogicController") as GateStatusLogicController;
+    this.SetGateState(controller, isGateOpened, false);
+    controller = inkWidgetRef.GetControllerByType(this.m_sierraSys, n"GateStatusLogicController") as GateStatusLogicController;
+    this.SetGateState(controller, isGateOpened, false);
+    controller = inkWidgetRef.GetControllerByType(this.m_victorSys, n"GateStatusLogicController") as GateStatusLogicController;
+    this.SetGateState(controller, isGateOpened, false);
+  }
+
+  public final func PrepareToOpen(system: BunkerSystems) -> Void {
+    let controller: ref<GateStatusLogicController> = this.GetGateStatusLogicController(system);
+    let checkState: CName = n"Check";
+    let defaultState: CName = n"Default";
+    if IsDefined(controller) {
+      controller.PrepareToOpen();
+    };
+    inkWidgetRef.SetState(this.m_alphaSys, Equals(system, BunkerSystems.ALPHA) ? checkState : defaultState);
+    inkWidgetRef.SetState(this.m_bravoSys, Equals(system, BunkerSystems.BRAVO) ? checkState : defaultState);
+    inkWidgetRef.SetState(this.m_sierraSys, Equals(system, BunkerSystems.SIERRA) ? checkState : defaultState);
+    inkWidgetRef.SetState(this.m_victorSys, Equals(system, BunkerSystems.VICTOR) ? checkState : defaultState);
+  }
+
+  public final func SetGateState(system: BunkerSystems, unlocked: Bool) -> Void {
+    let widget: wref<inkWidget> = this.GetSystemWidget(system);
+    let style: CName = unlocked ? n"Green" : n"Red";
+    widget.SetState(style);
+    this.SetGateState(this.GetGateStatusLogicController(widget), unlocked, true);
+  }
+
+  public final func GetSystemWidget(system: BunkerSystems) -> wref<inkWidget> {
+    let widget: wref<inkWidget>;
+    if Equals(system, BunkerSystems.ALPHA) {
+      widget = inkWidgetRef.Get(this.m_alphaSys);
+    } else {
+      if Equals(system, BunkerSystems.BRAVO) {
+        widget = inkWidgetRef.Get(this.m_bravoSys);
+      } else {
+        if Equals(system, BunkerSystems.SIERRA) {
+          widget = inkWidgetRef.Get(this.m_sierraSys);
+        } else {
+          if Equals(system, BunkerSystems.VICTOR) {
+            widget = inkWidgetRef.Get(this.m_victorSys);
+          };
+        };
+      };
+    };
+    return widget;
+  }
+
+  public final func GetGateStatusLogicController(system: BunkerSystems) -> ref<GateStatusLogicController> {
+    let controller: ref<GateStatusLogicController>;
+    let widget: wref<inkWidget> = this.GetSystemWidget(system);
+    if IsDefined(widget) {
+      controller = widget.GetControllerByType(n"GateStatusLogicController") as GateStatusLogicController;
+    };
+    return controller;
+  }
+
+  public final func GetGateStatusLogicController(system: wref<inkWidget>) -> ref<GateStatusLogicController> {
+    let controller: ref<GateStatusLogicController>;
+    if IsDefined(system) {
+      controller = system.GetControllerByType(n"GateStatusLogicController") as GateStatusLogicController;
+    };
+    return controller;
+  }
+
+  public final func SetGateState(controller: ref<GateStatusLogicController>, unlocked: Bool, showState: Bool) -> Void {
+    if IsDefined(controller) {
+      controller.SetGateState(unlocked, showState);
+    };
+  }
+
+  public final func SetStatusOffline(controller: wref<inkLogicController>, value: Bool) -> Void {
+    let statusController: ref<SystemStatusLogicController> = controller as SystemStatusLogicController;
+    if IsDefined(statusController) {
+      statusController.SetOffline(value, true);
+    };
+  }
+}
+
+public class GateSchemeLogicController extends inkLogicController {
+
+  public edit let m_sfxFactsSet: SoundFxFactsSet;
+
+  public edit let m_tube1: inkWidgetRef;
+
+  public edit let m_tube2: inkWidgetRef;
+
+  public edit let m_tube3: inkWidgetRef;
+
+  public edit let m_tube4: inkWidgetRef;
+
+  public edit let m_tube5: inkWidgetRef;
+
+  public edit let m_tube6: inkWidgetRef;
+
+  public edit let m_tube7: inkWidgetRef;
+
+  public edit let m_tube8: inkWidgetRef;
+
+  @default(GateSchemeLogicController, logic_controller_left)
+  public edit let m_OpeningGateLeftAnimName: CName;
+
+  @default(GateSchemeLogicController, logic_controller_right)
+  public edit let m_OpeningGateRightAnimName: CName;
+
+  public let m_currentSystemIndex: Int32;
+
+  public let m_gameInstance: GameInstance;
+
+  public final func OpenGate(gameInstance: GameInstance) -> Void {
+    this.m_gameInstance = gameInstance;
+    this.m_currentSystemIndex = 0;
+    this.DoOpenGate(IntEnum<BunkerSystems>(this.m_currentSystemIndex));
+  }
+
+  public final func DoOpenGate(system: BunkerSystems) -> Void {
+    let animName: CName;
+    let factName: CName;
+    let proxy: ref<inkAnimProxy>;
+    let onlineName: CName = n"Online";
+    let targets: ref<inkWidgetsSet> = new inkWidgetsSet();
+    if Equals(IntEnum<BunkerSystems>(this.m_currentSystemIndex), BunkerSystems.MAX) {
+      this.CallCustomCallback(n"JobIsDone");
+    } else {
+      switch system {
+        case BunkerSystems.ALPHA:
+          targets.Select(inkWidgetRef.Get(this.m_tube1)).Select(inkWidgetRef.Get(this.m_tube2));
+          inkWidgetRef.SetState(this.m_tube1, onlineName);
+          inkWidgetRef.SetState(this.m_tube2, onlineName);
+          animName = this.m_OpeningGateLeftAnimName;
+          factName = this.m_sfxFactsSet.ALPHA_FACT;
+          break;
+        case BunkerSystems.BRAVO:
+          targets.Select(inkWidgetRef.Get(this.m_tube3)).Select(inkWidgetRef.Get(this.m_tube4));
+          inkWidgetRef.SetState(this.m_tube3, onlineName);
+          inkWidgetRef.SetState(this.m_tube4, onlineName);
+          animName = this.m_OpeningGateLeftAnimName;
+          factName = this.m_sfxFactsSet.BRAVO_FACT;
+          break;
+        case BunkerSystems.SIERRA:
+          targets.Select(inkWidgetRef.Get(this.m_tube5)).Select(inkWidgetRef.Get(this.m_tube6));
+          inkWidgetRef.SetState(this.m_tube5, onlineName);
+          inkWidgetRef.SetState(this.m_tube6, onlineName);
+          animName = this.m_OpeningGateRightAnimName;
+          factName = this.m_sfxFactsSet.SIERRA_FACT;
+          break;
+        case BunkerSystems.VICTOR:
+          targets.Select(inkWidgetRef.Get(this.m_tube7)).Select(inkWidgetRef.Get(this.m_tube8));
+          inkWidgetRef.SetState(this.m_tube7, onlineName);
+          inkWidgetRef.SetState(this.m_tube8, onlineName);
+          animName = this.m_OpeningGateRightAnimName;
+          factName = this.m_sfxFactsSet.VICTOR_FACT;
+      };
+      if NotEquals(animName, n"None") {
+        proxy = this.PlayLibraryAnimationOnTargets(animName, targets);
+        proxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnAnimationFinished");
+      };
+      if NotEquals(factName, n"None") {
+        SetFactValue(this.m_gameInstance, factName, 1);
+      };
+    };
+  }
+
+  protected cb func OnAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    proxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnAnimationFinished");
+    this.m_currentSystemIndex = this.m_currentSystemIndex + 1;
+    this.DoOpenGate(IntEnum<BunkerSystems>(this.m_currentSystemIndex));
+  }
+}
+
+public class DatatermLoginGameController extends BaseBunkerComputerGameController {
+
+  public edit let m_loopAnimName: CName;
+
+  public edit let m_alphaSys: inkWidgetRef;
+
+  public edit let m_bravoSys: inkWidgetRef;
+
+  public edit let m_sierraSys: inkWidgetRef;
+
+  public edit let m_victorSys: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    let playbackOptions: inkAnimOptions;
+    let system: BunkerSystems = this.GetCurrentSystem();
+    inkWidgetRef.SetVisible(this.m_alphaSys, Equals(system, BunkerSystems.ALPHA));
+    inkWidgetRef.SetVisible(this.m_bravoSys, Equals(system, BunkerSystems.BRAVO));
+    inkWidgetRef.SetVisible(this.m_sierraSys, Equals(system, BunkerSystems.SIERRA));
+    inkWidgetRef.SetVisible(this.m_victorSys, Equals(system, BunkerSystems.VICTOR));
+    if NotEquals(this.m_loopAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.PlayLibraryAnimation(this.m_loopAnimName, playbackOptions);
+    };
+  }
+}
+
+public class DatatermDetailGameController extends BaseBunkerComputerGameController {
+
+  public edit let m_authFactsSet: AuthorizationFactsSet;
+
+  public edit let m_attemptedFactsSet: AttemptedToStopFactsSet;
+
+  public edit let m_systemStatusHeaderPannel: inkWidgetRef;
+
+  public edit let m_systemStatusLeftPannel: inkWidgetRef;
+
+  public edit let m_systemStatusRightPannel: inkWidgetRef;
+
+  @default(DatatermDetailGameController, loop)
+  public edit let m_loopAnimName: CName;
+
+  @default(DatatermDetailGameController, 3)
+  public edit let m_popup01Counter: Int32;
+
+  @default(DatatermDetailGameController, 2)
+  public edit let m_popup02Counter: Int32;
+
+  @default(DatatermDetailGameController, pop1_loop)
+  public edit let m_popup01LoopAnimName: CName;
+
+  @default(DatatermDetailGameController, pop2_loop)
+  public edit let m_popup02LoopAnimName: CName;
+
+  @default(DatatermDetailGameController, pop3_loop_01)
+  public edit let m_popup031LoopAnimName: CName;
+
+  @default(DatatermDetailGameController, pop3_loop_02)
+  public edit let m_popup032LoopAnimName: CName;
+
+  @default(DatatermDetailGameController, pop4_loop)
+  public edit let m_popup04LoopAnimName: CName;
+
+  @default(DatatermDetailGameController, pop5_loop)
+  public edit let m_popup05LoopAnimName: CName;
+
+  public edit let m_shutdownButton: inkWidgetRef;
+
+  public edit let m_transitionToMinigame: inkWidgetRef;
+
+  public let m_popup01LoopAnimProxy: ref<inkAnimProxy>;
+
+  public let m_isAuthStep: Bool;
+
+  public let m_isHackingStep: Bool;
+
+  public let m_isPostHackingStep: Bool;
+
+  public let m_isOffline: Bool;
+
+  public let m_isAttemptedToStop: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let loopAnimProxy: ref<inkAnimProxy>;
+    let playbackOptions: inkAnimOptions;
+    let fact: CName = this.GetCurrentSystemFact(this.m_factsSet);
+    if NotEquals(fact, n"None") {
+      this.m_isOffline = GetFact(this.GetGame(), fact) > 0;
+      this.SetStatusOffline(inkWidgetRef.GetController(this.m_systemStatusHeaderPannel), this.m_isOffline);
+      this.SetStatusOffline(inkWidgetRef.GetController(this.m_systemStatusLeftPannel), this.m_isOffline);
+      this.SetStatusOffline(inkWidgetRef.GetController(this.m_systemStatusRightPannel), this.m_isOffline);
+    };
+    fact = this.GetCurrentSystemFact(this.m_authFactsSet);
+    if NotEquals(fact, n"None") {
+      this.m_isAuthStep = GetFact(this.GetGame(), fact) == 1;
+      this.m_isHackingStep = GetFact(this.GetGame(), fact) == 2;
+      this.m_isPostHackingStep = GetFact(this.GetGame(), fact) == 3;
+    };
+    fact = this.GetCurrentSystemFact(this.m_attemptedFactsSet);
+    if NotEquals(fact, n"None") {
+      this.m_isAttemptedToStop = GetFact(this.GetGame(), fact) == 1;
+    };
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if NotEquals(this.m_loopAnimName, n"None") {
+      loopAnimProxy = this.PlayLibraryAnimation(this.m_loopAnimName, playbackOptions);
+    };
+    if this.m_isOffline {
+      this.ShowPopup04();
+    } else {
+      if this.m_isAuthStep {
+        this.ShowPopup02();
+      } else {
+        if this.m_isAttemptedToStop {
+          this.ShowPopup05();
+        } else {
+          if this.m_isHackingStep {
+            this.ShowPopup031();
+          } else {
+            if this.m_isPostHackingStep {
+              this.ShowPopup032();
+            } else {
+              if !IsDefined(loopAnimProxy) {
+                this.m_popup01Counter = 0;
+                this.OnEndLoop(null);
+              } else {
+                loopAnimProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnEndLoop");
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnEndLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    this.m_popup01Counter = this.m_popup01Counter - 1;
+    if this.m_popup01Counter <= 0 {
+      if IsDefined(proxy) {
+        proxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+      };
+      if NotEquals(this.m_popup01LoopAnimName, n"None") {
+        playbackOptions.loopType = inkanimLoopType.Cycle;
+        playbackOptions.loopInfinite = true;
+        this.m_popup01LoopAnimProxy = this.PlayLibraryAnimation(this.m_popup01LoopAnimName, playbackOptions);
+      };
+      inkWidgetRef.RegisterToCallback(this.m_shutdownButton, n"OnRelease", this, n"OnShutdownButtonClicked");
+    };
+  }
+
+  protected cb func OnShutdownButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      inkWidgetRef.SetInteractive(this.m_shutdownButton, false);
+      this.m_popup01LoopAnimProxy.Stop();
+      this.ShowPopup02();
+    };
+  }
+
+  public final func ShowPopup02() -> Void {
+    let playbackOptions: inkAnimOptions;
+    let popup02LoopAnimProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_popup02LoopAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      popup02LoopAnimProxy = this.PlayLibraryAnimation(this.m_popup02LoopAnimName, playbackOptions);
+    };
+    if !this.m_isAuthStep {
+      if !IsDefined(popup02LoopAnimProxy) {
+        this.m_popup02Counter = 0;
+        this.OnPopup02LoopAnimFinished(null);
+      } else {
+        popup02LoopAnimProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnPopup02LoopAnimFinished");
+      };
+    };
+  }
+
+  protected cb func OnPopup02LoopAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let fact: CName;
+    this.m_popup02Counter = this.m_popup02Counter - 1;
+    if this.m_popup02Counter <= 0 {
+      if IsDefined(proxy) {
+        proxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+      };
+      fact = this.GetCurrentSystemFact(this.m_authFactsSet);
+      if NotEquals(fact, n"None") {
+        SetFactValue(this.GetGame(), fact, 1);
+      };
+    };
+  }
+
+  public final func ShowPopup031() -> Void {
+    let popup03LoopProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_popup031LoopAnimName, n"None") {
+      popup03LoopProxy = this.PlayLibraryAnimation(this.m_popup031LoopAnimName);
+      popup03LoopProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPopup031LoopAnimFinished");
+    };
+  }
+
+  protected cb func OnPopup031LoopAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let webPageController: ref<WebPage> = this.GetRootWidget().GetController() as WebPage;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    webPageController.ActivateCanvasLink(inkWidgetRef.Get(this.m_transitionToMinigame));
+  }
+
+  public final func ShowPopup032() -> Void {
+    let popup03LoopProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_popup032LoopAnimName, n"None") {
+      popup03LoopProxy = this.PlayLibraryAnimation(this.m_popup032LoopAnimName);
+      popup03LoopProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnPopup032LoopAnimFinished");
+    };
+  }
+
+  protected cb func OnPopup032LoopAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+  }
+
+  public final func ShowPopup04() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_popup04LoopAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.PlayLibraryAnimation(this.m_popup04LoopAnimName, playbackOptions);
+    };
+  }
+
+  public final func ShowPopup05() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_popup05LoopAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.PlayLibraryAnimation(this.m_popup05LoopAnimName, playbackOptions);
+    };
+  }
+}
+
+public class BunkerComputerButtonController extends LinkController {
+
+  public edit let m_usePopupDefault: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.GetRootWidget().SetState(this.m_usePopupDefault ? n"Popup_Default" : n"Default");
+  }
+
+  protected cb func OnButtonStateChanged(controller: wref<inkButtonController>, oldState: inkEButtonState, newState: inkEButtonState) -> Bool {
+    let widget: ref<inkWidget> = this.GetRootWidget();
+    switch newState {
+      case inkEButtonState.Normal:
+        widget.SetState(this.m_usePopupDefault ? n"Popup_Default" : n"Default");
+        break;
+      case inkEButtonState.Press:
+      case inkEButtonState.Hover:
+        widget.SetState(n"Hover");
+        break;
+      case inkEButtonState.Disabled:
+        widget.SetState(n"Default");
+    };
+  }
+}
+
+public class BunkerMapGameController extends StatusScreenGameController {
+
+  public edit let m_mapPosition01: inkWidgetRef;
+
+  public edit let m_mapPosition02: inkWidgetRef;
+
+  public edit let m_mapPosition03: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.ListenToFact(this.m_factsSet.ALPHA_FACT);
+    this.ListenToFact(this.m_factsSet.BRAVO_FACT);
+    this.ListenToFact(this.m_factsSet.SIERRA_FACT);
+    this.ListenToFact(this.m_factsSet.VICTOR_FACT);
+    this.ListenToFact(this.m_gateClosedFact);
+    this.InitMapPosition();
+    super.OnInitialize();
+  }
+
+  protected cb func OnFactChanged(fact: CName, value: Int32) -> Bool {
+    this.UpdateStatus();
+  }
+
+  public final func InitMapPosition() -> Void {
+    let index: Int32;
+    let bunkerMapObject: ref<BunkerMapObject> = this.GetOwnerEntity() as BunkerMapObject;
+    if IsDefined(bunkerMapObject) {
+      index = bunkerMapObject.m_mapIndex;
+    };
+    inkWidgetRef.SetVisible(this.m_mapPosition01, index == 1);
+    inkWidgetRef.SetVisible(this.m_mapPosition02, index == 2);
+    inkWidgetRef.SetVisible(this.m_mapPosition03, index == 3);
+  }
+}
+
+public class BunkerComputerController extends ComputerController {
+
+  public const func GetPS() -> ref<BunkerComputerControllerPS> {
+    return this.GetBasePS() as BunkerComputerControllerPS;
+  }
+}
+
+public class BunkerComputerControllerPS extends ComputerControllerPS {
+
+  public func OnToggleZoomInteraction(evt: ref<ToggleZoomInteraction>) -> EntityNotificationType {
+    this.OnQuestMinigameRequest();
+    this.SetDeviceID();
+    return super.OnToggleZoomInteraction(evt);
+  }
+
+  public func OnQuestForceCameraZoom(evt: ref<QuestForceCameraZoom>) -> EntityNotificationType {
+    if FromVariant<Bool>(evt.prop.first) {
+      this.OnQuestMinigameRequest();
+      this.SetDeviceID();
+    };
+    return super.OnQuestForceCameraZoom(evt);
+  }
+
+  private final func SetDeviceID() -> Void {
+    let entityID: EntityID = PersistentID.ExtractEntityID(this.GetID());
+    let bb: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().HackingMinigame);
+    bb.SetEntityID(GetAllBlackboardDefs().HackingMinigame.DeviceID, entityID);
+  }
+}
+
+public class OuterBunkerComputerEntranceGameController extends gameuiBaseBunkerComputerGameController {
+
+  @default(OuterBunkerComputerEntranceGameController, data_harvest_intro)
+  public edit let m_harvestIntroAnimName: CName;
+
+  @default(OuterBunkerComputerEntranceGameController, data_harvest_part_02_loop)
+  public edit let m_harvestLoop1AnimName: CName;
+
+  @default(OuterBunkerComputerEntranceGameController, data_harvest_loop)
+  public edit let m_harvestLoop2AnimName: CName;
+
+  @default(OuterBunkerComputerEntranceGameController, data_harvest_part_04_loop)
+  public edit let m_harvestLoop3AnimName: CName;
+
+  @default(OuterBunkerComputerEntranceGameController, data_harvest_outro)
+  public edit let m_harvestOutroAnimName: CName;
+
+  protected final func GetGame() -> GameInstance {
+    let gameInstance: GameInstance;
+    let gameObject: ref<GameObject> = this.GetOwnerEntity() as GameObject;
+    if IsDefined(gameObject) {
+      gameInstance = gameObject.GetGame();
+    };
+    return gameInstance;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    let animProxy: ref<inkAnimProxy>;
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    let step: Int32 = GetFact(this.GetGame(), n"Q305_dvc_computer_entrance_step");
+    if step == 2 {
+      if NotEquals(this.m_harvestIntroAnimName, n"None") {
+        animProxy = this.PlayLibraryAnimation(this.m_harvestIntroAnimName);
+        animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimFinished");
+      };
+    } else {
+      if step == 3 {
+        if NotEquals(this.m_harvestLoop2AnimName, n"None") {
+          this.PlayLibraryAnimation(this.m_harvestLoop2AnimName, playbackOptions);
+        };
+      } else {
+        if step == 4 {
+          if NotEquals(this.m_harvestLoop3AnimName, n"None") {
+            this.PlayLibraryAnimation(this.m_harvestLoop3AnimName, playbackOptions);
+          };
+        } else {
+          if step == 5 {
+            if NotEquals(this.m_harvestOutroAnimName, n"None") {
+              this.PlayLibraryAnimation(this.m_harvestOutroAnimName);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnIntroAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    if NotEquals(this.m_harvestLoop1AnimName, n"None") {
+      this.PlayLibraryAnimation(this.m_harvestLoop1AnimName, playbackOptions);
+    };
+  }
+}

@@ -1,0 +1,504 @@
+
+public class ModioUpdateModsPopupController extends UpdateModsPopupController {
+
+  private edit let m_missingModsText: inkTextRef;
+
+  private edit let m_actionsPossibleText: inkTextRef;
+
+  private edit let m_removedModText: inkTextRef;
+
+  private edit let m_tooManyModsInSaveText: inkTextRef;
+
+  private edit let m_popupTitleText: inkTextRef;
+
+  private edit let m_proceedWarningText: inkTextRef;
+
+  private edit let m_disableButtonRef: inkWidgetRef;
+
+  private edit let m_disableButtonTextRef: inkTextRef;
+
+  private edit let m_openModioBrowserRef: inkWidgetRef;
+
+  private edit let m_confirmButtonRef: inkWidgetRef;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  private edit let m_updateModSpawnerMoreThanThreeWidget: inkWidgetRef;
+
+  private edit let m_SpawnerMoreThanThreeCanvas: inkWidgetRef;
+
+  private edit let m_updateModSpawnerLessThanThreeWidget: inkWidgetRef;
+
+  @default(ModioUpdateModsPopupController, popup_fade_in)
+  private edit let m_introAnimationName: CName;
+
+  @default(ModioUpdateModsPopupController, popup_fade_out)
+  private edit let m_outroAnimationName: CName;
+
+  private edit let m_ModMenuButtonText: inkTextRef;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_systemHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_data: ref<UpdateModsPopupData2>;
+
+  private let m_outdatedModsPanelList: [wref<inkWidget>];
+
+  private let m_listOfDisplayedPanels: [wref<OutdatedModPanel>];
+
+  private let m_outroAnimProxy: ref<inkAnimProxy>;
+
+  private let m_clickedConfirm: Bool;
+
+  private let m_disableButtonController: wref<inkButtonController>;
+
+  private let m_closeButtonController: wref<inkButtonController>;
+
+  private let m_confirmButtonController: wref<inkButtonController>;
+
+  private let m_openModioBrowserController: wref<inkButtonController>;
+
+  private let m_currentlyHoveredWidget: wref<inkWidget>;
+
+  protected cb func OnInitialize() -> Bool {
+    let i: Int32;
+    let outdatedModPanelSpawner: inkWidgetRef;
+    let panel: ref<OutdatedModPanel>;
+    let panelWidget: wref<inkWidget>;
+    this.m_currentlyHoveredWidget = null;
+    this.m_data = this.GetRootWidget().GetUserData(n"UpdateModsPopupData2") as UpdateModsPopupData2;
+    this.m_systemHandler = this.GetSystemRequestsHandler();
+    this.m_disableButtonController = inkWidgetRef.GetController(this.m_disableButtonRef) as inkButtonController;
+    this.m_closeButtonController = inkWidgetRef.GetController(this.m_closeButtonRef) as inkButtonController;
+    this.m_confirmButtonController = inkWidgetRef.GetController(this.m_confirmButtonRef) as inkButtonController;
+    this.m_openModioBrowserController = inkWidgetRef.GetController(this.m_openModioBrowserRef) as inkButtonController;
+    if !this.GetSystemRequestsHandler().IsPreGame() {
+      inkWidgetRef.SetVisible(this.m_openModioBrowserRef, false);
+    };
+    this.m_clickedConfirm = false;
+    inkTextRef.SetText(this.m_missingModsText, GetLocalizedText("UI-Modio-ModalContent-VerificationTextA6"));
+    inkTextRef.SetText(this.m_ModMenuButtonText, GetLocalizedText("UI-Modio-InputHints-ModMenu"));
+    this.PlaySound(n"GameMenu", n"OnOpen");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    if this.m_data.bIsForLoadingASave {
+      inkWidgetRef.RegisterToCallback(this.m_disableButtonRef, n"OnPress", this, n"OnPressDisable");
+      inkWidgetRef.RegisterToCallback(this.m_disableButtonRef, n"OnHoverOver", this, n"OnHoverOverDisable");
+      inkWidgetRef.RegisterToCallback(this.m_disableButtonRef, n"OnHoverOut", this, n"OnHoverOutDisable");
+      inkTextRef.SetText(this.m_disableButtonTextRef, GetLocalizedText("UI-Modio-InputHints-VerifLoad"));
+    } else {
+      inkWidgetRef.SetVisible(this.m_disableButtonRef, false);
+    };
+    inkWidgetRef.RegisterToCallback(this.m_openModioBrowserRef, n"OnPress", this, n"OnPressOpenModioBrowser");
+    inkWidgetRef.RegisterToCallback(this.m_openModioBrowserRef, n"OnHoverOver", this, n"OnHoverOverOpenModioBrowser");
+    inkWidgetRef.RegisterToCallback(this.m_openModioBrowserRef, n"OnHoverOut", this, n"OnHoverOutOpenModioBrowser");
+    inkWidgetRef.RegisterToCallback(this.m_confirmButtonRef, n"OnPress", this, n"OnPressConfirm");
+    inkWidgetRef.RegisterToCallback(this.m_confirmButtonRef, n"OnHoverOver", this, n"OnHoverOverConfirm");
+    inkWidgetRef.RegisterToCallback(this.m_confirmButtonRef, n"OnHoverOut", this, n"OnHoverOutConfirm");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnHoverOver", this, n"OnHoverOverClose");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnHoverOut", this, n"OnHoverOutClose");
+    this.RegisterToCallback(n"OnReceivedModLogo", this, n"OnReceivedModLogo");
+    this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    inkWidgetRef.SetVisible(this.m_confirmButtonRef, this.m_data.bShouldShowConfirmButton);
+    if ArraySize(this.m_data.modInfoList) > 3 {
+      outdatedModPanelSpawner = this.m_updateModSpawnerMoreThanThreeWidget;
+    } else {
+      inkWidgetRef.SetVisible(this.m_SpawnerMoreThanThreeCanvas, false);
+      outdatedModPanelSpawner = this.m_updateModSpawnerLessThanThreeWidget;
+    };
+    if this.m_data.bHaveModsBeenDeleted {
+      inkTextRef.SetText(this.m_removedModText, "UI-Modio-ModalContent-VerificationTextA4");
+      inkWidgetRef.SetVisible(this.m_removedModText, true);
+    };
+    if ArraySize(this.m_data.modInfoList) == 0 {
+      inkWidgetRef.SetVisible(this.m_missingModsText, false);
+      inkWidgetRef.SetVisible(this.m_proceedWarningText, false);
+      inkWidgetRef.SetVisible(this.m_disableButtonRef, false);
+    };
+    if this.m_data.bIsForLoadingASave {
+      if !this.GetSystemRequestsHandler().IsPreGame() {
+        inkTextRef.SetText(this.m_actionsPossibleText, GetLocalizedText("UI-Modio-ModalContent-VerificationTextA7"));
+      };
+      inkTextRef.SetText(this.m_proceedWarningText, GetLocalizedText("UI-Modio-ModalContent-VerificationTextB3"));
+    };
+    if this.m_data.bDoesNumberExceedModLimit {
+      inkWidgetRef.SetVisible(this.m_tooManyModsInSaveText, true);
+      inkTextRef.SetText(this.m_tooManyModsInSaveText, GetLocalizedText("UI-Modio-ModalContent-VerificationTextLimit"));
+    };
+    i = 0;
+    while i < ArraySize(this.m_data.modInfoList) {
+      panelWidget = this.SpawnFromLocal(inkWidgetRef.Get(outdatedModPanelSpawner), n"OutdatedModPanel");
+      panelWidget.SetHAlign(inkEHorizontalAlign.Left);
+      panel = panelWidget.GetController() as OutdatedModPanel;
+      panel.SetupPanel(this, this.m_data.modInfoList[i], this.m_data.bShouldShowThumbnail, this.m_data.bShouldShowModNames, this.m_data.bDefaultModsSelected, this.m_systemHandler);
+      ArrayPush(this.m_listOfDisplayedPanels, panel);
+      i += 1;
+    };
+    if ArraySize(this.m_listOfDisplayedPanels) > 0 {
+      this.m_disableButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, this.m_listOfDisplayedPanels[0].GetRootWidget());
+      this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, this.m_listOfDisplayedPanels[0].GetRootWidget());
+      this.m_confirmButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Down, this.m_listOfDisplayedPanels[0].GetRootWidget());
+      this.m_openModioBrowserController.OverrideNavigation(inkDiscreteNavigationDirection.Down, this.m_listOfDisplayedPanels[0].GetRootWidget());
+      this.m_disableButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, this.m_listOfDisplayedPanels[ArraySize(this.m_listOfDisplayedPanels) - 1].GetRootWidget());
+      this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, this.m_listOfDisplayedPanels[ArraySize(this.m_listOfDisplayedPanels) - 1].GetRootWidget());
+      this.m_confirmButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Up, this.m_listOfDisplayedPanels[ArraySize(this.m_listOfDisplayedPanels) - 1].GetRootWidget());
+      this.m_openModioBrowserController.OverrideNavigation(inkDiscreteNavigationDirection.Up, this.m_listOfDisplayedPanels[ArraySize(this.m_listOfDisplayedPanels) - 1].GetRootWidget());
+      this.m_listOfDisplayedPanels[0].OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_closeButtonRef));
+      this.m_disableButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Left, this.m_closeButtonController.GetRootWidget());
+      this.m_closeButtonController.OverrideNavigation(inkDiscreteNavigationDirection.Right, this.m_disableButtonController.GetRootWidget());
+    };
+    this.PlayLibraryAnimation(this.m_introAnimationName);
+    this.ReceiveListOfMods(this.m_data.modInfoList);
+  }
+
+  public final func OnWidgetHoveredOut(inWidget: ref<inkWidget>) -> Void {
+    if this.m_currentlyHoveredWidget == inWidget {
+      this.m_currentlyHoveredWidget = null;
+    };
+  }
+
+  public final func OnWidgetHoveredHover(inHoveredWidget: ref<inkWidget>) -> Void {
+    this.m_currentlyHoveredWidget = inHoveredWidget;
+  }
+
+  protected cb func OnUnitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.m_clickedConfirm = false;
+    inkWidgetRef.UnregisterFromCallback(this.m_confirmButtonRef, n"OnPress", this, n"OnPressConfirm");
+    inkWidgetRef.UnregisterFromCallback(this.m_confirmButtonRef, n"OnHoverOver", this, n"OnHoverOverConfirm");
+    inkWidgetRef.UnregisterFromCallback(this.m_confirmButtonRef, n"OnHoverOut", this, n"OnHoverOutConfirm");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnHoverOver", this, n"OnHoverOverClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnHoverOut", this, n"OnHoverOutClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_disableButtonRef, n"OnPress", this, n"OnPressDisable");
+    inkWidgetRef.UnregisterFromCallback(this.m_disableButtonRef, n"OnHoverOver", this, n"OnHoverOverDisable");
+    inkWidgetRef.UnregisterFromCallback(this.m_disableButtonRef, n"OnHoverOut", this, n"OnHoverOutDisable");
+    inkWidgetRef.UnregisterFromCallback(this.m_openModioBrowserRef, n"OnPress", this, n"OnPressOpenModioBrowser");
+    inkWidgetRef.UnregisterFromCallback(this.m_openModioBrowserRef, n"OnHoverOver", this, n"OnHoverOverOpenModioBrowser");
+    inkWidgetRef.UnregisterFromCallback(this.m_openModioBrowserRef, n"OnHoverOut", this, n"OnHoverOutOpenModioBrowser");
+    this.UnregisterFromCallback(n"OnReceivedModLogo", this, n"OnReceivedModLogo");
+  }
+
+  protected cb func OnReceivedModLogo(modID: Int64, modLogoPath: String) -> Bool {
+    let currentPanel: ref<OutdatedModPanel>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_listOfDisplayedPanels) {
+      currentPanel = this.m_listOfDisplayedPanels[i].GetController() as OutdatedModPanel;
+      if currentPanel.MatchesID(modID) {
+        currentPanel.LoadImage(modLogoPath);
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  protected cb func OnPressConfirm(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_clickedConfirm = true;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") || evt.IsAction(n"system_notification_confirm") {
+      this.PlayCloseAnimation();
+    };
+  }
+
+  protected cb func OnHoverOverConfirm(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredHover(inkWidgetRef.Get(this.m_confirmButtonRef));
+  }
+
+  protected cb func OnHoverOutConfirm(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_confirmButtonRef));
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") || evt.IsAction(n"close_popup") {
+      this.m_data.OnClose();
+      this.PlayCloseAnimation();
+    };
+  }
+
+  protected cb func OnHoverOverClose(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredHover(inkWidgetRef.Get(this.m_closeButtonRef));
+  }
+
+  protected cb func OnHoverOutClose(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_closeButtonRef));
+  }
+
+  protected cb func OnPressDisable(evt: ref<inkPointerEvent>) -> Bool {
+    let i: Uint32;
+    let listOfPanelIdsFromModsToDisable: array<Uint32>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") || evt.IsAction(n"one_click_confirm") {
+      i = 0u;
+      while i < Cast<Uint32>(ArraySize(this.m_listOfDisplayedPanels)) {
+        if this.m_listOfDisplayedPanels[Cast<Int32>(i)].GetIsPanelChecked() {
+          ArrayPush(listOfPanelIdsFromModsToDisable, i);
+        };
+        i += 1u;
+      };
+      this.m_data.DisableModsFromOutdatedModsPopupPanelIDs(listOfPanelIdsFromModsToDisable);
+      this.PlayCloseAnimation();
+    };
+  }
+
+  protected cb func OnHoverOverDisable(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredHover(inkWidgetRef.Get(this.m_disableButtonRef));
+  }
+
+  protected cb func OnHoverOutDisable(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_disableButtonRef));
+  }
+
+  protected cb func OnPressOpenModioBrowser(evt: ref<inkPointerEvent>) -> Bool {
+    let i: Int32;
+    let modsSelected: array<Int32>;
+    if !this.GetSystemRequestsHandler().IsPreGame() {
+      return IsDefined(null);
+    };
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") || evt.IsAction(n"go_to_mod_menu") {
+      i = 0;
+      while i < ArraySize(this.m_listOfDisplayedPanels) {
+        if this.m_listOfDisplayedPanels[i].GetIsPanelChecked() {
+          ArrayPush(modsSelected, i);
+        };
+        i += 1;
+      };
+      this.OnGoToModMenu(modsSelected);
+      this.m_uiSystem.QueueMenuEvent(n"OnRequestOpenModioBrowser");
+      this.PlayCloseAnimation();
+    };
+  }
+
+  protected cb func OnHoverOverOpenModioBrowser(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredHover(inkWidgetRef.Get(this.m_openModioBrowserRef));
+  }
+
+  protected cb func OnHoverOutOpenModioBrowser(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnWidgetHoveredOut(inkWidgetRef.Get(this.m_openModioBrowserRef));
+  }
+
+  protected cb func OnGlobalRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") {
+      this.OnPressClose(evt);
+    };
+    if evt.IsAction(n"one_click_confirm") && this.m_data.bIsForLoadingASave {
+      this.OnPressDisable(evt);
+    } else {
+      if evt.IsAction(n"go_to_mod_menu") {
+        this.OnPressOpenModioBrowser(evt);
+      } else {
+        if (evt.IsAction(n"popup_navigate_up") || evt.IsAction(n"popup_navigate_right")) && this.m_currentlyHoveredWidget == null {
+          this.SetCursorOverWidget(inkWidgetRef.Get(this.m_closeButtonRef), 0.10, true);
+        } else {
+          if (evt.IsAction(n"popup_navigate_down") || evt.IsAction(n"popup_navigate_left")) && this.m_currentlyHoveredWidget == null {
+            if ArraySize(this.m_listOfDisplayedPanels) > 0 {
+              this.SetCursorOverWidget(this.m_listOfDisplayedPanels[0].GetRootWidget(), 0.10, true);
+            } else {
+              this.SetCursorOverWidget(inkWidgetRef.Get(this.m_closeButtonRef), 0.10, true);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  private final func PlayCloseAnimation() -> Void {
+    this.PlaySound(n"Button", n"OnPress");
+    this.m_outroAnimProxy = this.PlayLibraryAnimation(this.m_outroAnimationName);
+    this.m_outroAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.Close();
+    this.m_outroAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+    if this.m_clickedConfirm {
+      this.m_data.OnConfirm();
+      this.m_clickedConfirm = false;
+    };
+  }
+
+  private final func Close() -> Void {
+    this.PlaySound(n"GameMenu", n"OnClose");
+    this.m_uiSystem.QueueMenuEvent(n"OnRequestCloseUpdateMods");
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}
+
+public class OutdatedModPanel extends inkDiscreteNavigationController {
+
+  private edit let m_logoWidget: inkImageRef;
+
+  private edit let m_modTitleText: inkTextRef;
+
+  private edit let m_checkboxCanvas: inkWidgetRef;
+
+  private edit let m_checkbox: inkImageRef;
+
+  private edit let m_thumbnailCanvas: inkWidgetRef;
+
+  private edit let m_reasonInfoSpawner: inkWidgetRef;
+
+  private edit let m_modCreatorText: inkTextRef;
+
+  private edit let m_modCreatorCanvas: inkWidgetRef;
+
+  private edit let m_imageBackgroundRef: inkImageRef;
+
+  private edit let m_outlineImageRef: inkImageRef;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  private let m_systemHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_modName: String;
+
+  private let m_modID: Int64;
+
+  private let m_bIsChecked: Bool;
+
+  private let m_actionRequiredType1: wref<ModActionRequiredTypeInfoController>;
+
+  private let m_actionRequiredType2: wref<ModActionRequiredTypeInfoController>;
+
+  private let m_popupController: wref<ModioUpdateModsPopupController>;
+
+  @default(OutdatedModPanel, true)
+  private let m_bEditableCheckboxState: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUnitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnRelease");
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_imageBackgroundRef).BindProperty(n"tintColor", this.m_colorNames.darkerBlueName);
+    inkWidgetRef.Get(this.m_outlineImageRef).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_checkbox).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    this.m_popupController.OnWidgetHoveredHover(this.GetRootWidget());
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_imageBackgroundRef).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+    inkWidgetRef.Get(this.m_outlineImageRef).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_checkbox).BindProperty(n"tintColor", this.m_colorNames.redName);
+    this.m_popupController.OnWidgetHoveredOut(this.GetRootWidget());
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.m_bEditableCheckboxState {
+      this.SetIsCheckedPanel(!this.m_bIsChecked);
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  public final func MatchesID(inModID: Int64) -> Bool {
+    return this.m_modID == inModID;
+  }
+
+  public final func LoadImage(imagePath: String) -> Void {
+    this.m_systemHandler.RequestGameScreenshotByPath(imagePath, inkWidgetRef.Get(this.m_logoWidget) as inkImage, this, n"OnScreenshotLoadedByPath");
+  }
+
+  private final func IsReasonMultiple(modInfo: ModToUpdateInfo) -> Bool {
+    return modInfo.actionsNeeded[3] && modInfo.actionsNeeded[2];
+  }
+
+  private final func GetMainReasonForActionRequired(modInfo: ModToUpdateInfo) -> inkModActionReason {
+    if modInfo.actionsNeeded[0] {
+      return inkModActionReason.NeedInstall;
+    };
+    if modInfo.actionsNeeded[1] {
+      return inkModActionReason.NeedSubscribe;
+    };
+    if modInfo.actionsNeeded[3] {
+      return inkModActionReason.NeedEnable;
+    };
+    return inkModActionReason.NeedUpdate;
+  }
+
+  public final func SetupPanel(popupController: wref<ModioUpdateModsPopupController>, modInfo: ModToUpdateInfo, bShouldDisplayThumbnail: Bool, bShouldDisplayModName: Bool, bSelected: Bool, systemHandler: wref<inkISystemRequestsHandler>) -> Void {
+    this.m_systemHandler = systemHandler;
+    this.m_popupController = popupController;
+    this.m_modID = modInfo.id;
+    this.m_modName = modInfo.modTitle;
+    if NotEquals(modInfo.authorName, "") {
+      inkTextRef.SetText(this.m_modCreatorText, modInfo.authorName);
+    } else {
+      inkWidgetRef.SetVisible(this.m_modCreatorCanvas, false);
+    };
+    this.SetIsCheckedPanel(bSelected);
+    if !bShouldDisplayThumbnail || StrLen(modInfo.modLogoPath) == 0 {
+      inkWidgetRef.SetVisible(this.m_thumbnailCanvas, false);
+    } else {
+      systemHandler.RequestGameScreenshotByPath(modInfo.modLogoPath, inkWidgetRef.Get(this.m_logoWidget) as inkImage, this, n"OnScreenshotLoadedByPath");
+    };
+    if bShouldDisplayModName && StrLen(this.m_modName) != 0 {
+      inkTextRef.SetText(this.m_modTitleText, this.m_modName);
+    } else {
+      inkTextRef.SetText(this.m_modTitleText, IntToString(Cast<Int32>(this.m_modID)));
+    };
+    this.m_actionRequiredType1 = this.SpawnFromLocal(inkWidgetRef.Get(this.m_reasonInfoSpawner), n"modActionReason").GetController() as ModActionRequiredTypeInfoController;
+    this.m_actionRequiredType1.Setup(this.GetMainReasonForActionRequired(modInfo));
+    if this.IsReasonMultiple(modInfo) {
+      this.m_actionRequiredType2 = this.SpawnFromLocal(inkWidgetRef.Get(this.m_reasonInfoSpawner), n"modActionReason").GetController() as ModActionRequiredTypeInfoController;
+      this.m_actionRequiredType2.Setup(inkModActionReason.NeedUpdate);
+    };
+    if !this.IsReasonMultiple(modInfo) && Equals(this.GetMainReasonForActionRequired(modInfo), inkModActionReason.NeedUpdate) || Equals(this.GetMainReasonForActionRequired(modInfo), inkModActionReason.NeedInstall) {
+      this.SetIsCheckedPanel(true);
+      inkWidgetRef.SetVisible(this.m_checkboxCanvas, false);
+      this.m_bEditableCheckboxState = false;
+    };
+  }
+
+  public final func SetIsCheckedPanel(bChecked: Bool) -> Void {
+    this.m_bIsChecked = bChecked;
+    inkWidgetRef.SetVisible(this.m_checkbox, this.m_bIsChecked);
+  }
+
+  public final func GetIsPanelChecked() -> Bool {
+    return this.m_bIsChecked;
+  }
+
+  public final func GetModID() -> Int64 {
+    return this.m_modID;
+  }
+
+  protected cb func OnScreenshotLoadedByPath(screenshotSize: Vector2, errorCode: Int32) -> Bool {
+    inkWidgetRef.SetVisible(this.m_thumbnailCanvas, errorCode == 0);
+  }
+}
+
+public class ModActionRequiredTypeInfoController extends inkLogicController {
+
+  private edit let m_reasonText: inkTextRef;
+
+  private edit let m_reasonIcon: inkImageRef;
+
+  public final func Setup(inReason: inkModActionReason) -> Void {
+    let text: ref<inkText> = inkWidgetRef.Get(this.m_reasonText) as inkText;
+    let img: ref<inkImage> = inkWidgetRef.Get(this.m_reasonIcon) as inkImage;
+    switch inReason {
+      case inkModActionReason.NeedSubscribe:
+        text.SetText(GetLocalizedText("UI-Modio-ModalContent-VerifModSub"));
+        img.SetTexturePart(n"checkmark");
+        break;
+      case inkModActionReason.NeedEnable:
+        text.SetText(GetLocalizedText("UI-Modio-ModalContent-VerifModEnable"));
+        img.SetTexturePart(n"visible");
+        break;
+      case inkModActionReason.NeedUpdate:
+        text.SetText(GetLocalizedText("UI-Modio-ModalContent-VerifModUpdate"));
+        img.SetTexturePart(n"update_small");
+        break;
+      case inkModActionReason.NeedInstall:
+        text.SetText(GetLocalizedText("UI-Modio-ModalContent-VerifModInstall"));
+        img.SetTexturePart(n"Download");
+    };
+  }
+}

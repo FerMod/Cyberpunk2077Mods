@@ -1,0 +1,773 @@
+
+public class TakeOverControlSystem extends ScriptableSystem {
+
+  private let m_controlledObject: wref<GameObject>;
+
+  private let m_takeControlSourceID: EntityID;
+
+  private let m_isInputRegistered: Bool;
+
+  private let m_isInputLockedFromQuest: Bool;
+
+  private let m_isChainForcedFromQuest: Bool;
+
+  private let m_isActionButtonLocked: Bool;
+
+  private let m_isDeviceChainCreationLocked: Bool;
+
+  private let m_isReleaseOnHitLocked: Bool;
+
+  private let m_chainLockSources: [CName];
+
+  private let m_TCDUpdateDelayID: DelayID;
+
+  @default(TakeOverControlSystem, 0.1f)
+  private let m_TCSupdateRate: Float;
+
+  private let m_lastInputSimTime: Float;
+
+  private let m_sniperNestObject: wref<GameObject>;
+
+  private let m_timestampLastTCS: Float;
+
+  public final const func GetControlledObject() -> ref<GameObject> {
+    return this.m_controlledObject;
+  }
+
+  public final const func IsInputLockedFromQuest() -> Bool {
+    return this.m_isInputLockedFromQuest;
+  }
+
+  public final const func IsDeviceControlled() -> Bool {
+    if IsDefined(this.GetControlledObject()) {
+      return true;
+    };
+    return false;
+  }
+
+  private func IsSavingLocked() -> Bool {
+    return this.IsDeviceControlled();
+  }
+
+  private final func CleanupControlledObject() -> Void {
+    let cameraControlEvt: ref<DeviceEndPlayerCameraControlEvent> = new DeviceEndPlayerCameraControlEvent();
+    this.m_controlledObject.QueueEvent(cameraControlEvt);
+    this.m_controlledObject = null;
+    this.CleanupActiveEntityInChainBlackboard();
+  }
+
+  private final func OnLockTakeControlActionRequest(request: ref<LockTakeControlAction>) -> Void {
+    this.m_isActionButtonLocked = request.isLocked;
+    if Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+      SniperNest.CreateInputHint(this.GetGameInstance(), true);
+    };
+  }
+
+  private final func OnLockReleaseOnHitRequest(request: ref<LockReleaseOnHit>) -> Void {
+    this.m_isReleaseOnHitLocked = request.isLocked;
+  }
+
+  private final func OnLockDeviceChainCreationRequest(request: ref<LockDeviceChainCreation>) -> Void {
+    this.m_isDeviceChainCreationLocked = request.isLocked;
+    if request.isLocked {
+      ArrayPush(this.m_chainLockSources, request.source);
+    } else {
+      ArrayRemove(this.m_chainLockSources, request.source);
+    };
+    GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl).SetBool(GetAllBlackboardDefs().DeviceTakeControl.ChainLocked, this.m_isDeviceChainCreationLocked);
+  }
+
+  public final const func IsDeviceChainCreationLocked() -> Bool {
+    return this.m_isDeviceChainCreationLocked;
+  }
+
+  private final func LockInputFromQuestRequest(isLocked: Bool) -> Void {
+    this.m_isInputLockedFromQuest = isLocked;
+  }
+
+  private final func ForceChainFromQuestRequest(isChainForced: Bool) -> Void {
+    this.m_isChainForcedFromQuest = isChainForced;
+  }
+
+  public final static func RequestTakeControl(context: ref<GameObject>, originalevent: ref<ToggleTakeOverControl>) -> Void {
+    let takeOverRequest: ref<RequestTakeControl>;
+    let tier: Int32;
+    let takeOverControlSystem: ref<TakeOverControlSystem> = GameInstance.GetScriptableSystemsContainer(context.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem;
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(context.GetGame()).GetLocalInstanced(GameInstance.GetPlayerSystem(context.GetGame()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    if !IsDefined(takeOverControlSystem) {
+      return;
+    };
+    if originalevent.IsQuickHack() {
+      psmBlackboard = GameInstance.GetBlackboardSystem(context.GetGame()).GetLocalInstanced(GameInstance.GetPlayerSystem(context.GetGame()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if IsDefined(psmBlackboard) {
+        tier = psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel);
+        if tier > 1 && tier <= 5 {
+          return;
+        };
+      };
+    };
+    TakeOverControlSystem.ReleaseControlOfRemoteControlledVehicle(context.GetGame(), GameInstance.GetPlayerSystem(context.GetGame()).GetLocalPlayerControlledGameObject().GetEntityID());
+    takeOverRequest = new RequestTakeControl();
+    takeOverRequest.requestSource = context.GetEntityID();
+    takeOverRequest.originalEvent = originalevent;
+    takeOverControlSystem.QueueRequest(takeOverRequest);
+  }
+
+  private final func OnRequestTakeControl(request: ref<RequestTakeControl>) -> Void {
+    this.RegisterAsCurrentObject(request.requestSource);
+    this.SendTSCActivateEventToEntity(request.originalEvent.IsQuickHack());
+    if !request.originalEvent.IsQuickHack() {
+      this.m_takeControlSourceID = request.originalEvent.GetRequesterID();
+    };
+    if this.m_isChainForcedFromQuest {
+      this.TryFillControlBlackboardByForce(request);
+      this.m_isChainForcedFromQuest = false;
+    } else {
+      this.TryFillControlBlackboard(request);
+    };
+    if Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+      this.m_sniperNestObject = this.GetControlledObject();
+      this.m_timestampLastTCS = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGameInstance()));
+    };
+    this.EnablePlayerTPPRepresenation(true);
+    this.HideAdvanceInteractionInputHints();
+  }
+
+  private final func OnRemoveFromChainRequest(request: ref<RemoveFromChainRequest>) -> Void {
+    let chain: array<SWidgetPackage>;
+    let i: Int32;
+    let psID: PersistentID;
+    if this.GetControlledObject().GetEntityID() == request.requestSource {
+      this.ToggleToNextControlledDevice();
+    };
+    chain = this.GetChain();
+    i = 0;
+    while i < ArraySize(chain) {
+      psID = CreatePersistentID(request.requestSource, n"controller");
+      if Equals(chain[i].ownerID, psID) {
+        ArrayErase(chain, i);
+        break;
+      };
+      i += 1;
+    };
+    GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl).SetVariant(GetAllBlackboardDefs().DeviceTakeControl.DevicesChain, ToVariant(chain));
+  }
+
+  public final static func ReleaseControlOnHit(player: wref<PlayerPuppet>) -> Bool {
+    let controlledObject: wref<GameObject>;
+    let takeOverControlSystem: ref<TakeOverControlSystem>;
+    if !IsDefined(player) {
+      return false;
+    };
+    takeOverControlSystem = GameInstance.GetScriptableSystemsContainer(player.GetGame()).Get(n"TakeOverControlSystem") as TakeOverControlSystem;
+    if !IsDefined(takeOverControlSystem) {
+      return false;
+    };
+    if takeOverControlSystem.m_isReleaseOnHitLocked {
+      return false;
+    };
+    controlledObject = takeOverControlSystem.GetControlledObject();
+    if !IsDefined(controlledObject) {
+      return false;
+    };
+    if VehicleComponent.IsMountedToVehicle(player.GetGame(), player) {
+      return false;
+    };
+    if IsDefined(controlledObject as SensorDevice) {
+      takeOverControlSystem.QueueRequest(new RequestReleaseControl());
+      return true;
+    };
+    return false;
+  }
+
+  public final static func ReleaseControl(game: GameInstance, opt followupEvent: ref<Event>, opt followupEventEntityID: EntityID) -> Bool {
+    let gyroBlackboard: ref<IBlackboard>;
+    let requestReleaseControl: ref<RequestReleaseControl>;
+    let takeOverControlSystem: ref<TakeOverControlSystem>;
+    if !GameInstance.IsValid(game) {
+      TakeOverControlSystem.PlayFollowupEvent(game, followupEvent, followupEventEntityID);
+      return false;
+    };
+    takeOverControlSystem = GameInstance.GetScriptableSystemsContainer(game).Get(n"TakeOverControlSystem") as TakeOverControlSystem;
+    if !IsDefined(takeOverControlSystem) {
+      TakeOverControlSystem.PlayFollowupEvent(game, followupEvent, followupEventEntityID);
+      return false;
+    };
+    if !takeOverControlSystem.IsDeviceControlled() {
+      TakeOverControlSystem.PlayFollowupEvent(game, followupEvent, followupEventEntityID);
+      return false;
+    };
+    if takeOverControlSystem.m_sniperNestObject != null {
+      takeOverControlSystem.m_sniperNestObject = null;
+    };
+    gyroBlackboard = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().GyroRestrictions);
+    gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForRangedWeapons, false);
+    gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForAiming, false);
+    requestReleaseControl = new RequestReleaseControl();
+    requestReleaseControl.followupEvent = followupEvent;
+    requestReleaseControl.followupEventEntityID = followupEventEntityID;
+    takeOverControlSystem.QueueRequest(requestReleaseControl);
+    return true;
+  }
+
+  public final static func ReleaseControlOfRemoteControlledVehicle(game: GameInstance, playerID: EntityID) -> Void {
+    let vehicle: wref<VehicleObject>;
+    let playerStateMachineBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(game).GetLocalInstanced(playerID, GetAllBlackboardDefs().PlayerStateMachine);
+    let vehicleID: EntityID = playerStateMachineBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    if EntityID.IsDefined(vehicleID) {
+      VehicleComponent.GetVehicleFromID(game, vehicleID, vehicle);
+      if IsDefined(vehicle) {
+        vehicle.SetVehicleRemoteControlled(false, false, true);
+      };
+    };
+  }
+
+  private final static func PlayFollowupEvent(game: GameInstance, followupEvent: ref<Event>, followupEventEntityID: EntityID) -> Void {
+    if IsDefined(followupEvent) {
+      GameInstance.FindEntityByID(game, followupEventEntityID).QueueEvent(followupEvent);
+    };
+  }
+
+  private final func OnRequestReleaseControl(request: ref<RequestReleaseControl>) -> Void {
+    let invalidID: EntityID;
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).GetLocalInstanced(GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    psmBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingCamera, false);
+    this.m_takeControlSourceID = invalidID;
+    this.ToggleToMainPlayerObject();
+    if this.m_sniperNestObject != null {
+      this.m_sniperNestObject = null;
+    };
+    if IsDefined(request.followupEvent) {
+      GameInstance.FindEntityByID(this.GetGameInstance(), request.followupEventEntityID).QueueEvent(request.followupEvent);
+    };
+  }
+
+  private final func OnRequestQuestTakeControlInputLock(request: ref<RequestQuestTakeControlInputLock>) -> Void {
+    this.LockInputFromQuestRequest(request.isLocked);
+    this.ForceChainFromQuestRequest(request.isChainForced);
+  }
+
+  private final func ReleaseCurrentObject() -> Void {
+    let ReleaseEvt: ref<TCSTakeOverControlDeactivate> = new TCSTakeOverControlDeactivate();
+    GameInstance.GetPersistencySystem(this.GetGameInstance()).QueuePSEvent(CreatePersistentID(this.GetControlledObject().GetEntityID(), n"controller"), (this.GetControlledObject() as Device).GetDevicePS().GetClassName(), ReleaseEvt);
+    this.CleanupControlledObject();
+  }
+
+  private final func RegisterAsCurrentObject(entityID: EntityID) -> Void {
+    this.RegisterObjectHandle(entityID);
+    this.RegisterSystemOnInput(true);
+    this.PSMSetIsPlayerControllDevice(true);
+    GameObjectEffectHelper.StartEffectEvent(this.GetControlledObject(), n"camera_transition_effect_start");
+    TakeOverControlSystem.CreateInputHint(this.GetGameInstance(), true);
+  }
+
+  private final func RegisterBBActiveObjectAsCurrentObject() -> Void {
+    let chainBlackBoard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl);
+    chainBlackBoard.SetEntityID(GetAllBlackboardDefs().DeviceTakeControl.ActiveDevice, this.GetControlledObject().GetEntityID(), true);
+  }
+
+  private final func RegisterObjectHandle(EntID: EntityID) -> Void {
+    let player: ref<PlayerPuppet>;
+    if IsDefined(this.GetControlledObject()) {
+      if this.GetControlledObject().GetEntityID() == EntID {
+        return;
+      };
+      this.ReleaseCurrentObject();
+    };
+    player = GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    this.m_controlledObject = GameInstance.FindEntityByID(this.GetGameInstance(), EntID) as GameObject;
+    if Equals(this.m_controlledObject.GetPSClassName(), n"SniperNestControllerPS") {
+      this.m_sniperNestObject = this.m_controlledObject;
+      this.m_timestampLastTCS = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGameInstance()));
+    };
+    this.GetCameraDataFromControlledObject(this.GetControlledObject(), player);
+    this.RegisterBBActiveObjectAsCurrentObject();
+  }
+
+  private final func SendTSCActivateEventToEntity(isQuickhack: Bool) -> Void {
+    let evtOwner: ref<TCSTakeOverControlActivate> = new TCSTakeOverControlActivate();
+    evtOwner.IsQuickhack = isQuickhack;
+    GameInstance.GetPersistencySystem(this.GetGameInstance()).QueuePSEvent(CreatePersistentID(this.GetControlledObject().GetEntityID(), n"controller"), (this.GetControlledObject() as Device).GetDevicePS().GetClassName(), evtOwner);
+  }
+
+  private final func GetCameraDataFromControlledObject(ent: ref<GameObject>, player: ref<GameObject>) -> Void {
+    let cameraRotationData: CameraRotationData;
+    let cameraControlEvt: ref<DeviceStartPlayerCameraControlEvent> = new DeviceStartPlayerCameraControlEvent();
+    let sensorControlledObject: ref<SensorDevice> = ent as SensorDevice;
+    if IsDefined(sensorControlledObject) {
+      cameraControlEvt.playerController = player;
+      if sensorControlledObject.GetDevicePS().IsON() {
+        sensorControlledObject.SyncRotationWithAnimGraph();
+      } else {
+        sensorControlledObject.ResetRotation();
+      };
+      cameraRotationData = sensorControlledObject.GetRotationData();
+      cameraControlEvt.minYaw = cameraRotationData.m_minYaw;
+      cameraControlEvt.maxYaw = cameraRotationData.m_maxYaw;
+      cameraControlEvt.minPitch = cameraRotationData.m_minPitch;
+      cameraControlEvt.maxPitch = cameraRotationData.m_maxPitch;
+      cameraControlEvt.initialRotation.X = cameraRotationData.m_yaw;
+      cameraControlEvt.initialRotation.Y = cameraRotationData.m_pitch;
+      sensorControlledObject.QueueEvent(cameraControlEvt);
+    };
+  }
+
+  private final func GetChain() -> [SWidgetPackage] {
+    let chainBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl);
+    let chain: array<SWidgetPackage> = FromVariant<array<SWidgetPackage>>(chainBlackboard.GetVariant(GetAllBlackboardDefs().DeviceTakeControl.DevicesChain));
+    return chain;
+  }
+
+  private final func TryFillControlBlackboard(evt: ref<RequestTakeControl>) -> Void {
+    if !(this.GetControlledObject() as Device).GetDevicePS().CanBeInDeviceChain() {
+      this.CleanupChainBlackboard();
+      return;
+    };
+    this.TryFillControlBlackboardByForce(evt);
+    this.ShowChainControls(true);
+  }
+
+  private final func TryFillControlBlackboardByForce(evt: ref<RequestTakeControl>) -> Void {
+    let allMasters: array<ref<DeviceComponentPS>>;
+    let i: Int32;
+    let masterEvt: ref<FillTakeOverChainBBoardEvent>;
+    GameInstance.GetDeviceSystem(this.GetGameInstance()).GetParents(evt.requestSource, allMasters);
+    masterEvt = new FillTakeOverChainBBoardEvent();
+    masterEvt.requesterID = Cast<PersistentID>(evt.originalEvent.GetRequesterID());
+    i = 0;
+    while i < ArraySize(allMasters) {
+      GameInstance.GetPersistencySystem(this.GetGameInstance()).QueuePSEvent(allMasters[i].GetID(), allMasters[i].GetClassName(), masterEvt);
+      i += 1;
+    };
+    this.ShowChainControls(true);
+  }
+
+  private final func RegisterSystemOnInput(register: Bool) -> Void {
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    if IsDefined(player) {
+      if register && !this.m_isInputRegistered {
+        StatusEffectHelper.ApplyStatusEffect(player, t"GameplayRestriction.NoCameraControl");
+        player.RegisterInputListener(this, n"CameraX");
+        player.RegisterInputListener(this, n"CameraY");
+        player.RegisterInputListener(this, n"CameraMouseX");
+        player.RegisterInputListener(this, n"CameraMouseY");
+        player.RegisterInputListener(this, n"CameraJcmsX");
+        player.RegisterInputListener(this, n"CameraJcmsY");
+        player.RegisterInputListener(this, n"CameraGyroX");
+        player.RegisterInputListener(this, n"CameraGyroY");
+        player.RegisterInputListener(this, n"DeviceAttack");
+        player.RegisterInputListener(this, n"StopDeviceControl");
+        player.RegisterInputListener(this, n"SwitchDevicePrevious");
+        player.RegisterInputListener(this, n"SwitchDeviceNext");
+        player.RegisterInputListener(this, n"OpenPauseMenu");
+        player.RegisterInputListener(this, n"IconicCyberware");
+        player.RegisterInputListener(this, n"CameraAim");
+        if this.m_sniperNestObject != null {
+          player.RegisterInputListener(this, n"ReturnToSniperNest");
+        };
+        this.m_isInputRegistered = true;
+        this.CreateTCSUpdate();
+      } else {
+        if !register && this.m_isInputRegistered {
+          StatusEffectHelper.RemoveStatusEffect(player, t"GameplayRestriction.NoCameraControl");
+          player.UnregisterInputListener(this);
+          this.m_isInputRegistered = false;
+          this.BreakTCSUpdate();
+        };
+      };
+    };
+  }
+
+  private final func ShowChainControls(show: Bool) -> Void {
+    if show {
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetString(GetAllBlackboardDefs().UI_HudButtonHelp.button1_Text, "Press to next");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetName(GetAllBlackboardDefs().UI_HudButtonHelp.button1_Icon, n"dpad_right");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetString(GetAllBlackboardDefs().UI_HudButtonHelp.button2_Text, "Press to previous");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetName(GetAllBlackboardDefs().UI_HudButtonHelp.button2_Icon, n"dpad_left");
+    } else {
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetString(GetAllBlackboardDefs().UI_HudButtonHelp.button1_Text, "");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetName(GetAllBlackboardDefs().UI_HudButtonHelp.button1_Icon, n"None");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetString(GetAllBlackboardDefs().UI_HudButtonHelp.button2_Text, "");
+      GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().UI_HudButtonHelp).SetName(GetAllBlackboardDefs().UI_HudButtonHelp.button2_Icon, n"None");
+    };
+  }
+
+  private final func PSMSetIsPlayerControllDevice(controllsDevice: Bool) -> Void {
+    let invalidID: EntityID;
+    let playerStateMachineBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).GetLocalInstanced(GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    playerStateMachineBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice, controllsDevice);
+    playerStateMachineBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsInteractingWithDevice, controllsDevice);
+    if controllsDevice {
+      playerStateMachineBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsUIZoomDevice, false);
+      playerStateMachineBlackboard.SetEntityID(GetAllBlackboardDefs().PlayerStateMachine.UIZoomDeviceID, invalidID);
+      playerStateMachineBlackboard.FireCallbacks();
+    } else {
+      playerStateMachineBlackboard.SetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice, false);
+      playerStateMachineBlackboard.FireCallbacks();
+    };
+  }
+
+  private final func ToggleToNextControlledDevice() -> Void {
+    let isStructValid: Bool;
+    let package: SWidgetPackage = this.GetPackageFromChainNextToMe(true, isStructValid);
+    if !isStructValid {
+      return;
+    };
+    this.ToggleToOtherDeviceFromChain(package);
+  }
+
+  private final func ToggleToPreviousControlledDevice() -> Void {
+    let isStructValid: Bool;
+    let package: SWidgetPackage = this.GetPackageFromChainNextToMe(false, isStructValid);
+    if !isStructValid {
+      return;
+    };
+    this.ToggleToOtherDeviceFromChain(package);
+  }
+
+  private final func ToggleToOtherDeviceFromChain(const otherPackage: script_ref<SWidgetPackage>) -> Void {
+    this.RegisterAsCurrentObject(PersistentID.ExtractEntityID(Deref(otherPackage).ownerID));
+    this.SendTSCActivateEventToEntity(false);
+  }
+
+  private final func ToggleToMainPlayerObject() -> Void {
+    GameObjectEffectHelper.StartEffectEvent(this.GetControlledObject(), n"camera_transition_effect_stop");
+    this.ReleaseCurrentObject();
+    this.RegisterSystemOnInput(false);
+    this.PSMSetIsPlayerControllDevice(false);
+    this.CleanupChainBlackboard();
+    this.EnablePlayerTPPRepresenation(false);
+    TakeOverControlSystem.CreateInputHint(this.GetGameInstance(), false);
+  }
+
+  private final func ReturnToDeviceScreen() -> Void {
+    let evt: ref<ReturnToDeviceScreenEvent>;
+    let invalidID: EntityID;
+    if EntityID.IsDefined(this.m_takeControlSourceID) {
+      evt = new ReturnToDeviceScreenEvent();
+      GameInstance.GetPersistencySystem(this.GetGameInstance()).QueueEntityEvent(this.m_takeControlSourceID, evt);
+      this.m_takeControlSourceID = invalidID;
+    };
+  }
+
+  private final func GetPackageFromChainNextToMe(higher: Bool, out isValid: Bool) -> SWidgetPackage {
+    let choosenPackage: SWidgetPackage;
+    let myIndex: Int32;
+    let nextIndex: Int32;
+    let overJumpsDone: Int32;
+    let chainBlackBoard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl);
+    let deviceChain: array<SWidgetPackage> = FromVariant<array<SWidgetPackage>>(chainBlackBoard.GetVariant(GetAllBlackboardDefs().DeviceTakeControl.DevicesChain));
+    if ArraySize(deviceChain) < 2 {
+      isValid = false;
+    } else {
+      isValid = true;
+    };
+    myIndex = this.GetCurrentActiveDeviceChainBlackboardIndex(deviceChain);
+    Equals(higher, true) ? nextIndex = myIndex + 1 : nextIndex = myIndex - 1;
+    while nextIndex != myIndex && overJumpsDone < ArraySize(deviceChain) {
+      if nextIndex == ArraySize(deviceChain) {
+        choosenPackage = deviceChain[0];
+      } else {
+        if nextIndex < 0 {
+          choosenPackage = deviceChain[ArraySize(deviceChain) - 1];
+        } else {
+          choosenPackage = deviceChain[nextIndex];
+        };
+      };
+      if IsDefined(GameInstance.FindEntityByID(this.GetGameInstance(), PersistentID.ExtractEntityID(choosenPackage.ownerID))) {
+        return choosenPackage;
+      };
+      Equals(higher, true) ? nextIndex = nextIndex + 1 : nextIndex = nextIndex - 1;
+      overJumpsDone += 1;
+    };
+    return deviceChain[myIndex];
+  }
+
+  private final func GetCurrentActiveDeviceChainBlackboardIndex(const deviceChain: script_ref<[SWidgetPackage]>) -> Int32 {
+    let i: Int32;
+    let myPersistenID: PersistentID;
+    if !EntityID.IsDefined(this.GetControlledObject().GetEntityID()) {
+      return -1;
+    };
+    myPersistenID = CreatePersistentID(this.GetControlledObject().GetEntityID(), n"controller");
+    i = 0;
+    while i < ArraySize(Deref(deviceChain)) {
+      if Equals(Deref(deviceChain)[i].ownerID, myPersistenID) {
+        return i;
+      };
+      i += 1;
+    };
+    return -1;
+  }
+
+  private final func MoveToSpecificEntity(entity: EntityID) -> Void {
+    let eventTakeOver: ref<ToggleTakeOverControl>;
+    let takeOverRequest: ref<RequestTakeControl>;
+    GameObjectEffectHelper.StartEffectEvent(this.GetControlledObject(), n"camera_transition_effect_start");
+    eventTakeOver = new ToggleTakeOverControl();
+    eventTakeOver.SetProperties(true, false);
+    takeOverRequest = new RequestTakeControl();
+    takeOverRequest.requestSource = entity;
+    takeOverRequest.originalEvent = eventTakeOver;
+    GameInstance.GetDelaySystem(this.GetGameInstance()).DelayScriptableSystemRequest(n"TakeOverControlSystem", takeOverRequest, 0.01);
+    this.SendTSCActivateEventToEntity(false);
+  }
+
+  private final const func EnablePlayerTPPRepresenation(enable: Bool) -> Void {
+    let isMountedToVehicle: Bool;
+    let vehicleObject: wref<VehicleObject>;
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    if IsDefined(player) {
+      if enable {
+        player.QueueEvent(new ActivateTPPRepresentationEvent());
+        GameInstance.GetAudioSystem(this.GetGameInstance()).SetBDCameraListenerOverride(true);
+        if this.m_sniperNestObject == null {
+          GameObjectEffectHelper.StartEffectEvent(player, n"camera_mask");
+        };
+      } else {
+        isMountedToVehicle = VehicleComponent.GetVehicle(player.GetGame(), player, vehicleObject);
+        if !isMountedToVehicle || !vehicleObject.GetCameraManager().IsTPPActive() {
+          player.QueueEvent(new DeactivateTPPRepresentationEvent());
+        };
+        GameInstance.GetAudioSystem(this.GetGameInstance()).SetBDCameraListenerOverride(false);
+        GameObjectEffectHelper.StopEffectEvent(player, n"camera_mask");
+      };
+    };
+  }
+
+  private final func CleanupChainBlackboard() -> Void {
+    let emptyPSArray: array<SWidgetPackage>;
+    GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl).SetVariant(GetAllBlackboardDefs().DeviceTakeControl.DevicesChain, ToVariant(emptyPSArray));
+    this.ShowChainControls(false);
+  }
+
+  private final func CleanupActiveEntityInChainBlackboard() -> Void {
+    let emptyEntityID: EntityID = new EntityID();
+    GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().DeviceTakeControl).SetEntityID(GetAllBlackboardDefs().DeviceTakeControl.ActiveDevice, emptyEntityID, true);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let XAxisEvt: ref<TCSInputXAxisEvent>;
+    let YAxisEvt: ref<TCSInputYAxisEvent>;
+    let currentInput: Float;
+    let delaySwitchSniperNest: Float;
+    let devceAttackEvt: ref<TCSInputDeviceAttack>;
+    let gyroBlackboard: ref<IBlackboard>;
+    let psmBlackboard: ref<IBlackboard>;
+    let zoomLevel: Float;
+    let inputModifier: Float = 1.00;
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    if IsDefined(player) {
+      psmBlackboard = player.GetPlayerStateMachineBlackboard();
+      zoomLevel = psmBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.ZoomLevel);
+    };
+    if Equals(ListenerAction.GetName(action), n"CameraMouseX") || Equals(ListenerAction.GetName(action), n"CameraJcmsX") || Equals(ListenerAction.GetName(action), n"CameraGyroX") || Equals(ListenerAction.GetName(action), n"CameraX") {
+      currentInput = -ListenerAction.GetValue(action);
+      if currentInput != 0.00 {
+        if Equals(ListenerAction.GetName(action), n"CameraMouseX") || Equals(ListenerAction.GetName(action), n"CameraJcmsX") {
+          inputModifier = 0.10;
+        } else {
+          inputModifier = 3.50;
+        };
+        XAxisEvt = new TCSInputXAxisEvent();
+        XAxisEvt.value -= (currentInput * inputModifier) / AbsF(zoomLevel);
+        XAxisEvt.value = ClampF(XAxisEvt.value, -180.00, 180.00);
+        GameInstance.GetPersistencySystem(this.GetGameInstance()).QueueEntityEvent(this.GetControlledObject().GetEntityID(), XAxisEvt);
+        this.m_lastInputSimTime = EngineTime.ToFloat(GameInstance.GetTimeSystem(this.GetGameInstance()).GetSimTime());
+      };
+    };
+    if Equals(ListenerAction.GetName(action), n"CameraMouseY") || Equals(ListenerAction.GetName(action), n"CameraJcmsY") || Equals(ListenerAction.GetName(action), n"CameraGyroY") || Equals(ListenerAction.GetName(action), n"CameraY") {
+      currentInput = ListenerAction.GetValue(action);
+      if currentInput != 0.00 {
+        if Equals(ListenerAction.GetName(action), n"CameraMouseY") || Equals(ListenerAction.GetName(action), n"CameraJcmsY") {
+          inputModifier = 0.10;
+        } else {
+          inputModifier = 3.50;
+        };
+        YAxisEvt = new TCSInputYAxisEvent();
+        YAxisEvt.value = (-1.00 * currentInput * inputModifier) / AbsF(zoomLevel);
+        YAxisEvt.value = ClampF(YAxisEvt.value, -180.00, 180.00);
+        GameInstance.GetPersistencySystem(this.GetGameInstance()).QueueEntityEvent(this.GetControlledObject().GetEntityID(), YAxisEvt);
+        this.m_lastInputSimTime = EngineTime.ToFloat(GameInstance.GetTimeSystem(this.GetGameInstance()).GetSimTime());
+      };
+    };
+    if Equals(ListenerAction.GetName(action), n"CameraAim") {
+      if Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") || Equals(this.GetControlledObject().GetPSClassName(), n"SecurityTurretControllerPS") {
+        gyroBlackboard = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().GyroRestrictions);
+        if ListenerAction.IsButtonJustPressed(action) {
+          gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForAiming, true);
+        };
+        if ListenerAction.IsButtonJustReleased(action) {
+          gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForAiming, false);
+        };
+      };
+    };
+    if !this.m_isActionButtonLocked && Equals(ListenerAction.GetName(action), n"DeviceAttack") {
+      devceAttackEvt = new TCSInputDeviceAttack();
+      if ListenerAction.IsButtonJustPressed(action) {
+        devceAttackEvt.value = true;
+      };
+      if ListenerAction.IsButtonJustReleased(action) {
+        devceAttackEvt.value = false;
+      };
+      GameInstance.GetPersistencySystem(this.GetGameInstance()).QueueEntityEvent(this.GetControlledObject().GetEntityID(), devceAttackEvt);
+    };
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_PRESSED) {
+      if Equals(ListenerAction.GetName(action), n"StopDeviceControl") || Equals(ListenerAction.GetName(action), n"OpenPauseMenu") {
+        if !this.m_isInputLockedFromQuest {
+          ListenerActionConsumer.DontSendReleaseEvent(consumer);
+          this.ToggleToMainPlayerObject();
+          this.PSMSetIsPlayerControllDevice(false);
+          this.ReturnToDeviceScreen();
+        };
+      };
+      if Equals(ListenerAction.GetName(action), n"ReturnToSniperNest") {
+        if NotEquals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+          this.MoveToSpecificEntity(this.m_sniperNestObject.GetEntityID());
+        };
+      };
+    };
+    if !this.IsDeviceChainCreationLocked() {
+      if Equals(ListenerAction.GetName(action), n"SwitchDevicePrevious") {
+        if ListenerAction.IsButtonJustPressed(action) {
+          if Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+            delaySwitchSniperNest = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGameInstance()));
+            if delaySwitchSniperNest - this.m_timestampLastTCS > 1.50 {
+              this.ToggleToPreviousControlledDevice();
+            };
+          } else {
+            this.ToggleToPreviousControlledDevice();
+          };
+        };
+      };
+      if Equals(ListenerAction.GetName(action), n"SwitchDeviceNext") {
+        if ListenerAction.IsButtonJustPressed(action) {
+          if Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+            delaySwitchSniperNest = EngineTime.ToFloat(GameInstance.GetSimTime(this.GetGameInstance()));
+            if delaySwitchSniperNest - this.m_timestampLastTCS > 1.50 {
+              this.ToggleToNextControlledDevice();
+            };
+          } else {
+            this.ToggleToNextControlledDevice();
+          };
+        };
+      };
+    };
+    if Equals(ListenerAction.GetName(action), n"IconicCyberware") {
+      if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_PRESSED) {
+        QuickHackableHelper.TryToCycleOverclockedState(GameInstance.GetPlayerSystem(this.GetGameInstance()).GetLocalPlayerControlledGameObject());
+      };
+    };
+  }
+
+  public final static func CreateInputHint(context: GameInstance, isVisible: Bool) -> Void {
+    let data: InputHintData;
+    let takeOverControlSystem: ref<TakeOverControlSystem> = GameInstance.GetScriptableSystemsContainer(context).Get(n"TakeOverControlSystem") as TakeOverControlSystem;
+    if EquipmentSystem.IsCyberdeckEquipped(GameInstance.GetPlayerSystem(context).GetLocalPlayerControlledGameObject()) {
+      data.action = n"VisionHold";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#52040";
+      data.sortingPriority = 2;
+      SendInputHintData(context, isVisible, data);
+    };
+    if takeOverControlSystem.m_sniperNestObject != null {
+      data.action = n"AimWithSniperNest";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#52038";
+      data.sortingPriority = 1;
+      SendInputHintData(context, isVisible, data);
+      data.action = n"ReturnToSniperNest";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#90340";
+      data.sortingPriority = 7;
+      if NotEquals(takeOverControlSystem.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") {
+        SendInputHintData(context, isVisible, data);
+      } else {
+        SendInputHintData(context, false, data);
+      };
+    } else {
+      data.action = n"ZoomIn";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#52038";
+      data.sortingPriority = 5;
+      SendInputHintData(context, isVisible, data);
+      data.action = n"ZoomOut";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#52039";
+      data.sortingPriority = 6;
+      SendInputHintData(context, isVisible, data);
+    };
+    if !takeOverControlSystem.IsInputLockedFromQuest() {
+      data.action = n"StopDeviceControl";
+      data.source = n"TakeOverControlSystem";
+      data.localizedLabel = "LocKey#52037";
+      data.sortingPriority = 8;
+      SendInputHintData(context, isVisible, data);
+    };
+  }
+
+  private func HideAdvanceInteractionInputHints() -> Void {
+    let evt: ref<DeleteInputHintBySourceEvent> = new DeleteInputHintBySourceEvent();
+    evt.source = n"AdvanceInteractionMode";
+    evt.targetHintContainer = n"GameplayInputHelper";
+    GameInstance.GetUISystem(this.GetGameInstance()).QueueEvent(evt);
+  }
+
+  private final func CreateTCSUpdate() -> Void {
+    let updateEvt: ref<TCSUpdate>;
+    if this.m_TCDUpdateDelayID == GetInvalidDelayID() {
+      updateEvt = new TCSUpdate();
+      this.m_TCDUpdateDelayID = GameInstance.GetDelaySystem(this.GetGameInstance()).DelayScriptableSystemRequest(n"TakeOverControlSystem", updateEvt, this.m_TCSupdateRate);
+    };
+  }
+
+  private final func BreakTCSUpdate() -> Void {
+    if this.m_TCDUpdateDelayID != GetInvalidDelayID() {
+      GameInstance.GetDelaySystem(this.GetGameInstance()).CancelCallback(this.m_TCDUpdateDelayID);
+      GameInstance.GetDelaySystem(this.GetGameInstance()).CancelDelay(this.m_TCDUpdateDelayID);
+    };
+  }
+
+  private final func OnTCSUpdate(request: ref<TCSUpdate>) -> Void {
+    let isCombatDevice: Bool;
+    let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(this.GetGameInstance()).Get(GetAllBlackboardDefs().GyroRestrictions);
+    let XYAxisEvt: ref<TCSInputXYAxisEvent> = new TCSInputXYAxisEvent();
+    XYAxisEvt.isAnyInput = EngineTime.ToFloat(GameInstance.GetTimeSystem(this.GetGameInstance()).GetSimTime()) - this.m_lastInputSimTime < 0.20;
+    GameInstance.GetPersistencySystem(this.GetGameInstance()).QueueEntityEvent(this.GetControlledObject().GetEntityID(), XYAxisEvt);
+    this.m_TCDUpdateDelayID = GetInvalidDelayID();
+    this.CreateTCSUpdate();
+    isCombatDevice = Equals(this.GetControlledObject().GetPSClassName(), n"SniperNestControllerPS") || Equals(this.GetControlledObject().GetPSClassName(), n"SecurityTurretControllerPS");
+    gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForRangedWeapons, isCombatDevice);
+    if !IsFinal() {
+      this.RefreshDebug(XYAxisEvt.isAnyInput);
+    };
+  }
+
+  private final func RefreshDebug(lastXYValue: Bool) -> Void {
+    let sink: SDOSink = GameInstance.GetScriptsDebugOverlaySystem(this.GetGameInstance()).CreateSink();
+    SDOSink.SetRoot(sink, "TCS");
+    SDOSink.PushFloat(sink, "Last input simTime", this.m_lastInputSimTime);
+    SDOSink.PushFloat(sink, "Last update simTime", EngineTime.ToFloat(GameInstance.GetTimeSystem(this.GetGameInstance()).GetSimTime()));
+    SDOSink.PushBool(sink, "Last XY event value", lastXYValue);
+  }
+}
+
+public class LockTakeControlAction extends ScriptableSystemRequest {
+
+  public edit let isLocked: Bool;
+
+  public final func GetFriendlyDescription() -> String {
+    return "Is action button locked when player controlls device (e.g. turret shoot)";
+  }
+}
+
+public class LockDeviceChainCreation extends ScriptableSystemRequest {
+
+  public edit let isLocked: Bool;
+
+  public edit let source: CName;
+
+  public final func GetFriendlyDescription() -> String {
+    return "Is device chain locked? e.g. camera connected to network of 4 cameras will not create possibility to jump between cameras";
+  }
+}

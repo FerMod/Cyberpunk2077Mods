@@ -1,0 +1,134 @@
+
+public class StatPrereqListener extends ScriptStatsListener {
+
+  protected let m_state: wref<StatPrereqState>;
+
+  public func OnStatChanged(ownerID: StatsObjectID, statType: gamedataStatType, diff: Float, total: Float) -> Void {
+    this.m_state.StatUpdate(diff, total);
+  }
+
+  public final func RegisterState(state: ref<PrereqState>) -> Void {
+    this.m_state = state as StatPrereqState;
+  }
+}
+
+public class StatPrereqState extends PrereqState {
+
+  public let m_listener: ref<StatPrereqListener>;
+
+  public let m_modifiersValueToCheck: Float;
+
+  public func StatUpdate(diff: Float, total: Float) -> Void {
+    let checkPassed: Bool;
+    let prereq: ref<StatPrereq> = this.GetPrereq() as StatPrereq;
+    if prereq.m_statModifiersUsed {
+      checkPassed = ProcessCompare(prereq.m_comparisonType, total, this.m_modifiersValueToCheck);
+    } else {
+      checkPassed = ProcessCompare(prereq.m_comparisonType, total, prereq.m_valueToCheck);
+    };
+    this.OnChanged(checkPassed);
+    if prereq.m_notifyOnAnyChange {
+      this.OnChangedRepeated(prereq.m_notifyOnlyOnStateFulfilled);
+    };
+  }
+
+  public final func UpdateModifiersValueToCheck(value: Float) -> Void {
+    this.m_modifiersValueToCheck = value;
+  }
+}
+
+public class StatPrereq extends IScriptablePrereq {
+
+  public let m_notifyOnAnyChange: Bool;
+
+  public let m_notifyOnlyOnStateFulfilled: Bool;
+
+  public edit let m_statType: gamedataStatType;
+
+  public edit let m_valueToCheck: Float;
+
+  public edit let m_comparisonType: EComparisonType;
+
+  public let m_statModifiersUsed: Bool;
+
+  private let m_statPrereqRecordID: TweakDBID;
+
+  public let m_objToCheck: CName;
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let object: ref<GameObject> = this.GetObjectToCheck(context, game);
+    let castedState: ref<StatPrereqState> = state as StatPrereqState;
+    castedState.m_listener = new StatPrereqListener();
+    castedState.m_listener.RegisterState(castedState);
+    castedState.m_listener.SetStatType(this.m_statType);
+    GameInstance.GetStatsSystem(game).RegisterListener(Cast<StatsObjectID>(object.GetEntityID()), castedState.m_listener);
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let object: ref<GameObject> = this.GetObjectToCheck(context, game);
+    let castedState: ref<StatPrereqState> = state as StatPrereqState;
+    GameInstance.GetStatsSystem(game).UnregisterListener(Cast<StatsObjectID>(object.GetEntityID()), castedState.m_listener);
+    castedState.m_listener = null;
+  }
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    let record: ref<StatPrereq_Record> = TweakDBInterface.GetStatPrereqRecord(recordID);
+    this.m_statType = IntEnum<gamedataStatType>(Cast<Int32>(EnumValueFromName(n"gamedataStatType", record.StatType())));
+    this.m_valueToCheck = record.ValueToCheck();
+    this.m_comparisonType = IntEnum<EComparisonType>(Cast<Int32>(EnumValueFromName(n"EComparisonType", record.ComparisonType())));
+    this.m_notifyOnAnyChange = TweakDBInterface.GetBool(recordID + t".notifyOnAnyChange", false);
+    this.m_notifyOnlyOnStateFulfilled = TweakDBInterface.GetBool(recordID + t".notifyOnlyOnStateFulfilled", false);
+    this.m_statPrereqRecordID = recordID;
+    this.m_statModifiersUsed = record.GetStatModifiersCount() > 0;
+    this.m_objToCheck = TDB.GetCName(recordID + t".objectToCheck");
+  }
+
+  public const func IsFulfilled(game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let modifiersValueToCheck: Float;
+    let object: ref<GameObject> = this.GetObjectToCheck(context, game);
+    let currentValue: Float = GameInstance.GetStatsSystem(game).GetStatValue(Cast<StatsObjectID>(object.GetEntityID()), this.m_statType);
+    if this.m_statModifiersUsed {
+      modifiersValueToCheck = StatsSystemHelper.GetStatPrereqModifiersValue(game, Cast<StatsObjectID>(object.GetEntityID()), this.m_statPrereqRecordID);
+      return ProcessCompare(this.m_comparisonType, currentValue, modifiersValueToCheck);
+    };
+    return ProcessCompare(this.m_comparisonType, currentValue, this.m_valueToCheck);
+  }
+
+  public final const func IsFulfilled(game: GameInstance, context: ref<IScriptable>, itemStatsID: StatsObjectID) -> Bool {
+    let modifiersValueToCheck: Float;
+    let object: ref<GameObject> = this.GetObjectToCheck(context, game);
+    let currentValue: Float = GameInstance.GetStatsSystem(game).GetStatValue(Cast<StatsObjectID>(object.GetEntityID()), this.m_statType);
+    if this.m_statModifiersUsed {
+      modifiersValueToCheck = StatsSystemHelper.GetStatPrereqModifiersValue(game, itemStatsID, this.m_statPrereqRecordID);
+      return ProcessCompare(this.m_comparisonType, currentValue, modifiersValueToCheck);
+    };
+    return ProcessCompare(this.m_comparisonType, currentValue, this.m_valueToCheck);
+  }
+
+  protected const func OnApplied(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let modifiersValueToCheck: Float;
+    let statValue: Float;
+    let object: wref<GameObject> = this.GetObjectToCheck(context, game);
+    let castedState: ref<StatPrereqState> = state as StatPrereqState;
+    if this.m_statModifiersUsed {
+      modifiersValueToCheck = StatsSystemHelper.GetStatPrereqModifiersValue(game, Cast<StatsObjectID>(object.GetEntityID()), this.m_statPrereqRecordID);
+      castedState.UpdateModifiersValueToCheck(modifiersValueToCheck);
+    };
+    statValue = GameInstance.GetStatsSystem(object.GetGame()).GetStatValue(Cast<StatsObjectID>(object.GetEntityID()), this.m_statType);
+    castedState.StatUpdate(0.00, statValue);
+  }
+
+  private final const func GetObjectToCheck(context: ref<IScriptable>, game: GameInstance) -> ref<GameObject> {
+    switch this.m_objToCheck {
+      case n"Player":
+        return GetPlayer(game);
+      case n"WeaponLeft":
+        return ScriptedPuppet.GetWeaponLeft(GetPlayer(game));
+      case n"WeaponRight":
+        return ScriptedPuppet.GetWeaponRight(GetPlayer(game));
+      default:
+        return context as GameObject;
+    };
+  }
+}

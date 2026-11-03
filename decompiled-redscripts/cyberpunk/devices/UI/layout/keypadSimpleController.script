@@ -1,0 +1,363 @@
+
+public class KeypadButtonSpawnData extends IScriptable {
+
+  public let m_widgetName: CName;
+
+  public let m_locKey: String;
+
+  public let m_isActionButton: Bool;
+
+  public let m_widgetData: SDeviceWidgetPackage;
+
+  public final func Initialize(widgetName: CName, const locKey: script_ref<String>, isActionButton: Bool, const widgetData: script_ref<SDeviceWidgetPackage>) -> Void {
+    this.m_widgetName = widgetName;
+    this.m_locKey = Deref(locKey);
+    this.m_isActionButton = isActionButton;
+    this.m_widgetData = Deref(widgetData);
+    this.m_widgetData.displayName = "OK";
+  }
+}
+
+public class KeypadDeviceController extends DeviceWidgetControllerBase {
+
+  private edit let m_hasButtonAuthorization: Bool;
+
+  private let m_enteredPasswordWidget: wref<inkText>;
+
+  private let m_passwordStatusWidget: wref<inkText>;
+
+  private let m_actionButton: wref<inkWidget>;
+
+  private let m_ActionText: wref<inkText>;
+
+  private let m_passwordsList: [CName];
+
+  private let m_cardName: String;
+
+  private let m_isPasswordKnown: Bool;
+
+  private let m_maxDigitsCount: Int32;
+
+  private let m_row1: wref<inkHorizontalPanel>;
+
+  private let m_row2: wref<inkHorizontalPanel>;
+
+  private let m_row3: wref<inkHorizontalPanel>;
+
+  private let m_row4: wref<inkHorizontalPanel>;
+
+  private let m_arePasswordsInitialized: Bool;
+
+  private let m_blackboard: wref<IBlackboard>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_enteredPasswordWidget = this.GetWidget(n"safeArea/enteredPassword") as inkText;
+    this.m_passwordStatusWidget = this.GetWidget(n"safeArea/passwordStatus") as inkText;
+    this.m_row1 = this.GetWidget(n"safeArea/keypadButtonsVert/row1") as inkHorizontalPanel;
+    this.m_row2 = this.GetWidget(n"safeArea/keypadButtonsVert/row2") as inkHorizontalPanel;
+    this.m_row3 = this.GetWidget(n"safeArea/keypadButtonsVert/row3") as inkHorizontalPanel;
+    this.m_row4 = this.GetWidget(n"safeArea/keypadButtonsVert/row4") as inkHorizontalPanel;
+    this.m_enteredPasswordWidget.SetText("");
+    this.m_passwordStatusWidget.SetLocalizedTextScript("LocKey#42212");
+  }
+
+  public func Initialize(gameController: ref<DeviceInkGameControllerBase>, widgetData: SDeviceWidgetPackage) -> Void {
+    this.DetermineMaxDigitsCount(gameController);
+    inkTextRef.SetLocalizedTextScript(this.m_statusNameWidget, widgetData.deviceStatus, widgetData.textData);
+    inkTextRef.SetLocalizedTextScript(this.m_displayNameWidget, widgetData.displayName);
+    this.m_cardName = ToString((widgetData.customData as DoorWidgetCustomData).GetCardName());
+    this.m_isPasswordKnown = (widgetData.customData as DoorWidgetCustomData).IsPasswordKnown();
+    this.TryInitializePasswords(gameController, widgetData);
+    if !this.m_isInitialized {
+      this.AddKeypadButtons(this.m_row1, 1, widgetData, gameController);
+      this.AddKeypadButtons(this.m_row2, 2, widgetData, gameController);
+      this.AddKeypadButtons(this.m_row3, 3, widgetData, gameController);
+      this.AddKeypadButtons(this.m_row4, 4, widgetData, gameController);
+    };
+    if IsDefined(this.m_actionButton) && !this.CheckPassword() {
+      this.SetWidgetsLocked();
+    } else {
+      if Equals(widgetData.widgetState, EWidgetState.ALLOWED) {
+        this.SetWidgetsAllowed();
+      } else {
+        if Equals(widgetData.widgetState, EWidgetState.LOCKED) {
+          this.SetWidgetsLocked();
+        } else {
+          if Equals(widgetData.widgetState, EWidgetState.SEALED) {
+            this.SetWidgetsState(n"Sealed");
+          } else {
+            this.SetWidgetsAllowed();
+          };
+        };
+      };
+    };
+    this.m_isInitialized = true;
+    if gameController != null {
+      gameController.SetUICameraZoomState(true);
+      this.TrySaveBlackboard(gameController);
+    };
+  }
+
+  private final func TrySaveBlackboard(gameController: ref<DeviceInkGameControllerBase>) -> Void {
+    let device: ref<Device> = gameController.GetOwnerEntity() as Device;
+    if IsDefined(device) {
+      this.m_blackboard = device.GetBlackboard();
+    };
+  }
+
+  private final func TryInitializePasswords(gameController: ref<DeviceInkGameControllerBase>, widgetData: SDeviceWidgetPackage) -> Void {
+    let i: Int32;
+    if !this.m_arePasswordsInitialized {
+      i = 0;
+      while i < ArraySize(widgetData.actionWidgets) {
+        if Equals(widgetData.actionWidgets[i].widgetName, "AuthorizeUser") {
+          this.m_passwordsList = (widgetData.actionWidgets[i].action as AuthorizeUser).GetValidPasswords();
+          break;
+        };
+        i += 1;
+      };
+      this.m_arePasswordsInitialized = true;
+    };
+  }
+
+  private final func DetermineMaxDigitsCount(gameController: ref<DeviceInkGameControllerBase>) -> Void {
+    this.m_maxDigitsCount = gameController.IsOwnerFactInvoker() ? 10 : 6;
+  }
+
+  private final func AddKeypadButtons(parentWidget: wref<inkWidget>, rowNumber: Int32, const widgetData: script_ref<SDeviceWidgetPackage>, gameController: ref<DeviceInkGameControllerBase>) -> Void {
+    let asyncSpawnData: ref<AsyncSpawnData>;
+    let buttonSpawnData: ref<KeypadButtonSpawnData>;
+    let i: Int32 = (rowNumber - 1) * 3 + 1;
+    while i < (rowNumber - 1) * 3 + 4 {
+      if this.TryGetButtonSpawnedDataForIndex(i, widgetData, buttonSpawnData) {
+        asyncSpawnData = new AsyncSpawnData();
+        asyncSpawnData.Initialize(this, n"OnKeypadButtonWidgetSpawned", ToVariant(buttonSpawnData), gameController);
+        this.CreateWidgetAsync(parentWidget, n"keypad_button", asyncSpawnData);
+      };
+      i += 1;
+    };
+  }
+
+  private final func TryGetButtonSpawnedDataForIndex(index: Int32, const widgetData: script_ref<SDeviceWidgetPackage>, out keypadButtonSpawnData: ref<KeypadButtonSpawnData>) -> Bool {
+    keypadButtonSpawnData = new KeypadButtonSpawnData();
+    switch index {
+      case 1:
+        keypadButtonSpawnData.Initialize(n"1", "LocKey#910", false, widgetData);
+        return true;
+      case 2:
+        keypadButtonSpawnData.Initialize(n"2", "LocKey#911", false, widgetData);
+        return true;
+      case 3:
+        keypadButtonSpawnData.Initialize(n"3", "LocKey#912", false, widgetData);
+        return true;
+      case 4:
+        keypadButtonSpawnData.Initialize(n"4", "LocKey#913", false, widgetData);
+        return true;
+      case 5:
+        keypadButtonSpawnData.Initialize(n"5", "LocKey#914", false, widgetData);
+        return true;
+      case 6:
+        keypadButtonSpawnData.Initialize(n"6", "LocKey#915", false, widgetData);
+        return true;
+      case 7:
+        keypadButtonSpawnData.Initialize(n"7", "LocKey#916", false, widgetData);
+        return true;
+      case 8:
+        keypadButtonSpawnData.Initialize(n"8", "LocKey#917", false, widgetData);
+        return true;
+      case 9:
+        keypadButtonSpawnData.Initialize(n"9", "LocKey#918", false, widgetData);
+        return true;
+      case 10:
+        keypadButtonSpawnData.Initialize(n"Cancel", "LocKey#920", false, widgetData);
+        return true;
+      case 11:
+        keypadButtonSpawnData.Initialize(n"0", "LocKey#890", false, widgetData);
+        return true;
+      case 12:
+        keypadButtonSpawnData.Initialize(n"AuthorizeUser", "OK", true, widgetData);
+        return true;
+    };
+    return false;
+  }
+
+  protected cb func OnKeypadButtonWidgetSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let actionWidget: ref<inkWidget>;
+    let actionWidgetName: String;
+    let buttonSpawnData: ref<KeypadButtonSpawnData>;
+    let gameController: ref<DeviceInkGameControllerBase>;
+    let i: Int32;
+    let textWidget: ref<inkText>;
+    let asyncSpawnData: ref<AsyncSpawnData> = userData as AsyncSpawnData;
+    if !IsDefined(asyncSpawnData) {
+      return false;
+    };
+    buttonSpawnData = FromVariant<ref<KeypadButtonSpawnData>>(asyncSpawnData.m_widgetData);
+    if !IsDefined(buttonSpawnData) {
+      return false;
+    };
+    widget.SetSizeRule(inkESizeRule.Stretch);
+    widget.RegisterToCallback(n"OnRelease", this, n"OnMouseButtonReleased");
+    widget.SetName(buttonSpawnData.m_widgetName);
+    textWidget = widget.GetController().GetWidget(n"displayName") as inkText;
+    textWidget.SetLocalizedTextScript(buttonSpawnData.m_locKey);
+    gameController = asyncSpawnData.m_controller as DeviceInkGameControllerBase;
+    if buttonSpawnData.m_isActionButton {
+      if IsDefined(gameController) {
+        this.m_actionButton = widget;
+        i = 0;
+        while i < ArraySize(buttonSpawnData.m_widgetData.actionWidgets) {
+          actionWidgetName = buttonSpawnData.m_widgetData.actionWidgets[i].widgetName;
+          if NotEquals(actionWidgetName, "AuthorizeUser") {
+          } else {
+            buttonSpawnData.m_widgetData.actionWidgets[i].displayName = buttonSpawnData.m_locKey;
+            actionWidget = this.GetActionWidget(buttonSpawnData.m_widgetData.actionWidgets[i], gameController);
+            if actionWidget == null {
+              actionWidget = this.m_actionButton;
+              this.AddActionWidget(actionWidget, buttonSpawnData.m_widgetData.actionWidgets[i], gameController);
+            };
+            this.ResolveAction(buttonSpawnData.m_widgetData.actionWidgets[i]);
+            this.InitializeActionWidget(gameController, actionWidget, buttonSpawnData.m_widgetData.actionWidgets[i]);
+            widget.SetVisible(this.m_hasButtonAuthorization);
+            break;
+          };
+          i += 1;
+        };
+      };
+    } else {
+      this.RegisterButtonWidgetToAudioCallbacks(gameController, widget);
+    };
+  }
+
+  protected cb func OnMouseButtonReleased(e: ref<inkPointerEvent>) -> Bool {
+    let button: wref<inkWidget>;
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.CanHandleClickAction() {
+      button = e.GetTarget();
+      this.HandleButtonClicked(button);
+    };
+  }
+
+  private final func CanHandleClickAction() -> Bool {
+    return !IsDefined(this.m_blackboard) || !this.m_blackboard.GetBool(GetAllBlackboardDefs().DeviceBaseBlackboard.UI_InteractivityBlocked);
+  }
+
+  private final func HandleButtonClicked(button: wref<inkWidget>) -> Void {
+    let buttonName: CName = button.GetName();
+    this.m_passwordStatusWidget.SetLocalizedTextString("LocKey#42212");
+    if Equals(buttonName, n"AuthorizeUser") {
+      if this.m_hasButtonAuthorization {
+        if this.CheckPassword() {
+          this.GrantAccess();
+        } else {
+          this.DenyAccess();
+        };
+      };
+    } else {
+      if Equals(buttonName, n"Cancel") {
+        if NotEquals(this.m_enteredPasswordWidget.GetText(), "") {
+          this.ClearPassword();
+          this.SetWidgetsLocked();
+          this.PlayTerminalSound(this.GetDeleteInputSoundEventName());
+        };
+      } else {
+        if this.IsDigit(buttonName) && this.CanAddDigit() {
+          this.m_enteredPasswordWidget.SetText(this.m_enteredPasswordWidget.GetText() + ToString(buttonName));
+          if !this.m_hasButtonAuthorization && this.CheckPassword() {
+            this.GrantAccess();
+          } else {
+            this.SetWidgetsLocked();
+          };
+        };
+      };
+    };
+    this.RefreshActionButtons();
+  }
+
+  private final func SetWidgetsLocked() -> Void {
+    this.SetWidgetsState(n"Locked");
+  }
+
+  private final func SetWidgetsAllowed() -> Void {
+    this.SetWidgetsState(n"Allowed");
+  }
+
+  private final func SetWidgetsState(stateName: CName) -> Void {
+    this.m_passwordStatusWidget.SetState(stateName);
+    inkWidgetRef.SetState(this.m_statusNameWidget, stateName);
+  }
+
+  private final func CanAddDigit() -> Bool {
+    return StrLen(this.m_enteredPasswordWidget.GetText()) < this.m_maxDigitsCount;
+  }
+
+  private final func IsDigit(buttonName: CName) -> Bool {
+    return StringToInt(NameToString(buttonName), -1) != -1;
+  }
+
+  private final func DenyAccess() -> Void {
+    this.m_passwordStatusWidget.SetLocalizedTextScript("LocKey#42213");
+    this.SetWidgetsLocked();
+    this.ClearPassword();
+    this.PlayTerminalSound(this.GetAccessDeniedSoundEventName());
+  }
+
+  public final func ClearPassword() -> Void {
+    this.m_enteredPasswordWidget.SetText("");
+  }
+
+  private final func CheckPassword() -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_passwordsList) {
+      if Equals(StringToName(this.m_enteredPasswordWidget.GetText()), this.m_passwordsList[i]) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func RefreshActionButtons() -> Void {
+    this.m_actionButton.SetState(n"Default");
+  }
+
+  private final func GrantAccess() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_actionWidgetsData) {
+      this.ResolveAction(this.m_actionWidgetsData[i]);
+      this.m_actionButton.CallCustomCallback(n"OnExecuteButtonAction");
+      i += 1;
+    };
+    this.m_passwordStatusWidget.SetLocalizedTextScript("LocKey#42214");
+    this.SetWidgetsAllowed();
+    this.m_actionButton.SetState(n"Press");
+    this.PlayTerminalSound(this.GetAccessGrantedSoundEventName());
+  }
+
+  private final func GetAccessGrantedSoundEventName() -> CName {
+    return n"OnAccessGranted";
+  }
+
+  private final func GetAccessDeniedSoundEventName() -> CName {
+    return n"OnAccessDenied";
+  }
+
+  private final func GetDeleteInputSoundEventName() -> CName {
+    return n"OnDeleteInput";
+  }
+
+  private final func PlayTerminalSound(soundEventName: CName) -> Void {
+    this.PlaySound(this.GetTerminalAudioName(), soundEventName);
+  }
+
+  private final func GetTerminalAudioName() -> CName {
+    return n"Terminal";
+  }
+
+  protected func ResolveAction(const widgetData: script_ref<SActionWidgetPackage>) -> Void {
+    let data: ref<ResolveActionData> = new ResolveActionData();
+    data.m_password = this.m_enteredPasswordWidget.GetText();
+    let actions: array<wref<DeviceAction>> = (Deref(widgetData).widget.GetController() as DeviceActionWidgetControllerBase).GetActions();
+    let action: ref<ScriptableDeviceAction> = actions[0] as ScriptableDeviceAction;
+    action.ResolveAction(data);
+  }
+}

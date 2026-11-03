@@ -1,0 +1,121 @@
+
+public class UIMenuNotificationViewData extends GenericNotificationViewData {
+
+  public let animContainer: wref<inGameMenuAnimContainer>;
+
+  public let notificationType: UIMenuNotificationType;
+
+  public func CanMerge(data: ref<GenericNotificationViewData>) -> Bool {
+    return Equals(this.notificationType, data as UIMenuNotificationViewData.notificationType) ? IsDefined(this.animContainer) ? this.animContainer.m_animProxy.IsPlaying() : true : false;
+  }
+
+  public func OnRemoveNotification(data: ref<IScriptable>) -> Bool {
+    return true;
+  }
+}
+
+public class UIMenuNotificationQueue extends gameuiGenericNotificationGameController {
+
+  @default(UIMenuNotificationQueue, 5.0f)
+  private edit let m_duration: Float;
+
+  public func GetShouldSaveState() -> Bool {
+    return false;
+  }
+
+  public func GetID() -> Int32 {
+    return 3;
+  }
+
+  protected cb func OnUINotification(evt: ref<UIMenuNotificationEvent>) -> Bool {
+    let notificationData: gameuiGenericNotificationData;
+    let requirement: SItemStackRequirementData;
+    let userData: ref<UIMenuNotificationViewData> = new UIMenuNotificationViewData();
+    switch evt.m_notificationType {
+      case UIMenuNotificationType.VendorNotEnoughMoney:
+        userData.title = "LocKey#54028";
+        break;
+      case UIMenuNotificationType.VNotEnoughMoney:
+        userData.title = "LocKey#54029";
+        break;
+      case UIMenuNotificationType.VendorRequirementsNotMet:
+        requirement = FromVariant<ref<VendorRequirementsNotMetNotificationData>>(evt.m_additionalInfo).m_data;
+        userData.title = GetLocalizedText("UI-Notifications-RequirementNotMet") + " " + IntToString(RoundF(requirement.requiredValue)) + " " + GetLocalizedText(UILocalizationHelper.GetStatNameLockey(RPGManager.GetStatRecord(requirement.statType)));
+        break;
+      case UIMenuNotificationType.InventoryActionBlocked:
+        userData.title = "UI-Notifications-ActionBlocked";
+        break;
+      case UIMenuNotificationType.CraftingNoPerks:
+        break;
+      case UIMenuNotificationType.CraftingNotEnoughMaterial:
+        userData.title = "UI-Notifications-CraftingNotEnoughMaterials";
+        break;
+      case UIMenuNotificationType.CraftingAmmoCap:
+        userData.title = "LocKey#81496";
+        break;
+      case UIMenuNotificationType.UpgradingLevelToLow:
+        userData.title = "LocKey#52451";
+        break;
+      case UIMenuNotificationType.NoPerksPoints:
+        userData.title = "UI-Notifications-NoPerksPoint";
+        break;
+      case UIMenuNotificationType.PerksLocked:
+        userData.title = "UI-Notifications-PerksLocked";
+        break;
+      case UIMenuNotificationType.MaxLevelPerks:
+        userData.title = "UI-Notifications-MaxPerks";
+        break;
+      case UIMenuNotificationType.NoAttributePoints:
+        userData.title = "UI-Notifications-NoAttributesPoint";
+        break;
+      case UIMenuNotificationType.InCombat:
+        userData.title = "LocKey#50792";
+        break;
+      case UIMenuNotificationType.InCombatExplicit:
+        userData.title = "LocKey#95062";
+        break;
+      case UIMenuNotificationType.CraftingQuickhack:
+        userData.title = "LocKey#78498";
+        break;
+      case UIMenuNotificationType.PlayerReqLevelToLow:
+        userData.title = "LocKey#87106";
+        break;
+      case UIMenuNotificationType.InventoryNoFreeSlot:
+        userData.title = "LocKey#94263";
+        break;
+      case UIMenuNotificationType.FaceUnequipBlocked:
+        userData.title = "LocKey#94072";
+        break;
+      case UIMenuNotificationType.TutorialUnequipBlocked:
+        userData.title = "LocKey#94073";
+        break;
+      case UIMenuNotificationType.NoJunkToDisassemble:
+        userData.title = "LocKey#96058";
+        break;
+      case UIMenuNotificationType.CyberwareMismatch:
+        userData.title = GetLocalizedText("UI-Notifications-RequirementNotMet") + " " + GetLocalizedText("Gameplay-Cyberware-PimpMyChrome-Popup-CyberwareMismatch");
+    };
+    userData.soundEvent = n"QuestSuccessPopup";
+    userData.soundAction = n"OnOpen";
+    userData.animContainer = evt.m_animContainer;
+    userData.notificationType = evt.m_notificationType;
+    notificationData.time = this.m_duration;
+    notificationData.widgetLibraryItemName = n"popups_side";
+    notificationData.notificationData = userData;
+    this.AddNewNotificationData(notificationData);
+  }
+
+  protected cb func OnUINotificationRemove(evt: ref<UINotificationRemoveEvent>) -> Bool {
+    this.RemoveNotification(evt);
+  }
+}
+
+public class UINotification extends GenericNotificationController {
+
+  public func SetNotificationData(notificationData: ref<GenericNotificationViewData>) -> Void {
+    let menuNotificationData: ref<UIMenuNotificationViewData>;
+    super.SetNotificationData(notificationData);
+    menuNotificationData = notificationData as UIMenuNotificationViewData;
+    menuNotificationData.animContainer.m_animProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"notification_intro", this.GetRootWidget());
+  }
+}

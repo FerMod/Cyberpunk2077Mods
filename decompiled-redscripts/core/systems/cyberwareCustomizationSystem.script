@@ -1,0 +1,225 @@
+
+public struct CyberwareCustomizationPersistentData {
+
+  public persistent let enabled: Bool;
+
+  public persistent let customizationItemID: ItemID;
+
+  public persistent let switcherName: CName;
+
+  public persistent let switcherIndex: Uint32;
+
+  public persistent let brandDataID: TweakDBID;
+
+  public persistent let primaryColorIndex: Uint8;
+
+  public persistent let secondaryColorIndex: Uint8;
+
+  public persistent let hasMaxTacApperanceEquipped: Bool;
+
+  public final static func GetBrandDataID(data: CyberwareCustomizationPersistentData) -> ref<UIGlamdocBrandData_Record> {
+    return TweakDBInterface.GetUIGlamdocBrandDataRecord(data.brandDataID);
+  }
+
+  public final static func GetPrimaryColor(data: CyberwareCustomizationPersistentData) -> Color {
+    return CyberwareCustomizationHelper.GetColorFromBrandData(TweakDBInterface.GetUIGlamdocBrandDataRecord(data.brandDataID), data.primaryColorIndex);
+  }
+
+  public final static func GetSecondaryColor(data: CyberwareCustomizationPersistentData) -> Color {
+    return CyberwareCustomizationHelper.GetColorFromBrandData(TweakDBInterface.GetUIGlamdocBrandDataRecord(data.brandDataID), data.secondaryColorIndex);
+  }
+}
+
+public class CyberwareCustomizationAttachmentSlotsScriptCallback extends AttachmentSlotsScriptCallback {
+
+  public let m_cyberwareCustomizationSystem: wref<CyberwareCustomizationSystem>;
+
+  public func OnItemEquippedVisual(slot: TweakDBID, item: ItemID) -> Void {
+    let requestRefresh: ref<PotentiallyRefreshMaxTacApperanceRequest>;
+    if slot == t"AttachmentSlots.RightArm" && ItemID.GetTDBID(item) == t"Items.MantisBladeHolsteredFists" {
+      requestRefresh = new PotentiallyRefreshMaxTacApperanceRequest();
+      this.m_cyberwareCustomizationSystem.QueueRequest(requestRefresh);
+    };
+  }
+}
+
+public class CyberwareCustomizationSystem extends NativeCyberwareCustomizationSystem {
+
+  private persistent let savedData: CyberwareCustomizationPersistentData;
+
+  private let m_transactionSystem: wref<TransactionSystem>;
+
+  private let m_attachmentSlotCallback: ref<AttachmentSlotsScriptListener>;
+
+  private let m_playerAttachedCallbackID: Uint32;
+
+  private let m_playerPuppet: wref<GameObject>;
+
+  public final const func GetSavedData() -> CyberwareCustomizationPersistentData {
+    return this.savedData;
+  }
+
+  private final func OnPotentiallyRefreshMaxTacApperance(requestRefresh: ref<PotentiallyRefreshMaxTacApperanceRequest>) -> Void {
+    let shouldApplyMaxTacApperance: Bool = this.ShouldApplyMaxTacApperance();
+    let hasMaxTacApperanceEquipped: Bool = this.savedData.hasMaxTacApperanceEquipped;
+    if shouldApplyMaxTacApperance && !hasMaxTacApperanceEquipped {
+      this.SetMaxTacApperance();
+    } else {
+      if !shouldApplyMaxTacApperance && hasMaxTacApperanceEquipped {
+        this.RemoveMaxTacApperance();
+      };
+    };
+  }
+
+  private final func SetMaxTacApperance() -> Void {
+    this.SetCustomizationAppearance(n"u_mantis_edge_base", n"max_tac");
+    this.savedData.hasMaxTacApperanceEquipped = true;
+  }
+
+  private final func RemoveMaxTacApperance() -> Void {
+    this.ResetCustomizationAppearance(n"u_mantis_edge_base");
+    this.savedData.hasMaxTacApperanceEquipped = false;
+  }
+
+  private final func ShouldApplyMaxTacApperance() -> Bool {
+    let equipData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.m_playerPuppet);
+    let cwEquipArea: ItemID = equipData.GetActiveItem(gamedataEquipmentArea.ArmsCW);
+    let armsCWRecord: ref<Item_Record> = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(cwEquipArea));
+    let tags: array<CName> = armsCWRecord.Tags();
+    let i: Int32 = 0;
+    while i < ArraySize(tags) {
+      if Equals(tags[i], n"SetMaxTacApperance") {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func OnApplyCyberwareCustomizationDataRequest(request: ref<ApplyCyberwareCustomizationDataRequest>) -> Void {
+    let switcherName: CName = CyberwareCustomizationHelper.GetCyberarmTypeFromCustomizationItem(request.customizationItem);
+    let switcherIndex: Uint32 = Cast<Uint32>(CyberwareCustomizationHelper.GetCustomizationIndexFromCustomizationItem(request.customizationItem));
+    let brandData: ref<UIGlamdocBrandData_Record> = CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(request.customizationItem);
+    let primaryColor: Color = CyberwareCustomizationHelper.GetColorFromBrandData(brandData, request.primaryColorIndex);
+    let secondaryColor: Color = CyberwareCustomizationHelper.GetColorFromBrandData(brandData, request.secondaryColorIndex);
+    this.SetIndexForCustomizationSwitcher(switcherName, switcherIndex, true);
+    this.SetCustomizationParameters(request.enabled, Color.ToLinear(primaryColor), Color.ToLinear(secondaryColor));
+  }
+
+  private final func OnSaveAndApplyCyberwareCustomizationDataRequest(request: ref<SaveAndApplyCyberwareCustomizationDataRequest>) -> Void {
+    this.savedData.enabled = request.enabled;
+    this.savedData.customizationItemID = IsDefined(request.customizationItem) ? request.customizationItem.GetID() : ItemID.None();
+    this.savedData.switcherName = request.switcherName;
+    this.savedData.switcherIndex = request.switcherIndex;
+    this.savedData.brandDataID = CyberwareCustomizationHelper.GetBrandDataFromCustomizationItem(request.customizationItem).GetRecordID();
+    this.savedData.primaryColorIndex = request.primaryColorIndex;
+    this.savedData.secondaryColorIndex = request.secondaryColorIndex;
+    this.RestoreCyberwareCustomization(true);
+  }
+
+  private final func OnSaveAndApplyCyberwareSwitcherIndexRequest(request: ref<SaveAndApplyCyberWareSwitcherIndexRequest>) -> Void {
+    this.savedData.switcherIndex = request.switcherIndex;
+    this.RestoreCyberwareCustomization(true);
+  }
+
+  private final func OnSaveAndApplyCyberwareCustomizationColorRequest(request: ref<SaveAndApplyCyberWareCustomColorRequest>) -> Void {
+    this.savedData.enabled = request.enabled;
+    this.savedData.primaryColorIndex = request.primaryColorIndex;
+    this.savedData.secondaryColorIndex = request.secondaryColorIndex;
+    this.SetCustomizationParameters(this.savedData.enabled, Color.ToLinear(CyberwareCustomizationPersistentData.GetPrimaryColor(this.savedData)), Color.ToLinear(CyberwareCustomizationPersistentData.GetSecondaryColor(this.savedData)));
+  }
+
+  private final func OnRestoreCyberwareCustomizationDataRequest(request: ref<RestoreCyberwareCustomizationDataRequest>) -> Void {
+    this.RestoreCyberwareCustomization(false);
+  }
+
+  private func OnAttach() -> Void {
+    GameInstance.GetPlayerSystem(this.GetGameInstance()).UnregisterPlayerPuppetAttachedCallback(this.m_playerAttachedCallbackID);
+    this.m_playerAttachedCallbackID = GameInstance.GetPlayerSystem(this.GetGameInstance()).RegisterPlayerPuppetAttachedCallback(this, n"PlayerAttachedCallback");
+  }
+
+  private final func PlayerAttachedCallback(playerPuppet: ref<GameObject>) -> Void {
+    this.m_playerPuppet = playerPuppet;
+    this.m_transactionSystem = GameInstance.GetTransactionSystem(this.GetGameInstance());
+    let attachmentCallback: ref<CyberwareCustomizationAttachmentSlotsScriptCallback> = new CyberwareCustomizationAttachmentSlotsScriptCallback();
+    attachmentCallback.m_cyberwareCustomizationSystem = this;
+    this.m_attachmentSlotCallback = this.m_transactionSystem.RegisterAttachmentSlotListener(playerPuppet, attachmentCallback);
+  }
+
+  private func OnRestored(saveVersion: Int32, gameVersion: Int32) -> Void {
+    this.RestoreCyberwareCustomization(false);
+  }
+
+  public final func RestoreCyberwareCustomization(forcePlayerCustomization: Bool) -> Void {
+    if this.savedData.hasMaxTacApperanceEquipped || this.ShouldApplyMaxTacApperance() {
+      this.SetIndexForCustomizationSwitcherWithMaxTacAppearance(this.savedData.switcherName, this.savedData.switcherIndex, forcePlayerCustomization);
+    } else {
+      this.SetIndexForCustomizationSwitcher(this.savedData.switcherName, this.savedData.switcherIndex, forcePlayerCustomization);
+    };
+    this.SetCustomizationParameters(this.savedData.enabled, Color.ToLinear(CyberwareCustomizationPersistentData.GetPrimaryColor(this.savedData)), Color.ToLinear(CyberwareCustomizationPersistentData.GetSecondaryColor(this.savedData)));
+  }
+}
+
+public class CyberwareCustomizationHelper extends IScriptable {
+
+  public final static func GetCyberarmTypeFromCustomizationItem(item: ref<gameItemData>) -> CName {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.CyberarmType();
+  }
+
+  public final static func GetCustomizationIndexFromCustomizationItem(item: ref<gameItemData>) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.CustomizationIndex();
+  }
+
+  public final static func GetCustomizationIndexFromCustomizationItem(itemID: ItemID) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(itemID));
+    return customizationItemRecord.CustomizationIndex();
+  }
+
+  public final static func GetLongSleevesCustomizationIndexFromCustomizationItem(item: ref<gameItemData>) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.LongSleevesCustomizationIndex();
+  }
+
+  public final static func GetLongSleevesCustomizationIndexFromCustomizationItem(itemID: ItemID) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(itemID));
+    return customizationItemRecord.LongSleevesCustomizationIndex();
+  }
+
+  public final static func GetBrandDataFromCustomizationItem(item: ref<gameItemData>) -> ref<UIGlamdocBrandData_Record> {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.BrandHandle();
+  }
+
+  public final static func GetDefaultPrimaryColorIndexFromCustomizationItem(item: ref<gameItemData>) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.DefaultPrimaryColorIndex();
+  }
+
+  public final static func GetDefaultSecondaryColorIndexFromCustomizationItem(item: ref<gameItemData>) -> Int32 {
+    let customizationItemRecord: ref<UIGlamdocCustomizationItem_Record> = TweakDBInterface.GetUIGlamdocCustomizationItemRecord(ItemID.GetTDBID(item.GetID()));
+    return customizationItemRecord.DefaultSecondaryColorIndex();
+  }
+
+  public final static func GetColorFromBrandData(record: ref<UIGlamdocBrandData_Record>, index: Uint8) -> Color {
+    switch index {
+      case 0u:
+        return CyberwareCustomizationHelper.GetColorFromIntArray(record.Color1());
+      case 1u:
+        return CyberwareCustomizationHelper.GetColorFromIntArray(record.Color2());
+      case 2u:
+        return CyberwareCustomizationHelper.GetColorFromIntArray(record.Color3());
+      case 3u:
+        return CyberwareCustomizationHelper.GetColorFromIntArray(record.Color4());
+      case 4u:
+        return CyberwareCustomizationHelper.GetColorFromIntArray(record.Color5());
+      default:
+        return new Color(0u, 0u, 0u, 0u);
+    };
+  }
+
+  private final static func GetColorFromIntArray(colorArray: [Int32]) -> Color {
+    return new Color(Cast<Uint8>(colorArray[0]), Cast<Uint8>(colorArray[1]), Cast<Uint8>(colorArray[2]), 255u);
+  }
+}

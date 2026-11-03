@@ -1,0 +1,279 @@
+
+public class EmporiumPatternTutorialPanelGameController extends inkGameController {
+
+  @runtimeProperty("category", "Main")
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Main")
+  private edit let m_descriptionRef: inkRichTextBoxRef;
+
+  @runtimeProperty("category", "Main")
+  private edit let m_videoWidgetRef: inkVideoRef;
+
+  @runtimeProperty("category", "Main")
+  @default(EmporiumPatternTutorialPanelGameController, intro)
+  private edit let m_introAnimationName: CName;
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_tabButtonRef: [inkWidgetRef; 7];
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_tabButtonLabelRef: [inkTextRef; 7];
+
+  @runtimeProperty("category", "Tabs")
+  private edit let m_tabButtonBkgRef: [inkWidgetRef; 7];
+
+  @runtimeProperty("category", "Data")
+  private edit let m_contentData: [VideoCarouselData; 7];
+
+  private let m_data: ref<EmporiumPopupData>;
+
+  private let m_videoWidget: wref<inkVideo>;
+
+  @default(EmporiumPatternTutorialPanelGameController, -1)
+  private let m_activeTab: Int32;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    let playerControlledObject: ref<GameObject>;
+    this.m_data = this.GetRootWidget().GetUserData(n"EmporiumPopupData") as EmporiumPopupData;
+    this.m_videoWidget = inkWidgetRef.Get(this.m_videoWidgetRef) as inkVideo;
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[0], this.m_contentData[0].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[1], this.m_contentData[1].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[2], this.m_contentData[2].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[3], this.m_contentData[3].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[4], this.m_contentData[4].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[5], this.m_contentData[5].videoTitleKey);
+    inkTextRef.SetLocalizedText(this.m_tabButtonLabelRef[6], this.m_contentData[6].videoTitleKey);
+    this.SetActiveContetnt(0);
+    playerControlledObject = this.GetPlayerControlledObject();
+    playerControlledObject.RegisterInputListener(this, n"UI_MoveDown");
+    playerControlledObject.RegisterInputListener(this, n"UI_MoveUp");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[0], n"OnPress", this, n"OnPressTab0");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[1], n"OnPress", this, n"OnPressTab1");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[2], n"OnPress", this, n"OnPressTab2");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[3], n"OnPress", this, n"OnPressTab3");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[4], n"OnPress", this, n"OnPressTab4");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[5], n"OnPress", this, n"OnPressTab5");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[6], n"OnPress", this, n"OnPressTab6");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[0], n"OnHoverOver", this, n"OnHoverOverTab0");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[0], n"OnHoverOut", this, n"OnHoverOutTab0");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[1], n"OnHoverOver", this, n"OnHoverOverTab1");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[1], n"OnHoverOut", this, n"OnHoverOutTab1");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[2], n"OnHoverOver", this, n"OnHoverOverTab2");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[2], n"OnHoverOut", this, n"OnHoverOutTab2");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[3], n"OnHoverOver", this, n"OnHoverOverTab3");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[3], n"OnHoverOut", this, n"OnHoverOutTab03");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[4], n"OnHoverOver", this, n"OnHoverOverTab4");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[4], n"OnHoverOut", this, n"OnHoverOutTab04");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[5], n"OnHoverOver", this, n"OnHoverOverTab5");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[5], n"OnHoverOut", this, n"OnHoverOutTab05");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[6], n"OnHoverOver", this, n"OnHoverOverTab6");
+    inkWidgetRef.RegisterToCallback(this.m_tabButtonRef[6], n"OnHoverOut", this, n"OnHoverOutTab06");
+    this.m_animProxy = this.PlayLibraryAnimation(this.m_introAnimationName);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if IsDefined(this.GetPlayerControlledObject()) {
+      this.GetPlayerControlledObject().UnregisterInputListener(this);
+    };
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[0], n"OnPress", this, n"OnPressTab0");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[1], n"OnPress", this, n"OnPressTab1");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[2], n"OnPress", this, n"OnPressTab2");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[3], n"OnPress", this, n"OnPressTab3");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[4], n"OnPress", this, n"OnPressTab4");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[5], n"OnPress", this, n"OnPressTab5");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[6], n"OnPress", this, n"OnPressTab6");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[0], n"OnHoverOver", this, n"OnHoverOverTab0");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[0], n"OnHoverOut", this, n"OnHoverOutTab0");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[1], n"OnHoverOver", this, n"OnHoverOverTab1");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[1], n"OnHoverOut", this, n"OnHoverOutTab1");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[2], n"OnHoverOver", this, n"OnHoverOverTab2");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[2], n"OnHoverOut", this, n"OnHoverOutTab2");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[3], n"OnHoverOver", this, n"OnHoverOverTab3");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[3], n"OnHoverOut", this, n"OnHoverOutTab03");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[4], n"OnHoverOver", this, n"OnHoverOverTab4");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[4], n"OnHoverOut", this, n"OnHoverOutTab04");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[5], n"OnHoverOver", this, n"OnHoverOverTab5");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[5], n"OnHoverOut", this, n"OnHoverOutTab05");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[6], n"OnHoverOver", this, n"OnHoverOverTab6");
+    inkWidgetRef.UnregisterFromCallback(this.m_tabButtonRef[6], n"OnHoverOut", this, n"OnHoverOutTab06");
+  }
+
+  public final func SetActiveContetnt(tabId: Int32) -> Void {
+    if this.m_activeTab == tabId {
+      return;
+    };
+    inkTextRef.SetLocalizedText(this.m_descriptionRef, this.m_contentData[tabId].videoDescriptionKey);
+    this.m_videoWidget.SetVideoPath(this.m_contentData[tabId].videoResPath);
+    this.m_videoWidget.Play();
+    inkWidgetRef.SetState(this.m_tabButtonRef[this.m_activeTab], n"Default");
+    inkWidgetRef.SetState(this.m_tabButtonRef[tabId], n"Selected");
+    this.m_activeTab = tabId;
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let aName: CName = ListenerAction.GetName(action);
+    let aType: gameinputActionType = ListenerAction.GetType(action);
+    if Equals(aType, gameinputActionType.BUTTON_RELEASED) {
+      if Equals(aName, n"UI_MoveDown") {
+        this.NextTab();
+      } else {
+        if Equals(aName, n"UI_MoveUp") {
+          this.PreviousTab();
+        };
+      };
+    };
+  }
+
+  public final func NextTab() -> Void {
+    if 1 != GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame()).GetFact(n"radial_wheel_tab_open") {
+      return;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    if this.m_activeTab < 6 {
+      this.SetActiveContetnt(this.m_activeTab + 1);
+    } else {
+      this.SetActiveContetnt(0);
+    };
+  }
+
+  public final func PreviousTab() -> Void {
+    if 1 != GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame()).GetFact(n"radial_wheel_tab_open") {
+      return;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    if this.m_activeTab > 0 {
+      this.SetActiveContetnt(this.m_activeTab - 1);
+    } else {
+      this.SetActiveContetnt(6);
+    };
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.Close();
+    };
+  }
+
+  private final func Close() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.PlaySound(n"Button", n"OnPress");
+    playbackOptions.playReversed = true;
+    this.m_animProxy = this.PlayLibraryAnimation(this.m_introAnimationName, playbackOptions);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_animProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+
+  protected cb func OnPressTab0(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(0);
+    };
+  }
+
+  protected cb func OnPressTab1(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(1);
+    };
+  }
+
+  protected cb func OnPressTab2(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(2);
+    };
+  }
+
+  protected cb func OnPressTab3(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(3);
+    };
+  }
+
+  protected cb func OnPressTab4(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(4);
+    };
+  }
+
+  protected cb func OnPressTab5(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(5);
+    };
+  }
+
+  protected cb func OnPressTab6(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.SetActiveContetnt(6);
+    };
+  }
+
+  protected cb func OnHoverOverTab0(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[0], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab0(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[0], n"Default");
+  }
+
+  protected cb func OnHoverOverTab1(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[1], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab1(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[1], n"Default");
+  }
+
+  protected cb func OnHoverOverTab2(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[2], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab2(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[2], n"Default");
+  }
+
+  protected cb func OnHoverOverTab3(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[3], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab03(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[3], n"Default");
+  }
+
+  protected cb func OnHoverOverTab4(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[4], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab04(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[4], n"Default");
+  }
+
+  protected cb func OnHoverOverTab5(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[5], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab05(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[5], n"Default");
+  }
+
+  protected cb func OnHoverOverTab6(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[6], n"Hover");
+  }
+
+  protected cb func OnHoverOutTab06(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_tabButtonBkgRef[6], n"Default");
+  }
+}

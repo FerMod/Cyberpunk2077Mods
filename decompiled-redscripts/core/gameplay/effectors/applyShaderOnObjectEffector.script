@@ -1,0 +1,72 @@
+
+public class ApplyShaderOnObjectEffector extends Effector {
+
+  private let m_applicationTargetName: CName;
+
+  private let m_applicationTargets: [wref<GameObject>];
+
+  private let m_effects: [ref<EffectInstance>];
+
+  private let m_overrideMaterialName: CName;
+
+  private let m_overrideMaterialTag: CName;
+
+  private let m_overrideMaterialClearOnDetach: Bool;
+
+  private let m_owner: wref<GameObject>;
+
+  private let m_ownerEffect: ref<EffectInstance>;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_applicationTargetName = TweakDBInterface.GetCName(record + t".applicationTarget", n"None");
+    this.m_overrideMaterialName = TweakDBInterface.GetCName(record + t".overrideMaterialName", n"None");
+    this.m_overrideMaterialTag = TweakDBInterface.GetCName(record + t".overrideMaterialTag", n"None");
+    this.m_overrideMaterialClearOnDetach = TweakDBInterface.GetBool(record + t".overrideMaterialClearOnDetach", false);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    let effectInstance: ref<EffectInstance>;
+    let i: Int32;
+    this.m_owner = owner;
+    this.GetApplicationTarget(this.m_owner, this.m_applicationTargetName, this.m_applicationTargets);
+    i = 0;
+    while i < ArraySize(this.m_applicationTargets) {
+      effectInstance = GameInstance.GetGameEffectSystem(this.m_owner.GetGame()).CreateEffectStatic(this.m_overrideMaterialName, this.m_overrideMaterialTag, this.m_owner);
+      if IsDefined(effectInstance) && IsNameValid(this.m_overrideMaterialName) && IsDefined(this.m_applicationTargets[i]) {
+        EffectData.SetBool(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.enable, true);
+        EffectData.SetBool(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.clearMaterialOverlayOnDetach, this.m_overrideMaterialClearOnDetach);
+        EffectData.SetEntity(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.entity, this.m_applicationTargets[i]);
+        effectInstance.Run();
+      };
+      i += 1;
+    };
+  }
+
+  protected func ActionOff(owner: ref<GameObject>) -> Void {
+    let effectInstance: ref<EffectInstance>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_applicationTargets) {
+      effectInstance = GameInstance.GetGameEffectSystem(this.m_owner.GetGame()).CreateEffectStatic(this.m_overrideMaterialName, this.m_overrideMaterialTag, this.m_owner);
+      if IsDefined(effectInstance) && IsNameValid(this.m_overrideMaterialName) && IsDefined(this.m_applicationTargets[i]) {
+        EffectData.SetBool(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.enable, false);
+        EffectData.SetEntity(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.entity, this.m_applicationTargets[i]);
+        effectInstance.Run();
+      };
+      i += 1;
+    };
+  }
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    let effectInstance: ref<EffectInstance>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_applicationTargets) {
+      effectInstance = GameInstance.GetGameEffectSystem(this.m_owner.GetGame()).CreateEffectStatic(this.m_overrideMaterialName, this.m_overrideMaterialTag, this.m_owner);
+      if IsDefined(effectInstance) && IsNameValid(this.m_overrideMaterialName) && IsDefined(this.m_applicationTargets[i]) {
+        EffectData.SetBool(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.enable, false);
+        EffectData.SetEntity(effectInstance.GetSharedData(), GetAllBlackboardDefs().EffectSharedData.entity, this.m_applicationTargets[i]);
+        effectInstance.Run();
+      };
+      i += 1;
+    };
+  }
+}

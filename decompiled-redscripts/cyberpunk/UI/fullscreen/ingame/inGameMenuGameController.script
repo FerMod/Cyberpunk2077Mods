@@ -1,0 +1,743 @@
+
+public class SetZoomLevelEvent extends Event {
+
+  public let m_value: Int32;
+
+  public final func SetZoom(zoomValue: Int32) -> Void {
+    this.m_value = zoomValue;
+  }
+}
+
+public native class gameuiInGameMenuGameController extends gameuiBaseMenuGameController {
+
+  private let m_quickSaveInProgress: Bool;
+
+  private let m_wasHoldingMapHotKey: Bool;
+
+  @default(gameuiInGameMenuGameController, false)
+  private let m_controllerDisconnected: Bool;
+
+  private let m_inputSettingsListener: ref<InputSettingsVarListener>;
+
+  private let m_settings: ref<UserSettings>;
+
+  private let m_inputSettingGroupName: CName;
+
+  private let m_inputSettingGroup: ref<ConfigGroup>;
+
+  private let m_inputSettingVarName: CName;
+
+  private let m_inputSettingVar: ref<ConfigVarListString>;
+
+  private let m_displayInputSettingVarName: CName;
+
+  private let m_displayInputSettingVar: ref<ConfigVarListString>;
+
+  private let m_initScheme: Int32;
+
+  private let m_saveMessageToken: ref<inkGameNotificationToken>;
+
+  private let m_showDeathScreenBBID: ref<CallbackHandle>;
+
+  private let m_breachingNetworkBBID: ref<CallbackHandle>;
+
+  private let m_triggerMenuEventBBID: ref<CallbackHandle>;
+
+  private let m_openStorageBBID: ref<CallbackHandle>;
+
+  private let m_controllerDisconnectedBBID: ref<CallbackHandle>;
+
+  private let m_bbOnEquipmentChangedID: ref<CallbackHandle>;
+
+  private let m_inputSchemesBBID: ref<CallbackHandle>;
+
+  private let m_inputMouserLayoutBBID: ref<CallbackHandle>;
+
+  private let m_inventoryListener: ref<AttachmentSlotsScriptListener>;
+
+  private let m_animContainer: ref<inGameMenuAnimContainer>;
+
+  private let m_lastInGameNotificationType: UIInGameNotificationType;
+
+  private let m_loadSaveDelayID: DelayID;
+
+  private let m_player: wref<GameObject>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterGlobalBlackboards();
+    this.GetSystemRequestsHandler().RegisterToCallback(n"OnSavingComplete", this, n"OnSavingComplete");
+    this.m_animContainer = new inGameMenuAnimContainer();
+    if Equals(GetPlatformShortName(), "emporium") {
+      this.m_inputSettingGroupName = n"/controls/controller";
+      this.m_inputSettingVarName = n"InputSchemesModeNintendo";
+      this.m_displayInputSettingVarName = n"DisplayInputSchemesModeNintendo";
+      this.m_settings = this.GetSystemRequestsHandler().GetUserSettings();
+      if this.m_settings.HasGroup(this.m_inputSettingGroupName) {
+        this.m_inputSettingGroup = this.m_settings.GetGroup(this.m_inputSettingGroupName);
+        if this.m_inputSettingGroup.HasVar(this.m_inputSettingVarName) {
+          this.m_inputSettingVar = this.m_inputSettingGroup.GetVar(this.m_inputSettingVarName) as ConfigVarListString;
+          this.m_initScheme = this.m_inputSettingVar.GetIndex();
+        };
+        if this.m_inputSettingGroup.HasVar(this.m_displayInputSettingVarName) {
+          this.m_displayInputSettingVar = this.m_inputSettingGroup.GetVar(this.m_displayInputSettingVarName) as ConfigVarListString;
+          this.m_displayInputSettingVar.SetIndex(this.m_initScheme);
+        };
+      };
+    };
+  }
+
+  protected cb func OnDelayedRegisterToGlobalInputCallbackEvent(evt: ref<DelayedRegisterToGlobalInputCallbackEvent>) -> Bool {
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleMenuInput");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.GetSystemRequestsHandler().UnregisterFromCallback(n"OnSavingComplete", this, n"OnSavingComplete");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleMenuInput");
+    this.UnregisterGlobalBlackboards();
+  }
+
+  private final func RegisterGlobalBlackboards() -> Void {
+    let m_inputSchemesBlackboard: ref<IBlackboard>;
+    let m_menuEventBlackboard: ref<IBlackboard>;
+    let m_networkBlackboard: ref<IBlackboard>;
+    let m_storageBlackboard: ref<IBlackboard>;
+    let m_uiDataBlackboard: ref<IBlackboard>;
+    let m_equipmentBlackboard: ref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(m_equipmentBlackboard) {
+      this.m_bbOnEquipmentChangedID = m_equipmentBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().UI_Equipment.lastModifiedArea, this, n"OnEquipmentChanged");
+    };
+    m_networkBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().NetworkBlackboard);
+    if IsDefined(m_networkBlackboard) {
+      this.m_breachingNetworkBBID = m_networkBlackboard.RegisterDelayedListenerString(GetAllBlackboardDefs().NetworkBlackboard.NetworkName, this, n"OnBreachingNetwork");
+    };
+    m_menuEventBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().MenuEventBlackboard);
+    if IsDefined(m_menuEventBlackboard) {
+      this.m_triggerMenuEventBBID = m_menuEventBlackboard.RegisterDelayedListenerName(GetAllBlackboardDefs().MenuEventBlackboard.MenuEventToTrigger, this, n"OnTriggerMenuEvent");
+    };
+    m_storageBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().StorageBlackboard);
+    if IsDefined(m_storageBlackboard) {
+      this.m_openStorageBBID = m_storageBlackboard.RegisterDelayedListenerVariant(GetAllBlackboardDefs().StorageBlackboard.StorageData, this, n"OnOpenStorage");
+    };
+    m_uiDataBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UIGameData);
+    if IsDefined(m_uiDataBlackboard) {
+      this.m_controllerDisconnectedBBID = m_uiDataBlackboard.RegisterListenerBool(GetAllBlackboardDefs().UIGameData.Controller_Disconnected, this, n"OnDisconnectController");
+    };
+    m_inputSchemesBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes);
+    if IsDefined(m_inputSchemesBlackboard) {
+      this.m_inputSchemesBBID = m_inputSchemesBlackboard.RegisterListenerUint(GetAllBlackboardDefs().InputSchemes.Scheme, this, n"OnInputSchemeChanged");
+      this.m_inputMouserLayoutBBID = m_inputSchemesBlackboard.RegisterListenerBool(GetAllBlackboardDefs().InputSchemes.IsMouserActive, this, n"OnMouserActiveChanged");
+    };
+  }
+
+  private final func UnregisterGlobalBlackboards() -> Void {
+    let m_inputSchemesBlackboard: ref<IBlackboard>;
+    let m_menuEventBlackboard: ref<IBlackboard>;
+    let m_networkBlackboard: ref<IBlackboard>;
+    let m_storageBlackboard: ref<IBlackboard>;
+    let m_uiDataBlackboard: ref<IBlackboard>;
+    let m_equipmentBlackboard: ref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(m_equipmentBlackboard) {
+      m_equipmentBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_Equipment.lastModifiedArea, this.m_bbOnEquipmentChangedID);
+    };
+    m_networkBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().NetworkBlackboard);
+    if IsDefined(m_networkBlackboard) {
+      m_networkBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().NetworkBlackboard.NetworkName, this.m_breachingNetworkBBID);
+    };
+    m_menuEventBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().MenuEventBlackboard);
+    if IsDefined(m_menuEventBlackboard) {
+      m_menuEventBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().MenuEventBlackboard.MenuEventToTrigger, this.m_triggerMenuEventBBID);
+    };
+    m_storageBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().StorageBlackboard);
+    if IsDefined(m_storageBlackboard) {
+      m_storageBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().StorageBlackboard.StorageData, this.m_openStorageBBID);
+    };
+    m_uiDataBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().StorageBlackboard);
+    if IsDefined(m_uiDataBlackboard) {
+      m_uiDataBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UIGameData.Controller_Disconnected, this.m_controllerDisconnectedBBID);
+    };
+    m_inputSchemesBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().InputSchemes);
+    if IsDefined(m_inputSchemesBlackboard) {
+      m_inputSchemesBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().InputSchemes.Scheme, this.m_inputSchemesBBID);
+      m_inputSchemesBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().InputSchemes.IsMouserActive, this.m_inputMouserLayoutBBID);
+    };
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    let delayEvt: ref<DelayedRegisterToGlobalInputCallbackEvent>;
+    this.RegisterInputListenersForPlayer(playerPuppet);
+    this.RegisterPSMListeners(playerPuppet);
+    delayEvt = new DelayedRegisterToGlobalInputCallbackEvent();
+    this.QueueEvent(delayEvt);
+    this.m_player = playerPuppet;
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    this.UnregisterInputListenersForPlayer(playerPuppet);
+    this.UnregisterPSMListeners(playerPuppet);
+    this.UnregisterInventoryListener();
+  }
+
+  protected final func RegisterPSMListeners(playerPuppet: ref<GameObject>) -> Void {
+    let deathBlackboard: ref<IBlackboard>;
+    let playerSMDef: ref<PlayerStateMachineDef> = GetAllBlackboardDefs().PlayerStateMachine;
+    if IsDefined(playerSMDef) {
+      deathBlackboard = this.GetPSMBlackboard(playerPuppet);
+      if IsDefined(deathBlackboard) {
+        this.m_showDeathScreenBBID = deathBlackboard.RegisterListenerBool(playerSMDef.DisplayDeathMenu, this, n"OnDisplayDeathMenu");
+      };
+    };
+  }
+
+  protected final func UnregisterPSMListeners(playerPuppet: ref<GameObject>) -> Void {
+    let deathBlackboard: ref<IBlackboard>;
+    let playerSMDef: ref<PlayerStateMachineDef> = GetAllBlackboardDefs().PlayerStateMachine;
+    if IsDefined(playerSMDef) {
+      deathBlackboard = this.GetPSMBlackboard(playerPuppet);
+      if IsDefined(deathBlackboard) {
+        deathBlackboard.UnregisterDelayedListener(playerSMDef.DisplayDeathMenu, this.m_showDeathScreenBBID);
+      };
+    };
+  }
+
+  private final func RegisterInputListenersForPlayer(playerPuppet: ref<GameObject>) -> Void {
+    if playerPuppet.IsControlledByLocalPeer() {
+      playerPuppet.RegisterInputListener(this, n"OpenPauseMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenMapMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenCraftingMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenJournalMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenPerksMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenInventoryMenu");
+      playerPuppet.RegisterInputListener(this, n"OpenHubMenu");
+      playerPuppet.RegisterInputListener(this, n"QuickSave");
+      playerPuppet.RegisterInputListener(this, n"QuickLoad");
+      playerPuppet.RegisterInputListener(this, n"FastForward_Hold");
+    };
+  }
+
+  private final func RegisterInventoryListener() -> Void {
+    let puppet: ref<gamePuppet> = this.GetPuppet(n"inventory");
+    let puppetListener: ref<ItemInPaperdollSlotCallback> = new ItemInPaperdollSlotCallback();
+    puppetListener.SetPuppetRef(puppet);
+    this.m_inventoryListener = GameInstance.GetTransactionSystem(puppet.GetGame()).RegisterAttachmentSlotListener(puppet, puppetListener);
+  }
+
+  private final func UnregisterInventoryListener() -> Void {
+    let puppet: ref<gamePuppet> = this.GetPuppet(n"inventory");
+    GameInstance.GetTransactionSystem(puppet.GetGame()).UnregisterAttachmentSlotListener(puppet, this.m_inventoryListener);
+    this.m_inventoryListener = null;
+  }
+
+  private final func UnregisterInputListenersForPlayer(playerPuppet: ref<GameObject>) -> Void {
+    if playerPuppet.IsControlledByLocalPeer() {
+      playerPuppet.UnregisterInputListener(this);
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let isPlayerLastUsedKBM: Bool;
+    let isPlayerLastUsedTouch: Bool;
+    let gameInstance: GameInstance = this.GetPlayerControlledObject().GetGame();
+    let questsSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(gameInstance);
+    let isDuringNonUICutscene: Bool = Cast<Bool>(questsSystem.GetFact(n"q301_02a_stadium_stopUIInCutscene"));
+    if this.m_controllerDisconnected || isDuringNonUICutscene {
+      return false;
+    };
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_PRESSED) {
+      if Equals(ListenerAction.GetName(action), n"QuickSave") {
+        this.HandleQuickSave();
+      };
+    };
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_RELEASED) {
+      if Equals(ListenerAction.GetName(action), n"OpenPauseMenu") {
+        this.SpawnMenuInstanceEvent(n"OnOpenPauseMenu");
+        ListenerActionConsumer.Consume(consumer);
+      } else {
+        if Equals(ListenerAction.GetName(action), n"OpenHubMenu") {
+          this.SpawnMenuInstanceEvent(GetFact(this.m_player.GetGame(), n"radial_hub_menu_enabled") > 0 ? n"OnOpenRadialHubMenu" : n"OnOpenHubMenu");
+        } else {
+          if Equals(ListenerAction.GetName(action), n"QuickLoad") {
+            this.DelayedHandleQuickLoad();
+          };
+        };
+      };
+    };
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) && Equals(ListenerAction.GetName(action), n"OpenMapMenu") {
+      this.m_wasHoldingMapHotKey = true;
+    };
+    isPlayerLastUsedKBM = this.GetPlayerControlledObject().PlayerLastUsedKBM();
+    isPlayerLastUsedTouch = this.GetPlayerControlledObject().PlayerLastUsedTouch();
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) && !isPlayerLastUsedKBM || Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_RELEASED) && isPlayerLastUsedKBM {
+      if Equals(ListenerAction.GetName(action), n"OpenMapMenu") || Equals(ListenerAction.GetName(action), n"OpenJournalMenu") || Equals(ListenerAction.GetName(action), n"OpenPerksMenu") || Equals(ListenerAction.GetName(action), n"OpenInventoryMenu") {
+        this.OpenShortcutMenu(ListenerAction.GetName(action));
+      } else {
+        if Equals(ListenerAction.GetName(action), n"OpenCraftingMenu") {
+          this.TryOpenCraftingMenu(ListenerAction.GetName(action));
+        };
+      };
+    } else {
+      if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_RELEASED) && isPlayerLastUsedTouch {
+        if Equals(ListenerAction.GetName(action), n"OpenMapMenu") || Equals(ListenerAction.GetName(action), n"OpenJournalMenu") || Equals(ListenerAction.GetName(action), n"OpenPerksMenu") || Equals(ListenerAction.GetName(action), n"OpenInventoryMenu") {
+          this.OpenShortcutMenu(ListenerAction.GetName(action));
+        };
+      };
+    };
+  }
+
+  protected cb func OnHandleMenuInput(evt: ref<inkPointerEvent>) -> Bool {
+    let currentInputScheme: Int32 = this.m_displayInputSettingVar.GetIndex();
+    if evt.IsAction(n"back") {
+      if Equals(GetPlatformShortName(), "emporium") {
+        if currentInputScheme != this.m_initScheme {
+          this.m_saveMessageToken = GenericMessageNotification.Show(this, "UI-Settings-Interface-InputSchemesMode", "UI-Settings-Interface-InputSchemeSaveChangedMessage", GenericMessageNotificationType.YesNo);
+          this.m_saveMessageToken.RegisterListener(this, n"OnSaveMessageInputScheme");
+        } else {
+          this.SpawnMenuInstanceEvent(n"OnBack");
+        };
+      } else {
+        this.SpawnMenuInstanceEvent(n"OnBack");
+      };
+    };
+    if evt.IsAction(n"toggle_menu") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+      this.SpawnMenuInstanceEvent(n"OnCloseHubMenuRequest");
+    };
+    if HubMenuUtility.IsPlayerHardwareDisabled(this.m_player) && !evt.IsAction(n"toggle_journal") {
+      return false;
+    };
+    if evt.IsAction(n"toggle_inventory") {
+      this.SpawnMenuInstanceEvent(n"OnHotkeySwitchToInventory");
+    };
+    if evt.IsAction(n"toggle_perks") {
+      this.SpawnMenuInstanceEvent(n"OnHotkeySwitchToPerks");
+    };
+    if evt.IsAction(n"toggle_journal") && (!evt.IsHandled() || !evt.IsConsumed()) {
+      this.SpawnMenuInstanceEvent(n"OnHotkeySwitchToJournal");
+      evt.Handle();
+      evt.Consume();
+    };
+    if evt.IsAction(n"toggle_map") && (!evt.IsHandled() || !evt.IsConsumed()) {
+      if Equals(this.m_wasHoldingMapHotKey, false) {
+        this.SpawnMenuInstanceEvent(n"OnHotkeySwitchToMap");
+      };
+      this.m_wasHoldingMapHotKey = false;
+    };
+    if evt.IsAction(n"toggle_crafting") {
+      this.SpawnMenuInstanceEvent(n"OnHotkeySwitchToCrafting");
+    };
+  }
+
+  protected cb func OnSaveMessageInputScheme(data: ref<inkGameNotificationData>) -> Bool {
+    let resultData: ref<GenericMessageNotificationCloseData> = data as GenericMessageNotificationCloseData;
+    let result: GenericMessageNotificationResult = resultData.result;
+    if Equals(result, GenericMessageNotificationResult.Yes) {
+      this.m_initScheme = this.m_displayInputSettingVar.GetIndex();
+      this.m_inputSettingVar.SetIndex(this.m_displayInputSettingVar.GetIndex());
+    } else {
+      this.m_initScheme = this.m_inputSettingVar.GetIndex();
+      this.m_displayInputSettingVar.SetIndex(this.m_inputSettingVar.GetIndex());
+    };
+    this.m_saveMessageToken = null;
+    if Equals(result, GenericMessageNotificationResult.Yes) {
+      this.SpawnMenuInstanceEvent(n"OnBack");
+    };
+  }
+
+  protected cb func OnRequestHubMenu(evt: ref<StartHubMenuEvent>) -> Bool {
+    let eventName: CName = GetFact(this.m_player.GetGame(), n"radial_hub_menu_enabled") > 0 ? n"OnOpenRadialHubMenu_InitData" : n"OnOpenHubMenu_InitData";
+    this.SpawnMenuInstanceDataEvent(eventName, evt.m_initData);
+  }
+
+  protected cb func OnForceCloseHubMenuEvent(evt: ref<ForceCloseHubMenuEvent>) -> Bool {
+    this.SpawnMenuInstanceEvent(n"OnCloseHubMenuRequest");
+  }
+
+  protected cb func OnBreachingNetwork(value: String) -> Bool {
+    if IsStringValid(value) {
+      this.SpawnMenuInstanceEvent(n"OnNetworkBreachBegin");
+    } else {
+      this.SpawnMenuInstanceEvent(n"OnNetworkBreachEnd");
+    };
+  }
+
+  protected cb func OnOpenStorage(value: Variant) -> Bool {
+    this.SpawnMenuInstanceEvent(n"OnShowStorageMenu");
+  }
+
+  protected cb func OnDisconnectController(value: Bool) -> Bool {
+    this.m_controllerDisconnected = value;
+  }
+
+  protected cb func OnTriggerMenuEvent(value: CName) -> Bool {
+    this.SpawnMenuInstanceEvent(value);
+  }
+
+  protected cb func OnOpenWardrobe(value: Variant) -> Bool {
+    this.SpawnMenuInstanceEvent(n"OnOpenWardrobeMenu");
+  }
+
+  protected cb func OnTimeSkipFinishEvent(evt: ref<TimeSkipFinishEvent>) -> Bool {
+    this.SpawnMenuInstanceEvent(n"OnTimeSkipPopupClosed");
+  }
+
+  protected cb func OnDisplayDeathMenu(value: Bool) -> Bool {
+    let delay: Float;
+    let evt: ref<DeathMenuDelayEvent>;
+    let playerControlledObject: ref<GameObject>;
+    let wasPlayerForceKilled: Bool;
+    if !value {
+      return false;
+    };
+    if IsMultiplayer() {
+      return false;
+    };
+    playerControlledObject = this.GetPlayerControlledObject();
+    wasPlayerForceKilled = StatusEffectSystem.ObjectHasStatusEffect(playerControlledObject, t"BaseStatusEffect.ForceKill");
+    delay = wasPlayerForceKilled ? TweakDBInterface.GetFloat(t"player.deathMenu.delayToDisplayKillTrigger", 3.00) : TweakDBInterface.GetFloat(t"player.deathMenu.delayToDisplay", 3.00);
+    evt = new DeathMenuDelayEvent();
+    GameInstance.GetDelaySystem(playerControlledObject.GetGame()).DelayEvent(playerControlledObject, evt, delay);
+  }
+
+  protected cb func OnDeathScreenDelayEvent(evt: ref<DeathMenuDelayEvent>) -> Bool {
+    this.SpawnMenuInstanceEvent(n"OnShowDeathMenu");
+  }
+
+  protected cb func OnResetItemAppearanceInSlotDelayEvent(evt: ref<ResetItemAppearanceInSlotDelayEvent>) -> Bool {
+    let puppet: ref<gamePuppet> = this.GetPuppet(n"inventory");
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(puppet.GetGame());
+    let itemID: ItemID = transactionSystem.GetItemInSlot(puppet, evt.slotID).GetItemID();
+    if ItemID.IsValid(itemID) {
+      transactionSystem.ResetItemAppearance(puppet, itemID);
+    };
+  }
+
+  protected cb func OnArcadeMinigameEvent(value: String) -> Bool {
+    if IsStringValid(value) {
+      this.SpawnMenuInstanceEvent(n"OnArcadeMinigameBegin");
+    } else {
+      this.SpawnMenuInstanceEvent(n"OnArcadeMinigameEnd");
+    };
+  }
+
+  protected cb func OnPuppetReady(sceneName: CName, puppet: ref<gamePuppet>) -> Bool {
+    let equipAreas: array<SEquipArea>;
+    let equipData: ref<EquipmentSystemPlayerData>;
+    let gender: CName;
+    let head: ItemID;
+    let holsteredArms: ItemID;
+    let i: Int32;
+    let item: ItemID;
+    let itemData: wref<gameItemData>;
+    let placementSlot: TweakDBID;
+    let record: ref<WeaponItem_Record>;
+    let transactionSystem: ref<TransactionSystem>;
+    let unholsteredArm: ref<ItemObject>;
+    this.RegisterInventoryListener();
+    transactionSystem = GameInstance.GetTransactionSystem(puppet.GetGame());
+    equipData = EquipmentSystem.GetData(GetPlayer(puppet.GetGame()));
+    if IsDefined(equipData) {
+      equipAreas = equipData.GetPaperDollEquipAreas();
+    };
+    i = 0;
+    while i < ArraySize(equipAreas) {
+      item = equipData.GetVisualItemInSlot(equipAreas[i].areaType);
+      placementSlot = EquipmentSystem.GetPlacementSlot(item);
+      if Equals(equipAreas[i].areaType, gamedataEquipmentArea.RightArm) {
+        item = ItemID.FromTDBID(ItemID.GetTDBID(equipData.GetActiveItem(equipAreas[i].areaType)));
+        transactionSystem.GiveItem(puppet, item, 1);
+        transactionSystem.AddItemToSlot(puppet, EquipmentSystem.GetPlacementSlot(item), item);
+      } else {
+        if !IsDefined(equipData) || !equipData.IsSlotHidden(equipAreas[i].areaType) {
+          if EquipmentSystem.IsClothing(item) {
+            transactionSystem.GivePreviewItemByItemID(puppet, item);
+          } else {
+            itemData = transactionSystem.GetItemData(this.GetPlayerControlledObject(), item);
+            transactionSystem.GivePreviewItemByItemData(puppet, itemData);
+          };
+          transactionSystem.AddItemToSlot(puppet, placementSlot, transactionSystem.CreatePreviewItemID(item));
+        };
+      };
+      i += 1;
+    };
+    gender = puppet.GetResolvedGenderName();
+    if Equals(gender, n"Male") {
+      head = ItemID.FromTDBID(t"Items.PlayerMaTppHead");
+    } else {
+      if Equals(gender, n"Female") {
+        head = ItemID.FromTDBID(t"Items.PlayerWaTppHead");
+      };
+    };
+    transactionSystem.GiveItem(puppet, head, 1);
+    transactionSystem.AddItemToSlot(puppet, EquipmentSystem.GetPlacementSlot(head), head);
+    if transactionSystem.IsSlotEmpty(puppet, t"AttachmentSlots.RightArm") {
+      unholsteredArm = transactionSystem.GetItemInSlot(this.GetPlayerControlledObject(), t"AttachmentSlots.WeaponRight");
+      record = TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(unholsteredArm.GetItemID()));
+      if IsDefined(record) && IsDefined(record.HolsteredItem()) {
+        holsteredArms = ItemID.CreateQuery(record.HolsteredItem().GetID());
+        if !transactionSystem.HasItem(puppet, holsteredArms) {
+          transactionSystem.GiveItem(puppet, holsteredArms, 1);
+        };
+        transactionSystem.AddItemToSlot(puppet, t"AttachmentSlots.RightArm", holsteredArms);
+      };
+    };
+  }
+
+  protected cb func OnEquipmentChanged(value: Variant) -> Bool {
+    let affectedItemData: wref<gameItemData>;
+    let affectedItemID: ItemID;
+    let appearanceReset: Bool;
+    let equipArea: gamedataEquipmentArea;
+    let equipData: ref<EquipmentSystemPlayerData>;
+    let i: Int32;
+    let itemObjectToRemove: ref<ItemObject>;
+    let itemToRemove: ItemID;
+    let oldFistItems: array<wref<gameItemData>>;
+    let oppositeSlotIndex: Int32;
+    let paperdollData: SPaperdollEquipData;
+    let previewItemID: ItemID;
+    let transactionSystem: ref<TransactionSystem>;
+    let sceneName: CName = n"inventory";
+    let puppet: ref<gamePuppet> = this.GetPuppet(sceneName);
+    if IsDefined(puppet) {
+      transactionSystem = GameInstance.GetTransactionSystem(puppet.GetGame());
+      paperdollData = FromVariant<SPaperdollEquipData>(value);
+      if Equals(paperdollData.equipArea.areaType, gamedataEquipmentArea.ArmsCW) && equipData.GetVisualItemInSlot(gamedataEquipmentArea.RightArm) == ItemID.None() {
+        previewItemID = ItemID.CreateQuery(TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(EquipmentSystem.GetData(GetPlayer(puppet.GetGame())).GetActiveMeleeWare())).HolsteredItem().GetID());
+        transactionSystem.GiveItem(puppet, previewItemID, 1);
+        transactionSystem.AddItemToSlot(puppet, EquipmentSystem.GetPlacementSlot(previewItemID), previewItemID);
+        return false;
+      };
+      oppositeSlotIndex = EquipmentSystemPlayerData.GetOppositeWeaponSlotIndex(paperdollData.equipArea.activeIndex);
+      if Equals(paperdollData.equipArea.areaType, gamedataEquipmentArea.ArmsCW) || Equals(paperdollData.equipArea.areaType, gamedataEquipmentArea.Weapon) && paperdollData.slotIndex != paperdollData.equipArea.activeIndex && paperdollData.slotIndex != oppositeSlotIndex {
+        return false;
+      };
+      itemObjectToRemove = transactionSystem.GetItemInSlot(puppet, paperdollData.placementSlot);
+      if IsDefined(itemObjectToRemove) {
+        itemToRemove = itemObjectToRemove.GetItemID();
+      };
+      equipData = EquipmentSystem.GetData(GetPlayer(puppet.GetGame()));
+      affectedItemID = equipData.GetVisualItemInSlot(paperdollData.equipArea.areaType, paperdollData.placementSlot, true);
+      previewItemID = transactionSystem.CreatePreviewItemID(affectedItemID);
+      equipArea = EquipmentSystem.GetEquipAreaType(previewItemID);
+      if !paperdollData.equipped && itemToRemove != ItemID.None() && NotEquals(EquipmentSystem.GetEquipAreaType(itemToRemove), paperdollData.equipArea.areaType) {
+        return false;
+      };
+      if transactionSystem.HasTag(GetPlayer(puppet.GetGame()), n"UnequipHolsteredArms", previewItemID) {
+        return false;
+      };
+      gameuiInGameMenuGameController.SetAnimWrapperBasedOnItemFriendlyName(puppet, previewItemID, paperdollData.equipped ? 1.00 : 0.00);
+      if paperdollData.equipped {
+        if Equals(paperdollData.equipArea.areaType, gamedataEquipmentArea.RightArm) {
+          transactionSystem.GetItemListByTag(puppet, n"base_fists", oldFistItems);
+          i = 0;
+          while i < ArraySize(oldFistItems) {
+            transactionSystem.RemoveItem(puppet, oldFistItems[i].GetID(), oldFistItems[i].GetQuantity());
+            i = i + 1;
+          };
+          transactionSystem.GiveItem(puppet, previewItemID, 1);
+          transactionSystem.AddItemToSlot(puppet, paperdollData.placementSlot, previewItemID);
+        } else {
+          if ItemID.IsValid(itemToRemove) {
+            if previewItemID != itemToRemove {
+              transactionSystem.RemoveItemFromSlot(puppet, paperdollData.placementSlot, true);
+              transactionSystem.RemoveItem(puppet, itemToRemove, 1);
+            } else {
+              if IsDefined(equipData) && !equipData.IsSlotHidden(equipArea) {
+                transactionSystem.ResetItemAppearance(puppet, itemToRemove);
+                appearanceReset = true;
+              };
+            };
+          };
+          if !appearanceReset {
+            if ItemID.IsValid(previewItemID) {
+              if !transactionSystem.HasItem(puppet, previewItemID) {
+                affectedItemData = transactionSystem.GetItemData(this.GetPlayerControlledObject(), affectedItemID);
+                if IsDefined(affectedItemData) {
+                  transactionSystem.GivePreviewItemByItemData(puppet, affectedItemData);
+                } else {
+                  transactionSystem.GivePreviewItemByItemID(puppet, previewItemID);
+                };
+              };
+              if equipData.ShouldSlotBeHidden(equipArea) {
+                transactionSystem.AddItemToSlot(puppet, paperdollData.placementSlot, previewItemID, n"empty_appearance_default");
+              } else {
+                transactionSystem.AddItemToSlot(puppet, paperdollData.placementSlot, previewItemID);
+              };
+            };
+          };
+        };
+      } else {
+        if Equals(paperdollData.equipArea.areaType, gamedataEquipmentArea.RightArm) {
+          return false;
+        };
+        if IsDefined(equipData) && equipData.IsSlotHidden(equipArea) || !equipData.IsSlotOverriden(equipArea) || equipData.IsVisualSetUnequipInTransition() {
+          transactionSystem.RemoveItemFromSlot(puppet, paperdollData.placementSlot, true);
+          transactionSystem.RemoveItem(puppet, transactionSystem.CreatePreviewItemID(itemToRemove), 1);
+        };
+      };
+    };
+  }
+
+  public final static func SetAnimWrapperBasedOnItemFriendlyName(puppet: ref<gamePuppet>, itemID: ItemID, value: Float) -> Void {
+    let itemRecord: ref<Item_Record>;
+    if !IsDefined(puppet) || !ItemID.IsValid(itemID) {
+      return;
+    };
+    itemRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(itemID));
+    if !IsDefined(itemRecord) {
+      return;
+    };
+    AnimationControllerComponent.SetAnimWrapperWeight(puppet, StringToName(itemRecord.FriendlyName()), value);
+  }
+
+  private final func OpenShortcutMenu(const actionName: CName) -> Void {
+    let eventName: CName;
+    let initData: ref<HubMenuInitData> = new HubMenuInitData();
+    if HubMenuUtility.IsPlayerHardwareDisabled(this.m_player) && NotEquals(actionName, n"OpenJournalMenu") {
+      return;
+    };
+    switch actionName {
+      case n"OpenMapMenu":
+        initData.m_menuName = n"world_map";
+        break;
+      case n"OpenJournalMenu":
+        initData.m_menuName = n"quest_log";
+        break;
+      case n"OpenPerksMenu":
+        initData.m_menuName = n"new_perks";
+        break;
+      case n"OpenCraftingMenu":
+        initData.m_menuName = n"crafting_main";
+        break;
+      case n"OpenInventoryMenu":
+        initData.m_menuName = n"inventory_screen";
+    };
+    initData.m_combatRestriction = this.IsPlayerInCombat();
+    eventName = GetFact(this.m_player.GetGame(), n"radial_hub_menu_enabled") > 0 ? n"OnOpenRadialHubMenu_InitData" : n"OnOpenHubMenu_InitData";
+    this.SpawnMenuInstanceDataEvent(eventName, initData);
+  }
+
+  protected cb func OnSavingComplete(success: Bool, locks: [gameSaveLock]) -> Bool {
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    if !success && this.m_quickSaveInProgress {
+      notificationEvent = UIInGameNotificationEvent.CreateSavingLockedEvent(locks);
+      this.SendNotification(notificationEvent);
+    };
+    this.m_quickSaveInProgress = false;
+  }
+
+  private final func HandleQuickSave() -> Void {
+    let locks: array<gameSaveLock>;
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    if this.m_quickSaveInProgress {
+      return;
+    };
+    if GameInstance.IsSavingLocked(this.GetPlayerControlledObject().GetGame(), locks) {
+      notificationEvent = UIInGameNotificationEvent.CreateSavingLockedEvent(locks);
+      this.SendNotification(notificationEvent);
+      return;
+    };
+    this.GetSystemRequestsHandler().QuickSave();
+    this.m_quickSaveInProgress = true;
+  }
+
+  private final func SendNotification(notificationEvent: ref<UIInGameNotificationEvent>) -> Void {
+    if NotEquals(notificationEvent.m_notificationType, this.m_lastInGameNotificationType) || !this.m_animContainer.m_animProxy.IsPlaying() {
+      GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(new UIInGameNotificationRemoveEvent());
+    };
+    notificationEvent.m_animContainer = this.m_animContainer;
+    this.m_lastInGameNotificationType = notificationEvent.m_notificationType;
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(notificationEvent);
+  }
+
+  protected cb func OnQuickLoadSavesReady(saves: [String]) -> Bool {
+    let savesCount: Int32 = ArraySize(saves);
+    if savesCount > 0 {
+      GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogLastCheckpointLoaded();
+      this.GetSystemRequestsHandler().LoadLastCheckpoint(true);
+    };
+  }
+
+  private final func DelayedHandleQuickLoad() -> Void {
+    let playerControlledObject: ref<GameObject> = this.GetPlayerControlledObject();
+    let evt: ref<DelayedHandleQuickLoadEvent> = new DelayedHandleQuickLoadEvent();
+    this.m_loadSaveDelayID = GameInstance.GetDelaySystem(playerControlledObject.GetGame()).DelayEvent(playerControlledObject, evt, 0.30);
+  }
+
+  protected cb func OnHandleQuickLoad(evt: ref<DelayedHandleQuickLoadEvent>) -> Bool {
+    let handler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    handler.RegisterToCallback(n"OnSavesForLoadReady", this, n"OnQuickLoadSavesReady");
+    handler.RequestSavesForLoad();
+  }
+
+  protected cb func OnUiStateChangedSuccessfully(previousStateName: CName, currentStateName: CName) -> Bool {
+    let invalidDelayID: DelayID;
+    let playerControlledObject: ref<GameObject>;
+    if Equals(currentStateName, n"inkInGameMenuState") {
+      playerControlledObject = this.GetPlayerControlledObject();
+      invalidDelayID = GetInvalidDelayID();
+      if this.m_loadSaveDelayID != invalidDelayID {
+        GameInstance.GetDelaySystem(playerControlledObject.GetGame()).CancelDelay(this.m_loadSaveDelayID);
+        this.m_loadSaveDelayID = invalidDelayID;
+      };
+    };
+  }
+
+  private final func IsPlayerInCombat() -> Bool {
+    return this.GetPSMBlackboard(this.GetPlayerControlledObject()).GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1;
+  }
+
+  private final func TryOpenCraftingMenu(const actionName: CName) -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    if HubMenuUtility.IsCraftingAvailable(this.m_player as PlayerPuppet) {
+      this.OpenShortcutMenu(actionName);
+    } else {
+      notificationEvent = new UIInGameNotificationEvent();
+      notificationEvent.m_notificationType = UIInGameNotificationType.CombatRestriction;
+      this.SendNotification(notificationEvent);
+    };
+  }
+
+  protected cb func OnInputSchemeChanged(value: Uint32) -> Bool {
+    let request: ref<RefreshInputHintEvent> = new RefreshInputHintEvent();
+    GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(request);
+  }
+
+  protected cb func OnMouserActiveChanged(value: Bool) -> Bool {
+    let request: ref<RefreshInputHintEvent> = new RefreshInputHintEvent();
+    GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(request);
+  }
+}
+
+public class ItemInPaperdollSlotCallback extends AttachmentSlotsScriptCallback {
+
+  protected let m_paperdollPuppet: wref<gamePuppet>;
+
+  public final func SetPuppetRef(puppet: ref<gamePuppet>) -> Void {
+    this.m_paperdollPuppet = puppet;
+  }
+
+  public func OnItemEquipped(slot: TweakDBID, item: ItemID) -> Void {
+    this.ResetInnerChest(slot, item);
+  }
+
+  public func OnItemUnequipped(slot: TweakDBID, item: ItemID) -> Void {
+    this.ResetInnerChest(slot, item);
+  }
+
+  private final func ResetInnerChest(slot: TweakDBID, item: ItemID) -> Void {
+    let otherItem: ItemID;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_paperdollPuppet.GetGame());
+    if slot == t"AttachmentSlots.Torso" && transactionSystem.MatchVisualTagByItemID(item, this.m_paperdollPuppet, n"hide_T1part") && !transactionSystem.IsSlotEmpty(this.m_paperdollPuppet, t"AttachmentSlots.Chest") {
+      otherItem = transactionSystem.GetItemInSlot(this.m_paperdollPuppet, t"AttachmentSlots.Chest").GetItemID();
+      if ItemID.IsValid(otherItem) {
+        transactionSystem.ResetItemAppearance(this.m_paperdollPuppet, otherItem);
+      };
+    } else {
+      if slot == t"AttachmentSlots.Chest" && !transactionSystem.IsSlotEmpty(this.m_paperdollPuppet, t"AttachmentSlots.Torso") {
+        otherItem = transactionSystem.GetItemInSlot(this.m_paperdollPuppet, t"AttachmentSlots.Torso").GetItemID();
+        if ItemID.IsValid(otherItem) && transactionSystem.MatchVisualTagByItemID(otherItem, this.m_paperdollPuppet, n"hide_T1part") {
+          transactionSystem.ResetItemAppearance(this.m_paperdollPuppet, item);
+        };
+      };
+    };
+  }
+}

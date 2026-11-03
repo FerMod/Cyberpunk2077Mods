@@ -1,0 +1,571 @@
+
+public class TimeDilationTransitions extends DefaultTransition {
+
+  protected final const func IsSandevistanActivationRequested(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"requestSandevistanActivation", false);
+  }
+
+  protected final const func IsForceDeactivationRequested(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"requestSandevistanDeactivation", false) || stateContext.GetBoolParameter(n"requestKerenzikovDeactivation", false);
+  }
+
+  protected final const func IsSandevistanDeactivationRequested(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"requestSandevistanDeactivation", false);
+  }
+
+  protected final const func IsKerenzikovActivationRequested(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"requestKerenzikovActivation", false);
+  }
+
+  protected final const func IsKerenzikovDeactivationRequested(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"requestKerenzikovDeactivation", false) || stateContext.GetBoolParameter(n"requestKerenzikovDeactivationWithEaseOut", false);
+  }
+
+  protected final const func IsWorkspotValid(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !DefaultTransition.IsInWorkspot(scriptInterface) || TimeDilationHelper.CanUseTimeDilation(scriptInterface.executionOwner) || DefaultTransition.GetPlayerPuppet(scriptInterface).PlayerContainsWorkspotTag(n"FinisherWorkspot");
+  }
+
+  protected final const func IsInVisionMode(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vision) == 1;
+  }
+
+  protected final const func IsChangingTarget(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isQuickHackScreenActivated: StateResultBool = stateContext.GetTemporaryBoolParameter(n"quickHackChangeTarget");
+    return isQuickHackScreenActivated.valid && isQuickHackScreenActivated.value;
+  }
+
+  protected final const func IsTargetChanged(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isQuickHackScreenActivated: StateResultBool = stateContext.GetTemporaryBoolParameter(n"quickHackChangeTarget");
+    return isQuickHackScreenActivated.valid && !isQuickHackScreenActivated.value;
+  }
+
+  protected final const func IsPlayerMovementDetected(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsMoveInputConsiderable();
+  }
+
+  protected final const func IsCameraRotated(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if scriptInterface.GetActionValue(n"CameraMouseX") != 0.00 || scriptInterface.GetActionValue(n"CameraX") != 0.00 || scriptInterface.GetActionValue(n"CameraMouseY") != 0.00 || scriptInterface.GetActionValue(n"CameraY") != 0.00 {
+      return true;
+    };
+    if this.IsChangingTarget(stateContext, scriptInterface) {
+      return true;
+    };
+    if this.IsTargetChanged(stateContext, scriptInterface) {
+      return false;
+    };
+    return false;
+  }
+
+  protected final const func GetBoolFromTimeSystemTweak(const tweakDBPath: script_ref<String>, const paramName: script_ref<String>) -> Bool {
+    return TweakDBInterface.GetBool(TDBID.Create("timeSystem." + tweakDBPath + "." + paramName), false);
+  }
+
+  protected final const func GetFloatFromTimeSystemTweak(const tweakDBPath: script_ref<String>, const paramName: script_ref<String>) -> Float {
+    return TweakDBInterface.GetFloat(TDBID.Create("timeSystem." + tweakDBPath + "." + paramName), 0.00);
+  }
+
+  protected final const func GetCNameFromTimeSystemTweak(const tweakDBPath: script_ref<String>, const paramName: script_ref<String>) -> CName {
+    return TweakDBInterface.GetCName(TDBID.Create("timeSystem." + tweakDBPath + "." + paramName), n"None");
+  }
+}
+
+public class TimeDilationEventsTransitions extends TimeDilationTransitions {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected final func SetTimeDilationGlobal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, reason: CName, timeDilation: Float, opt duration: Float, opt easeInCurve: CName, opt easeOutCurve: CName, opt listener: ref<TimeDilationListener>) -> Void {
+    let timeSystem: ref<TimeSystem> = scriptInterface.GetTimeSystem();
+    if Equals(reason, n"sandevistan") || Equals(reason, n"focusMode") && !this.GetBoolFromTimeSystemTweak("focusModeTimeDilation", "applyTimeDilationToPlayer") {
+      timeSystem.SetIgnoreTimeDilationOnLocalPlayerZero(true);
+    } else {
+      timeSystem.SetIgnoreTimeDilationOnLocalPlayerZero(false);
+    };
+    timeSystem.SetTimeDilation(reason, timeDilation, duration, easeInCurve, easeOutCurve, listener);
+  }
+
+  protected final func SetTimeDilationOnLocalPlayer(reason: CName, timeDilation: Float, opt duration: Float, easeInCurve: CName, easeOutCurve: CName, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeSystem: ref<TimeSystem> = scriptInterface.GetTimeSystem();
+    timeSystem.SetTimeDilationOnLocalPlayerZero(reason, timeDilation, duration, easeInCurve, easeOutCurve);
+  }
+
+  protected final func SetCameraTimeDilationCurve(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, curveName: CName) -> Void {
+    scriptInterface.SetCameraTimeDilationCurve(curveName);
+  }
+
+  protected final func UnsetTimeDilation(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, reason: CName, opt easeOutCurve: CName, opt noDelayedCleanUp: Bool) -> Void {
+    let cleanUpTimeDilationEvt: ref<CleanUpTimeDilationEvent>;
+    let timeSystem: ref<TimeSystem> = scriptInterface.GetTimeSystem();
+    if !IsNameValid(easeOutCurve) || this.IsForceDeactivationRequested(stateContext, scriptInterface) {
+      timeSystem.UnsetTimeDilation(reason, n"None");
+      timeSystem.UnsetTimeDilationOnLocalPlayerZero(reason, n"None");
+    } else {
+      timeSystem.UnsetTimeDilation(reason, easeOutCurve);
+      timeSystem.UnsetTimeDilationOnLocalPlayerZero(reason, easeOutCurve);
+    };
+    if !IsDefined(cleanUpTimeDilationEvt) {
+      cleanUpTimeDilationEvt = new CleanUpTimeDilationEvent();
+      cleanUpTimeDilationEvt.reason = reason;
+      if noDelayedCleanUp {
+        scriptInterface.executionOwner.QueueEvent(cleanUpTimeDilationEvt);
+      } else {
+        GameInstance.GetDelaySystem(scriptInterface.executionOwner.GetGame()).DelayEvent(scriptInterface.executionOwner, cleanUpTimeDilationEvt, 1.00, false);
+      };
+    };
+  }
+}
+
+public class SandevistanDecisions extends TimeDilationTransitions {
+
+  private let m_statListener: ref<DefaultTransitionStatListener>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let test: Bool = scriptInterface.HasStatFlag(gamedataStatType.HasSandevistan);
+    this.m_statListener = new DefaultTransitionStatListener();
+    this.m_statListener.m_transitionOwner = this;
+    this.m_statListener.m_ownerID = scriptInterface.executionOwnerEntityID;
+    scriptInterface.GetStatsSystem().RegisterListener(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), this.m_statListener);
+    this.EnableOnEnterCondition(test);
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.GetStatsSystem().UnregisterListener(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), this.m_statListener);
+    this.m_statListener = null;
+  }
+
+  public func OnStatChanged(ownerID: StatsObjectID, statType: gamedataStatType, diff: Float, total: Float) -> Void {
+    if Equals(statType, gamedataStatType.HasSandevistan) {
+      this.EnableOnEnterCondition(total > 0.00);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let r: Bool;
+    if !this.IsWorkspotValid(stateContext, scriptInterface) {
+      return false;
+    };
+    if IsMultiplayer() {
+      return false;
+    };
+    if this.IsTimeDilationActive(stateContext, scriptInterface, n"None") && !scriptInterface.GetTimeSystem().IsTimeDilationActive(n"focusMode") && !scriptInterface.GetTimeSystem().IsTimeDilationActive(n"focusedStatePerkDilation") && !scriptInterface.GetTimeSystem().IsTimeDilationActive(n"sandevistan") && !scriptInterface.GetTimeSystem().IsTimeDilationActive(n"kereznikov") {
+      return false;
+    };
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Takedown) == 2 || scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Takedown) == 4 {
+      return false;
+    };
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel) != 1 {
+      return false;
+    };
+    r = this.IsSandevistanActivationRequested(stateContext, scriptInterface);
+    if !r {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func ToTimeDilationReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.IsWorkspotValid(stateContext, scriptInterface) {
+      return true;
+    };
+    if this.IsSandevistanDeactivationRequested(stateContext, scriptInterface) {
+      return true;
+    };
+    if !this.IsTimeDilationActive(stateContext, scriptInterface, n"sandevistan") {
+      return true;
+    };
+    if GameInstance.GetStatPoolsSystem(scriptInterface.executionOwner.GetGame()).HasStatPoolValueReachedMin(Cast<StatsObjectID>(scriptInterface.executionOwner.GetEntityID()), gamedataStatPoolType.SandevistanCharge) {
+      if !GameInstance.GetStatusEffectSystem(scriptInterface.executionOwner.GetGame()).HasStatusEffect(scriptInterface.executionOwnerEntityID, t"BaseStatusEffect.PlayerInFinisherWorkspot") {
+        return true;
+      };
+    };
+    if !StatusEffectSystem.ObjectHasStatusEffectOfType(scriptInterface.executionOwner, gamedataStatusEffectType.Sandevistan) {
+      return true;
+    };
+    if !scriptInterface.HasStatFlag(gamedataStatType.HasSandevistan) {
+      return false;
+    };
+    return false;
+  }
+}
+
+public class SandevistanEvents extends TimeDilationEventsTransitions {
+
+  private let m_lastTimeDilation: Float;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeDilation: Float = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.TimeDilationSandevistanTimeScale);
+    let enterCost: Float = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.TimeDilationSandevistanEnterCost);
+    this.m_lastTimeDilation = timeDilation;
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.TimeDilation, 1);
+    if scriptInterface.GetTimeSystem().IsTimeDilationActive(n"kereznikov") {
+      scriptInterface.GetTimeSystem().UnsetTimeDilation(n"kereznikov", n"KerenzikovEaseOut");
+    };
+    if scriptInterface.GetTimeSystem().IsTimeDilationActive(n"sandevistan") {
+      scriptInterface.GetTimeSystem().UnsetTimeDilation(n"sandevistan", n"SandevistanEaseOut");
+    };
+    this.SetCameraTimeDilationCurve(stateContext, scriptInterface, n"Sandevistan");
+    this.SetTimeDilationGlobal(stateContext, scriptInterface, n"sandevistan", timeDilation, 999.00);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).PlayAnimation(n"SlowMotion", true);
+    GameInstance.GetStatPoolsSystem(scriptInterface.GetGame()).RequestChangingStatPoolValue(Cast<StatsObjectID>(scriptInterface.executionOwner.GetEntityID()), gamedataStatPoolType.SandevistanCharge, enterCost, null, false);
+  }
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UnsetTimeDilation(stateContext, scriptInterface, n"sandevistan", n"SandevistanEaseOut");
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).StopAnimation(n"SlowMotion");
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.TimeDilation, 0);
+    stateContext.SetPermanentFloatParameter(n"SandevistanDeactivationTimeStamp", scriptInterface.GetNow(), true);
+    this.UnsetTimeDilation(stateContext, scriptInterface, n"sandevistan", n"SandevistanEaseOut");
+    StatusEffectHelper.RemoveAllStatusEffectsByType(scriptInterface.executionOwner, gamedataStatusEffectType.Sandevistan);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).StopAnimation(n"SlowMotion");
+  }
+
+  protected final func OnExitToTimeDilationPhotomode(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.TimeDilation, 0);
+    stateContext.SetPermanentFloatParameter(n"SandevistanDeactivationTimeStamp", scriptInterface.GetNow(), true);
+    this.UnsetTimeDilation(stateContext, scriptInterface, n"sandevistan", n"SandevistanEaseOut", true);
+    StatusEffectHelper.RemoveAllStatusEffectsByType(scriptInterface.executionOwner, gamedataStatusEffectType.Sandevistan);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).StopAnimation(n"SlowMotion");
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeDilation: Float = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.TimeDilationSandevistanTimeScale);
+    if this.m_lastTimeDilation != 0.00 && timeDilation != this.m_lastTimeDilation {
+      this.SetTimeDilationGlobal(stateContext, scriptInterface, n"sandevistan", timeDilation, 999.00);
+    };
+    this.m_lastTimeDilation = timeDilation;
+  }
+}
+
+public class KerenzikovDecisions extends TimeDilationTransitions {
+
+  public let m_statListener: ref<DefaultTransitionStatListener>;
+
+  @default(KerenzikovDecisions, 0.33f)
+  public let m_activationGracePeriod: Float;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_statListener = new DefaultTransitionStatListener();
+    this.m_statListener.m_transitionOwner = this;
+    this.m_statListener.m_ownerID = scriptInterface.executionOwnerEntityID;
+    scriptInterface.GetStatsSystem().RegisterListener(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), this.m_statListener);
+    this.EnableOnEnterCondition(scriptInterface.HasStatFlag(gamedataStatType.HasKerenzikov));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.GetStatsSystem().UnregisterListener(Cast<StatsObjectID>(scriptInterface.owner.GetEntityID()), this.m_statListener);
+    this.m_statListener = null;
+  }
+
+  public func OnStatChanged(ownerID: StatsObjectID, statType: gamedataStatType, diff: Float, total: Float) -> Void {
+    if Equals(statType, gamedataStatType.HasKerenzikov) {
+      this.EnableOnEnterCondition(total > 0.00);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let aimInTimeRemaining: Float;
+    if scriptInterface.GetNow() < stateContext.GetFloatParameter(n"KerenzikovDeactivationTimeStamp", true) + 0.10 {
+      return false;
+    };
+    if !this.IsWorkspotValid(stateContext, scriptInterface) {
+      return false;
+    };
+    if this.IsTimeDilationActive(stateContext, scriptInterface, n"None") && !scriptInterface.GetTimeSystem().IsTimeDilationActive(n"focusedStatePerkDilation") {
+      return false;
+    };
+    if this.IsKerenzikovActivationRequested(stateContext, scriptInterface) {
+      return true;
+    };
+    if this.IsRequiredLocomotionStateActive(stateContext, scriptInterface) {
+      if stateContext.GetBoolParameter(n"CombatGadgetPreviewShown", true) {
+        return true;
+      };
+      aimInTimeRemaining = scriptInterface.localBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.AimInTimeRemaining);
+      if aimInTimeRemaining <= 0.00 {
+        if Equals(stateContext.GetStateMachineCurrentState(n"LeftHandCyberware"), n"leftHandCyberwareCharge") {
+          return true;
+        };
+        if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody) == 6 && (UpperBodyTransition.HasRangedWeaponEquipped(scriptInterface.executionOwner) || UpperBodyTransition.HasThrowableMeleeEqupped(scriptInterface.executionOwner)) {
+          return true;
+        };
+      };
+    };
+    if TimeDilationHelper.CanUseTimeDilation(scriptInterface.executionOwner) && this.IsRequiredVehicleAction(stateContext, scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func IsRequiredLocomotionStateActive(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let aimInTime: Float = scriptInterface.localBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.AimInTime);
+    let locomotionState: CName = stateContext.GetStateMachineCurrentState(n"Locomotion");
+    let lastDodgeTime: Float = scriptInterface.localBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.DodgeTimeStamp);
+    let timeSinceLastDodge: Float = EngineTime.ToFloat(GameInstance.GetEngineTime(scriptInterface.GetGame())) - lastDodgeTime;
+    return timeSinceLastDodge <= aimInTime + this.m_activationGracePeriod || Equals(locomotionState, n"slide") || Equals(locomotionState, n"coolExitJump");
+  }
+
+  private final const func IsRequiredVehicleAction(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let aimInTime: Float;
+    let aimInTimeRemaining: Float;
+    let pressHandBreak: Bool;
+    let vehicle: wref<VehicleObject>;
+    let handBreakAction: CName = n"Handbrake";
+    let isAiming: Bool = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody) == 6;
+    if !stateContext.GetBoolParameter(n"isInDriverCombat", true) {
+      return false;
+    };
+    if !isAiming && !(scriptInterface.GetActionValue(n"AimLock") > 0.00) {
+      return false;
+    };
+    if !VehicleComponent.GetVehicle(scriptInterface.executionOwner.GetGame(), scriptInterface.executionOwner.GetEntityID(), vehicle) {
+      return false;
+    };
+    if AbsF(vehicle.GetCurrentSpeed()) < 5.00 {
+      return false;
+    };
+    aimInTime = scriptInterface.localBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.AimInTime);
+    pressHandBreak = scriptInterface.GetActionValue(handBreakAction) > 0.00;
+    if !pressHandBreak && scriptInterface.GetActionPressCount(handBreakAction) > 0u {
+      pressHandBreak = scriptInterface.GetActionStateTime(handBreakAction) < aimInTime + this.m_activationGracePeriod;
+    };
+    aimInTimeRemaining = scriptInterface.localBlackboard.GetFloat(GetAllBlackboardDefs().PlayerStateMachine.AimInTimeRemaining);
+    if pressHandBreak && aimInTimeRemaining <= 0.00 {
+      return !this.IsInWeaponReloadState(scriptInterface);
+    };
+    return false;
+  }
+
+  protected final const func ToTimeDilationReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.IsWorkspotValid(stateContext, scriptInterface) {
+      return true;
+    };
+    if UpperBodyTransition.HasRangedWeaponEquipped(scriptInterface.executionOwner) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.UpperBody) != 6 {
+      return true;
+    };
+    if !scriptInterface.HasStatFlag(gamedataStatType.HasKerenzikov) {
+      return true;
+    };
+    if !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.KerenzikovPlayerBuff") {
+      return true;
+    };
+    if this.IsKerenzikovDeactivationRequested(stateContext, scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class KerenzikovEvents extends TimeDilationEventsTransitions {
+
+  public let m_allowMovementModifier: ref<gameStatModifierData>;
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ClearKerenzikov(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ClearKerenzikov(stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToTimeDilationPhotomode(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ClearKerenzikov(stateContext, scriptInterface, true);
+  }
+
+  private final func ClearKerenzikov(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, opt noDelayedCleanUp: Bool) -> Void {
+    stateContext.SetPermanentFloatParameter(n"KerenzikovDeactivationTimeStamp", scriptInterface.GetNow(), true);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Locomotion, 0);
+    this.UnsetTimeDilation(stateContext, scriptInterface, n"kereznikov", n"KerenzikovEaseOut", noDelayedCleanUp);
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.KerenzikovPlayerBuff");
+    this.EnableAllowMovementInputStatModifier(stateContext, scriptInterface, false);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).StopAnimation(n"SlowMotion");
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let easeInCurve: CName;
+    let easeOutCurve: CName;
+    let playerDilation: Float;
+    let timeDilation: Float;
+    let timeDilationReason: CName;
+    let isSliding: Bool = this.IsInSlidingState(stateContext);
+    this.GetPlayerTimeDilation(stateContext, scriptInterface, isSliding, playerDilation);
+    timeDilation = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.TimeDilationKerenzikovTimeScale);
+    easeInCurve = isSliding ? n"KereznikovSlideEaseIn" : n"KereznikovDodgeEaseIn";
+    easeOutCurve = n"KerenzikovEaseOut";
+    timeDilationReason = n"kereznikov";
+    if !isSliding {
+      this.EnableAllowMovementInputStatModifier(stateContext, scriptInterface, true);
+    };
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Locomotion, 3);
+    this.SetCameraTimeDilationCurve(stateContext, scriptInterface, n"Kerenzikov");
+    if scriptInterface.GetTimeSystem().IsTimeDilationActive(n"focusedStatePerkDilation") {
+      scriptInterface.GetTimeSystem().UnsetTimeDilation(n"focusedStatePerkDilation", n"MeleeHitEaseOut");
+    };
+    this.SetTimeDilationGlobal(stateContext, scriptInterface, timeDilationReason, timeDilation, 999.00, easeInCurve, easeOutCurve);
+    this.SetTimeDilationOnLocalPlayer(timeDilationReason, playerDilation, 999.00, easeInCurve, easeOutCurve, stateContext, scriptInterface);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.KerenzikovPlayerBuff");
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.GetGame()).PlayAnimation(n"SlowMotion", true);
+  }
+
+  protected func GetPlayerTimeDilation(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, isSliding: Bool, out playerDilation: Float) -> Void {
+    let playerTimeScaleTarget: Float = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID), gamedataStatType.TimeDilationKerenzikovPlayerTimeScale);
+    playerDilation = isSliding ? playerDilation = playerTimeScaleTarget * 2.00 : playerTimeScaleTarget;
+  }
+
+  protected func EnableAllowMovementInputStatModifier(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, enable: Bool) -> Void {
+    let ownerID: StatsObjectID = Cast<StatsObjectID>(scriptInterface.executionOwnerEntityID);
+    if enable && !IsDefined(this.m_allowMovementModifier) {
+      this.m_allowMovementModifier = RPGManager.CreateStatModifier(gamedataStatType.AllowMovementInput, gameStatModifierType.Additive, 1.00);
+      scriptInterface.GetStatsSystem().AddModifier(ownerID, this.m_allowMovementModifier);
+    } else {
+      if !enable && IsDefined(this.m_allowMovementModifier) {
+        scriptInterface.GetStatsSystem().RemoveModifier(ownerID, this.m_allowMovementModifier);
+        this.m_allowMovementModifier = null;
+      };
+    };
+  }
+}
+
+public class TimeDilationFocusModeDecisions extends TimeDilationTransitions {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsInVisionModeActiveState(stateContext, scriptInterface) && !this.IsPlayerInBraindance(scriptInterface) && this.ShouldActivate(stateContext, scriptInterface) {
+      return this.GetBoolFromTimeSystemTweak("focusModeTimeDilation", "enableTimeDilation");
+    };
+    return false;
+  }
+
+  protected final const func ToTimeDilationReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsInVisionModeActiveState(stateContext, scriptInterface) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) == 1 {
+      return false;
+    };
+    if !this.IsInVisionModeActiveState(stateContext, scriptInterface) || !this.ShouldActivate(stateContext, scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  private final const func IsPlayerInCombatState(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return (scriptInterface.executionOwner as PlayerPuppet).IsInCombat();
+  }
+
+  protected final const func IsPlayerLookingAtQuickHackTarget(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Scanner).GetBool(GetAllBlackboardDefs().UI_Scanner.ScannerLookAt);
+  }
+
+  private final const func ShouldActivate(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) == 4 {
+      return false;
+    };
+    if this.IsInTakedownState(stateContext) {
+      return false;
+    };
+    if this.IsEnemyOrSensoryDeviceVisible(scriptInterface) && this.GetBoolFromTimeSystemTweak("focusModeTimeDilation", "enableTimeDilationOnlyEnemyOrSensorVisible") {
+      return true;
+    };
+    if this.IsActiveVehicleVisible(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class TimeDilationFocusModeEvents extends TimeDilationEventsTransitions {
+
+  public let m_timeDilation: Float;
+
+  public let m_playerDilation: Float;
+
+  public let m_easeInCurve: CName;
+
+  public let m_easeOutCurve: CName;
+
+  public let m_applyTimeDilationToPlayer: Bool;
+
+  public let m_timeDilationReason: CName;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isPlayerOnRemoteControlledVehicle: Bool;
+    let playerPuppet: ref<PlayerPuppet>;
+    let remoteControlledVehicle: ref<VehicleObject>;
+    let remoteControlledVehicleWeak: wref<VehicleObject>;
+    let remoteControlledVehicleID: EntityID = scriptInterface.localBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    if VehicleComponent.GetVehicleFromID(scriptInterface.GetGame(), remoteControlledVehicleID, remoteControlledVehicleWeak) {
+      remoteControlledVehicle = remoteControlledVehicleWeak;
+      if IsDefined(remoteControlledVehicle) && remoteControlledVehicle.IsVehicleRemoteControlled() {
+        playerPuppet = scriptInterface.executionOwner as PlayerPuppet;
+        if IsDefined(playerPuppet) {
+          isPlayerOnRemoteControlledVehicle = playerPuppet.CheckIsStandingOnVehicle(remoteControlledVehicleID);
+        };
+      };
+    };
+    if isPlayerOnRemoteControlledVehicle {
+      this.m_timeDilation = TweakDBInterface.GetFloat(t"timeSystem.vehicleControlFocusModeTimeDilation.timeDilation", 0.00);
+      this.m_playerDilation = TweakDBInterface.GetFloat(t"timeSystem.vehicleControlFocusModeTimeDilation.playerTimeDilation", 0.00);
+      this.m_easeInCurve = TweakDBInterface.GetCName(t"timeSystem.vehicleControlFocusModeTimeDilation.easeInCurve", n"None");
+      this.m_easeOutCurve = TweakDBInterface.GetCName(t"timeSystem.vehicleControlFocusModeTimeDilation.easeOutCurve", n"None");
+      this.m_applyTimeDilationToPlayer = TweakDBInterface.GetBool(t"timeSystem.vehicleControlFocusModeTimeDilation.applyTimeDilationToPlayer", false);
+    } else {
+      this.m_timeDilation = TweakDBInterface.GetFloat(t"timeSystem.focusModeTimeDilation.timeDilation", 0.00);
+      this.m_playerDilation = TweakDBInterface.GetFloat(t"timeSystem.focusModeTimeDilation.playerTimeDilation", 0.00);
+      this.m_easeInCurve = TweakDBInterface.GetCName(t"timeSystem.focusModeTimeDilation.easeInCurve", n"None");
+      this.m_easeOutCurve = TweakDBInterface.GetCName(t"timeSystem.focusModeTimeDilation.easeOutCurve", n"None");
+      this.m_applyTimeDilationToPlayer = TweakDBInterface.GetBool(t"timeSystem.focusModeTimeDilation.applyTimeDilationToPlayer", false);
+    };
+    this.m_timeDilationReason = n"focusMode";
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if !this.IsTimeDilationActive(stateContext, scriptInterface, n"None") {
+      this.SetTimeDilationGlobal(stateContext, scriptInterface, this.m_timeDilationReason, this.m_timeDilation, 999.00, this.m_easeInCurve, this.m_easeOutCurve);
+      if this.m_applyTimeDilationToPlayer {
+        this.SetTimeDilationOnLocalPlayer(this.m_timeDilationReason, this.m_playerDilation, 999.00, this.m_easeInCurve, this.m_easeOutCurve, stateContext, scriptInterface);
+      };
+    };
+  }
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UnsetTimeDilation(stateContext, scriptInterface, this.m_timeDilationReason, this.m_easeOutCurve);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UnsetTimeDilation(stateContext, scriptInterface, this.m_timeDilationReason, this.m_easeOutCurve);
+  }
+
+  protected final func OnExitToTimeDilationPhotomode(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UnsetTimeDilation(stateContext, scriptInterface, this.m_timeDilationReason, this.m_easeOutCurve, true);
+  }
+}
+
+public class TimeDilationPhotomodeDecisions extends TimeDilationTransitions {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.IsInPhotoMode(scriptInterface);
+  }
+
+  protected final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsInPhotoMode(scriptInterface);
+  }
+}
+
+public class TimeDilationPhotomodeEvents extends TimeDilationEventsTransitions {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeSystem: ref<TimeSystem> = scriptInterface.GetTimeSystem();
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.TimeDilation, 2);
+    timeSystem.SetTimeDilationOnLocalPlayerZero(n"photomode", 0.00, -1.00, n"None", n"None");
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeSystem: ref<TimeSystem> = scriptInterface.GetTimeSystem();
+    timeSystem.UnsetTimeDilationOnLocalPlayerZero(n"photomode", n"None");
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.TimeDilation, 0);
+  }
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+}

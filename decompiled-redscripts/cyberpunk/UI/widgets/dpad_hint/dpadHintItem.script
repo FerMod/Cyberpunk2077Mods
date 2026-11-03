@@ -1,0 +1,2099 @@
+
+public class HotkeyWidgetStatsListener extends ScriptStatusEffectListener {
+
+  private let m_controller: wref<GenericHotkeyController>;
+
+  public final func Init(controller: ref<GenericHotkeyController>) -> Void {
+    this.m_controller = controller;
+  }
+
+  public func OnStatusEffectApplied(statusEffect: wref<StatusEffect_Record>) -> Void {
+    this.m_controller.OnRestrictionUpdate(statusEffect, true);
+  }
+
+  public func OnStatusEffectRemoved(statusEffect: wref<StatusEffect_Record>) -> Void {
+    this.m_controller.OnRestrictionUpdate(statusEffect, false);
+  }
+}
+
+public abstract class GenericHotkeyController extends gameuiNewPhoneRelatedHUDGameController {
+
+  protected edit let m_hotkeyBackground: inkImageRef;
+
+  protected edit let m_buttonHint: inkWidgetRef;
+
+  protected edit let m_hotkey: EHotkey;
+
+  protected let m_pressStarted: Bool;
+
+  protected let m_buttonHintController: wref<inkInputDisplayController>;
+
+  private let m_questActivatingFact: CName;
+
+  protected let m_restrictions: [CName];
+
+  protected let m_statusEffectsListener: ref<HotkeyWidgetStatsListener>;
+
+  private let debugCommands: [Uint32];
+
+  private let m_factListenerId: Uint32;
+
+  protected cb func OnInitialize() -> Bool {
+    this.Initialize();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.Uninitialize();
+  }
+
+  protected func Initialize() -> Bool {
+    if Equals(this.m_hotkey, EHotkey.INVALID) {
+      return false;
+    };
+    switch this.m_hotkey {
+      case EHotkey.DPAD_UP:
+        this.m_questActivatingFact = n"dpad_hints_visibility_enabled";
+        break;
+      case EHotkey.DPAD_DOWN:
+        this.m_questActivatingFact = n"unlock_phone_hud_dpad";
+        break;
+      case EHotkey.DPAD_RIGHT:
+        this.m_questActivatingFact = n"unlock_car_hud_dpad";
+        break;
+      case EHotkey.RB:
+        this.m_questActivatingFact = n"initial_gadget_picked";
+        break;
+      case EHotkey.LBRB:
+        this.m_questActivatingFact = n"dpad_hints_visibility_enabled";
+    };
+    this.m_factListenerId = GameInstance.GetQuestsSystem(this.GetPlayer().GetGame()).RegisterListener(this.m_questActivatingFact, this, n"OnActivation");
+    PlayerGameplayRestrictions.AcquireHotkeyRestrictionTags(this.m_hotkey, this.m_restrictions);
+    this.InitializeStatusListener();
+    this.m_buttonHintController = inkWidgetRef.Get(this.m_buttonHint).GetController() as inkInputDisplayController;
+    this.InitializeButtonHint();
+    this.ResolveState();
+    this.RegisterCommonBlackboardListeners();
+    return true;
+  }
+
+  protected func InitializeStatusListener() -> Void {
+    let mainPlayer: wref<GameObject>;
+    this.m_statusEffectsListener = new HotkeyWidgetStatsListener();
+    this.m_statusEffectsListener.Init(this);
+    mainPlayer = GameInstance.GetPlayerSystem(this.GetPlayer().GetGame()).GetLocalPlayerControlledGameObject();
+    GameInstance.GetStatusEffectSystem(this.GetPlayer().GetGame()).RegisterListener(mainPlayer.GetEntityID(), this.m_statusEffectsListener);
+  }
+
+  protected func Uninitialize() -> Void {
+    GameInstance.GetQuestsSystem(this.GetPlayer().GetGame()).UnregisterListener(this.m_questActivatingFact, this.m_factListenerId);
+    this.m_statusEffectsListener = null;
+    this.UnregisterCommonBlackboardListeners();
+  }
+
+  private final func InitializeButtonHint() -> Void {
+    if Equals(this.m_hotkey, EHotkey.RB) {
+      this.m_buttonHintController.SetInputAction(n"UseCombatGadget");
+      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.FromInputConfig);
+    } else {
+      if Equals(this.m_hotkey, EHotkey.DPAD_UP) {
+        this.m_buttonHintController.SetInputAction(n"UseConsumable");
+        this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Press);
+      } else {
+        if Equals(this.m_hotkey, EHotkey.DPAD_DOWN) {
+          this.m_buttonHintController.SetInputAction(n"PhoneInteract");
+          this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.FromInputConfig);
+        } else {
+          if Equals(this.m_hotkey, EHotkey.DPAD_RIGHT) {
+            this.m_buttonHintController.SetInputAction(n"CallVehicle");
+            this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.FromInputConfig);
+          };
+        };
+      };
+    };
+  }
+
+  protected final func GetPlayer() -> wref<PlayerPuppet> {
+    return this.GetPlayerControlledObject() as PlayerPuppet;
+  }
+
+  protected func ResolveState() -> Void {
+    if this.IsInDefaultState() {
+      if Equals(this.GetRootWidget().GetState(), n"QuestImportant") {
+        this.GetRootWidget().SetState(n"QuestImportant");
+      } else {
+        this.GetRootWidget().SetState(n"Default");
+      };
+    } else {
+      this.GetRootWidget().SetState(n"Unavailable");
+    };
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    return this.IsActivatedByQuest() && this.IsAllowedByGameplay();
+  }
+
+  protected func IsActivatedByQuest() -> Bool {
+    let val: Int32;
+    let qs: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame());
+    if IsDefined(qs) {
+      val = qs.GetFact(this.m_questActivatingFact);
+      return val >= 1 ? true : false;
+    };
+    return false;
+  }
+
+  protected func IsAllowedByGameplay() -> Bool {
+    return !StatusEffectSystem.ObjectHasStatusEffectWithTags(this.GetPlayer(), this.m_restrictions);
+  }
+
+  protected final func IsControllingDeviceChain() -> Bool {
+    let deviceChain: array<SWidgetPackage>;
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let deviceChainLen: Int32 = 0;
+    let chainBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(player.GetGame()).Get(GetAllBlackboardDefs().DeviceTakeControl);
+    if IsDefined(chainBlackboard) {
+      deviceChain = FromVariant<array<SWidgetPackage>>(chainBlackboard.GetVariant(GetAllBlackboardDefs().DeviceTakeControl.DevicesChain));
+      deviceChainLen = ArraySize(deviceChain);
+    };
+    return deviceChainLen > 1;
+  }
+
+  protected final func IsControllingDevice() -> Bool {
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let playerSMB: ref<IBlackboard> = player.GetPlayerStateMachineBlackboard();
+    return playerSMB.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice) || this.m_isRemoteControllingVehicle;
+  }
+
+  public final func OnRestrictionUpdate(statusEffect: wref<StatusEffect_Record>, effectApplied: Bool) -> Void {
+    this.ResolveState();
+    if this.IsA(n"ChargedHotkeyItemBaseController") && statusEffect.GetID() == t"GameplayRestriction.BlockAllInputHintKey" {
+      this.m_buttonHintController.SetVisible(!effectApplied);
+    };
+  }
+
+  protected cb func OnDpadActionPerformed(evt: ref<DPADActionPerformed>) -> Bool {
+    let animName: CName;
+    if Equals(this.m_hotkey, evt.action) {
+      if evt.successful && this.IsInDefaultState() {
+        animName = StringToName("onUse_" + EnumValueToString("EHotkey", EnumInt(evt.action)));
+        this.PlayLibraryAnimation(animName);
+      } else {
+        animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(evt.action)));
+        this.PlayLibraryAnimation(animName);
+      };
+    };
+  }
+
+  protected final func DBGPlayAnim(animName: CName) -> Void {
+    if Equals(animName, n"onStarted_DPAD_RIGHT") {
+      2;
+    };
+    this.PlayLibraryAnimation(animName);
+    ArrayPush(this.debugCommands, GameInstance.GetDebugVisualizerSystem(this.GetPlayer().GetGame()).DrawText(new Vector4(600.00, 900.00 - 20.00 * Cast<Float>(ArraySize(this.debugCommands)), 0.00, 0.00), NameToString(animName)));
+  }
+
+  public final func OnActivation(value: Int32) -> Void {
+    this.ResolveState();
+  }
+}
+
+public class PhoneHotkeyController extends GenericHotkeyController {
+
+  private edit let mainIcon: inkImageRef;
+
+  private edit let questIcon: inkImageRef;
+
+  private edit let callIcon: inkImageRef;
+
+  private edit let messageCounterLabel: inkWidgetRef;
+
+  private edit let messageCounterLabelCircle: inkWidgetRef;
+
+  private edit let messageCounter: inkTextRef;
+
+  private edit let messageCounterCircle: inkTextRef;
+
+  private let journalManager: wref<JournalManager>;
+
+  @default(PhoneHotkeyController, base\gameplay\gui\common\icons\atlas_common.inkatlas)
+  private let phoneIconAtlas: String;
+
+  @default(PhoneHotkeyController, ico_phone)
+  private let phoneIconName: CName;
+
+  private let m_proxy: ref<inkAnimProxy>;
+
+  private let m_questImportantAnimProxy: ref<inkAnimProxy>;
+
+  private let m_comDeviceBB: wref<IBlackboard>;
+
+  private let m_quickSlotBB: wref<IBlackboard>;
+
+  private let m_phoneEnabledBBId: ref<CallbackHandle>;
+
+  private let m_isVehiclesPopupVisibleBBId: ref<CallbackHandle>;
+
+  private let m_isRadioPopupVisibleBBId: ref<CallbackHandle>;
+
+  private let m_isRadialMenuVisibleBBId: ref<CallbackHandle>;
+
+  private let m_cinematicCameraBBId: ref<CallbackHandle>;
+
+  protected func Initialize() -> Bool {
+    super.Initialize();
+    this.journalManager = GameInstance.GetJournalManager(this.GetPlayer().GetGame());
+    if !IsDefined(this.journalManager) {
+      return false;
+    };
+    this.journalManager.RegisterScriptCallback(this, n"OnJournalUpdate", gameJournalListenerType.State);
+    this.journalManager.RegisterScriptCallback(this, n"OnJournalUpdateVisited", gameJournalListenerType.Visited);
+    this.journalManager.RegisterScriptCallback(this, n"OnTrackedEntryChanges", gameJournalListenerType.Tracked);
+    if this.isNewPhoneEnabled {
+      this.GetRootWidget().RegisterToCallback(n"OnPhoneDeviceSlot", this, n"OnPhoneDeviceSlot");
+      this.GetRootWidget().RegisterToCallback(n"OnPhoneDeviceReset", this, n"OnPhoneDeviceReset");
+    };
+    this.m_quickSlotBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    this.m_comDeviceBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice);
+    this.m_phoneEnabledBBId = this.m_comDeviceBB.RegisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.PhoneEnabled, this, n"OnPhoneEnabledChanged");
+    this.m_isVehiclesPopupVisibleBBId = this.GetUIBlackboard().RegisterListenerBool(GetAllBlackboardDefs().UIGameData.Popup_VehiclesManager_IsShown, this, n"OnVehiclesManagerPopupIsShown");
+    this.m_isRadioPopupVisibleBBId = this.GetUIBlackboard().RegisterListenerBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_IsShown, this, n"OnRadioManagerPopupIsShown");
+    this.m_isRadialMenuVisibleBBId = this.m_quickSlotBB.RegisterListenerBool(GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, this, n"OnRadialMenuShown", true);
+    this.m_cinematicCameraBBId = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData).RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this, n"OnCinematicCameraChange", true);
+    if this.IsPhoneInUse() {
+      this.OnPhoneDeviceSlot(null);
+    };
+    this.UpdateData();
+    return true;
+  }
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    let isControllingDevice: Bool;
+    let playerStateMachineBlackboard: ref<IBlackboard>;
+    super.OnPlayerAttach(player);
+    playerStateMachineBlackboard = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(GameInstance.GetPlayerSystem(player.GetGame()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    isControllingDevice = playerStateMachineBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice);
+    this.ToggleVisibility(!isControllingDevice, true);
+  }
+
+  private final func OnCinematicCameraChange(value: Bool) -> Void {
+    this.GetRootWidget().SetVisible(!value);
+  }
+
+  private final func OnVehiclesManagerPopupIsShown(value: Bool) -> Void {
+    this.ToggleVisibility(!value, false);
+  }
+
+  private final func OnRadioManagerPopupIsShown(value: Bool) -> Void {
+    this.ToggleVisibility(!value, false);
+  }
+
+  private final func OnRadialMenuShown(value: Bool) -> Void {
+    this.ToggleVisibility(!value, false);
+  }
+
+  private final func IsPhoneInUse() -> Bool {
+    let activePhoneElements: Uint32;
+    let phoneCallInfo: PhoneCallInformation = FromVariant<PhoneCallInformation>(this.m_comDeviceBB.GetVariant(GetAllBlackboardDefs().UI_ComDevice.PhoneCallInformation));
+    if phoneCallInfo.isAudioCall && Equals(phoneCallInfo.callPhase, questPhoneCallPhase.StartCall) && Equals(phoneCallInfo.visuals, questPhoneCallVisuals.Default) {
+      return true;
+    };
+    activePhoneElements = this.m_comDeviceBB.GetUint(GetAllBlackboardDefs().UI_ComDevice.ActivatePhoneElements);
+    if Cast<Bool>(activePhoneElements) {
+      return true;
+    };
+    return false;
+  }
+
+  protected func InitializeStatusListener() -> Void;
+
+  protected func Uninitialize() -> Void {
+    super.Uninitialize();
+    if IsDefined(this.journalManager) {
+      this.journalManager.UnregisterScriptCallback(this, n"OnJournalUpdate");
+      this.journalManager.UnregisterScriptCallback(this, n"OnJournalUpdateVisited");
+      this.journalManager.UnregisterScriptCallback(this, n"OnTrackedEntryChanges");
+      this.journalManager = null;
+    };
+    if this.isNewPhoneEnabled {
+      this.GetRootWidget().UnregisterFromCallback(n"OnPhoneDeviceSlot", this, n"OnPhoneDeviceSlot");
+      this.GetRootWidget().UnregisterFromCallback(n"OnPhoneDeviceReset", this, n"OnPhoneDeviceReset");
+    };
+    this.m_comDeviceBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.PhoneEnabled, this.m_phoneEnabledBBId);
+    this.m_quickSlotBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, this.m_isRadialMenuVisibleBBId);
+    this.GetUIBlackboard().UnregisterListenerBool(GetAllBlackboardDefs().UIGameData.Popup_VehiclesManager_IsShown, this.m_isVehiclesPopupVisibleBBId);
+    this.GetUIBlackboard().UnregisterListenerBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_IsShown, this.m_isRadioPopupVisibleBBId);
+    if IsDefined(this.m_cinematicCameraBBId) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData).UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this.m_cinematicCameraBBId);
+    };
+  }
+
+  private final func OnPhoneEnabledChanged(val: Bool) -> Void {
+    this.ResolveState();
+  }
+
+  protected cb func OnPhoneDeviceSlot(target: wref<inkWidget>) -> Bool {
+    if IsDefined(this.m_proxy) {
+      this.m_proxy.Stop();
+      this.m_proxy = null;
+    };
+    this.m_proxy = this.PlayLibraryAnimation(n"phone_device_slot");
+  }
+
+  protected cb func OnPhoneDeviceReset(target: wref<inkWidget>) -> Bool {
+    if IsDefined(this.m_proxy) {
+      this.m_proxy.Stop();
+      this.m_proxy = null;
+    };
+    this.m_proxy = this.PlayLibraryAnimation(n"phone_device_reset");
+  }
+
+  private final func UpdateData() -> Void {
+    let contactEntry: wref<JournalContact>;
+    let contacts: array<wref<JournalEntry>>;
+    let context: JournalRequestContext;
+    let convEntry: wref<JournalPhoneConversation>;
+    let conversations: array<wref<JournalEntry>>;
+    let hasQuestCall: Bool;
+    let hasQuestMessage: Bool;
+    let i: Int32;
+    let j: Int32;
+    let questMessagesCount: Int32;
+    let tracked: array<Int32>;
+    let unreadMessagesCount: Int32;
+    if !IsDefined(this.journalManager) {
+      return;
+    };
+    unreadMessagesCount = 0;
+    questMessagesCount = 0;
+    hasQuestMessage = false;
+    context.stateFilter.active = true;
+    this.journalManager.GetContacts(context, contacts);
+    tracked = MessengerUtils.FetchTrackedQuestCodexLinks(this.journalManager, context);
+    i = 0;
+    while i < ArraySize(contacts) {
+      contactEntry = contacts[i] as JournalContact;
+      if !IsDefined(contactEntry) {
+      } else {
+        this.journalManager.GetConversations(contactEntry, conversations);
+        j = 0;
+        while j < ArraySize(conversations) {
+          convEntry = conversations[j] as JournalPhoneConversation;
+          this.CountMessages(convEntry, tracked, questMessagesCount, unreadMessagesCount);
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+    hasQuestMessage = questMessagesCount > 0;
+    hasQuestCall = MessengerUtils.HasQuestImportantCalls(this.journalManager);
+    if unreadMessagesCount == 0 {
+      inkWidgetRef.SetVisible(this.messageCounterLabel, false);
+      inkWidgetRef.SetVisible(this.messageCounterLabelCircle, false);
+    } else {
+      if hasQuestMessage || hasQuestCall {
+        inkWidgetRef.SetVisible(this.messageCounterLabel, false);
+        inkWidgetRef.SetVisible(this.messageCounterLabelCircle, true);
+        inkWidgetRef.SetVisible(this.callIcon, hasQuestCall);
+        inkWidgetRef.SetVisible(this.messageCounterCircle, !hasQuestCall);
+        if questMessagesCount > 9 {
+          inkTextRef.SetText(this.messageCounterCircle, "9+");
+        } else {
+          inkTextRef.SetText(this.messageCounterCircle, IntToString(questMessagesCount));
+        };
+        this.GetRootWidget().SetState(n"QuestImportant");
+        this.QuestImportantBlink(true);
+      } else {
+        inkWidgetRef.SetVisible(this.messageCounterLabel, true);
+        inkWidgetRef.SetVisible(this.messageCounterLabelCircle, false);
+        if unreadMessagesCount > 9 {
+          inkTextRef.SetText(this.messageCounter, "9+");
+        } else {
+          inkTextRef.SetText(this.messageCounter, IntToString(unreadMessagesCount));
+        };
+        this.GetRootWidget().SetState(n"Default");
+        this.QuestImportantBlink(false);
+      };
+    };
+    inkWidgetRef.SetVisible(this.questIcon, hasQuestMessage || hasQuestCall);
+    this.ResolveState();
+  }
+
+  private final func CountMessages(convEntry: wref<JournalPhoneConversation>, tracked: script_ref<[Int32]>, out questImportantMessages: Int32, out unreadMessages: Int32) -> Void {
+    let choiceEntry: wref<JournalPhoneChoiceEntry>;
+    let hasQuestRelatedMsg: Bool;
+    let k: Int32;
+    let messages: array<wref<JournalEntry>>;
+    let msgEntry: wref<JournalEntry>;
+    let replies: array<wref<JournalEntry>>;
+    this.journalManager.GetMessagesAndChoices(convEntry, messages, replies);
+    hasQuestRelatedMsg = MessengerUtils.ContainsQuestRelatedMessage(this.journalManager, tracked, messages);
+    if hasQuestRelatedMsg {
+      questImportantMessages += 1;
+      return;
+    };
+    k = 0;
+    while k < ArraySize(replies) {
+      choiceEntry = replies[k] as JournalPhoneChoiceEntry;
+      if choiceEntry.IsQuestImportant() {
+        questImportantMessages += 1;
+        return;
+      };
+      k += 1;
+    };
+    k = 0;
+    while k < ArraySize(messages) {
+      msgEntry = messages[k];
+      if IsDefined(msgEntry) && !this.journalManager.IsEntryVisited(msgEntry) {
+        unreadMessages += 1;
+        return;
+      };
+      k += 1;
+    };
+    k = 0;
+    while k < ArraySize(replies) {
+      choiceEntry = replies[k] as JournalPhoneChoiceEntry;
+      if !choiceEntry.IsQuestImportant() {
+        unreadMessages += 1;
+        return;
+      };
+      k += 1;
+    };
+  }
+
+  private final func QuestImportantBlink(enable: Bool) -> Void {
+    let animOptions: inkAnimOptions;
+    if enable {
+      if !this.m_questImportantAnimProxy.IsPlaying() {
+        animOptions.loopInfinite = true;
+        animOptions.loopType = inkanimLoopType.Cycle;
+        this.m_questImportantAnimProxy = this.PlayLibraryAnimation(n"quest_important", animOptions);
+      };
+    } else {
+      this.m_questImportantAnimProxy.GotoEndAndStop();
+      this.m_questImportantAnimProxy = null;
+    };
+  }
+
+  protected cb func OnJournalUpdate(entryHash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    if Equals(className, n"gameJournalPhoneMessage") || Equals(className, n"gameJournalPhoneChoiceEntry") || Equals(className, n"gameJournalQuestCodexLink") {
+      this.UpdateData();
+    };
+  }
+
+  protected cb func OnJournalUpdateVisited(entryHash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    if Equals(className, n"gameJournalPhoneMessage") {
+      this.UpdateData();
+    };
+  }
+
+  protected cb func OnTrackedEntryChanges(hash: Uint32, className: CName, notifyOption: JournalNotifyOption, changeType: JournalChangeType) -> Bool {
+    this.UpdateData();
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    let phoneSystem: wref<PhoneSystem> = GameInstance.GetScriptableSystemsContainer(this.GetPlayer().GetGame()).Get(n"PhoneSystem") as PhoneSystem;
+    let phoneEnabled: Bool = phoneSystem.IsPhoneEnabled();
+    return phoneEnabled;
+  }
+
+  private final func RestoreDefaultIcon() -> Void {
+    inkWidgetRef.SetVisible(this.mainIcon, true);
+  }
+
+  protected cb func OnDpadActionPerformed(evt: ref<DPADActionPerformed>) -> Bool {
+    let animName: CName;
+    if Equals(this.m_hotkey, evt.action) {
+      if !this.IsInDefaultState() {
+        animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.PlayLibraryAnimation(animName);
+        return false;
+      };
+      if Equals(evt.state, EUIActionState.COMPLETED) && evt.successful {
+        animName = StringToName("onUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.PlayLibraryAnimation(animName);
+      } else {
+        if !evt.successful {
+          animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+          this.PlayLibraryAnimation(animName);
+        };
+      };
+    };
+  }
+}
+
+public class CarHotkeyController extends GenericHotkeyController {
+
+  private edit let carIconSlot: inkImageRef;
+
+  private let psmBB: wref<IBlackboard>;
+
+  private let qsdBB: wref<IBlackboard>;
+
+  private let bbListener: ref<CallbackHandle>;
+
+  private let radialListener: ref<CallbackHandle>;
+
+  protected func Initialize() -> Bool {
+    super.Initialize();
+    this.GetRootWidget().SetVisible(!this.IsControllingDevice());
+    this.psmBB = GameInstance.GetBlackboardSystem(this.GetPlayer().GetGame()).Get(GetAllBlackboardDefs().PlayerStateMachine);
+    this.qsdBB = GameInstance.GetBlackboardSystem(this.GetPlayer().GetGame()).Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    this.bbListener = this.psmBB.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerEnteredVehicle", true);
+    this.radialListener = this.qsdBB.RegisterListenerBool(GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, this, n"OnRadialMenuShown", true);
+    return true;
+  }
+
+  protected func Uninitialize() -> Void {
+    super.Uninitialize();
+    if IsDefined(this.bbListener) {
+      this.psmBB.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.bbListener);
+    };
+    if IsDefined(this.radialListener) {
+      this.qsdBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, this.radialListener);
+    };
+  }
+
+  protected cb func OnDpadActionPerformed(evt: ref<DPADActionPerformed>) -> Bool {
+    let animName: CName;
+    if Equals(this.m_hotkey, evt.action) {
+      if !this.IsInDefaultState() {
+        animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.PlayLibraryAnimation(animName);
+        return false;
+      };
+      if Equals(evt.state, EUIActionState.COMPLETED) && evt.successful {
+        animName = StringToName("onUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.PlayLibraryAnimation(animName);
+      } else {
+        if !evt.successful {
+          animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+          this.PlayLibraryAnimation(animName);
+        };
+      };
+    };
+  }
+
+  protected cb func OnRadialMenuShown(value: Bool) -> Bool {
+    this.ToggleVisibility(!value, false);
+  }
+
+  protected cb func OnPlayerEnteredVehicle(value: Int32) -> Bool {
+    this.ResolveState();
+  }
+
+  protected func IsAllowedByGameplay() -> Bool {
+    if !VehicleSystem.IsSummoningVehiclesRestricted(this.GetPlayer().GetGame()) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class RadioHotkeyController extends GenericHotkeyController {
+
+  private let m_vehicleBB: wref<IBlackboard>;
+
+  private let m_vehicleEnterListener: ref<CallbackHandle>;
+
+  private let m_factListener: Uint32;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_equalizerAnimProxy: ref<inkAnimProxy>;
+
+  private let m_pocketRadioToken: ref<inkGameNotificationToken>;
+
+  private let m_isInDefaultState: Bool;
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    super.OnPlayerAttach(player);
+    this.InitializeStatusListener();
+    this.InitializeQuestListener();
+    this.InitializeEqualizerAnim();
+    this.m_vehicleEnterListener = this.GetPSMBlackboard(player).RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerEnteredVehicle", true);
+    player.RegisterInputListener(this, n"PocketRadio");
+    this.ResolveState();
+  }
+
+  private final func InitializeEqualizerAnim() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.m_equalizerAnimProxy = this.PlayLibraryAnimation(n"RadioPlaying", playbackOptions);
+    this.m_equalizerAnimProxy.Pause();
+  }
+
+  public final func StartEqualizerAnim() -> Void {
+    if !this.m_equalizerAnimProxy.IsPlaying() {
+      this.PlayLibraryAnimation(n"RadioPlay");
+    };
+    this.m_equalizerAnimProxy.Resume();
+  }
+
+  public final func StopEqualizerAnim() -> Void {
+    if this.m_equalizerAnimProxy.IsPlaying() {
+      this.PlayLibraryAnimation(n"RadioStop");
+    };
+    this.m_equalizerAnimProxy.Pause();
+  }
+
+  private final func ShouldEqualizerShow() -> Bool {
+    let vehicle: wref<VehicleObject>;
+    if !this.m_isInDefaultState {
+      return false;
+    };
+    VehicleComponent.GetVehicle(this.m_player.GetGame(), this.m_player, vehicle);
+    if IsDefined(vehicle) {
+      return vehicle.IsRadioReceiverActive() || this.m_player.GetPocketRadio().IsActive();
+    };
+    return this.m_player.GetPocketRadio().IsActive();
+  }
+
+  private final func UpdateEqualizer() -> Void {
+    if this.ShouldEqualizerShow() {
+      this.StartEqualizerAnim();
+    } else {
+      this.StopEqualizerAnim();
+    };
+  }
+
+  protected cb func OnVehicleRadioEvent(evt: ref<UIVehicleRadioEvent>) -> Bool {
+    this.UpdateEqualizer();
+  }
+
+  protected cb func OnVehicleRadioCycleEvent(evt: ref<UIVehicleRadioCycleEvent>) -> Bool {
+    this.PlayLibraryAnimation(n"OnRadioSongChanged");
+  }
+
+  private final func IsRadioEnabled() -> Bool {
+    return this.GetUIBlackboard().GetBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_Enabled);
+  }
+
+  protected func Initialize() -> Bool {
+    this.SetHintController(this.GetPSMBlackboard(this.m_player).GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) == 1);
+    this.ResolveState();
+    return true;
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if Equals(ListenerAction.GetName(action), n"PocketRadio") && true {
+      if VehicleSystem.IsPlayerInVehicle(this.GetPlayer().GetGame()) && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_player, n"MetroRide") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_player, n"DelamainTaxi") {
+        return true;
+      };
+      if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) {
+        if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+          this.m_animationProxy.GotoEndAndStop(true);
+          this.m_animationProxy = null;
+        };
+        this.m_animationProxy = this.PlayLibraryAnimation(n"onFailUse_DPAD_RIGHT");
+      };
+    };
+  }
+
+  private final func InitializeQuestListener() -> Void {
+    this.m_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"unlock_car_hud_dpad", this, n"OnFactChanged");
+  }
+
+  private final func SetHintController(isInVehicle: Bool) -> Void {
+    if isInVehicle {
+      this.m_buttonHintController = inkWidgetRef.Get(this.m_buttonHint).GetController() as inkInputDisplayController;
+      this.m_buttonHintController.SetInputAction(n"VehicleInsideWheel");
+      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Hold);
+    } else {
+      this.m_buttonHintController = inkWidgetRef.Get(this.m_buttonHint).GetController() as inkInputDisplayController;
+      this.m_buttonHintController.SetInputAction(n"PocketRadio");
+      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Hold);
+    };
+  }
+
+  protected func Uninitialize() -> Void {
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"unlock_car_hud_dpad", this.m_factListener);
+    this.m_statusEffectsListener = null;
+    if IsDefined(this.m_vehicleEnterListener) {
+      this.GetPSMBlackboard(this.m_player).UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.m_vehicleEnterListener);
+    };
+  }
+
+  public final func OnFactChanged(value: Int32) -> Void {
+    this.ResolveState();
+  }
+
+  protected cb func OnPlayerEnteredVehicle(value: Int32) -> Bool {
+    let delamainTaxiSeatFact: Int32 = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"delamain_taxi_seat");
+    let delamainTaxiState: Bool = false;
+    if delamainTaxiSeatFact == 1 || delamainTaxiSeatFact == 2 {
+      delamainTaxiState = true;
+    };
+    this.ResolveState();
+    if value >= 3 && value <= 5 && delamainTaxiState || value == 1 {
+      this.SetHintController(true);
+    } else {
+      this.SetHintController(false);
+    };
+  }
+
+  protected cb func OnVehicleRadioStationChanged(evt: ref<VehicleRadioStationChanged>) -> Bool {
+    this.ResolveState();
+  }
+
+  protected cb func OnPocketRadioUIEvent(evt: ref<PocketRadioUIEvent>) -> Bool {
+    this.ResolveState();
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    let isPlayerInVehicle: Bool = VehicleSystem.IsPlayerInVehicle(this.GetPlayer().GetGame());
+    let isNotInDriverCombat: Bool = !StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayer(), t"BaseStatusEffect.DriverCombat");
+    let isNotRadioBlocked: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"VehicleBlockRadioInput");
+    let isNotInVehicleScene: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"VehicleScene");
+    let isNotQuestBlocked: Bool = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"unlock_car_hud_dpad") != 0;
+    let isNotInPoliceVehicle: Bool = !this.m_player.IsInPoliceVehicle();
+    if isPlayerInVehicle {
+      if isNotInDriverCombat && isNotInPoliceVehicle && isNotRadioBlocked && isNotInVehicleScene && isNotQuestBlocked {
+        this.m_isInDefaultState = true;
+        return true;
+      };
+      this.m_isInDefaultState = false;
+      return false;
+    };
+    this.m_isInDefaultState = !this.GetPlayer().GetPocketRadio().IsRestricted();
+    return this.m_isInDefaultState;
+  }
+
+  protected func ResolveState() -> Void {
+    let isVisible: Bool = !this.IsControllingDevice() || this.m_player.GetPocketRadio().IsRestrictionOverwritten();
+    this.GetRootWidget().SetVisible(isVisible);
+    if !isVisible {
+      return;
+    };
+    super.ResolveState();
+    this.UpdateEqualizer();
+  }
+}
+
+public class HotkeyItemController extends GenericHotkeyController {
+
+  protected edit let m_hotkeyItemSlot: inkWidgetRef;
+
+  protected let m_hotkeyItemWidget: wref<inkWidget>;
+
+  protected let m_hotkeyItemController: wref<InventoryItemDisplayController>;
+
+  protected let m_currentItem: InventoryItemData;
+
+  private let m_hotkeyBlackboard: wref<IBlackboard>;
+
+  private let m_hotkeyCallbackID: ref<CallbackHandle>;
+
+  private let m_holocallCallback: ref<CallbackHandle>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  protected let m_inventoryManager: ref<InventoryDataManagerV2>;
+
+  protected let m_dpadAnim: ref<inkAnimProxy>;
+
+  protected func Initialize() -> Bool {
+    let qs: ref<QuestsSystem>;
+    let initSuccessful: Bool = super.Initialize();
+    if !initSuccessful {
+      return false;
+    };
+    this.m_hotkeyItemWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_hotkeyItemSlot), n"HotkeyItem");
+    this.m_hotkeyItemController = this.m_hotkeyItemWidget.GetController() as InventoryItemDisplayController;
+    this.m_equipmentSystem = this.GetEquipmentSystem();
+    qs = GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame());
+    if !IsDefined(this.m_hotkeyItemController) || !IsDefined(this.m_equipmentSystem) || !IsDefined(qs) {
+      return false;
+    };
+    this.m_inventoryManager = new InventoryDataManagerV2();
+    this.m_inventoryManager.Initialize(this.GetPlayer(), this);
+    this.m_hotkeyBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Hotkeys);
+    if IsDefined(this.m_hotkeyBlackboard) {
+      this.m_hotkeyCallbackID = this.m_hotkeyBlackboard.RegisterDelayedListenerVariant(GetAllBlackboardDefs().UI_Hotkeys.ModifiedHotkey, this, n"OnHotkeyRefreshed");
+    };
+    this.InitializeHotkeyItem();
+    this.RegisterHolocallListener();
+    return true;
+  }
+
+  private final func RegisterHolocallListener() -> Void {
+    let comDeviceBB: wref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice);
+    this.m_holocallCallback = comDeviceBB.RegisterListenerVariant(GetAllBlackboardDefs().UI_ComDevice.PhoneCallInformation, this, n"OnPhoneCallInfoChanged", true);
+  }
+
+  protected cb func OnPhoneCallInfoChanged(value: Variant) -> Bool {
+    this.ResolveState();
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    return this.IsActivatedByQuest() && this.IsAllowedByGameplay() && !this.IsHoloCallActive();
+  }
+
+  private final func IsHoloCallActive() -> Bool {
+    let lastPhoneCallInformation: PhoneCallInformation;
+    let infoVariant: Variant = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice).GetVariant(GetAllBlackboardDefs().UI_ComDevice.PhoneCallInformation);
+    if IsDefined(infoVariant) {
+      lastPhoneCallInformation = FromVariant<PhoneCallInformation>(infoVariant);
+      return Equals(lastPhoneCallInformation.callPhase, questPhoneCallPhase.StartCall) && Equals(lastPhoneCallInformation.callMode, questPhoneCallMode.Video);
+    };
+    return false;
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_player = playerPuppet as PlayerPuppet;
+    this.InitializeHotkeyItem();
+  }
+
+  private final func InitializeHotkeyItem() -> Void {
+    this.UpdateCurrentItem();
+  }
+
+  protected func Uninitialize() -> Void {
+    super.Uninitialize();
+    this.m_inventoryManager.UnInitialize();
+    if IsDefined(this.m_hotkeyBlackboard) {
+      this.m_hotkeyBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_Hotkeys.ModifiedHotkey, this.m_hotkeyCallbackID);
+      this.m_hotkeyBlackboard = null;
+    };
+    this.UnregisterHolocallListener();
+  }
+
+  private final func UnregisterHolocallListener() -> Void {
+    let comDeviceBB: wref<IBlackboard>;
+    if IsDefined(this.m_holocallCallback) {
+      comDeviceBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice);
+      comDeviceBB.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ComDevice.PhoneCallInformation, this.m_holocallCallback);
+    };
+  }
+
+  protected func IsAllowedByGameplay() -> Bool {
+    return super.IsAllowedByGameplay();
+  }
+
+  protected final func StopDpadAnim() -> Void {
+    if IsDefined(this.m_dpadAnim) && this.m_dpadAnim.IsPlaying() {
+      this.m_dpadAnim.GotoEndAndStop(true);
+      this.m_dpadAnim = null;
+    };
+  }
+
+  protected cb func OnDpadActionPerformed(evt: ref<DPADActionPerformed>) -> Bool {
+    let animName: CName;
+    if Equals(this.m_hotkey, evt.action) {
+      if !this.IsInDefaultState() {
+        animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.StopDpadAnim();
+        this.m_dpadAnim = this.PlayLibraryAnimation(animName);
+        return false;
+      };
+      if Equals(evt.state, EUIActionState.COMPLETED) && evt.successful {
+        animName = StringToName("onUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+        this.StopDpadAnim();
+        this.m_dpadAnim = this.PlayLibraryAnimation(animName);
+      } else {
+        if !evt.successful {
+          animName = StringToName("onFailUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey)));
+          this.StopDpadAnim();
+          this.m_dpadAnim = this.PlayLibraryAnimation(animName);
+        };
+      };
+    };
+  }
+
+  protected cb func OnHotkeyRefreshed(value: Variant) -> Bool {
+    let hotkey: EHotkey = FromVariant<EHotkey>(value);
+    if NotEquals(hotkey, this.m_hotkey) {
+      return false;
+    };
+    this.UpdateCurrentItem();
+  }
+
+  protected func UpdateCurrentItem() -> Void {
+    this.m_currentItem = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+    this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+  }
+
+  public final func OnQuestActivate(value: Int32) -> Void {
+    if value > 0 {
+      this.GetRootWidget().SetState(n"Default");
+    } else {
+      this.GetRootWidget().SetState(n"Unavailable");
+    };
+  }
+
+  private final func GetEquipmentSystem() -> wref<EquipmentSystem> {
+    if !IsDefined(this.m_equipmentSystem) {
+      this.m_equipmentSystem = GameInstance.GetScriptableSystemsContainer(this.GetPlayerControlledObject().GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    };
+    return this.m_equipmentSystem;
+  }
+}
+
+public class ChargedHotkeyItemBaseController extends HotkeyItemController {
+
+  protected edit let m_chargebarSizeWidget: inkWidgetRef;
+
+  protected edit let m_chargebarOpacityWidget: inkWidgetRef;
+
+  protected edit let m_startSize: Vector2;
+
+  protected edit let m_endSize: Vector2;
+
+  protected edit let m_chargebarOpacity: Float;
+
+  protected let m_statListener: ref<ChargedHotkeyItemStatListener>;
+
+  protected let m_currentProgress: Float;
+
+  private let m_hideChargesAnimProxy: ref<inkAnimProxy>;
+
+  private let m_showChargesAnimProxy: ref<inkAnimProxy>;
+
+  @default(ChargedHotkeyItemBaseController, 0.98)
+  protected let m_chargeThreshold: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    let blockAllInputHintKey: Bool;
+    let mainPlayer: wref<GameObject>;
+    super.OnInitialize();
+    this.CreateListener();
+    this.RegisterStatListener();
+    inkWidgetRef.SetVisible(this.m_chargebarOpacityWidget, false);
+    inkWidgetRef.SetVisible(this.m_chargebarSizeWidget, false);
+    mainPlayer = GameInstance.GetPlayerSystem(this.GetPlayer().GetGame()).GetLocalPlayerControlledGameObject();
+    blockAllInputHintKey = StatusEffectSystem.ObjectHasStatusEffect(mainPlayer, t"GameplayRestriction.BlockAllInputHintKey");
+    this.m_buttonHintController.SetVisible(!blockAllInputHintKey);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterStatListener();
+    super.OnUninitialize();
+  }
+
+  private final func CreateListener() -> Void {
+    if !IsDefined(this.m_statListener) {
+      this.m_statListener = new ChargedHotkeyItemStatListener();
+      this.m_statListener.BindOwner(this);
+    };
+  }
+
+  protected func RegisterStatListener() -> Void;
+
+  protected func UnregisterStatListener() -> Void;
+
+  protected func GetRechargeDuration() -> Float {
+    return 1.00;
+  }
+
+  protected final func GetStatPoolMaxPoints(statPoolType: gamedataStatPoolType) -> Float {
+    let gi: GameInstance = (this.GetOwnerEntity() as GameObject).GetGame();
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    return GameInstance.GetStatPoolsSystem(gi).GetStatPoolMaxPointValue(Cast<StatsObjectID>(player.GetEntityID()), statPoolType);
+  }
+
+  protected final func GetStatPoolCurrentValue(statPoolType: gamedataStatPoolType, inPerc: Bool) -> Float {
+    let gi: GameInstance = (this.GetOwnerEntity() as GameObject).GetGame();
+    let player: ref<PlayerPuppet> = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    return GameInstance.GetStatPoolsSystem(gi).GetStatPoolValue(Cast<StatsObjectID>(player.GetEntityID()), statPoolType, inPerc);
+  }
+
+  protected func GetMaxCharges() -> Float {
+    return 1.00;
+  }
+
+  public final func UpdateChargeValue(newValue: Float, percToPoints: Float, valueChanged: Bool) -> Void {
+    let currentPoints: Float;
+    let duration: Float;
+    let progress: Float;
+    if this.GetMaxCharges() > 1.00 {
+      duration = this.GetRechargeDuration();
+      currentPoints = newValue * percToPoints;
+      progress = currentPoints / duration;
+      this.m_currentProgress = progress;
+      progress = progress - Cast<Float>(FloorF(progress));
+      if newValue == 100.00 {
+        progress = Cast<Float>(FloorF(progress));
+      };
+    } else {
+      progress = newValue / 100.00;
+      this.m_currentProgress = progress;
+    };
+    this.SetRechargeProgress(progress, valueChanged);
+    this.ResolveState();
+  }
+
+  protected func SetRechargeProgress(progress: Float, valueChanged: Bool) -> Void {
+    let xDif: Float;
+    let yDif: Float;
+    if progress >= this.m_chargeThreshold {
+      progress = 0.00;
+    };
+    xDif = this.m_endSize.X - this.m_startSize.X;
+    xDif = xDif * progress;
+    yDif = this.m_endSize.Y - this.m_startSize.Y;
+    yDif = yDif * progress;
+    inkWidgetRef.SetOpacity(this.m_chargebarOpacityWidget, this.m_chargebarOpacity);
+    inkWidgetRef.SetVisible(this.m_chargebarOpacityWidget, true);
+    inkWidgetRef.SetOpacity(this.m_chargebarSizeWidget, 1.00);
+    inkWidgetRef.SetVisible(this.m_chargebarSizeWidget, true);
+    inkWidgetRef.SetSize(this.m_chargebarSizeWidget, this.m_startSize.X + xDif, this.m_startSize.Y + yDif);
+  }
+
+  protected func ResolveState() -> Void {
+    if this.IsInDefaultState() && this.m_currentProgress >= this.m_chargeThreshold {
+      this.GetRootWidget().SetState(n"Default");
+    } else {
+      this.GetRootWidget().SetState(n"Unavailable");
+    };
+  }
+
+  protected final func GetItemType(itemID: ItemID, defaultValue: CName) -> CName {
+    return TweakDBInterface.GetCName(ItemID.GetTDBID(itemID) + t".cyberwareType", defaultValue);
+  }
+
+  protected final func IsBerserkActive() -> Bool {
+    return StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"BerserkBuff");
+  }
+
+  protected final func PlayHideChargesAnimation(withCallback: Bool) -> Void {
+    if IsDefined(this.m_hideChargesAnimProxy) && this.m_hideChargesAnimProxy.IsPlaying() {
+      if withCallback {
+        return;
+      };
+      this.m_hideChargesAnimProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_hideChargesAnimProxy.Stop();
+    };
+    this.m_hideChargesAnimProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"amountChange_hide", this.m_hotkeyItemWidget);
+    if withCallback {
+      this.m_hideChargesAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHideChargesAnimFinished");
+    };
+  }
+
+  protected final func PlayShowChargesAnimation() -> Void {
+    if IsDefined(this.m_showChargesAnimProxy) && this.m_showChargesAnimProxy.IsPlaying() {
+      return;
+    };
+    this.m_showChargesAnimProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"amountChange_show", this.m_hotkeyItemWidget);
+  }
+
+  protected final func StopShowChargesAnimation() -> Void {
+    if this.m_showChargesAnimProxy.IsPlaying() {
+      this.m_showChargesAnimProxy.Stop();
+    };
+  }
+
+  protected func PlayRechargeFinishedAnimation() -> Void {
+    this.StopDpadAnim();
+    this.m_dpadAnim = this.PlayLibraryAnimation(StringToName("onUse_" + EnumValueToString("EHotkey", EnumInt(this.m_hotkey))));
+  }
+
+  protected cb func OnHideChargesAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+    this.PlayShowChargesAnimation();
+  }
+}
+
+public class ChargedHotkeyItemConsumableController extends ChargedHotkeyItemBaseController {
+
+  @default(ChargedHotkeyItemConsumableController, gamedataStatPoolType.HealingItemsCharges)
+  public const let c_statPool: gamedataStatPoolType;
+
+  protected func RegisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestRegisteringListener(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatPoolType.HealingItemsCharges, this.m_statListener);
+  }
+
+  protected func UnregisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestUnregisteringListener(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatPoolType.HealingItemsCharges, this.m_statListener);
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    return this.IsActivatedByQuest() && this.IsAllowedByGameplay();
+  }
+
+  protected func GetRechargeDuration() -> Float {
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(this.GetPlayer().GetGame());
+    return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), gamedataStatType.HealingItemsRechargeDuration);
+  }
+
+  protected func GetMaxCharges() -> Float {
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(this.GetPlayer().GetGame());
+    return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), gamedataStatType.HealingItemMaxCharges);
+  }
+
+  protected func UpdateCurrentItem() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    let oldItem: InventoryItemData = this.m_currentItem;
+    this.m_currentItem = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+    this.ResolveState();
+    this.GetRootWidget().SetVisible(ItemID.IsValid(this.m_currentItem.ID) && !this.IsBerserkActive() && !this.IsControllingDevice());
+    if oldItem.ID != this.m_currentItem.ID {
+      this.UpdateChargeValue(this.GetStatPoolCurrentValue(this.c_statPool, true), this.GetStatPoolMaxPoints(this.c_statPool) / 100.00, false);
+    };
+    if Equals(this.m_currentItem.ItemType, gamedataItemType.Cyb_HealingAbility) {
+      gi = (this.GetOwnerEntity() as GameObject).GetGame();
+      player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+      this.m_currentItem.Quantity = player.GetHealingItemCharges();
+    };
+    if oldItem.ID != this.m_currentItem.ID || oldItem.Quantity == this.m_currentItem.Quantity {
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      return;
+    };
+    if oldItem.Quantity < this.m_currentItem.Quantity {
+      this.PlayRechargeFinishedAnimation();
+    };
+    this.StopShowChargesAnimation();
+    this.PlayHideChargesAnimation(true);
+  }
+}
+
+public class ChargedHotkeyItemGadgetController extends ChargedHotkeyItemBaseController {
+
+  protected let m_currentStatPoolType: gamedataStatPoolType;
+
+  @default(ChargedHotkeyItemGadgetController, Grenade)
+  private const let c_grenadeKey: CName;
+
+  @default(ChargedHotkeyItemGadgetController, ProjectileLauncher)
+  private const let c_projectileLauncherKey: CName;
+
+  @default(ChargedHotkeyItemGadgetController, OpticalCamo)
+  private const let c_opticalCamoKey: CName;
+
+  @default(ChargedHotkeyItemGadgetController, CWMask)
+  protected const let c_cwMaskKey: CName;
+
+  private let m_opticalCamoTags: [CName];
+
+  private let m_currentCombatState: gamePSMCombat;
+
+  private let m_combatStateCallback: ref<CallbackHandle>;
+
+  @default(ChargedHotkeyItemGadgetController, gamedataNewPerkType.Tech_Left_Perk_3_3)
+  private let c_grenadeFlashSalePerkType: gamedataNewPerkType;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    ArrayPush(this.m_opticalCamoTags, n"CamoActiveOnPlayer");
+    ArrayPush(this.m_opticalCamoTags, n"OpticalCamoSlideCoolPerk");
+    ArrayPush(this.m_opticalCamoTags, n"OpticalCamoGrapple");
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_player = playerPuppet as PlayerPuppet;
+    this.RegisterCombatStateListener();
+    this.m_currentCombatState = this.GetPSMCombatState();
+    this.ResolveState();
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_combatStateCallback = null;
+  }
+
+  protected func RegisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    this.m_currentStatPoolType = this.GetCurrentItemStatPoolType();
+    GameInstance.GetStatPoolsSystem(gi).RequestRegisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_currentStatPoolType, this.m_statListener);
+  }
+
+  protected func UnregisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestUnregisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_currentStatPoolType, this.m_statListener);
+  }
+
+  protected final func UpdateStatListener() -> Void {
+    if NotEquals(this.GetCurrentItemStatPoolType(), this.m_currentStatPoolType) {
+      this.UnregisterStatListener();
+      this.RegisterStatListener();
+    };
+  }
+
+  private final func RegisterCombatStateListener() -> Void {
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    this.m_combatStateCallback = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Combat, this, n"OnCombatStateChanged");
+  }
+
+  private final func GetPSMCombatState() -> gamePSMCombat {
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    let combatState: Int32 = psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat);
+    return IntEnum<gamePSMCombat>(combatState);
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    return this.IsActivatedByQuest() && this.IsAllowedByGameplay();
+  }
+
+  protected func GetRechargeDuration() -> Float {
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(this.GetPlayer().GetGame());
+    switch this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey) {
+      case this.c_opticalCamoKey:
+        return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), gamedataStatType.OpticalCamoRechargeDuration);
+      case this.c_projectileLauncherKey:
+        return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), gamedataStatType.ProjectileLauncherRechargeDuration);
+      case this.c_cwMaskKey:
+        return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), gamedataStatType.CWMaskRechargeDuration);
+      default:
+        return Cast<Float>(this.GetPlayer().GetGrenadeThrowCost());
+    };
+  }
+
+  protected func GetMaxCharges() -> Float {
+    let statsSystem: ref<StatsSystem>;
+    let itemType: CName = this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey);
+    if Equals(itemType, this.c_opticalCamoKey) || Equals(itemType, this.c_cwMaskKey) {
+      return 1.00;
+    };
+    statsSystem = GameInstance.GetStatsSystem(this.GetPlayer().GetGame());
+    return statsSystem.GetStatValue(Cast<StatsObjectID>(this.GetPlayer().GetEntityID()), this.GetCurrentItemMaxChargesStatType());
+  }
+
+  protected func SetRechargeProgress(progress: Float, valueChanged: Bool) -> Void {
+    super.SetRechargeProgress(progress, valueChanged);
+    if NotEquals(this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey), this.c_grenadeKey) && valueChanged && progress == 1.00 {
+      this.PlayRechargeFinishedAnimation();
+    };
+  }
+
+  protected func ResolveState() -> Void {
+    if this.IsCyberwareActive() {
+      this.GetRootWidget().SetState(n"ActiveUninterruptible");
+    } else {
+      if Equals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_cwMaskKey) && Equals(this.m_currentCombatState, gamePSMCombat.InCombat) {
+        this.GetRootWidget().SetState(n"Unavailable");
+      } else {
+        if this.IsInDefaultState() && this.m_currentProgress >= this.m_chargeThreshold {
+          this.GetRootWidget().SetState(n"Default");
+        } else {
+          this.GetRootWidget().SetState(n"Unavailable");
+        };
+      };
+    };
+  }
+
+  protected final func UpdateChargeThreshold() -> Void {
+    switch this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey) {
+      case this.c_opticalCamoKey:
+        this.m_chargeThreshold = 1.00;
+        break;
+      case this.c_projectileLauncherKey:
+        this.m_chargeThreshold = 0.98;
+        break;
+      case this.c_cwMaskKey:
+        this.m_chargeThreshold = 1.00;
+        break;
+      default:
+        this.m_chargeThreshold = 0.98;
+    };
+  }
+
+  protected final func UpdateButtonHint() -> Void {
+    let itemType: CName = this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey);
+    if Equals(itemType, this.c_grenadeKey) || Equals(itemType, this.c_projectileLauncherKey) {
+      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.FromInputConfig);
+    } else {
+      this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Press);
+    };
+  }
+
+  protected func UpdateCurrentItem() -> Void {
+    let oldItem: InventoryItemData = this.m_currentItem;
+    this.m_currentItem = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+    this.ResolveState();
+    this.GetRootWidget().SetVisible(ItemID.IsValid(this.m_currentItem.ID) && !this.IsBerserkActive() && !this.IsControllingDevice());
+    if oldItem.ID != this.m_currentItem.ID {
+      this.UpdateChargeThreshold();
+      this.UpdateStatListener();
+      this.UpdateButtonHint();
+      this.UpdateChargeValue(this.GetStatPoolCurrentValue(this.m_currentStatPoolType, true), this.GetStatPoolMaxPoints(this.m_currentStatPoolType) / 100.00, false);
+    };
+    if Equals(this.m_currentItem.CategoryName, "Cyberware") && NotEquals(this.m_currentItem.ItemType, gamedataItemType.Cyb_Launcher) {
+      this.m_currentItem.Quantity = 0;
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      return;
+    };
+    if oldItem.ID != this.m_currentItem.ID || oldItem.Quantity == this.m_currentItem.Quantity {
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      return;
+    };
+    if oldItem.Quantity < this.m_currentItem.Quantity {
+      this.PlayRechargeFinishedAnimation();
+    };
+    this.StopShowChargesAnimation();
+    this.PlayHideChargesAnimation(true);
+  }
+
+  protected func GetCurrentItemStatPoolType() -> gamedataStatPoolType {
+    switch this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey) {
+      case this.c_opticalCamoKey:
+        return gamedataStatPoolType.OpticalCamoCharges;
+      case this.c_projectileLauncherKey:
+        return gamedataStatPoolType.ProjectileLauncherCharges;
+      case this.c_cwMaskKey:
+        return gamedataStatPoolType.CWMaskCharges;
+      default:
+        return gamedataStatPoolType.GrenadesCharges;
+    };
+  }
+
+  private final func GetCurrentItemMaxChargesStatType() -> gamedataStatType {
+    switch this.GetItemType(this.m_currentItem.ID, this.c_grenadeKey) {
+      case this.c_projectileLauncherKey:
+        return gamedataStatType.ProjectileLauncherMaxCharges;
+      case this.c_cwMaskKey:
+        return gamedataStatType.CWMaskMaxCharges;
+      default:
+        return gamedataStatType.GrenadesMaxCharges;
+    };
+  }
+
+  private final func IsCyberwareActive() -> Bool {
+    if Equals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_opticalCamoKey) {
+      return StatusEffectSystem.ObjectHasStatusEffectWithTags(this.GetPlayerControlledObject(), this.m_opticalCamoTags);
+    };
+    return false;
+  }
+
+  protected cb func OnCombatStateChanged(newState: Int32) -> Bool {
+    this.m_currentCombatState = IntEnum<gamePSMCombat>(newState);
+    this.ResolveState();
+  }
+
+  protected cb func OnNewPerkBought(evt: ref<NewPerkBoughtEvent>) -> Bool {
+    if Equals(evt.perkType, this.c_grenadeFlashSalePerkType) {
+      this.UpdateCurrentItem();
+    };
+  }
+
+  protected cb func OnNewPerkSold(evt: ref<NewPerkSoldEvent>) -> Bool {
+    if Equals(evt.perkType, this.c_grenadeFlashSalePerkType) {
+      this.UpdateCurrentItem();
+    };
+  }
+}
+
+public class ChargedHotkeyItemGadgetVehicleController extends ChargedHotkeyItemGadgetController {
+
+  private func GetCurrentItemStatPoolType() -> gamedataStatPoolType {
+    switch this.GetItemType(this.m_currentItem.ID, n"None") {
+      case this.c_cwMaskKey:
+        return gamedataStatPoolType.CWMaskCharges;
+      default:
+        return gamedataStatPoolType.Invalid;
+    };
+  }
+
+  protected func UpdateCurrentItem() -> Void {
+    let maskId: ItemID = this.GetPlayer().GetCWMaskID();
+    let oldItem: InventoryItemData = this.m_currentItem;
+    this.m_currentItem.ID = ItemID.None();
+    if ItemID.IsValid(maskId) {
+      this.m_currentItem = this.m_inventoryManager.GetItemDataFromIDInLoadout(maskId);
+    };
+    this.ResolveState();
+    this.GetRootWidget().SetVisible(ItemID.IsValid(this.m_currentItem.ID) && !this.IsBerserkActive() && !this.IsControllingDevice());
+    if oldItem.ID != this.m_currentItem.ID {
+      this.UpdateChargeThreshold();
+      this.UpdateStatListener();
+      this.UpdateButtonHint();
+      this.UpdateChargeValue(this.GetStatPoolCurrentValue(this.m_currentStatPoolType, true), this.GetStatPoolMaxPoints(this.m_currentStatPoolType) / 100.00, false);
+    };
+    if Equals(this.m_currentItem.CategoryName, "Cyberware") && NotEquals(this.m_currentItem.ItemType, gamedataItemType.Cyb_Launcher) {
+      this.m_currentItem.Quantity = 0;
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      return;
+    };
+    if oldItem.ID != this.m_currentItem.ID || oldItem.Quantity == this.m_currentItem.Quantity {
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      return;
+    };
+    if oldItem.Quantity < this.m_currentItem.Quantity {
+      this.PlayRechargeFinishedAnimation();
+    };
+    this.StopShowChargesAnimation();
+    this.PlayHideChargesAnimation(true);
+  }
+
+  protected cb func OnDpadActionPerformed(evt: ref<DPADActionPerformed>) -> Bool {
+    if Equals(this.m_hotkey, evt.action) {
+      if evt.successful && this.IsInDefaultState() {
+        this.PlayLibraryAnimation(n"onUse_LBRB_vehicle");
+      } else {
+        this.PlayLibraryAnimation(n"onFailUse_LBRB_vehicle");
+      };
+    };
+  }
+
+  protected func PlayRechargeFinishedAnimation() -> Void {
+    this.StopDpadAnim();
+    this.m_dpadAnim = this.PlayLibraryAnimation(n"onUse_LBRB_vehicle");
+  }
+}
+
+public class ChargedHotkeyItemCyberwareController extends ChargedHotkeyItemBaseController {
+
+  private let m_currentStatPoolType: gamedataStatPoolType;
+
+  private let m_psmBlackboardListener: ref<CallbackHandle>;
+
+  @default(ChargedHotkeyItemCyberwareController, gamedataNewPerkType.Intelligence_Central_Milestone_3)
+  private let c_cyberdeckOverclockPerkType: gamedataNewPerkType;
+
+  @default(ChargedHotkeyItemCyberwareController, gamedataNewPerkType.Cool_Left_Milestone_1)
+  private let c_vehicleManeuversPerkType: gamedataNewPerkType;
+
+  @default(ChargedHotkeyItemCyberwareController, Berserk)
+  private const let c_berserkKey: CName;
+
+  @default(ChargedHotkeyItemCyberwareController, Cyberdeck)
+  private const let c_cyberdeckKey: CName;
+
+  @default(ChargedHotkeyItemCyberwareController, Sandevistan)
+  private const let c_sandevistanKey: CName;
+
+  @default(ChargedHotkeyItemCyberwareController, CapacityBooster)
+  private const let c_capacityBoosterKey: CName;
+
+  protected cb func OnInitialize() -> Bool {
+    let hotkeyMargin: inkMargin;
+    super.OnInitialize();
+    this.m_chargeThreshold = 1.00;
+    this.GetRootWidget().SetVisible(false);
+    this.m_psmBlackboardListener = this.GetPlayer().GetPlayerStateMachineBlackboard().RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerVehicleStateChanged", true);
+    if this.IsControllingDeviceChain() {
+      hotkeyMargin = this.GetRootWidget().GetMargin();
+      hotkeyMargin.left -= 140.00;
+      this.GetRootWidget().SetMargin(hotkeyMargin);
+    };
+  }
+
+  protected func Uninitialize() -> Void {
+    super.Uninitialize();
+    if IsDefined(this.m_psmBlackboardListener) {
+      this.GetPlayer().GetPlayerStateMachineBlackboard().UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.m_psmBlackboardListener);
+    };
+  }
+
+  protected func RegisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    this.m_currentStatPoolType = this.GetCurrentItemStatPoolType();
+    if NotEquals(this.m_currentStatPoolType, gamedataStatPoolType.Invalid) {
+      GameInstance.GetStatPoolsSystem(gi).RequestRegisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_currentStatPoolType, this.m_statListener);
+    };
+  }
+
+  protected func UnregisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) || Equals(this.m_currentStatPoolType, gamedataStatPoolType.Invalid) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestUnregisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_currentStatPoolType, this.m_statListener);
+  }
+
+  private final func UpdateStatListener() -> Void {
+    if NotEquals(this.GetCurrentItemStatPoolType(), this.m_currentStatPoolType) {
+      this.UnregisterStatListener();
+      this.RegisterStatListener();
+    };
+  }
+
+  protected func GetRechargeDuration() -> Float {
+    return this.GetStatPoolMaxPoints(this.m_currentStatPoolType);
+  }
+
+  protected func GetMaxCharges() -> Float {
+    return 1.00;
+  }
+
+  protected func SetRechargeProgress(progress: Float, valueChanged: Bool) -> Void {
+    super.SetRechargeProgress(progress, valueChanged);
+    if valueChanged && progress == 1.00 {
+      this.PlayRechargeFinishedAnimation();
+      this.PlayRechagedSoundEvent();
+    };
+  }
+
+  protected func ResolveState() -> Void {
+    if this.IsCyberwareActive() {
+      if NotEquals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_berserkKey) && !this.IsInDefaultState() {
+        this.GetRootWidget().SetState(n"ActiveUninterruptible");
+      } else {
+        this.GetRootWidget().SetState(n"ActiveInterruptible");
+      };
+    } else {
+      if this.IsInDefaultState() && (this.m_currentProgress >= this.m_chargeThreshold || this.HandleSpecialSandevistanCooldown()) {
+        this.GetRootWidget().SetState(n"Default");
+      } else {
+        this.GetRootWidget().SetState(n"Unavailable");
+      };
+    };
+  }
+
+  protected func UpdateCurrentItem() -> Void {
+    let oldItem: InventoryItemData;
+    let receivedItem: InventoryItemData = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+    if this.IsCyberwareSupported(receivedItem.ID) {
+      oldItem = this.m_currentItem;
+      this.m_currentItem = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+      this.m_currentItem.Quantity = 0;
+      this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+      this.ResolveState();
+      if oldItem.ID != this.m_currentItem.ID {
+        this.UpdateStatListener();
+        this.UpdateChargeValue(this.GetStatPoolCurrentValue(this.m_currentStatPoolType, true), this.GetStatPoolMaxPoints(this.m_currentStatPoolType) / 100.00, false);
+      };
+      switch this.GetItemType(receivedItem.ID, n"None") {
+        case this.c_cyberdeckKey:
+          this.GetRootWidget().SetVisible(this.IsCyberdeckOverloadPerkPresent());
+          break;
+        case this.c_sandevistanKey:
+          this.UpdateSandevistanVisibility();
+          break;
+        case this.c_berserkKey:
+          this.GetRootWidget().SetVisible(Equals(PlayerPuppet.GetCurrentVehicleState(this.GetPlayer()), gamePSMVehicle.Default));
+          break;
+        case this.c_capacityBoosterKey:
+          this.GetRootWidget().SetVisible(false);
+          break;
+        default:
+          this.GetRootWidget().SetVisible(true);
+      };
+    } else {
+      if !ItemID.IsValid(receivedItem.ID) {
+        this.m_currentItem = this.m_inventoryManager.GetHotkeyItemData(this.m_hotkey);
+        this.m_hotkeyItemController.Setup(this.m_currentItem, ItemDisplayContext.DPAD_RADIAL);
+        this.GetRootWidget().SetVisible(false);
+      };
+    };
+  }
+
+  private final func IsCyberwareSupported(itemID: ItemID) -> Bool {
+    switch this.GetItemType(itemID, n"None") {
+      case this.c_cyberdeckKey:
+        return !this.IsControllingDevice() || this.CanUseOverclock();
+      case this.c_capacityBoosterKey:
+      case this.c_sandevistanKey:
+      case this.c_berserkKey:
+        return !this.IsControllingDevice();
+      default:
+        return false;
+    };
+  }
+
+  private final func IsCyberdeckOverloadPerkPresent() -> Bool {
+    return PlayerDevelopmentSystem.GetInstance(this.GetPlayer()).IsNewPerkBought(this.GetPlayer(), this.c_cyberdeckOverclockPerkType) == 3;
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    if Equals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_cyberdeckKey) {
+      return super.IsInDefaultState() && this.CanUseOverclock();
+    };
+    return super.IsInDefaultState();
+  }
+
+  private final func ReevaluateCyberdeckPerkVisibility() -> Void {
+    if Equals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_cyberdeckKey) {
+      this.GetRootWidget().SetVisible(this.IsCyberdeckOverloadPerkPresent());
+    };
+  }
+
+  private final func UpdateSandevistanVisibility() -> Void {
+    if NotEquals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_sandevistanKey) {
+      return;
+    };
+    if TimeDilationHelper.CanUseTimeDilation(this.GetPlayer()) {
+      this.GetRootWidget().SetVisible(true);
+    } else {
+      this.GetRootWidget().SetVisible(false);
+    };
+  }
+
+  private final func GetCurrentItemStatPoolType() -> gamedataStatPoolType {
+    switch this.GetItemType(this.m_currentItem.ID, n"None") {
+      case this.c_berserkKey:
+        return gamedataStatPoolType.BerserkCharge;
+      case this.c_sandevistanKey:
+        return gamedataStatPoolType.SandevistanCharge;
+      case this.c_cyberdeckKey:
+        return gamedataStatPoolType.CyberdeckOverclock;
+      default:
+        return gamedataStatPoolType.Invalid;
+    };
+  }
+
+  protected func PlayRechagedSoundEvent() -> Void {
+    let audioEvent: ref<SoundPlayEvent> = new SoundPlayEvent();
+    audioEvent.soundName = n"ui_inhaler_injector_recharged";
+    this.GetPlayer().QueueEvent(audioEvent);
+  }
+
+  private final func IsCyberwareActive() -> Bool {
+    switch this.GetItemType(this.m_currentItem.ID, n"None") {
+      case this.c_berserkKey:
+        return this.IsBerserkActive();
+      case this.c_sandevistanKey:
+        return StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.SandevistanPlayerBuff") || StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.CooldownedSandevistanPlayerBuff") || StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.NoSandevistanGlitch") || StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.NoCooldownedSandevistanGlitch");
+      case this.c_cyberdeckKey:
+        return StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.Intelligence_Central_Milestone_3_Overclock_Buff");
+      default:
+        return false;
+    };
+  }
+
+  private final func HandleSpecialSandevistanCooldown() -> Bool {
+    let tdbid: TweakDBID = ItemID.GetTDBID(this.m_currentItem.ID);
+    if tdbid == t"Items.AdvancedSandevistanApogee" || tdbid == t"Items.AdvancedSandevistanApogeePlus" || tdbid == t"Items.AdvancedSandevistanApogeePlusPlus" || tdbid == t"Items.AdvancedSandevistanC4MK5" || tdbid == t"Items.AdvancedSandevistanC4MK5Plus" || tdbid == t"Items.AdvancedSandevistanC4MK5PlusPlus" || tdbid == t"Items.AdvancedSandevistanC4MK4" || tdbid == t"Items.AdvancedSandevistanC4MK4Plus" {
+      return !StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.SandevistanCooldown");
+    };
+    return false;
+  }
+
+  protected cb func OnNewPerkBought(evt: ref<NewPerkBoughtEvent>) -> Bool {
+    if Equals(evt.perkType, this.c_cyberdeckOverclockPerkType) {
+      this.ReevaluateCyberdeckPerkVisibility();
+    } else {
+      if Equals(evt.perkType, this.c_vehicleManeuversPerkType) {
+        this.UpdateSandevistanVisibility();
+      };
+    };
+  }
+
+  protected cb func OnNewPerkSold(evt: ref<NewPerkSoldEvent>) -> Bool {
+    if Equals(evt.perkType, this.c_cyberdeckOverclockPerkType) {
+      this.ReevaluateCyberdeckPerkVisibility();
+    } else {
+      if Equals(evt.perkType, this.c_vehicleManeuversPerkType) {
+        this.UpdateSandevistanVisibility();
+      };
+    };
+  }
+
+  protected cb func OnPlayerVehicleStateChanged(newStateValue: Int32) -> Bool {
+    this.UpdateSandevistanVisibility();
+    if Equals(this.GetItemType(this.m_currentItem.ID, n"None"), this.c_berserkKey) {
+      this.GetRootWidget().SetVisible(newStateValue == 0);
+    };
+  }
+}
+
+public class ChargeIndicatorGameController extends ChargedHotkeyItemBaseController {
+
+  private edit let m_itemIcon: inkImageRef;
+
+  private edit let m_type: ChargeIndicatorWidgetType;
+
+  private let m_statPoolType: gamedataStatPoolType;
+
+  private let m_iconName: String;
+
+  private let m_itemType: CName;
+
+  private let m_eqArea: gamedataEquipmentArea;
+
+  private let m_OnEquipmentChangedIDBBID: ref<CallbackHandle>;
+
+  @default(ChargeIndicatorGameController, 0.4f)
+  private const let c_fullChargeOpacity: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    switch this.m_type {
+      case ChargeIndicatorWidgetType.JENKINS:
+        this.m_statPoolType = gamedataStatPoolType.JenkinsHelper;
+        this.m_iconName = "JenkinsTendons";
+        this.m_itemType = n"JenkinsTendons";
+        this.m_eqArea = gamedataEquipmentArea.LegsCW;
+        break;
+      case ChargeIndicatorWidgetType.TIMEBANK:
+        this.m_statPoolType = gamedataStatPoolType.TimeBank;
+        this.m_iconName = "TimeBank";
+        this.m_itemType = n"TimeBank";
+        this.m_eqArea = gamedataEquipmentArea.FrontalCortexCW;
+        break;
+      default:
+        this.m_statPoolType = gamedataStatPoolType.Invalid;
+        this.m_iconName = "";
+        this.m_itemType = n"None";
+        this.m_eqArea = gamedataEquipmentArea.Invalid;
+    };
+    super.OnInitialize();
+    this.RegisterBlackboardListener();
+    this.m_chargeThreshold = 1.00;
+    InkImageUtils.RequestSetImage(this, this.m_itemIcon, "UIIcon." + this.m_iconName);
+    if this.IsItemEquipped() && !this.IsControllingDevice() {
+      this.GetRootWidget().SetVisible(true);
+      this.GetRootWidget().SetOpacity(this.c_fullChargeOpacity);
+    } else {
+      this.GetRootWidget().SetVisible(false);
+    };
+  }
+
+  protected cb func OnUnitialize() -> Bool {
+    this.UnregisterBlackboardListener();
+    this.OnUninitialize();
+  }
+
+  protected func RegisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) || Equals(this.m_statPoolType, gamedataStatPoolType.Invalid) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestRegisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_statPoolType, this.m_statListener);
+  }
+
+  protected func UnregisterStatListener() -> Void {
+    let gi: GameInstance;
+    let player: ref<PlayerPuppet>;
+    if !IsDefined(this.m_statListener) || Equals(this.m_statPoolType, gamedataStatPoolType.Invalid) {
+      return;
+    };
+    gi = (this.GetOwnerEntity() as GameObject).GetGame();
+    player = GameInstance.GetPlayerSystem(gi).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    GameInstance.GetStatPoolsSystem(gi).RequestUnregisteringListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_statPoolType, this.m_statListener);
+  }
+
+  private final func RegisterBlackboardListener() -> Void {
+    let m_equipmentBlackboard: ref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(m_equipmentBlackboard) {
+      this.m_OnEquipmentChangedIDBBID = m_equipmentBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_Equipment.areaChanged, this, n"OnEquipmentChanged");
+    };
+  }
+
+  private final func UnregisterBlackboardListener() -> Void {
+    let m_equipmentBlackboard: ref<IBlackboard> = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(m_equipmentBlackboard) {
+      m_equipmentBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().UI_Equipment.areaChanged, this.m_OnEquipmentChangedIDBBID);
+    };
+  }
+
+  protected func ResolveState() -> Void {
+    if this.m_currentProgress == 0.00 {
+      this.GetRootWidget().SetState(n"Unavailable");
+      this.GetRootWidget().SetOpacity(1.00);
+    } else {
+      if this.IsCyberwareActive() {
+        this.GetRootWidget().SetState(n"ActiveInterruptible");
+        this.GetRootWidget().SetOpacity(1.00);
+      } else {
+        this.GetRootWidget().SetState(n"Default");
+        this.GetRootWidget().SetOpacity(this.m_currentProgress == this.m_chargeThreshold ? this.c_fullChargeOpacity : 1.00);
+      };
+    };
+  }
+
+  private final func IsItemEquipped() -> Bool {
+    let items: array<ItemID> = EquipmentSystem.GetItemsInArea(this.GetPlayerControlledObject(), this.m_eqArea);
+    let i: Int32 = 0;
+    while i < ArraySize(items) {
+      if Equals(this.GetItemType(items[i], n"None"), this.m_itemType) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func IsCyberwareActive() -> Bool {
+    if Equals(this.m_type, ChargeIndicatorWidgetType.JENKINS) {
+      return StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayerControlledObject(), t"BaseStatusEffect.JenkinsPlayerBuff");
+    };
+    return false;
+  }
+
+  protected cb func OnEquipmentChanged(value: Int32) -> Bool {
+    let eqArea: gamedataEquipmentArea = IntEnum<gamedataEquipmentArea>(value);
+    if NotEquals(eqArea, this.m_eqArea) {
+      return false;
+    };
+    if this.IsItemEquipped() && !this.IsControllingDevice() {
+      this.GetRootWidget().SetVisible(true);
+      this.GetRootWidget().SetOpacity(this.c_fullChargeOpacity);
+    } else {
+      this.GetRootWidget().SetVisible(false);
+    };
+  }
+}
+
+public class ChargedHotkeyItemStatListener extends ScriptStatPoolsListener {
+
+  private let m_hotkeyController: wref<ChargedHotkeyItemBaseController>;
+
+  public final func BindOwner(owner: wref<ChargedHotkeyItemBaseController>) -> Void {
+    this.m_hotkeyController = owner;
+  }
+
+  public func OnStatPoolValueChanged(oldValue: Float, newValue: Float, percToPoints: Float) -> Void {
+    this.m_hotkeyController.UpdateChargeValue(newValue, percToPoints, oldValue != newValue);
+  }
+}
+
+public class vehicleVisualCustomizationHotkeyController extends GenericHotkeyController {
+
+  protected edit let m_questMarker: inkImageRef;
+
+  private let m_vehicleBB: wref<IBlackboard>;
+
+  private let m_vehicleEnterListener: ref<CallbackHandle>;
+
+  private let m_cinematicCameraListener: ref<CallbackHandle>;
+
+  private let m_delamainTaxiListener: ref<CallbackHandle>;
+
+  private let m_factListener: Uint32;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_carColorSelectorToken: ref<inkGameNotificationToken>;
+
+  private let m_isInDefaultState: Bool;
+
+  private let m_phoneMenuActive: Bool;
+
+  private let m_driving: Bool;
+
+  private let m_cinematicCamera: Bool;
+
+  private let m_delamainTaxi: Bool;
+
+  private let m_mq058_done_factListener: Uint32;
+
+  private let m_sq024_done_factListener: Uint32;
+
+  private let m_mq057_done_factListener: Uint32;
+
+  private let m_mq058_update_applied_factListener: Uint32;
+
+  private let m_mq058_playerFailedToOpenVVC_factListener: Uint32;
+
+  private let m_currentCombatState: gamePSMCombat;
+
+  private let m_combatStateCallback: ref<CallbackHandle>;
+
+  private let m_phoneStateCallback: ref<CallbackHandle>;
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    let blackboard: ref<IBlackboard>;
+    super.OnPlayerAttach(player);
+    this.InitializeStatusListener();
+    this.InitializeQuestListener();
+    this.InitializeCombatStateListener(true);
+    this.InitializePhoneSystemListener(true);
+    player.RegisterInputListener(this, n"VehicleVisualCustomization");
+    this.m_vehicleEnterListener = this.GetPSMBlackboard(player).RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this, n"OnPlayerEnteredVehicle", true);
+    this.m_driving = this.GetPSMBlackboard(player).GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) == 1;
+    blackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData);
+    this.m_cinematicCameraListener = blackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this, n"OnCinematicCameraChange", true);
+    this.m_delamainTaxiListener = blackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain, this, n"OnDelamainTaxiChange", true);
+    this.m_cinematicCamera = blackboard.GetBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive);
+    this.m_delamainTaxi = blackboard.GetBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain);
+    this.ResolveState();
+  }
+
+  protected func Initialize() -> Bool {
+    this.SetHintController();
+    this.ResolveState();
+    return true;
+  }
+
+  protected func ResolveState() -> Void {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    let isVVCUpdateRequired: Bool = this.m_player.GetMountedVehicle().GetVehicleComponent().GetVisualCustomizationUpdateRequired();
+    let mq058Done: Bool = questSystem.GetFact(n"mq058_done") == 1;
+    let canVVCBeUpdated: Bool = questSystem.GetFact(n"sq024_done") == 1 && questSystem.GetFact(n"mq057_done") == 1;
+    super.ResolveState();
+    inkWidgetRef.SetVisible(this.m_questMarker, canVVCBeUpdated && isVVCUpdateRequired && !mq058Done);
+    this.GetRootWidget().SetVisible(this.m_driving && !this.m_cinematicCamera && !this.m_delamainTaxi);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let isVehicleCustomizationAvailable: Bool = this.m_player.GetMountedVehicle().GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled();
+    if Equals(ListenerAction.GetName(action), n"VehicleVisualCustomization") {
+      if VehicleSystem.IsPlayerInVehicle(this.GetPlayer().GetGame()) && isVehicleCustomizationAvailable {
+        return true;
+      };
+      if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_HOLD_COMPLETE) {
+        if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+          this.m_animationProxy.GotoEndAndStop(true);
+          this.m_animationProxy = null;
+        };
+        this.m_animationProxy = this.PlayLibraryAnimation(n"onFailUse_carMod");
+      };
+    };
+  }
+
+  private final func InitializeQuestListener() -> Void {
+    this.m_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"unlock_car_hud_dpad", this, n"OnFactChanged");
+    this.m_mq058_done_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"mq058_done", this, n"OnFactChanged");
+    this.m_sq024_done_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"sq024_done", this, n"OnFactChanged");
+    this.m_mq057_done_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"mq057_done", this, n"OnFactChanged");
+    this.m_mq058_update_applied_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"mq058_update_applied", this, n"OnFactChanged");
+    this.m_mq058_playerFailedToOpenVVC_factListener = GameInstance.GetQuestsSystem(this.m_player.GetGame()).RegisterListener(n"mq058_failed_to_open_vvc", this, n"OnFactChanged");
+  }
+
+  private final func SetHintController() -> Void {
+    this.m_buttonHintController = inkWidgetRef.Get(this.m_buttonHint).GetController() as inkInputDisplayController;
+    this.m_buttonHintController.SetInputAction(n"VehicleVisualCustomization");
+    this.m_buttonHintController.SetHoldIndicatorType(inkInputHintHoldIndicationType.Hold);
+  }
+
+  protected func Uninitialize() -> Void {
+    let blackboard: ref<IBlackboard>;
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"unlock_car_hud_dpad", this.m_factListener);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"mq058_done", this.m_mq058_done_factListener);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"sq024_done", this.m_sq024_done_factListener);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"mq057_done", this.m_mq057_done_factListener);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"mq058_update_applied", this.m_mq058_update_applied_factListener);
+    GameInstance.GetQuestsSystem(this.m_player.GetGame()).UnregisterListener(n"mq058_failed_to_open_vvc", this.m_mq058_playerFailedToOpenVVC_factListener);
+    this.m_statusEffectsListener = null;
+    this.InitializeCombatStateListener(false);
+    this.InitializePhoneSystemListener(false);
+    if IsDefined(this.m_vehicleEnterListener) {
+      this.GetPSMBlackboard(this.m_player).UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle, this.m_vehicleEnterListener);
+    };
+    blackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData);
+    if IsDefined(this.m_cinematicCameraListener) {
+      blackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this.m_cinematicCameraListener);
+    };
+    if IsDefined(this.m_delamainTaxiListener) {
+      blackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain, this.m_delamainTaxiListener);
+    };
+  }
+
+  private final func InitializeCombatStateListener(val: Bool) -> Void {
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    if val {
+      this.m_combatStateCallback = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Combat, this, n"OnCombatStateChanged");
+    } else {
+      if IsDefined(this.m_combatStateCallback) {
+        psmBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Combat, this.m_combatStateCallback);
+      };
+    };
+  }
+
+  private final func InitializePhoneSystemListener(val: Bool) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(this.m_player.GetGame());
+    let blackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ComDevice);
+    if val {
+      this.m_phoneStateCallback = blackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this, n"OnPhoneMenuStateChange");
+    } else {
+      blackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this.m_phoneStateCallback);
+    };
+  }
+
+  private final func InitializeDialogueSystemListener(val: Bool) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(this.m_player.GetGame());
+    let blackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ComDevice);
+    if val {
+      this.m_phoneStateCallback = blackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this, n"OnPhoneMenuStateChange");
+    } else {
+      blackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this.m_phoneStateCallback);
+    };
+  }
+
+  private final func GetPSMCombatState() -> gamePSMCombat {
+    let player: ref<PlayerPuppet> = this.GetPlayer();
+    let psmBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(player.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    let combatState: Int32 = psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat);
+    return IntEnum<gamePSMCombat>(combatState);
+  }
+
+  public final func OnFactChanged(value: Int32) -> Void {
+    this.ResolveState();
+  }
+
+  protected cb func OnCombatStateChanged(newState: Int32) -> Bool {
+    this.m_currentCombatState = IntEnum<gamePSMCombat>(newState);
+    this.ResolveState();
+  }
+
+  protected cb func OnPhoneMenuStateChange(newState: Bool) -> Bool {
+    this.m_phoneMenuActive = newState;
+    this.ResolveState();
+  }
+
+  protected cb func OnPlayerEnteredVehicle(value: Int32) -> Bool {
+    this.m_driving = value == 1;
+    this.ResolveState();
+  }
+
+  private final func OnCinematicCameraChange(value: Bool) -> Void {
+    this.m_cinematicCamera = value;
+    this.ResolveState();
+  }
+
+  private final func OnDelamainTaxiChange(value: Bool) -> Void {
+    this.m_delamainTaxi = value;
+    this.ResolveState();
+  }
+
+  protected func IsInDefaultState() -> Bool {
+    let isPlayerInVehicle: Bool = VehicleSystem.IsPlayerInVehicle(this.GetPlayer().GetGame());
+    let isVehicleCustomizationAvailable: Bool = this.m_player.GetMountedVehicle().GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled();
+    let isNotInDriverCombat: Bool = !StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayer(), t"BaseStatusEffect.DriverCombat");
+    let isNotInVehicleScene: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"VehicleScene");
+    let isNotQuestBlocked: Bool = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"unlock_car_hud_dpad") != 0;
+    let isNotModInCooldown: Bool = !StatusEffectSystem.ObjectHasStatusEffect(this.GetPlayer(), t"BaseStatusEffect.VehicleVisualModCooldown");
+    let isNotInPhoneCall: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"PhoneCall") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"PhoneNoTexting") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"PhoneNoCalling");
+    let isNotModBlockedByDamage: Bool = !this.m_player.GetMountedVehicle().GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage();
+    let isNotInCombat: Bool = NotEquals(this.m_currentCombatState, gamePSMCombat.InCombat);
+    let isNotVisualCustomizationTeaser: Bool = !this.m_player.GetMountedVehicle().GetVehicleComponent().GetIsVehicleVisualCustomizationTeaser();
+    let isVVCUpToDate: Bool = this.m_player.GetMountedVehicle().GetVehicleComponent().GetVisualCustomizationUpToDate();
+    let canVVCBeUpdated: Bool = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"sq024_done") == 1 && GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"mq057_done") == 1;
+    let hasplayerFailedToOpenVVC: Bool = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"mq058_failed_to_open_vvc") == 1;
+    let isNotFastForwardAvailable: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"FastForwardHintActive");
+    let isNotFastForward: Bool = !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayer(), n"FastForward");
+    if isPlayerInVehicle {
+      if isVehicleCustomizationAvailable && isNotInVehicleScene && isNotQuestBlocked && isNotModInCooldown && isNotModBlockedByDamage && isNotFastForwardAvailable && isNotFastForward && isNotVisualCustomizationTeaser && isVVCUpToDate && isNotInDriverCombat && isNotInPhoneCall && !this.m_isRemoteControllingVehicle && isNotInCombat {
+        this.m_isInDefaultState = true;
+        return true;
+      };
+      if canVVCBeUpdated && !isVVCUpToDate && !hasplayerFailedToOpenVVC {
+        this.m_isInDefaultState = true;
+        return true;
+      };
+      this.m_isInDefaultState = false;
+      return false;
+    };
+    this.m_isInDefaultState = false;
+    return false;
+  }
+}

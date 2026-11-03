@@ -1,0 +1,299 @@
+
+public class WantedBarGameController extends inkHUDGameController {
+
+  private edit const let starsWidget: [inkWidgetRef];
+
+  private let m_wantedBlackboard: wref<IBlackboard>;
+
+  private let m_wantedBlackboardDef: ref<UI_WantedBarDef>;
+
+  private let m_wantedDataCallbackID: ref<CallbackHandle>;
+
+  private let m_wantedStateCallbackID: ref<CallbackHandle>;
+
+  private let m_wantedZoneCallbackID: ref<CallbackHandle>;
+
+  private let m_introAnimProxy: ref<inkAnimProxy>;
+
+  private let m_bountyStarAnimProxy: [ref<inkAnimProxy>];
+
+  private let m_bountyAnimProxy: ref<inkAnimProxy>;
+
+  private let m_animOptionsLoop: inkAnimOptions;
+
+  private let m_currentState: Int32;
+
+  private let m_numOfStar: Int32;
+
+  private let m_wantedLevel: Int32;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  private let m_isDogtown: Bool;
+
+  @default(WantedBarGameController, 1.0f)
+  private const let WANTED_TIER_1: Float;
+
+  @default(WantedBarGameController, 0.1f)
+  private const let WANTED_MIN: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    this.m_rootWidget.SetVisible(false);
+    this.m_wantedBlackboardDef = GetAllBlackboardDefs().UI_WantedBar;
+    this.m_wantedBlackboard = this.GetBlackboardSystem().Get(this.m_wantedBlackboardDef);
+    this.m_wantedDataCallbackID = this.m_wantedBlackboard.RegisterListenerInt(this.m_wantedBlackboardDef.CurrentWantedLevel, this, n"OnWantedDataChange", true);
+    this.m_wantedStateCallbackID = this.m_wantedBlackboard.RegisterListenerName(this.m_wantedBlackboardDef.CurrentChaseState, this, n"OnWantedStateChange", true);
+    this.m_numOfStar = ArraySize(this.starsWidget);
+    ArrayResize(this.m_bountyStarAnimProxy, this.m_numOfStar);
+    this.m_wantedBlackboard.SetInt(GetAllBlackboardDefs().UI_WantedBar.DeescalationStages, 3, true);
+    this.m_wantedBlackboard.SetFloat(GetAllBlackboardDefs().UI_WantedBar.BlinkingStarsDurationTime, 25.00, true);
+    this.UpdateWantedBar(this.m_wantedBlackboard.GetInt(this.m_wantedBlackboardDef.CurrentWantedLevel));
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_wantedBlackboard.UnregisterDelayedListener(this.m_wantedBlackboardDef.CurrentWantedLevel, this.m_wantedDataCallbackID);
+    this.m_wantedBlackboard.UnregisterDelayedListener(this.m_wantedBlackboardDef.CurrentChaseState, this.m_wantedStateCallbackID);
+  }
+
+  protected cb func OnWantedDataChange(value: Int32) -> Bool {
+    this.UpdateWantedBar(value);
+  }
+
+  protected cb func OnWantedStateChange(value: CName) -> Bool {
+    let star: ref<StarController>;
+    let i: Int32 = 0;
+    while i < this.m_numOfStar {
+      star = inkWidgetRef.GetController(this.starsWidget[i]) as StarController;
+      star.UpdateState(value);
+      if Equals(value, n"Dropping") && inkWidgetRef.IsVisible(this.starsWidget[i]) {
+        star.StartBlink(this.m_wantedBlackboard.GetFloat(this.m_wantedBlackboardDef.BlinkingStarsDurationTime), this.m_wantedBlackboard.GetInt(this.m_wantedBlackboardDef.DeescalationStages));
+      };
+      i += 1;
+    };
+  }
+
+  public final func UpdateWantedBar(newWantedLevel: Int32) -> Void {
+    let i: Int32;
+    let star: ref<StarController>;
+    let isWanted: Bool = newWantedLevel > 0;
+    let state: CName = isWanted ? this.m_wantedBlackboard.GetName(this.m_wantedBlackboardDef.CurrentChaseState) : n"Default";
+    i;
+    while i < this.m_numOfStar {
+      star = inkWidgetRef.GetController(this.starsWidget[i]) as StarController;
+      if i < newWantedLevel {
+        star.SetBounty(true);
+      } else {
+        if i >= newWantedLevel {
+          star.SetBounty(false);
+        };
+      };
+      if isWanted {
+        star.UpdateState(state);
+      } else {
+        star.UpdateState(state);
+      };
+      i += 1;
+    };
+    this.m_wantedLevel = newWantedLevel;
+    if !this.m_rootWidget.IsVisible() && isWanted {
+      this.m_introAnimProxy = this.PlayLibraryAnimation(n"stars_intro");
+      this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnWantedBarIntro");
+    };
+    this.m_rootWidget.SetVisible(isWanted);
+  }
+
+  private final func StopBountyAnims() -> Void {
+    let i: Int32;
+    this.m_bountyAnimProxy.GotoEndAndStop();
+    i;
+    while i < this.m_numOfStar {
+      this.m_bountyStarAnimProxy[i].GotoEndAndStop();
+      i += 1;
+    };
+  }
+
+  private final func FlashAndHide() -> Void {
+    this.StopBountyAnims();
+    if this.m_rootWidget.IsVisible() {
+      this.m_bountyAnimProxy = this.PlayLibraryAnimation(n"flash_and_hide");
+      this.m_bountyAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnWantedBarHidden");
+    };
+  }
+
+  protected cb func OnWantedBarHidden(animationProxy: ref<inkAnimProxy>) -> Bool {
+    this.StopBountyAnims();
+    this.m_rootWidget.SetVisible(false);
+    this.m_bountyAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnWantedBarHidden");
+  }
+
+  protected cb func OnWantedBarIntro(animationProxy: ref<inkAnimProxy>) -> Bool {
+    this.m_rootWidget.SetVisible(true);
+    this.m_introAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnWantedBarIntro");
+  }
+}
+
+public class StarController extends inkLogicController {
+
+  private let m_animIntroProxy: ref<inkAnimProxy>;
+
+  private let m_animIntroOptions: inkAnimOptions;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  private let m_animBlink: ref<inkAnimDef>;
+
+  private let m_animBlinkProxy: ref<inkAnimProxy>;
+
+  private let m_animBlinkOptions: inkAnimOptions;
+
+  private let m_animBlinkLoops: [Uint32; 3];
+
+  private let m_animBlinkLastStage: Int32;
+
+  @default(StarController, inkanimLoopType.Cycle)
+  private let m_blinkAnimLoopType: inkanimLoopType;
+
+  @default(StarController, 1.0f)
+  private let m_blinkDuration: Float;
+
+  private edit let bountyBadgeWidget: inkWidgetRef;
+
+  @runtimeProperty("category", "Animation")
+  @runtimeProperty("tooltip", "Time Dilation for blink 1st stage, biggger -> quicker blinks")
+  @default(StarController, 1.f)
+  private edit let m_blinkSpeed1: Float;
+
+  @runtimeProperty("category", "Animation")
+  @runtimeProperty("tooltip", "Time Dilation for blink 1st stage, biggger -> quicker blinks")
+  @default(StarController, 2.f)
+  private edit let m_blinkSpeed2: Float;
+
+  @runtimeProperty("category", "Animation")
+  @runtimeProperty("tooltip", "Time Dilation for blink 1st stage, biggger -> quicker blinks")
+  @default(StarController, 3.f)
+  private edit let m_blinkSpeed3: Float;
+
+  @runtimeProperty("category", "Animation")
+  @default(StarController, inkanimInterpolationMode.EasyIn)
+  private edit let m_blinkAnimInterpolationMode: inkanimInterpolationMode;
+
+  @runtimeProperty("category", "Animation")
+  @default(StarController, inkanimInterpolationType.Linear)
+  private edit let m_blinkAnimInterpolationType: inkanimInterpolationType;
+
+  @runtimeProperty("category", "Icon ")
+  private edit let m_icon: inkImageRef;
+
+  @runtimeProperty("category", "Icon ")
+  private edit let m_iconBg: inkImageRef;
+
+  @runtimeProperty("category", "Icon ")
+  @default(StarController, star_active)
+  private edit let m_ncpdIconName: CName;
+
+  @runtimeProperty("category", "Icon ")
+  @default(StarController, star_shadow)
+  private edit let m_ncpdIconBgName: CName;
+
+  @runtimeProperty("category", "Icon ")
+  @default(StarController, kutrz_active)
+  private edit let m_dogtownIconName: CName;
+
+  @runtimeProperty("category", "Icon ")
+  @default(StarController, kutrz_shadow)
+  private edit let m_dogtownIconBgName: CName;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    this.m_animBlinkLastStage = 0;
+    this.CreateBlinkAnimation();
+    inkImageRef.SetTexturePart(this.m_icon, this.m_ncpdIconName);
+    inkImageRef.SetTexturePart(this.m_iconBg, this.m_ncpdIconBgName);
+  }
+
+  private final func CreateBlinkAnimation() -> Void {
+    let sectionDuration: Float = this.m_blinkDuration / 2.00;
+    this.m_animBlink = new inkAnimDef();
+    let transparencyInterp: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterp.SetMode(this.m_blinkAnimInterpolationMode);
+    transparencyInterp.SetType(this.m_blinkAnimInterpolationType);
+    transparencyInterp.SetStartTransparency(1.00);
+    transparencyInterp.SetEndTransparency(0.00);
+    transparencyInterp.SetDuration(sectionDuration);
+    this.m_animBlink.AddInterpolator(transparencyInterp);
+    transparencyInterp.SetStartDelay(sectionDuration);
+    transparencyInterp.SetStartTransparency(0.00);
+    transparencyInterp.SetEndTransparency(1.00);
+    transparencyInterp.SetDuration(sectionDuration);
+    this.m_animBlink.AddInterpolator(transparencyInterp);
+    this.m_animBlinkOptions.loopType = this.m_blinkAnimLoopType;
+  }
+
+  private final func PlayBlink(stage: Int32) -> Void {
+    switch stage {
+      case 0:
+        this.m_animBlinkOptions.customTimeDilation = this.m_blinkSpeed1;
+        break;
+      case 1:
+        this.m_animBlinkOptions.customTimeDilation = this.m_blinkSpeed2;
+        break;
+      case 2:
+        this.m_animBlinkOptions.customTimeDilation = this.m_blinkSpeed3;
+    };
+    this.m_animBlinkOptions.applyCustomTimeDilation = true;
+    this.m_animBlinkOptions.pauseInPhotoMode = true;
+    this.m_animBlinkOptions.loopCounter = this.m_animBlinkLoops[stage];
+    this.m_animBlinkProxy = inkWidgetRef.PlayAnimationWithOptions(this.bountyBadgeWidget, this.m_animBlink, this.m_animBlinkOptions);
+    this.m_animBlinkLastStage = stage;
+  }
+
+  public final func SetBounty(arg: Bool) -> Void {
+    if NotEquals(arg, inkWidgetRef.IsVisible(this.bountyBadgeWidget)) {
+      this.m_animIntroProxy.GotoEndAndStop();
+      if arg {
+        inkWidgetRef.SetVisible(this.bountyBadgeWidget, arg);
+        this.m_animIntroProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"bounty_intro", inkWidgetRef.Get(this.bountyBadgeWidget));
+      } else {
+        this.m_animIntroOptions.playReversed = true;
+        this.m_animIntroProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"bounty_intro", inkWidgetRef.Get(this.bountyBadgeWidget), this.m_animIntroOptions);
+        inkWidgetRef.SetVisible(this.bountyBadgeWidget, arg);
+      };
+    };
+  }
+
+  public final func UpdateState(newState: CName) -> Void {
+    if NotEquals(newState, this.m_rootWidget.GetState()) {
+      if NotEquals(newState, n"Dropping") && this.m_animBlinkProxy.IsPlaying() {
+        this.StopBlink();
+      };
+      this.m_rootWidget.SetState(newState);
+    };
+  }
+
+  public final func StartBlink(timeTotal: Float, stages: Int32) -> Void {
+    let timeStage: Float = timeTotal / Cast<Float>(stages);
+    this.m_animBlinkLoops[0] = Cast<Uint32>(RoundMath((timeStage * this.m_blinkSpeed1) / this.m_blinkDuration));
+    this.m_animBlinkLoops[1] = Cast<Uint32>(RoundMath((timeStage * this.m_blinkSpeed2) / this.m_blinkDuration));
+    this.m_animBlinkLoops[2] = Cast<Uint32>(RoundMath((timeStage * this.m_blinkSpeed3) / this.m_blinkDuration));
+    this.StopBlink();
+    this.PlayBlink(0);
+    this.m_animBlinkProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnBlinkLoopFinished");
+  }
+
+  public final func StopBlink() -> Void {
+    this.m_animBlinkProxy.GotoStartAndStop();
+    this.m_animBlinkProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnBlinkLoopFinished");
+    inkWidgetRef.SetOpacity(this.bountyBadgeWidget, 1.00);
+  }
+
+  protected cb func OnBlinkLoopFinished(animProxy: ref<inkAnimProxy>) -> Bool {
+    if this.m_animBlinkLastStage < ArraySize(this.m_animBlinkLoops) - 1 {
+      this.PlayBlink(this.m_animBlinkLastStage + 1);
+      this.m_animBlinkProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnBlinkLoopFinished");
+    } else {
+      this.m_animBlinkProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnBlinkLoopFinished");
+      inkWidgetRef.SetOpacity(this.bountyBadgeWidget, 1.00);
+    };
+  }
+}

@@ -1,0 +1,977 @@
+
+public native class PopupsManager extends inkGameController {
+
+  private let m_blackboard: wref<IBlackboard>;
+
+  private let m_bbDefinition: ref<UIGameDataDef>;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_uiSystemBB: wref<IBlackboard>;
+
+  private let m_uiSystemBBDef: ref<UI_SystemDef>;
+
+  private let m_uiSystemId: ref<CallbackHandle>;
+
+  private let m_isShownBbId: ref<CallbackHandle>;
+
+  private let m_dataBbId: ref<CallbackHandle>;
+
+  private let m_photomodeActiveId: ref<CallbackHandle>;
+
+  private let m_phoneActiveId: ref<CallbackHandle>;
+
+  private let m_tutorialOnHold: Bool;
+
+  private let m_tutorialData: PopupData;
+
+  private let m_tutorialSettings: PopupSettings;
+
+  private let m_phoneMessageOnHold: Bool;
+
+  private let m_phoneMessageData: ref<JournalNotificationData>;
+
+  private let m_shardReadOnHold: Bool;
+
+  private let m_shardReadData: ref<NotifyShardRead>;
+
+  private let m_smartFrameData: ref<inkFrameNotificationData>;
+
+  private let m_vehicleColorSelectorData: ref<inkGameNotificationData>;
+
+  private let m_tutorialToken: ref<inkGameNotificationToken>;
+
+  private let m_phoneMessageToken: ref<inkGameNotificationToken>;
+
+  private let m_shardToken: ref<inkGameNotificationToken>;
+
+  private let m_vehiclesManagerToken: ref<inkGameNotificationToken>;
+
+  private let m_vehicleRadioToken: ref<inkGameNotificationToken>;
+
+  private let m_codexToken: ref<inkGameNotificationToken>;
+
+  private let m_ponrToken: ref<inkGameNotificationToken>;
+
+  private let m_twintoneOverride: ref<inkGameNotificationToken>;
+
+  private let m_expansionToken: ref<inkGameNotificationToken>;
+
+  private let m_expansionErrorToken: ref<inkGameNotificationToken>;
+
+  private let m_patchNotesToken: ref<inkGameNotificationToken>;
+
+  private let m_updateModsToken: ref<inkGameNotificationToken>;
+
+  private let m_modioGalleryToken: ref<inkGameNotificationToken>;
+
+  private let m_modioUninstallConfirmToken: ref<inkGameNotificationToken>;
+
+  private let m_modioHiddenModsToken: ref<inkGameNotificationToken>;
+
+  private let m_signInToken: ref<inkGameNotificationToken>;
+
+  private let m_emporiumPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_expansionStateToken: ref<inkGameNotificationToken>;
+
+  private let m_vehicleVisualCustomizationSelectorToken: ref<inkGameNotificationToken>;
+
+  private let m_frameSwitcherToken: ref<inkGameNotificationToken>;
+
+  private let m_modioTermsPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_modReloadingToken: ref<inkGameNotificationToken>;
+
+  private let m_pitchSignInToken: ref<inkGameNotificationToken>;
+
+  private let m_telemetryTakeoutToken: ref<inkGameNotificationToken>;
+
+  private let m_isInMenu: Bool;
+
+  private let m_isInPhotoMode: Bool;
+
+  private let m_isOnPhone: Bool;
+
+  private let m_isBlockingPopupOpened: Bool;
+
+  private let m_popUpQueue: [ref<inkGameNotificationData>];
+
+  @default(PopupsManager, false)
+  private let m_activePopUp: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let requestHandler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    requestHandler.RegisterToCallback(n"OnAdditionalContentInstallationRequestResult", this, n"OnAdditionalContentInstallationRequestResult");
+    requestHandler.RegisterToCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult");
+    requestHandler.RegisterToCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnAdditionalContentDataReloadProgress");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let requestHandler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    requestHandler.UnregisterFromCallback(n"OnAdditionalContentInstallationRequestResult", this, n"OnAdditionalContentInstallationRequestResult");
+    requestHandler.UnregisterFromCallback(n"OnAdditionalContentInstallationResult", this, n"OnAdditionalContentInstallationResult");
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_blackboard = this.GetUIBlackboard();
+    this.m_bbDefinition = GetAllBlackboardDefs().UIGameData;
+    this.m_journalManager = GameInstance.GetJournalManager(playerPuppet.GetGame());
+    this.m_uiSystem = GameInstance.GetUISystem(playerPuppet.GetGame());
+    this.m_uiSystemBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_System);
+    this.m_uiSystemBBDef = GetAllBlackboardDefs().UI_System;
+    this.m_uiSystemId = this.m_uiSystemBB.RegisterListenerBool(this.m_uiSystemBBDef.IsInMenu, this, n"OnMenuUpdate");
+    this.m_isShownBbId = this.m_blackboard.RegisterDelayedListenerBool(this.m_bbDefinition.Popup_IsShown, this, n"OnUpdateVisibility");
+    this.m_dataBbId = this.m_blackboard.RegisterDelayedListenerVariant(this.m_bbDefinition.Popup_Data, this, n"OnUpdateData");
+    this.m_photomodeActiveId = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().PhotoMode).RegisterListenerBool(GetAllBlackboardDefs().PhotoMode.IsActive, this, n"OnPhotomodeUpdate");
+    this.m_phoneActiveId = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice).RegisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this, n"OnPhoneUpdate");
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_uiSystemBB.UnregisterListenerBool(this.m_uiSystemBBDef.IsInMenu, this.m_uiSystemId);
+    this.m_blackboard.UnregisterDelayedListener(this.m_bbDefinition.Popup_IsShown, this.m_isShownBbId);
+    this.m_blackboard.UnregisterDelayedListener(this.m_bbDefinition.Popup_Data, this.m_dataBbId);
+    this.GetBlackboardSystem().Get(GetAllBlackboardDefs().PhotoMode).UnregisterListenerBool(GetAllBlackboardDefs().PhotoMode.IsActive, this.m_photomodeActiveId);
+    this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ComDevice).UnregisterListenerBool(GetAllBlackboardDefs().UI_ComDevice.ContactsActive, this.m_phoneActiveId);
+  }
+
+  protected cb func OnMenuUpdate(isInMenu: Bool) -> Bool {
+    this.m_isInMenu = isInMenu;
+    this.SetPhoneMessageVisibility(isInMenu);
+    this.SetTutorialTokenVisibility(isInMenu);
+    this.SetShardReadVisibility(isInMenu);
+    this.ChangeTutorialVisibilityInMenu(isInMenu);
+    if this.m_isInMenu {
+      this.HideExclusivePopUps();
+    };
+  }
+
+  protected cb func OnPhotomodeUpdate(isInPhotomode: Bool) -> Bool {
+    this.m_isInPhotoMode = isInPhotomode;
+    this.SetPhoneMessageVisibility(isInPhotomode);
+    this.SetTutorialTokenVisibility(isInPhotomode);
+    this.ChangeTutorialVisibility(isInPhotomode, gameuiTutorialHiddenReason.InPhotomode);
+    if this.m_isInPhotoMode {
+      this.HideExclusivePopUps();
+    };
+  }
+
+  protected cb func OnPhoneUpdate(isOnPhone: Bool) -> Bool {
+    this.m_isOnPhone = isOnPhone;
+    if this.m_isOnPhone {
+      this.HideExclusivePopUps();
+    };
+  }
+
+  protected cb func OnUpdateVisibility(value: Bool) -> Bool {
+    if !value && IsDefined(this.m_tutorialToken) {
+      this.m_tutorialToken.TriggerCallback(null);
+    };
+  }
+
+  private final func SetPhoneMessageVisibility(hideToken: Bool) -> Void {
+    if hideToken && this.m_phoneMessageToken != null {
+      this.m_phoneMessageOnHold = true;
+      this.m_phoneMessageToken = null;
+      return;
+    };
+    if !hideToken && this.m_phoneMessageToken == null && this.m_phoneMessageOnHold {
+      this.m_phoneMessageOnHold = false;
+      this.ShowPhoneMessage();
+    };
+  }
+
+  private final func SetTutorialTokenVisibility(hideToken: Bool) -> Void {
+    if hideToken {
+      if this.m_tutorialToken != null && this.m_tutorialSettings.hideInMenu {
+        this.m_tutorialOnHold = true;
+        this.m_tutorialToken = null;
+      };
+    } else {
+      if this.m_tutorialToken == null && this.m_tutorialOnHold {
+        this.m_tutorialOnHold = false;
+        this.ShowTutorial();
+      };
+    };
+  }
+
+  private final func HideExclusivePopUps() -> Void {
+    if IsDefined(this.m_vehicleRadioToken) {
+      this.m_vehicleRadioToken.TriggerCallback(null);
+    };
+    if IsDefined(this.m_vehiclesManagerToken) {
+      this.m_vehiclesManagerToken.TriggerCallback(null);
+    };
+    if IsDefined(this.m_vehicleVisualCustomizationSelectorToken) {
+      this.m_vehicleVisualCustomizationSelectorToken.TriggerCallback(this.m_vehicleColorSelectorData);
+    };
+    if IsDefined(this.m_twintoneOverride) {
+      this.m_twintoneOverride.TriggerCallback(null);
+    };
+    if IsDefined(this.m_frameSwitcherToken) {
+      this.m_smartFrameData.shouldApply = false;
+      this.m_frameSwitcherToken.TriggerCallback(this.m_smartFrameData);
+    };
+    this.SendPSMRadialCloseRequest();
+    this.m_isBlockingPopupOpened = false;
+  }
+
+  private final func SendPSMRadialCloseRequest() -> Void {
+    let psmEvent: ref<PSMPostponedParameterBool> = new PSMPostponedParameterBool();
+    psmEvent.id = n"RadialWheelCloseRequest";
+    psmEvent.value = true;
+    this.GetPlayerControlledObject().QueueEvent(psmEvent);
+  }
+
+  private final func CanShowExclusivePopUp() -> Bool {
+    return !this.m_isInMenu && !this.m_isInPhotoMode && !this.m_isBlockingPopupOpened && !this.m_isOnPhone;
+  }
+
+  private final func SetShardReadVisibility(hideToken: Bool) -> Void {
+    if hideToken && this.m_shardToken != null {
+      this.m_shardReadOnHold = true;
+      this.m_shardToken = null;
+      return;
+    };
+    if !hideToken && this.m_shardToken == null && this.m_shardReadOnHold {
+      this.m_shardReadOnHold = false;
+      this.ShardRead();
+    };
+  }
+
+  protected cb func OnUpdateData(value: Variant) -> Bool {
+    this.m_tutorialOnHold = false;
+    this.m_tutorialData = FromVariant<PopupData>(value);
+    this.m_tutorialSettings = FromVariant<PopupSettings>(this.m_blackboard.GetVariant(this.m_bbDefinition.Popup_Settings));
+    this.ShowTutorial();
+  }
+
+  protected cb func OnPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_tutorialToken = null;
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_IsShown, false);
+  }
+
+  private final func ShowTutorial() -> Void {
+    let notificationData: ref<TutorialPopupData> = new TutorialPopupData();
+    notificationData.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\tutorial.inkwidget";
+    notificationData.queueName = n"tutorial";
+    notificationData.closeAtInput = this.m_tutorialSettings.closeAtInput;
+    notificationData.pauseGame = this.m_tutorialSettings.pauseGame;
+    notificationData.position = this.m_tutorialSettings.position;
+    notificationData.isModal = this.m_tutorialSettings.fullscreen;
+    notificationData.margin = this.m_tutorialSettings.margin;
+    notificationData.title = this.m_tutorialData.title;
+    notificationData.message = this.m_tutorialData.message;
+    notificationData.messageOverrideDataList = this.m_tutorialData.messageOverrideDataList;
+    notificationData.imageId = this.m_tutorialData.iconID;
+    notificationData.videoType = this.m_tutorialData.videoType;
+    notificationData.video = PopupData.GetVideo(this.m_tutorialData);
+    notificationData.isBlocking = this.m_tutorialSettings.closeAtInput;
+    this.m_tutorialToken = this.ShowGameNotification(notificationData);
+    this.m_tutorialToken.RegisterListener(this, n"OnPopupCloseRequest");
+  }
+
+  public final native func ChangeTutorialVisibilityInMenu(isInMenu: Bool) -> Void;
+
+  public final native func ChangeTutorialVisibility(hideTutorial: Bool, reason: gameuiTutorialHiddenReason) -> Void;
+
+  protected cb func OnExpansionPopupRequest(evt: ref<OpenExpansionPopupEvent>) -> Bool {
+    let uiSystem: ref<UISystem> = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    let isPatchIntroNeeded: Bool = uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2000_EP1);
+    let isDownloaded: Bool = Equals(evt.m_state, ExpansionStatus.Downloaded);
+    if !evt.m_forcibly && (!isPatchIntroNeeded || !isDownloaded) {
+      return true;
+    };
+    this.ShowExpansionPopup(evt.m_state, evt.m_type);
+  }
+
+  public final func ShowExpansionPopup(state: ExpansionStatus, type: ExpansionPopupType) -> Void {
+    let expansionPopupData: ref<ExpansionPopupData> = new ExpansionPopupData();
+    expansionPopupData.m_type = type;
+    expansionPopupData.m_state = state;
+    expansionPopupData.isBlocking = true;
+    expansionPopupData.useCursor = true;
+    expansionPopupData.queueName = n"expansion";
+    expansionPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\dlc\\expansion_popup.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, expansionPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_expansionToken = this.ShowGameNotification(expansionPopupData);
+      this.m_expansionToken.RegisterListener(this, n"OnExpansionPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnExpansionPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    let uiSystem: ref<UISystem>;
+    let expansionPopupData: ref<ExpansionPopupData> = data as ExpansionPopupData;
+    if Equals(expansionPopupData.m_state, ExpansionStatus.Downloaded) {
+      uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      uiSystem.MarkPatchIntroAsSeen(gameuiPatchIntro.Patch2000_EP1);
+    };
+    this.m_expansionToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnExpansionErrorPopupRequest(evt: ref<OpenExpansionErrorPopupEvent>) -> Bool {
+    let expansionErrorData: ref<ExpansionErrorPopuppData> = new ExpansionErrorPopuppData();
+    expansionErrorData.title = evt.m_title;
+    expansionErrorData.description = evt.m_description;
+    expansionErrorData.errorCode = evt.m_errorCode;
+    expansionErrorData.modMenu = evt.m_modMenu;
+    expansionErrorData.isBlocking = true;
+    expansionErrorData.useCursor = true;
+    expansionErrorData.queueName = n"ExpansionError";
+    expansionErrorData.notificationName = n"base\\gameplay\\gui\\fullscreen\\dlc\\expansion_error_popup.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, expansionErrorData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_expansionErrorToken = this.ShowGameNotification(expansionErrorData);
+      this.m_expansionErrorToken.RegisterListener(this, n"OnExpansionErrorPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnExpansionErrorPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_expansionErrorToken = null;
+    let inData: ref<ExpansionErrorPopuppData> = data as ExpansionErrorPopuppData;
+    if inData.modMenu != null {
+      inData.modMenu.UserClosedErrorPopup();
+    };
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnUpdateModsRequest(evt: ref<UpdateModsPopupEvent>) -> Bool {
+    this.ShowUpdateModsPopup(evt);
+  }
+
+  public final func ShowUpdateModsPopup(evt: ref<UpdateModsPopupEvent>) -> Void {
+    let updateModsPopupData: ref<UpdateModsPopupData2> = new UpdateModsPopupData2();
+    updateModsPopupData.modInfoList = evt.modInfoList;
+    updateModsPopupData.bHaveModsBeenDeleted = evt.bHaveModsBeenDeleted;
+    updateModsPopupData.bShouldShowThumbnail = evt.bShouldShowThumbnail;
+    updateModsPopupData.bShouldShowModNames = evt.bShouldShowModNames;
+    updateModsPopupData.bShouldShowConfirmButton = evt.bShouldShowConfirmButton;
+    updateModsPopupData.bDefaultModsSelected = evt.bDefaultModsSelected;
+    updateModsPopupData.deprecatedModsCount = evt.deprecatedModsCount;
+    updateModsPopupData.bIsForLoadingASave = evt.bIsForLoadingASave;
+    updateModsPopupData.bDoesNumberExceedModLimit = evt.bDoesNumberExceedModLimit;
+    updateModsPopupData.isBlocking = true;
+    updateModsPopupData.useCursor = true;
+    updateModsPopupData.queueName = n"updateMods";
+    updateModsPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\main_menu\\modio\\modio_updatemods.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, updateModsPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_updateModsToken = this.ShowGameNotification(updateModsPopupData);
+      this.m_updateModsToken.RegisterListener(this, n"OnUpdateModsPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnUpdateModsPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_updateModsToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnModioGalleryRequest(evt: ref<ModioGalleryPreviewPopupEvent>) -> Bool {
+    this.ShowModioGallery(evt);
+  }
+
+  public final func ShowModioGallery(evt: ref<ModioGalleryPreviewPopupEvent>) -> Void {
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, evt.m_data);
+    } else {
+      this.m_activePopUp = true;
+      this.m_modioGalleryToken = this.ShowGameNotification(evt.m_data);
+      this.m_modioGalleryToken.RegisterListener(this, n"OnModioGalleryPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnModioGalleryPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_modioGalleryToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnUninstallConfirmRequest(evt: ref<ModioConfirmUninstallPopupEvent>) -> Bool {
+    this.ShowUninstallconfirmationPopup(evt);
+  }
+
+  public final func ShowUninstallconfirmationPopup(evt: ref<ModioConfirmUninstallPopupEvent>) -> Void {
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, evt.m_data);
+    } else {
+      this.m_activePopUp = true;
+      this.m_modioUninstallConfirmToken = this.ShowGameNotification(evt.m_data);
+      this.m_modioUninstallConfirmToken.RegisterListener(this, n"OnModioConfirmUninstallCloseRequest");
+    };
+  }
+
+  protected cb func OnModioConfirmUninstallCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_modioUninstallConfirmToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnHiddenModsManagerRequest(evt: ref<HiddenModManagerPopupEvent>) -> Bool {
+    this.ShowHiddenModsManagerPopup(evt);
+  }
+
+  public final func ShowHiddenModsManagerPopup(evt: ref<HiddenModManagerPopupEvent>) -> Void {
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, evt.m_data);
+    } else {
+      this.m_activePopUp = true;
+      this.m_modioHiddenModsToken = this.ShowGameNotification(evt.m_data);
+      this.m_modioHiddenModsToken.RegisterListener(this, n"OnModioHiddenModsCloseRequest");
+    };
+  }
+
+  protected cb func OnModioHiddenModsCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_modioHiddenModsToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnPatchNotesPopupRequest(evt: ref<OpenPatchNotesPopupEvent>) -> Bool {
+    this.ShowPatchNotesPopup();
+  }
+
+  public final func ShowPatchNotesPopup() -> Void {
+    let patchNotesPopupData: ref<PatchNotesPopupData> = new PatchNotesPopupData();
+    patchNotesPopupData.isBlocking = true;
+    patchNotesPopupData.useCursor = true;
+    patchNotesPopupData.queueName = n"patchnotes";
+    patchNotesPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\dlc\\patch_notes.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, patchNotesPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_patchNotesToken = this.ShowGameNotification(patchNotesPopupData);
+      this.m_patchNotesToken.RegisterListener(this, n"OnPatchNotesPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnPatchNotesPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_patchNotesToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnPitchSignInPopupEvent(evt: ref<PitchSignInPopupEvent>) -> Bool {
+    this.ShowPitchSignInPopup();
+  }
+
+  public final func ShowPitchSignInPopup() -> Void {
+    let pitchSignInPopupData: ref<PitchSignInPopupData> = new PitchSignInPopupData();
+    pitchSignInPopupData.isBlocking = true;
+    pitchSignInPopupData.useCursor = true;
+    pitchSignInPopupData.queueName = n"pitchSignIn";
+    pitchSignInPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\main_menu\\pitch_sign_in_popup.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, pitchSignInPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_pitchSignInToken = this.ShowGameNotification(pitchSignInPopupData);
+      this.m_pitchSignInToken.RegisterListener(this, n"OnPitchSignInCloseRequest");
+    };
+  }
+
+  protected cb func OnPitchSignInCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    let evt: ref<PitchSignInPopupClosedEvent> = new PitchSignInPopupClosedEvent();
+    this.QueueBroadcastEvent(evt);
+    this.m_pitchSignInToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnTelemetryTakeoutPopup(evt: ref<TelemetryTakeoutPopupEvent>) -> Bool {
+    this.ShowTelemetryTakeoutPopup();
+  }
+
+  public final func ShowTelemetryTakeoutPopup() -> Void {
+    let telemetryTakeoutPopupData: ref<TelemetryTakeoutPopupData> = new TelemetryTakeoutPopupData();
+    telemetryTakeoutPopupData.isBlocking = true;
+    telemetryTakeoutPopupData.useCursor = true;
+    telemetryTakeoutPopupData.queueName = n"telemetryTakeout";
+    telemetryTakeoutPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\settings\\telemetry_takeout_notification.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, telemetryTakeoutPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_telemetryTakeoutToken = this.ShowGameNotification(telemetryTakeoutPopupData);
+      this.m_telemetryTakeoutToken.RegisterListener(this, n"OnTelemetryTakeoutCloseRequest");
+    };
+  }
+
+  protected cb func OnTelemetryTakeoutCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_telemetryTakeoutToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnEmporiumPopupRequest(evt: ref<EmporiumPopupEvent>) -> Bool {
+    this.ShowEmporiumPopup();
+  }
+
+  public final func ShowEmporiumPopup() -> Void {
+    let emporiumPopupData: ref<EmporiumPopupData> = new EmporiumPopupData();
+    emporiumPopupData.isBlocking = true;
+    emporiumPopupData.useCursor = true;
+    emporiumPopupData.queueName = n"EmporiumPopup";
+    emporiumPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\emporium\\emporium_features_popup.inkwidget";
+    if this.m_activePopUp {
+      ArrayPush(this.m_popUpQueue, emporiumPopupData);
+    } else {
+      this.m_activePopUp = true;
+      this.m_emporiumPopupToken = this.ShowGameNotification(emporiumPopupData);
+      this.m_emporiumPopupToken.RegisterListener(this, n"OnEmporiumPopupCloseRequest");
+    };
+  }
+
+  protected cb func OnEmporiumPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_emporiumPopupToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnEmporiumPopupClose(evt: ref<EmporiumPopupCloseEvent>) -> Bool {
+    this.m_emporiumPopupToken = null;
+    this.m_activePopUp = false;
+    this.ProcessQueue();
+  }
+
+  protected cb func OnCodexPopupRequest(evt: ref<OpenCodexPopupEvent>) -> Bool {
+    let codexPopupData: ref<CodexPopupData> = new CodexPopupData();
+    codexPopupData.m_entry = evt.m_entry;
+    codexPopupData.isBlocking = true;
+    codexPopupData.useCursor = true;
+    codexPopupData.queueName = n"codex";
+    codexPopupData.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\codex_popup.inkwidget";
+    this.m_codexToken = this.ShowGameNotification(codexPopupData);
+    this.m_codexToken.RegisterListener(this, n"OnCodexPopupCloseRequest");
+  }
+
+  protected cb func OnCodexPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    let evt: ref<CodexPopupClosedEvent> = new CodexPopupClosedEvent();
+    this.QueueBroadcastEvent(evt);
+    this.m_codexToken = null;
+  }
+
+  public final func ShowPhoneMessage() -> Void {
+    this.m_phoneMessageToken = this.ShowGameNotification(this.m_phoneMessageData);
+    this.m_phoneMessageToken.RegisterListener(this, n"OnMessagePopupUseCloseRequest");
+  }
+
+  protected cb func OnPhoneMessageShowRequest(evt: ref<PhoneMessagePopupEvent>) -> Bool {
+    this.m_phoneMessageData = evt.m_data;
+    this.ShowPhoneMessage();
+  }
+
+  protected cb func OnPhoneMessageHideRequest(evt: ref<PhoneMessageHidePopupEvent>) -> Bool {
+    this.m_phoneMessageToken = null;
+  }
+
+  protected cb func OnMessagePopupUseCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_phoneMessageToken = null;
+  }
+
+  protected cb func OnShardRead(evt: ref<NotifyShardRead>) -> Bool {
+    this.m_shardReadData = evt;
+    this.ShardRead();
+  }
+
+  public final func ShardRead() -> Void {
+    let notificationData: ref<ShardReadPopupData> = new ShardReadPopupData();
+    notificationData.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\shard_notification.inkwidget";
+    notificationData.queueName = n"shards";
+    notificationData.requiredGameState = n"inkGameState";
+    notificationData.isBlocking = true;
+    notificationData.useCursor = false;
+    notificationData.title = this.m_shardReadData.title;
+    notificationData.text = this.m_shardReadData.text;
+    notificationData.isCrypted = this.m_shardReadData.isCrypted;
+    notificationData.itemID = this.m_shardReadData.itemID;
+    notificationData.m_imageId = this.m_shardReadData.m_imageId;
+    this.m_journalManager.SetEntryVisited(this.m_shardReadData.entry, true);
+    this.m_shardToken = this.ShowGameNotification(notificationData);
+    this.m_shardToken.RegisterListener(this, n"OnShardReadClosed");
+    if notificationData.isCrypted {
+      this.ProcessCrackableShardTutorial();
+    };
+  }
+
+  public final func ProcessCrackableShardTutorial() -> Void {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.GetPlayerControlledObject().GetGame());
+    if questSystem.GetFact(n"encoded_shard_tutorial") == 0 && questSystem.GetFact(n"disable_tutorials") == 0 {
+      questSystem.SetFact(n"encoded_shard_tutorial", 1);
+    };
+  }
+
+  protected cb func OnShardReadClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_shardToken = null;
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  protected cb func OnQuickSlotButtonHoldStartEvent(evt: ref<QuickSlotButtonHoldStartEvent>) -> Bool {
+    switch evt.dPadItemDirection {
+      case EDPadSlot.VehicleWheel:
+        this.SpawnVehiclesManagerPopup();
+        break;
+      case EDPadSlot.VehicleInsideWheel:
+        this.TrySpawnVehicleRadioPopup();
+        break;
+      case EDPadSlot.PocketRadio:
+        this.TrySpawnPocketRadioPopup();
+        break;
+      case EDPadSlot.VehicleVisualCustomization:
+        this.TrySpawnVehicleVisualCustomizationSelectorPopup();
+        break;
+      default:
+    };
+  }
+
+  private final func SpawnVehiclesManagerPopup() -> Void {
+    let data: ref<inkGameNotificationData>;
+    if !this.CanShowExclusivePopUp() {
+      return;
+    };
+    this.m_isBlockingPopupOpened = true;
+    data = new inkGameNotificationData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\vehicle_control\\vehicles_manager.inkwidget";
+    data.queueName = n"VehiclesManager";
+    data.isBlocking = false;
+    this.m_vehiclesManagerToken = this.ShowGameNotification(data);
+    this.m_vehiclesManagerToken.RegisterListener(this, n"OnVehiclesManagerCloseRequest");
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_VehiclesManager_IsShown, true);
+  }
+
+  protected cb func OnVehiclesManagerCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_vehiclesManagerToken = null;
+    this.m_isBlockingPopupOpened = false;
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_VehiclesManager_IsShown, false);
+  }
+
+  private final func TrySpawnVehicleRadioPopup() -> Void {
+    if this.m_blackboard.GetBool(this.m_bbDefinition.Popup_Radio_Enabled) && !this.m_blackboard.GetBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_IsShown) {
+      this.SpawnVehicleRadioPopup();
+    } else {
+      this.ShowActionBlockedNotification();
+    };
+  }
+
+  private final func TrySpawnPocketRadioPopup() -> Void {
+    if !this.m_blackboard.GetBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_IsShown) {
+      this.SpawnVehicleRadioPopup();
+    };
+  }
+
+  private final func SpawnVehicleRadioPopup() -> Void {
+    let data: ref<inkGameNotificationData>;
+    if !this.CanShowExclusivePopUp() {
+      return;
+    };
+    this.m_isBlockingPopupOpened = true;
+    data = new inkGameNotificationData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\vehicle_control\\vehicles_radio.inkwidget";
+    data.queueName = n"VehiclesRadio";
+    data.isBlocking = false;
+    this.m_vehicleRadioToken = this.ShowGameNotification(data);
+    this.m_vehicleRadioToken.RegisterListener(this, n"OnVehicleRadioCloseRequest");
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_Radio_IsShown, true);
+  }
+
+  protected cb func OnVehicleRadioCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_vehicleRadioToken = null;
+    this.m_isBlockingPopupOpened = false;
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_Radio_IsShown, false);
+  }
+
+  private final func TrySpawnVehicleVisualCustomizationSelectorPopup() -> Void {
+    if !this.m_blackboard.GetBool(GetAllBlackboardDefs().UIGameData.Popup_CarColorPicker_IsShown) {
+      this.SpawnVehicleVisualCustomizationSelectorPopup();
+    };
+  }
+
+  private final func SpawnVehicleVisualCustomizationSelectorPopup() -> Void {
+    if !this.CanShowExclusivePopUp() {
+      return;
+    };
+    this.m_isBlockingPopupOpened = true;
+    this.m_vehicleColorSelectorData = new inkGameNotificationData();
+    this.m_vehicleColorSelectorData.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\vehicle_visual_customization.inkwidget";
+    this.m_vehicleColorSelectorData.queueName = n"VehicleVisualCustomization";
+    this.m_vehicleColorSelectorData.isBlocking = true;
+    this.m_vehicleColorSelectorData.useCursor = true;
+    this.m_vehicleVisualCustomizationSelectorToken = this.ShowGameNotification(this.m_vehicleColorSelectorData);
+    this.m_vehicleVisualCustomizationSelectorToken.RegisterListener(this, n"OnVehicleVisualCustomizationCloseRequest");
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_CarColorPicker_IsShown, true);
+  }
+
+  protected cb func OnVehicleVisualCustomizationCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_vehicleVisualCustomizationSelectorToken = null;
+    this.m_isBlockingPopupOpened = false;
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_CarColorPicker_IsShown, false);
+  }
+
+  protected cb func OnFrameSwitcherEvent(evt: ref<FrameSwitcherEvent>) -> Bool {
+    if !this.CanShowExclusivePopUp() {
+      return false;
+    };
+    this.m_isBlockingPopupOpened = true;
+    this.m_smartFrameData = new inkFrameNotificationData();
+    this.m_smartFrameData.notificationName = n"base\\gameplay\\devices\\frames\\base\\frame_switcher.inkwidget";
+    this.m_smartFrameData.queueName = n"FrameSwitcher";
+    this.m_smartFrameData.isBlocking = true;
+    this.m_smartFrameData.useCursor = true;
+    this.m_smartFrameData.frame = evt.frame;
+    this.m_smartFrameData.hash = evt.hash;
+    this.m_smartFrameData.index = evt.index;
+    this.m_smartFrameData.uv = evt.uv;
+    this.m_smartFrameData.shouldApply = false;
+    this.m_frameSwitcherToken = this.ShowGameNotification(this.m_smartFrameData);
+    this.m_frameSwitcherToken.RegisterListener(this, n"OnFrameSwitcherCloseRequest");
+    this.m_uiSystem.PushGameContext(UIGameContext.QuickHack);
+  }
+
+  protected cb func OnFrameSwitcherCloseRequest(data: ref<inkFrameNotificationData>) -> Bool {
+    this.m_frameSwitcherToken = null;
+    if data == null {
+      this.NotifyFrameCancel(this.m_smartFrameData);
+    } else {
+      if data.shouldApply {
+        this.NotifyFrameSwitch(data);
+      } else {
+        this.NotifyFrameCancel(data);
+      };
+    };
+    this.m_smartFrameData = null;
+    this.m_isBlockingPopupOpened = false;
+    this.m_uiSystem.PopGameContext(UIGameContext.QuickHack);
+  }
+
+  private final func NotifyFrameSwitch(data: ref<inkFrameNotificationData>) -> Void {
+    let evt: ref<FrameSwitch> = new FrameSwitch();
+    evt.hash = data.hash;
+    evt.index = data.index;
+    evt.uv = data.uv;
+    data.frame.QueueEvent(evt);
+  }
+
+  private final func NotifyFrameCancel(data: ref<inkFrameNotificationData>) -> Void {
+    let evt: ref<FrameCancel> = new FrameCancel();
+    data.frame.QueueEvent(evt);
+  }
+
+  private final func ShowActionBlockedNotification() -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    notificationEvent.m_notificationType = UIInGameNotificationType.CombatRestriction;
+    let uiSystem: ref<UISystem> = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    if IsDefined(uiSystem) {
+      uiSystem.QueueEvent(new UIInGameNotificationRemoveEvent());
+      uiSystem.QueueEvent(notificationEvent);
+    };
+  }
+
+  protected cb func OnSpawnPonRRewardsScreen(evt: ref<ShowPointOfNoReturnPromptEvent>) -> Bool {
+    let notificationData: ref<inkGameNotificationData> = new inkGameNotificationData();
+    notificationData.notificationName = n"base\\gameplay\\gui\\widgets\\ponr\\ponr_rewards.inkwidget";
+    notificationData.queueName = n"PonR";
+    notificationData.isBlocking = true;
+    notificationData.useCursor = true;
+    this.m_ponrToken = this.ShowGameNotification(notificationData);
+    this.m_ponrToken.RegisterListener(this, n"OnClosePonRRewardsScreen");
+  }
+
+  protected cb func OnClosePonRRewardsScreen(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_ponrToken = null;
+  }
+
+  protected cb func OnSpawnTwintoneOverride(evt: ref<ShowTwintoneOverrideEvent>) -> Bool {
+    let notificationData: ref<TwintoneOverrideData>;
+    if !this.CanShowExclusivePopUp() {
+      return false;
+    };
+    this.m_isBlockingPopupOpened = true;
+    notificationData = new TwintoneOverrideData();
+    notificationData.notificationName = n"base\\gameplay\\gui\\widgets\\scanning\\twintone\\twintoneoverride.inkwidget";
+    notificationData.queueName = n"twintoneOverride";
+    notificationData.isBlocking = true;
+    notificationData.useCursor = false;
+    notificationData.template = evt.template;
+    notificationData.modelName = evt.modelName;
+    this.m_twintoneOverride = this.ShowGameNotification(notificationData);
+    this.m_twintoneOverride.RegisterListener(this, n"OnCloseTwintoneOverrideScreen");
+  }
+
+  protected cb func OnCloseTwintoneOverrideScreen(data: ref<inkGameNotificationData>) -> Bool {
+    let notifData: ref<TwintoneOverrideData> = data as TwintoneOverrideData;
+    let evt: ref<OnTwintoneOverrideClosedEvent> = new OnTwintoneOverrideClosedEvent();
+    evt.template = notifData.template;
+    evt.modelName = notifData.modelName;
+    this.m_twintoneOverride = null;
+    this.m_isBlockingPopupOpened = false;
+    this.m_blackboard.SetBool(this.m_bbDefinition.Popup_TwintoneOverride_IsShown, false);
+    this.GetPlayerControlledObject().QueueEvent(evt);
+  }
+
+  protected cb func OnAdditionalContentInstallationRequestResult(id: CName, success: Bool) -> Bool {
+    if success {
+      this.ShowExpansionStatePopupRequest(ExpansionStatus.Owned);
+    };
+  }
+
+  protected cb func OnAdditionalContentInstallationResult(id: CName, success: Bool) -> Bool {
+    if success {
+      if !this.GetSystemRequestsHandler().IsPreGame() {
+        GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).ResetPatchIntro(gameuiPatchIntro.Patch2000_EP1);
+        this.ShowExpansionStateGameNotificationRequest(ExpansionStatus.Downloaded);
+      } else {
+        this.ShowExpansionStatePopupRequest(ExpansionStatus.Reloading);
+      };
+    };
+  }
+
+  protected cb func OnAdditionalContentDataReloadProgress(progress: Float) -> Bool {
+    if progress >= 1.00 {
+      this.m_expansionStateToken = null;
+    };
+  }
+
+  public final func ShowExpansionStatePopupRequest(state: ExpansionStatus) -> Void {
+    let expansionPopupData: ref<ExpansionPopupData>;
+    if !IsFinal() {
+      expansionPopupData = new ExpansionPopupData();
+      expansionPopupData.m_state = state;
+      expansionPopupData.isBlocking = false;
+      expansionPopupData.useCursor = false;
+      expansionPopupData.queueName = n"ExpansionStatePopup";
+      expansionPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\dlc\\expansion_state_popup.inkwidget";
+      this.m_expansionStateToken = this.ShowGameNotification(expansionPopupData);
+      this.m_expansionStateToken.RegisterListener(this, n"OnExpansionStatePopupCloseRequest");
+    };
+  }
+
+  protected cb func OnExpansionStatePopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_expansionStateToken = null;
+  }
+
+  public final func ShowExpansionStateGameNotificationRequest(state: ExpansionStatus) -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    if Equals(state, ExpansionStatus.Downloaded) {
+      notificationEvent = new UIInGameNotificationEvent();
+      notificationEvent.m_notificationType = UIInGameNotificationType.ExpansionInstalled;
+      notificationEvent.m_overrideCurrentNotification = false;
+      GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(notificationEvent);
+    };
+  }
+
+  public final func ProcessQueue() -> Void {
+    let nextItemData: ref<inkGameNotificationData>;
+    if ArraySize(this.m_popUpQueue) > 0 {
+      nextItemData = ArrayPop(this.m_popUpQueue);
+      if Equals(nextItemData.queueName, n"signIn") {
+        this.m_signInToken = this.ShowGameNotification(nextItemData as SignInPopupData);
+        this.m_signInToken.RegisterListener(this, n"OnSignInPopupCloseRequest");
+      } else {
+        if Equals(nextItemData.queueName, n"expansion") {
+          this.m_expansionToken = this.ShowGameNotification(nextItemData as ExpansionPopupData);
+          this.m_expansionToken.RegisterListener(this, n"OnExpansionPopupCloseRequest");
+        } else {
+          if Equals(nextItemData.queueName, n"ExpansionError") {
+            this.m_expansionErrorToken = this.ShowGameNotification(nextItemData as ExpansionErrorPopuppData);
+            this.m_expansionErrorToken.RegisterListener(this, n"OnExpansionErrorPopupCloseRequest");
+          } else {
+            if Equals(nextItemData.queueName, n"patchnotes") {
+              this.m_patchNotesToken = this.ShowGameNotification(nextItemData as PatchNotesPopupData);
+              this.m_patchNotesToken.RegisterListener(this, n"OnPatchNotesPopupCloseRequest");
+            } else {
+              if Equals(nextItemData.queueName, n"EmporiumPopup") {
+                this.m_emporiumPopupToken = this.ShowGameNotification(nextItemData as EmporiumPopupData);
+                this.m_emporiumPopupToken.RegisterListener(this, n"OnEmporiumPopupCloseRequest");
+              } else {
+                if Equals(nextItemData.queueName, n"updateMods") {
+                  this.m_updateModsToken = this.ShowGameNotification(nextItemData as UpdateModsPopupData2);
+                  this.m_updateModsToken.RegisterListener(this, n"OnUpdateModsPopupCloseRequest");
+                } else {
+                  if Equals(nextItemData.queueName, n"modio_gallery") {
+                    this.m_modioGalleryToken = this.ShowGameNotification(nextItemData as ModioGalleryPreviewData);
+                    this.m_modioGalleryToken.RegisterListener(this, n"OnModioGalleryPopupCloseRequest");
+                  } else {
+                    if Equals(nextItemData.queueName, n"modio_uninstallConfirm") {
+                      this.m_modioUninstallConfirmToken = this.ShowGameNotification(nextItemData as ModioConfirmUninstallData);
+                      this.m_modioUninstallConfirmToken.RegisterListener(this, n"OnModioConfirmUninstallCloseRequest");
+                    } else {
+                      if Equals(nextItemData.queueName, n"modio_hiddenMods") {
+                        this.m_modioHiddenModsToken = this.ShowGameNotification(nextItemData as HiddenModManagerPopupData);
+                        this.m_modioHiddenModsToken.RegisterListener(this, n"OnModioHiddenModsCloseRequest");
+                      } else {
+                        if Equals(nextItemData.queueName, n"pitchSignIn") {
+                          this.m_pitchSignInToken = this.ShowGameNotification(nextItemData as PitchSignInPopupData);
+                          this.m_pitchSignInToken.RegisterListener(this, n"OnPitchSignInCloseRequest");
+                        } else {
+                          if Equals(nextItemData.queueName, n"telemetryTakeout") {
+                            this.m_telemetryTakeoutToken = this.ShowGameNotification(nextItemData as TelemetryTakeoutPopupData);
+                            this.m_telemetryTakeoutToken.RegisterListener(this, n"OnTelemetryTakeoutCloseRequest");
+                          };
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnModioTermsPopupRequest(evt: ref<ModioTermsPopupEvent>) -> Bool {
+    this.ShowModioTermsPopup();
+  }
+
+  public final func ShowModioTermsPopup() -> Void {
+    let modioTermsPopupData: ref<ModioTermsPopupData> = new ModioTermsPopupData();
+    modioTermsPopupData.isBlocking = true;
+    modioTermsPopupData.useCursor = true;
+    modioTermsPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\main_menu\\modio\\modio_terms.inkwidget";
+    this.m_modioTermsPopupToken = this.ShowGameNotification(modioTermsPopupData);
+    this.m_modioTermsPopupToken.RegisterListener(this, n"OnModioTermsPopupCloseRequest");
+  }
+
+  protected cb func OnModioTermsPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_modioTermsPopupToken = null;
+  }
+
+  protected cb func OnModReloadingPopupRequest(evt: ref<ModReloadingPopupEvent>) -> Bool {
+    this.ShowModReloadingPopup();
+  }
+
+  public final func ShowModReloadingPopup() -> Void {
+    let modReloadingPopupData: ref<ModReloadingPopupData> = new ModReloadingPopupData();
+    modReloadingPopupData.isBlocking = true;
+    modReloadingPopupData.useCursor = true;
+    modReloadingPopupData.notificationName = n"base\\gameplay\\gui\\fullscreen\\main_menu\\modio\\modio_config_loading.inkwidget";
+    this.m_modReloadingToken = this.ShowGameNotification(modReloadingPopupData);
+    this.m_modReloadingToken.RegisterListener(this, n"OnModReloadingPopupCloseRequest");
+  }
+
+  protected cb func OnModReloadingPopupCloseRequest(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_modReloadingToken = null;
+  }
+
+  public final static func OrderWidgetOnTop(controller: wref<inkIGameController>) -> Void {
+    let popupParent: wref<inkWidget> = controller.GetRootWidget().GetParentWidget();
+    let notificationContainer: wref<inkCompoundWidget> = popupParent.GetParentWidget() as inkCompoundWidget;
+    if IsDefined(notificationContainer) {
+      notificationContainer.ReorderChild(popupParent, 0);
+    };
+  }
+}

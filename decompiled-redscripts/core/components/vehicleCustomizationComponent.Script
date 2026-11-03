@@ -1,0 +1,69 @@
+
+public native struct VehicleDecalAttachmentData {
+
+  public native let onlyForPlayerVehicleAppearances: [CName];
+
+  public native let componentToAttachTo: CName;
+
+  public native let decalReference: ResRef;
+
+  public final static func FromRecord(record: ref<VehicleDecalAttachment_Record>) -> VehicleDecalAttachmentData {
+    let ret: VehicleDecalAttachmentData;
+    ret.onlyForPlayerVehicleAppearances = record.OnlyForPlayerVehicleAppearances();
+    ret.componentToAttachTo = record.ComponentToAttachTo();
+    ret.decalReference = record.DecalResource();
+    return ret;
+  }
+}
+
+public native struct VehicleClearCoatOverrides {
+
+  public native let opacity: Float;
+
+  public native let coatTintFwd: Color;
+
+  public native let coatTintSide: Color;
+
+  public native let coatTintFresnelBias: Float;
+
+  public native let coatSpecularColor: Color;
+
+  public native let coatFresnelBias: Float;
+
+  public final static func FromRecord(record: ref<VehicleClearCoatOverrides_Record>) -> VehicleClearCoatOverrides {
+    let ret: VehicleClearCoatOverrides;
+    ret.opacity = record.Opacity();
+    if record.GetCoatTintFwdCount() >= 3 {
+      ret.coatTintFwd = new Color(Cast<Uint8>(record.GetCoatTintFwdItem(0)), Cast<Uint8>(record.GetCoatTintFwdItem(1)), Cast<Uint8>(record.GetCoatTintFwdItem(2)), 255u);
+    } else {
+      ret.coatTintFwd = new Color(0u, 0u, 0u, 0u);
+    };
+    if record.GetCoatTintSideCount() >= 3 {
+      ret.coatTintSide = new Color(Cast<Uint8>(record.GetCoatTintSideItem(0)), Cast<Uint8>(record.GetCoatTintSideItem(1)), Cast<Uint8>(record.GetCoatTintSideItem(2)), 255u);
+    } else {
+      ret.coatTintSide = new Color(0u, 0u, 0u, 0u);
+    };
+    ret.coatTintFresnelBias = record.CoatTintFresnelBias();
+    if record.GetCoatSpecularColorCount() >= 3 {
+      ret.coatSpecularColor = new Color(Cast<Uint8>(record.GetCoatSpecularColorItem(0)), Cast<Uint8>(record.GetCoatSpecularColorItem(1)), Cast<Uint8>(record.GetCoatSpecularColorItem(2)), 255u);
+    } else {
+      ret.coatSpecularColor = new Color(0u, 0u, 0u, 0u);
+    };
+    ret.coatFresnelBias = record.CoatFresnelBias();
+    return ret;
+  }
+}
+
+public native struct VehiclePartsClearCoatOverrides {
+
+  public native let partsName: [CName];
+
+  public native let overrides: VehicleClearCoatOverrides;
+
+  public final static func FromRecord(record: ref<VehiclePartsClearCoatOverrides_Record>) -> VehiclePartsClearCoatOverrides {
+    let ret: VehiclePartsClearCoatOverrides;
+    ret.partsName = record.PartsName();
+    ret.overrides = VehicleClearCoatOverrides.FromRecord(record.OverridesHandle());
+    return ret;
+  }
+}

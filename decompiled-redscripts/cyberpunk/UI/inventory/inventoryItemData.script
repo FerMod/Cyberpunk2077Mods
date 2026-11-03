@@ -1,0 +1,858 @@
+
+public native struct InventoryItemData {
+
+  public native let ID: ItemID;
+
+  public native let SlotID: TweakDBID;
+
+  public native let Name: String;
+
+  public native let Quality: CName;
+
+  public native let QualityF: Float;
+
+  public native let Quantity: Int32;
+
+  public native let Ammo: Int32;
+
+  public native let Shape: EInventoryItemShape;
+
+  public native let ItemShape: EInventoryItemShape;
+
+  public native let IconPath: String;
+
+  public native let CategoryName: String;
+
+  public native let ItemType: gamedataItemType;
+
+  public native let LocalizedItemType: String;
+
+  public native let Description: String;
+
+  public native let AdditionalDescription: String;
+
+  public native let GameplayDescription: String;
+
+  public native let Price: Float;
+
+  public native let BuyPrice: Float;
+
+  public native let UnlockProgress: Float;
+
+  public native let RequiredLevel: Int32;
+
+  public native let ItemLevel: Int32;
+
+  public native let DamageType: gamedataDamageType;
+
+  public native let EquipmentArea: gamedataEquipmentArea;
+
+  public native let ComparedQuality: gamedataQuality;
+
+  public native let Empty: Bool;
+
+  public native let IsPart: Bool;
+
+  public native let IsCraftingMaterial: Bool;
+
+  public native let IsEquipped: Bool;
+
+  public native let IsNew: Bool;
+
+  public native let IsAvailable: Bool;
+
+  public native let IsVendorItem: Bool;
+
+  public native let IsBroken: Bool;
+
+  public native let IsIconic: Bool;
+
+  public native let CanDualWield: Bool;
+
+  public native let SlotIndex: Int32;
+
+  public native let PositionInBackpack: Uint32;
+
+  public native let IconGender: ItemIconGender;
+
+  private native let GameItemData: wref<gameItemData>;
+
+  public native let HasPlayerSmartGunLink: Bool;
+
+  public native let PlayerLevel: Int32;
+
+  public native let PlayerStrength: Int32;
+
+  public native let PlayerReflexes: Int32;
+
+  public native let PlayerStreetCred: Int32;
+
+  public native let IsRequirementMet: Bool;
+
+  public native let IsEquippable: Bool;
+
+  public native let IsVisualsEquipped: Bool;
+
+  public native let Requirement: SItemStackRequirementData;
+
+  public native let EquipRequirement: SItemStackRequirementData;
+
+  public native let EquipRequirements: [SItemStackRequirementData];
+
+  public native let LootItemType: LootItemType;
+
+  public native let Attachments: [ref<InventoryItemAttachments>];
+
+  public native let Abilities: [InventoryItemAbility];
+
+  public native let PlacementSlots: [TweakDBID];
+
+  public native let PrimaryStats: [StatViewData];
+
+  public native let SecondaryStats: [StatViewData];
+
+  public native let SortData: InventoryItemSortData;
+
+  public native let IsPerkRequired: Bool;
+
+  public native let PerkRequiredName: String;
+
+  public native let IsCrafted: Bool;
+
+  public final static native func GetDPS(self: InventoryItemData) -> Int32;
+
+  public final static native func GetDPSF(self: InventoryItemData) -> Float;
+
+  public final static native func GetArmorF(self: InventoryItemData) -> Float;
+
+  public final static native func IsWeapon(self: InventoryItemData) -> Bool;
+
+  public final static native func IsGarment(self: InventoryItemData) -> Bool;
+
+  public final static func SetEmpty(self: script_ref<InventoryItemData>, empty: Bool) -> Void {
+    Deref(self).Empty = empty;
+  }
+
+  public final static func IsEmpty(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).Empty;
+  }
+
+  public final static func SetID(self: script_ref<InventoryItemData>, id: ItemID) -> Void {
+    Deref(self).ID = id;
+  }
+
+  public final static func GetID(const self: script_ref<InventoryItemData>) -> ItemID {
+    return Deref(self).ID;
+  }
+
+  public final static func SetSlotID(self: script_ref<InventoryItemData>, id: TweakDBID) -> Void {
+    Deref(self).SlotID = id;
+  }
+
+  public final static func GetSlotID(const self: script_ref<InventoryItemData>) -> TweakDBID {
+    return Deref(self).SlotID;
+  }
+
+  public final static func SetName(self: script_ref<InventoryItemData>, const Name: script_ref<String>) -> Void {
+    Deref(self).Name = Deref(Name);
+  }
+
+  public final static func GetName(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).Name;
+  }
+
+  public final static func SetQuality(self: script_ref<InventoryItemData>, quality: CName) -> Void {
+    Deref(self).Quality = quality;
+  }
+
+  public final static func GetQuality(const self: script_ref<InventoryItemData>) -> CName {
+    return Deref(self).Quality;
+  }
+
+  public final static func SetQualityF(self: script_ref<InventoryItemData>, quality: Float) -> Void {
+    Deref(self).QualityF = quality;
+  }
+
+  public final static func GetQualityF(const self: script_ref<InventoryItemData>) -> Float {
+    return Deref(self).QualityF;
+  }
+
+  public final static func SetQuantity(self: script_ref<InventoryItemData>, quantity: Int32) -> Void {
+    Deref(self).Quantity = quantity;
+  }
+
+  public final static func GetQuantity(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).Quantity;
+  }
+
+  public final static func SetAmmo(self: script_ref<InventoryItemData>, ammo: Int32) -> Void {
+    Deref(self).Ammo = ammo;
+  }
+
+  public final static func GetAmmo(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).Ammo;
+  }
+
+  public final static func SetShape(self: script_ref<InventoryItemData>, shape: EInventoryItemShape) -> Void {
+    Deref(self).Shape = shape;
+  }
+
+  public final static func GetShape(const self: script_ref<InventoryItemData>) -> EInventoryItemShape {
+    return Deref(self).Shape;
+  }
+
+  public final static func SetItemShape(self: script_ref<InventoryItemData>, shape: EInventoryItemShape) -> Void {
+    Deref(self).ItemShape = shape;
+  }
+
+  public final static func GetItemShape(const self: script_ref<InventoryItemData>) -> EInventoryItemShape {
+    return Deref(self).ItemShape;
+  }
+
+  public final static func SetIconPath(self: script_ref<InventoryItemData>, const iconPath: script_ref<String>) -> Void {
+    Deref(self).IconPath = Deref(iconPath);
+  }
+
+  public final static func GetIconPath(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).IconPath;
+  }
+
+  public final static func SetCategoryName(self: script_ref<InventoryItemData>, const categoryName: script_ref<String>) -> Void {
+    Deref(self).CategoryName = Deref(categoryName);
+  }
+
+  public final static func GetCategoryName(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).CategoryName;
+  }
+
+  public final static func SetItemType(self: script_ref<InventoryItemData>, itemType: gamedataItemType) -> Void {
+    Deref(self).ItemType = itemType;
+  }
+
+  public final static func GetItemType(const self: script_ref<InventoryItemData>) -> gamedataItemType {
+    return Deref(self).ItemType;
+  }
+
+  public final static func SetLocalizedItemType(self: script_ref<InventoryItemData>, const localizedItemType: script_ref<String>) -> Void {
+    Deref(self).LocalizedItemType = Deref(localizedItemType);
+  }
+
+  public final static func GetLocalizedItemType(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).LocalizedItemType;
+  }
+
+  public final static func SetDescription(self: script_ref<InventoryItemData>, const description: script_ref<String>) -> Void {
+    Deref(self).Description = Deref(description);
+  }
+
+  public final static func GetDescription(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).Description;
+  }
+
+  public final static func SetAdditionalDescription(self: script_ref<InventoryItemData>, const description: script_ref<String>) -> Void {
+    Deref(self).AdditionalDescription = Deref(description);
+  }
+
+  public final static func GetAdditionalDescription(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).AdditionalDescription;
+  }
+
+  public final static func SetPrice(self: script_ref<InventoryItemData>, price: Float) -> Void {
+    Deref(self).Price = price;
+  }
+
+  public final static func GetPrice(const self: script_ref<InventoryItemData>) -> Float {
+    return Deref(self).Price;
+  }
+
+  public final static func SetBuyPrice(self: script_ref<InventoryItemData>, price: Float) -> Void {
+    Deref(self).BuyPrice = price;
+  }
+
+  public final static func GetBuyPrice(const self: script_ref<InventoryItemData>) -> Float {
+    return Deref(self).BuyPrice;
+  }
+
+  public final static func SetUnlockProgress(self: script_ref<InventoryItemData>, unlockProgress: Float) -> Void {
+    Deref(self).UnlockProgress = unlockProgress;
+  }
+
+  public final static func GetUnlockProgress(const self: script_ref<InventoryItemData>) -> Float {
+    return Deref(self).UnlockProgress;
+  }
+
+  public final static func SetRequiredLevel(self: script_ref<InventoryItemData>, requiredLevel: Int32) -> Void {
+    Deref(self).RequiredLevel = requiredLevel;
+  }
+
+  public final static func GetRequiredLevel(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).RequiredLevel;
+  }
+
+  public final static func SetItemLevel(self: script_ref<InventoryItemData>, itemLevel: Int32) -> Void {
+    Deref(self).ItemLevel = itemLevel;
+  }
+
+  public final static func GetItemLevel(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).ItemLevel;
+  }
+
+  public final static func SetDamageType(self: script_ref<InventoryItemData>, damageType: gamedataDamageType) -> Void {
+    Deref(self).DamageType = damageType;
+  }
+
+  public final static func GetDamageType(const self: script_ref<InventoryItemData>) -> gamedataDamageType {
+    return Deref(self).DamageType;
+  }
+
+  public final static func SetEquipmentArea(self: script_ref<InventoryItemData>, equipmentArea: gamedataEquipmentArea) -> Void {
+    Deref(self).EquipmentArea = equipmentArea;
+  }
+
+  public final static func GetEquipmentArea(const self: script_ref<InventoryItemData>) -> gamedataEquipmentArea {
+    return Deref(self).EquipmentArea;
+  }
+
+  public final static func SetComparedQuality(self: script_ref<InventoryItemData>, comparedQuality: gamedataQuality) -> Void {
+    Deref(self).ComparedQuality = comparedQuality;
+  }
+
+  public final static func GetComparedQuality(const self: script_ref<InventoryItemData>) -> gamedataQuality {
+    return Deref(self).ComparedQuality;
+  }
+
+  public final static func SetIsPart(self: script_ref<InventoryItemData>, isPart: Bool) -> Void {
+    Deref(self).IsPart = isPart;
+  }
+
+  public final static func IsPart(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsPart;
+  }
+
+  public final static func SetIsCraftingMaterial(self: script_ref<InventoryItemData>, isCraftingMaterial: Bool) -> Void {
+    Deref(self).IsCraftingMaterial = isCraftingMaterial;
+  }
+
+  public final static func IsCraftingMaterial(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsCraftingMaterial;
+  }
+
+  public final static func SetIsEquipped(self: script_ref<InventoryItemData>, isEquipped: Bool) -> Void {
+    Deref(self).IsEquipped = isEquipped;
+  }
+
+  public final static func IsEquipped(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsEquipped;
+  }
+
+  public final static func SetIsNew(self: script_ref<InventoryItemData>, isNew: Bool) -> Void {
+    Deref(self).IsNew = isNew;
+  }
+
+  public final static func IsNew(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsNew;
+  }
+
+  public final static func SetIsAvailable(self: script_ref<InventoryItemData>, isAvailable: Bool) -> Void {
+    Deref(self).IsAvailable = isAvailable;
+  }
+
+  public final static func IsAvailable(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsAvailable;
+  }
+
+  public final static func SetIsVendorItem(self: script_ref<InventoryItemData>, isVendorItem: Bool) -> Void {
+    Deref(self).IsVendorItem = isVendorItem;
+  }
+
+  public final static func IsVendorItem(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsVendorItem;
+  }
+
+  public final static func SetIsBroken(self: script_ref<InventoryItemData>, isBroken: Bool) -> Void {
+    Deref(self).IsBroken = isBroken;
+  }
+
+  public final static func IsBroken(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsBroken;
+  }
+
+  public final static func SetCanDualWield(self: script_ref<InventoryItemData>, canDualWield: Bool) -> Void {
+    Deref(self).CanDualWield = canDualWield;
+  }
+
+  public final static func CanDualWield(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).CanDualWield;
+  }
+
+  public final static func SetSlotIndex(self: script_ref<InventoryItemData>, slotIndex: Int32) -> Void {
+    Deref(self).SlotIndex = slotIndex;
+  }
+
+  public final static func GetSlotIndex(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).SlotIndex;
+  }
+
+  public final static func SetPositionInBackpack(self: script_ref<InventoryItemData>, positionInBackpack: Uint32) -> Void {
+    Deref(self).PositionInBackpack = positionInBackpack;
+  }
+
+  public final static func GetPositionInBackpack(const self: script_ref<InventoryItemData>) -> Uint32 {
+    return Deref(self).PositionInBackpack;
+  }
+
+  public final static func SetIconGender(self: script_ref<InventoryItemData>, iconGender: ItemIconGender) -> Void {
+    Deref(self).IconGender = iconGender;
+  }
+
+  public final static func GetIconGender(const self: script_ref<InventoryItemData>) -> ItemIconGender {
+    return Deref(self).IconGender;
+  }
+
+  public final static func SetGameItemData(self: script_ref<InventoryItemData>, gameItemData: ref<gameItemData>) -> Void {
+    Deref(self).GameItemData = gameItemData;
+  }
+
+  public final static func GetGameItemData(const self: script_ref<InventoryItemData>) -> ref<gameItemData> {
+    if !IsDefined(Deref(self).GameItemData) {
+    };
+    return Deref(self).GameItemData;
+  }
+
+  public final static func SetHasPlayerSmartGunLink(self: script_ref<InventoryItemData>, hasPlayerSmartGunLink: Bool) -> Void {
+    Deref(self).HasPlayerSmartGunLink = hasPlayerSmartGunLink;
+  }
+
+  public final static func HasPlayerSmartGunLink(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).HasPlayerSmartGunLink;
+  }
+
+  public final static func SetPlayerLevel(self: script_ref<InventoryItemData>, playerLevel: Int32) -> Void {
+    Deref(self).PlayerLevel = playerLevel;
+  }
+
+  public final static func GetPlayerLevel(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).PlayerLevel;
+  }
+
+  public final static func SetPlayerStrength(self: script_ref<InventoryItemData>, playerStrength: Int32) -> Void {
+    Deref(self).PlayerStrength = playerStrength;
+  }
+
+  public final static func GetPlayerStrenght(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).PlayerStrength;
+  }
+
+  public final static func SetPlayerReflexes(self: script_ref<InventoryItemData>, playerReflexes: Int32) -> Void {
+    Deref(self).PlayerReflexes = playerReflexes;
+  }
+
+  public final static func GetPlayerReflexes(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).PlayerReflexes;
+  }
+
+  public final static func SetPlayerStreetCred(self: script_ref<InventoryItemData>, playerStreetCred: Int32) -> Void {
+    Deref(self).PlayerStreetCred = playerStreetCred;
+  }
+
+  public final static func GetPlayerStreetCred(const self: script_ref<InventoryItemData>) -> Int32 {
+    return Deref(self).PlayerStreetCred;
+  }
+
+  public final static func SetIsRequirementMet(self: script_ref<InventoryItemData>, isRequirementMet: Bool) -> Void {
+    Deref(self).IsRequirementMet = isRequirementMet;
+  }
+
+  public final static func IsRequirementMet(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsRequirementMet;
+  }
+
+  public final static func SetRequirement(self: script_ref<InventoryItemData>, requirement: SItemStackRequirementData) -> Void {
+    Deref(self).Requirement = requirement;
+  }
+
+  public final static func GetRequirement(const self: script_ref<InventoryItemData>) -> SItemStackRequirementData {
+    return Deref(self).Requirement;
+  }
+
+  public final static func SetIsEquippable(self: script_ref<InventoryItemData>, isEquippable: Bool) -> Void {
+    Deref(self).IsEquippable = isEquippable;
+  }
+
+  public final static func IsEquippable(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsEquippable;
+  }
+
+  public final static func SetEquipRequirement(self: script_ref<InventoryItemData>, requirement: SItemStackRequirementData) -> Void {
+    Deref(self).EquipRequirement = requirement;
+  }
+
+  public final static func GetEquipRequirement(const self: script_ref<InventoryItemData>) -> SItemStackRequirementData {
+    return Deref(self).EquipRequirement;
+  }
+
+  public final static func SetEquipRequirements(self: script_ref<InventoryItemData>, const requirements: script_ref<[SItemStackRequirementData]>) -> Void {
+    Deref(self).EquipRequirements = Deref(requirements);
+  }
+
+  public final static func GetEquipRequirements(const self: script_ref<InventoryItemData>) -> [SItemStackRequirementData] {
+    return Deref(self).EquipRequirements;
+  }
+
+  public final static func SetLootItemType(self: script_ref<InventoryItemData>, lootItemType: LootItemType) -> Void {
+    Deref(self).LootItemType = lootItemType;
+  }
+
+  public final static func GetLootItemType(const self: script_ref<InventoryItemData>) -> LootItemType {
+    return Deref(self).LootItemType;
+  }
+
+  public final static func GetAttachmentsSize(const self: script_ref<InventoryItemData>) -> Int32 {
+    return ArraySize(Deref(self).Attachments);
+  }
+
+  public final static func GetAttachments(const self: script_ref<InventoryItemData>) -> [ref<InventoryItemAttachments>] {
+    return Deref(self).Attachments;
+  }
+
+  public final static func GetAttachment(const self: script_ref<InventoryItemData>, index: Int32) -> ref<InventoryItemAttachments> {
+    return Deref(self).Attachments[index];
+  }
+
+  public final static func SetAttachments(self: script_ref<InventoryItemData>, const attachments: script_ref<[ref<InventoryItemAttachments>]>) -> Void {
+    Deref(self).Attachments = Deref(attachments);
+  }
+
+  public final static func GetAbilitiesSize(const self: script_ref<InventoryItemData>) -> Int32 {
+    return ArraySize(Deref(self).Abilities);
+  }
+
+  public final static func GetAbilities(const self: script_ref<InventoryItemData>) -> [InventoryItemAbility] {
+    return Deref(self).Abilities;
+  }
+
+  public final static func GetAbility(const self: script_ref<InventoryItemData>, index: Int32) -> InventoryItemAbility {
+    return Deref(self).Abilities[index];
+  }
+
+  public final static func SetAbilities(self: script_ref<InventoryItemData>, const abilities: script_ref<[InventoryItemAbility]>) -> Void {
+    Deref(self).Abilities = Deref(abilities);
+  }
+
+  public final static func PlacementSlotsContains(const self: script_ref<InventoryItemData>, slot: TweakDBID) -> Bool {
+    return ArrayContains(Deref(self).PlacementSlots, slot);
+  }
+
+  public final static func AddPlacementSlot(self: script_ref<InventoryItemData>, slot: TweakDBID) -> Void {
+    return ArrayPush(Deref(self).PlacementSlots, slot);
+  }
+
+  public final static func GetPrimaryStatsSize(const self: script_ref<InventoryItemData>) -> Int32 {
+    return ArraySize(Deref(self).PrimaryStats);
+  }
+
+  public final static func GetPrimaryStats(const self: script_ref<InventoryItemData>) -> [StatViewData] {
+    return Deref(self).PrimaryStats;
+  }
+
+  public final static func GetPrimaryStat(const self: script_ref<InventoryItemData>, index: Int32) -> StatViewData {
+    return Deref(self).PrimaryStats[index];
+  }
+
+  public final static func SetPrimaryStats(self: script_ref<InventoryItemData>, const primaryStats: script_ref<[StatViewData]>) -> Void {
+    Deref(self).PrimaryStats = Deref(primaryStats);
+  }
+
+  public final static func GetSecondaryStatsSize(const self: script_ref<InventoryItemData>) -> Int32 {
+    return ArraySize(Deref(self).SecondaryStats);
+  }
+
+  public final static func GetSecondaryStats(const self: script_ref<InventoryItemData>) -> [StatViewData] {
+    return Deref(self).SecondaryStats;
+  }
+
+  public final static func GetSecondaryStat(const self: script_ref<InventoryItemData>, index: Int32) -> StatViewData {
+    return Deref(self).SecondaryStats[index];
+  }
+
+  public final static func SetSecondaryStats(self: script_ref<InventoryItemData>, const secondaryStats: script_ref<[StatViewData]>) -> Void {
+    Deref(self).SecondaryStats = Deref(secondaryStats);
+  }
+
+  public final static func GetIsPerkRequired(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsPerkRequired;
+  }
+
+  public final static func SetIsPerkRequired(self: script_ref<InventoryItemData>, isRequired: Bool) -> Void {
+    Deref(self).IsPerkRequired = isRequired;
+  }
+
+  public final static func GetPerkRequiredName(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).PerkRequiredName;
+  }
+
+  public final static func SetPerkRequiredName(self: script_ref<InventoryItemData>, const perkName: script_ref<String>) -> Void {
+    Deref(self).PerkRequiredName = Deref(perkName);
+  }
+
+  public final static func GetIsCrafted(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsCrafted;
+  }
+
+  public final static func SetIsCrafted(self: script_ref<InventoryItemData>, isCrafted: Bool) -> Void {
+    Deref(self).IsCrafted = isCrafted;
+  }
+
+  public final static func SetSortData(self: script_ref<InventoryItemData>, const sortData: script_ref<InventoryItemSortData>) -> Void {
+    Deref(self).SortData = Deref(sortData);
+  }
+
+  public final static func GetSortData(const self: script_ref<InventoryItemData>) -> InventoryItemSortData {
+    return Deref(self).SortData;
+  }
+
+  public final static func UpdateSortData(self: script_ref<InventoryItemData>, uiScriptableSystem: ref<UIScriptableSystem>) -> Void {
+    Deref(self).SortData = ItemCompareBuilder.BuildInventoryItemSortData(self, uiScriptableSystem);
+  }
+
+  public final static func UpdateSortData(self: script_ref<InventoryItemData>, uiScriptableSystem: ref<UIScriptableSystem>, isPlayerFavourite: Bool) -> Void {
+    Deref(self).SortData = ItemCompareBuilder.BuildInventoryItemSortData(self, uiScriptableSystem);
+    Deref(self).SortData.IsPlayerFavourite = isPlayerFavourite;
+  }
+
+  public final static func IsVisualsEquipped(const self: script_ref<InventoryItemData>) -> Bool {
+    return Deref(self).IsVisualsEquipped;
+  }
+
+  public final static func SetIsVisualsEquipped(self: script_ref<InventoryItemData>, value: Bool) -> Void {
+    Deref(self).IsVisualsEquipped = value;
+  }
+
+  public final static func GetGameplayDescription(const self: script_ref<InventoryItemData>) -> String {
+    return Deref(self).GameplayDescription;
+  }
+
+  public final static func SetGameplayDescription(self: script_ref<InventoryItemData>, value: String) -> Void {
+    Deref(self).GameplayDescription = value;
+  }
+}
+
+public native class UILocalizationDataPackage extends IScriptable {
+
+  public native let floatValues: [Float];
+
+  public native let intValues: [Int32];
+
+  public native let nameValues: [CName];
+
+  public native let statValues: [Float];
+
+  public native let statNames: [CName];
+
+  private native let paramsCount: Int32;
+
+  private native let textParams: ref<inkTextParams>;
+
+  private let notReplacedWorkaroundEnabled: Bool;
+
+  public final static native func FromLogicUIDataPackage(uiData: wref<GameplayLogicPackageUIData_Record>, opt item: wref<gameItemData>, opt partItemData: InnerItemData) -> ref<UILocalizationDataPackage>;
+
+  public final static native func FromPerkUIDataPackage(uiData: wref<PerkLevelUIData_Record>) -> ref<UILocalizationDataPackage>;
+
+  public final static native func FromNewPerkUIDataPackage(uiData: wref<NewPerkLevelUIData_Record>) -> ref<UILocalizationDataPackage>;
+
+  public final static native func FromPassiveUIDataPackage(uiData: wref<PassiveProficiencyBonusUIData_Record>) -> ref<UILocalizationDataPackage>;
+
+  public final func InvalidateTextParams(opt countWorkaroud: Bool) -> Void {
+    let i: Int32;
+    this.textParams = new inkTextParams();
+    this.paramsCount = 0;
+    if this.notReplacedWorkaroundEnabled {
+      this.textParams.AddString("__empty__", "");
+      if countWorkaroud {
+        this.paramsCount += 1;
+      };
+    };
+    i = 0;
+    while i < ArraySize(this.floatValues) {
+      this.textParams.AddNumber("float_" + IntToString(i), this.floatValues[i]);
+      i += 1;
+    };
+    this.paramsCount += i;
+    i = 0;
+    while i < ArraySize(this.intValues) {
+      this.textParams.AddNumber("int_" + IntToString(i), this.intValues[i]);
+      i += 1;
+    };
+    this.paramsCount += i;
+    i = 0;
+    while i < ArraySize(this.nameValues) {
+      this.textParams.AddString("name_" + IntToString(i), GetLocalizedText(NameToString(this.nameValues[i])));
+      i += 1;
+    };
+    this.paramsCount += i;
+    i = 0;
+    while i < ArraySize(this.statValues) {
+      this.textParams.AddNumber("stat_" + IntToString(i), this.statValues[i]);
+      i += 1;
+    };
+    this.paramsCount += i;
+    if ArraySize(this.statValues) == 0 && i >= 0 && i < ArraySize(this.statNames) {
+      this.textParams.AddString("stat_" + IntToString(i), GetLocalizedText(NameToString(this.statNames[i])));
+    };
+    this.paramsCount += i;
+  }
+
+  public final func GetParamsCount(opt countWorkaroud: Bool) -> Int32 {
+    if this.paramsCount == -1 {
+      this.InvalidateTextParams(countWorkaroud);
+    };
+    return this.paramsCount;
+  }
+
+  public final func GetTextParams(opt countWorkaroud: Bool) -> ref<inkTextParams> {
+    if this.paramsCount == -1 {
+      this.InvalidateTextParams();
+    };
+    return this.textParams;
+  }
+
+  public final func EnableNotReplacedWorkaround() -> Void {
+    this.notReplacedWorkaroundEnabled = true;
+  }
+
+  public final func IsStringFormatableWith(const str: script_ref<String>) -> Bool {
+    if StrContains(str, "{float_") {
+      if ArraySize(this.floatValues) == 0 {
+        return false;
+      };
+    };
+    if StrContains(str, "{int_") {
+      if ArraySize(this.intValues) == 0 {
+        return false;
+      };
+    };
+    if StrContains(str, "{name_") {
+      if ArraySize(this.nameValues) == 0 {
+        return false;
+      };
+    };
+    return true;
+  }
+}
+
+public abstract class UIGenderHelper extends IScriptable {
+
+  public final static func GetIconGender(playerPuppet: wref<PlayerPuppet>) -> ItemIconGender {
+    if IsDefined(playerPuppet) {
+      return Equals(playerPuppet.GetResolvedGenderName(), n"Male") ? ItemIconGender.Male : ItemIconGender.Female;
+    };
+    return ItemIconGender.Female;
+  }
+}
+
+public abstract class InventoryGPRestrictionHelper extends IScriptable {
+
+  public final static func CanUse(const itemData: script_ref<InventoryItemData>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let canUse: Bool = InventoryGPRestrictionHelper.CanInteractByEquipmentArea(itemData, playerPuppet);
+    if Equals(Deref(itemData).ItemType, gamedataItemType.Prt_Program) || Equals(Deref(itemData).EquipmentArea, gamedataEquipmentArea.Consumable) {
+      bb = GameInstance.GetBlackboardSystem(playerPuppet.GetGame()).GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if bb.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1 {
+        canUse = false;
+      };
+    };
+    return canUse;
+  }
+
+  public final static func CanUse(itemData: wref<UIInventoryItem>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let canUse: Bool = InventoryGPRestrictionHelper.CanInteractByEquipmentArea(itemData, playerPuppet);
+    if Equals(itemData.GetItemType(), gamedataItemType.Prt_Program) || Equals(itemData.GetItemRecord().ItemCategory().Type(), gamedataItemCategory.Consumable) {
+      bb = GameInstance.GetBlackboardSystem(playerPuppet.GetGame()).GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if bb.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1 {
+        canUse = false;
+      };
+    };
+    return canUse;
+  }
+
+  public final static func CanEquip(const itemData: script_ref<InventoryItemData>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let canEquip: Bool;
+    if !Deref(itemData).IsRequirementMet {
+      return false;
+    };
+    canEquip = InventoryGPRestrictionHelper.CanInteractByEquipmentArea(itemData, playerPuppet);
+    if Equals(Deref(itemData).ItemType, gamedataItemType.Prt_Program) {
+      bb = GameInstance.GetBlackboardSystem(playerPuppet.GetGame()).GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if bb.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1 {
+        canEquip = false;
+      };
+    };
+    return canEquip;
+  }
+
+  public final static func CanDrop(const itemData: script_ref<InventoryItemData>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let canDrop: Bool = true;
+    if Equals(Deref(itemData).EquipmentArea, gamedataEquipmentArea.Consumable) {
+      bb = GameInstance.GetBlackboardSystem(playerPuppet.GetGame()).GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if bb.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1 {
+        canDrop = false;
+      };
+    };
+    return canDrop;
+  }
+
+  public final static func CanDrop(itemData: wref<UIInventoryItem>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let canDrop: Bool = true;
+    if Equals(itemData.GetEquipmentArea(), gamedataEquipmentArea.Consumable) {
+      bb = GameInstance.GetBlackboardSystem(playerPuppet.GetGame()).GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      if bb.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) == 1 {
+        canDrop = false;
+      };
+    };
+    return canDrop;
+  }
+
+  private final static func CanInteractByEquipmentArea(const itemData: script_ref<InventoryItemData>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let canInteract: Bool;
+    let equipmentSystem: wref<EquipmentSystem> = GameInstance.GetScriptableSystemsContainer(playerPuppet.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    switch Deref(itemData).EquipmentArea {
+      case gamedataEquipmentArea.Consumable:
+        canInteract = !StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"FistFight");
+        break;
+      case gamedataEquipmentArea.Weapon:
+        canInteract = !(StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"VehicleScene") || StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"FirearmsNoSwitch") || InventoryGPRestrictionHelper.BlockedBySceneTier(playerPuppet) || !equipmentSystem.GetPlayerData(playerPuppet).IsEquippable(InventoryItemData.GetGameItemData(itemData)));
+        break;
+      default:
+        canInteract = true;
+    };
+    return canInteract;
+  }
+
+  private final static func CanInteractByEquipmentArea(itemData: wref<UIInventoryItem>, playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let canInteract: Bool;
+    let equipmentSystem: wref<EquipmentSystem> = GameInstance.GetScriptableSystemsContainer(playerPuppet.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    switch itemData.GetEquipmentArea() {
+      case gamedataEquipmentArea.Consumable:
+        canInteract = !StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"FistFight");
+        break;
+      case gamedataEquipmentArea.Weapon:
+        canInteract = !(StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"VehicleScene") || StatusEffectSystem.ObjectHasStatusEffectWithTag(playerPuppet, n"FirearmsNoSwitch") || InventoryGPRestrictionHelper.BlockedBySceneTier(playerPuppet) || !equipmentSystem.GetPlayerData(playerPuppet).IsEquippable(itemData.GetItemData()));
+        break;
+      default:
+        canInteract = true;
+    };
+    return canInteract;
+  }
+
+  public final static func BlockedBySceneTier(playerPuppet: wref<PlayerPuppet>) -> Bool {
+    let blackboardSystem: ref<BlackboardSystem> = GameInstance.GetBlackboardSystem(playerPuppet.GetGame());
+    let blackboard: ref<IBlackboard> = blackboardSystem.GetLocalInstanced(playerPuppet.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+    let value: Int32 = blackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel);
+    return value > 2 && value <= 5;
+  }
+}

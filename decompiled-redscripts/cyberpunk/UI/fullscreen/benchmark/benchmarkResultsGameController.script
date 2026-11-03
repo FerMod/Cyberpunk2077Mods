@@ -1,0 +1,382 @@
+
+public class BenchmarkLabelController extends inkLogicController {
+
+  private edit let m_labelWidget: inkTextRef;
+
+  private edit let m_valueWidget: inkTextRef;
+
+  public final func SetLabel(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_labelWidget, Deref(label));
+  }
+
+  public final func SetValue(const value: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_valueWidget, Deref(value));
+  }
+}
+
+public class BenchmarkResultsGameController extends inkGameController {
+
+  private edit let m_exitButton: inkWidgetRef;
+
+  private edit let m_settingButton: inkWidgetRef;
+
+  private edit let m_leftEntriesListContainer: inkCompoundRef;
+
+  private edit let m_rightEntriesListContainer: inkCompoundRef;
+
+  @default(BenchmarkResultsGameController, data)
+  private edit let m_lineEntryName: CName;
+
+  @default(BenchmarkResultsGameController, highlight_data)
+  private edit let m_highlightLineEntryName: CName;
+
+  @default(BenchmarkResultsGameController, category)
+  private edit let m_sectionEntryName: CName;
+
+  private let m_benchmarkSummary: ref<worldBenchmarkSummary>;
+
+  private let m_exitRequestToken: ref<inkGameNotificationToken>;
+
+  private let m_settingsAcive: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    inkCompoundRef.RemoveAllChildren(this.m_leftEntriesListContainer);
+    inkCompoundRef.RemoveAllChildren(this.m_rightEntriesListContainer);
+    inkWidgetRef.RegisterToCallback(this.m_exitButton, n"OnRelease", this, n"OnShowExitPrompt");
+    inkWidgetRef.RegisterToCallback(this.m_settingButton, n"OnRelease", this, n"OnBnechmarkShowSettings");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalRelease");
+    this.DisplayBenchmarkSummary();
+  }
+
+  protected cb func OnShowExitPrompt(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") {
+      this.ShowExitPrompt();
+    };
+  }
+
+  protected cb func OnCloseBenchmarkResults(data: ref<inkGameNotificationData>) -> Bool {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent>;
+    let resultData: ref<GenericMessageNotificationCloseData> = data as GenericMessageNotificationCloseData;
+    if Equals(resultData.result, GenericMessageNotificationResult.Confirm) {
+      menuEvent = new inkMenuInstance_SpawnEvent();
+      menuEvent.Init(n"OnBenchmarkResultsClose");
+      this.QueueEvent(menuEvent);
+    };
+    this.m_exitRequestToken = null;
+  }
+
+  protected cb func OnBnechmarkShowSettings(e: ref<inkPointerEvent>) -> Bool {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent>;
+    if e.IsAction(n"click") {
+      menuEvent = new inkMenuInstance_SpawnEvent();
+      menuEvent.Init(n"OnBenchmarkSettings");
+      this.QueueEvent(menuEvent);
+      inkWidgetRef.SetVisible(this.m_leftEntriesListContainer, false);
+      inkWidgetRef.SetVisible(this.m_rightEntriesListContainer, false);
+      inkWidgetRef.SetVisible(this.m_exitButton, false);
+      inkWidgetRef.SetVisible(this.m_settingButton, false);
+      this.m_settingsAcive = true;
+    };
+  }
+
+  protected cb func OnOnBnechmarkHideSettings(evt: ref<OnBnechmarkHideSettings>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_leftEntriesListContainer, true);
+    inkWidgetRef.SetVisible(this.m_rightEntriesListContainer, true);
+    inkWidgetRef.SetVisible(this.m_exitButton, true);
+    inkWidgetRef.SetVisible(this.m_settingButton, true);
+    this.m_settingsAcive = false;
+  }
+
+  protected cb func OnSetUserData(data: ref<IScriptable>) -> Bool {
+    let callbackConnector: ref<inkCallbackConnectorData> = data as inkCallbackConnectorData;
+    this.m_benchmarkSummary = callbackConnector.userData as worldBenchmarkSummary;
+  }
+
+  protected cb func OnGlobalRelease(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsHandled() {
+      return false;
+    };
+    if !this.m_settingsAcive && e.IsAction(n"back") {
+      e.Handle();
+      this.ShowExitPrompt();
+    };
+  }
+
+  private final func ShowExitPrompt() -> Void {
+    this.m_exitRequestToken = GenericMessageNotification.Show(this, GetLocalizedTextByKey(n"UI-Benchmark-ExitBenchmark"), GetLocalizedTextByKey(n"UI-Benchmark-ExitConfirmation"), GenericMessageNotificationType.ConfirmCancel);
+    this.m_exitRequestToken.RegisterListener(this, n"OnCloseBenchmarkResults");
+  }
+
+  private final func SpawnSummaryLine(entryName: CName, column: EEntryColumn, const label: script_ref<String>, const value: script_ref<String>) -> Void {
+    let spawnData: ref<inkAsyncSpawnData>;
+    let lineData: ref<BenchmarkLineData> = new BenchmarkLineData();
+    lineData.label = Deref(label);
+    lineData.value = Deref(value);
+    if Equals(GetPlatformShortName(), "mac") && Equals(label, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLSS_FrameGeneration")) {
+      return;
+    };
+    spawnData = new inkAsyncSpawnData();
+    spawnData.libraryID = entryName;
+    if Equals(column, EEntryColumn.left) {
+      spawnData.parentWidget = inkWidgetRef.Get(this.m_leftEntriesListContainer) as inkCompoundWidget;
+    } else {
+      if Equals(column, EEntryColumn.right) {
+        spawnData.parentWidget = inkWidgetRef.Get(this.m_rightEntriesListContainer) as inkCompoundWidget;
+      };
+    };
+    spawnData.userData = lineData;
+    this.AsyncSpawnFromLocal(spawnData, this, n"OnLineSpawned");
+  }
+
+  private final func OnLineSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Void {
+    let labelController: ref<BenchmarkLabelController> = widget.GetController() as BenchmarkLabelController;
+    let lineData: ref<BenchmarkLineData> = userData as BenchmarkLineData;
+    labelController.SetLabel(lineData.label);
+    labelController.SetValue(lineData.value);
+  }
+
+  private final func DisplayBenchmarkSummary() -> Void {
+    let dlssBackendPreset: array<CName>;
+    let dlssFrameGenValues: array<CName>;
+    let dlssValues: array<CName>;
+    let fsr2Values: array<CName>;
+    let fsr3Values: array<CName>;
+    let fsr4Values: array<CName>;
+    let gpuMemoryVal: String;
+    let mfxValues: array<CName>;
+    let resolution: String;
+    let systemMemoryVal: String;
+    let xessValues: array<CName>;
+    this.m_settingsAcive = false;
+    let locOn: String = GetLocalizedTextByKey(n"UI-UserActions-Yes");
+    let locOff: String = GetLocalizedTextByKey(n"UI-UserActions-No");
+    ArrayPush(dlssValues, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(dlssValues, n"UI-Settings-Video-Advanced-DLAA");
+    ArrayPush(dlssValues, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(dlssValues, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(dlssValues, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(dlssValues, n"UI-Settings-Video-QualitySetting-Ultra_Performance");
+    ArrayPush(dlssValues, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(fsr2Values, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(fsr2Values, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(fsr2Values, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(fsr2Values, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(fsr2Values, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-QualitySetting-NativeAA");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(fsr3Values, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-NativeAA");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-QualitySetting-Ultra_Performance");
+    ArrayPush(fsr4Values, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Ultra_Quality");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(xessValues, n"UI-Settings-Video-QualitySetting-Ultra_Performance");
+    ArrayPush(xessValues, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(mfxValues, n"UI-Settings-Video-QualitySetting-Auto");
+    ArrayPush(mfxValues, n"UI-Settings-Video-QualitySetting-Quality");
+    ArrayPush(mfxValues, n"UI-Settings-Video-QualitySetting-Balanced");
+    ArrayPush(mfxValues, n"UI-Settings-Video-QualitySetting-Performance");
+    ArrayPush(mfxValues, n"UI-Settings-Video-Advanced-DynamicCAS");
+    ArrayPush(dlssBackendPreset, n"UI-Settings-Video-Advanced-DLSS_BackendPreset_Transformer");
+    ArrayPush(dlssBackendPreset, n"UI-Settings-Video-Advanced-DLSS_BackendPreset_Transformer2");
+    ArrayPush(dlssBackendPreset, n"UI-Settings-Video-Advanced-DLSS_BackendPreset_Legacy");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_Dynamic");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_X2");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_X3");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_X4");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_X5");
+    ArrayPush(dlssFrameGenValues, n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration_X6");
+    resolution = ToString(this.m_benchmarkSummary.renderWidth) + "x" + ToString(this.m_benchmarkSummary.renderHeight);
+    gpuMemoryVal = ToString(this.m_benchmarkSummary.gpuMemory) + " " + GetLocalizedTextByKey(n"UI-Labels-Units-Megabyte");
+    if NotEquals(GetPlatformShortName(), "mac") {
+      systemMemoryVal = ToString(this.m_benchmarkSummary.systemMemory) + " " + GetLocalizedTextByKey(n"UI-Labels-Units-Megabyte");
+    } else {
+      systemMemoryVal = ToString(this.m_benchmarkSummary.systemMemory) + " " + GetLocalizedTextByKey(n"UI-Labels-Units-Gigabyte");
+    };
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-Results"), "");
+    this.SpawnSummaryLine(this.m_highlightLineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-AverageFPS"), FloatToStringPrec(this.m_benchmarkSummary.averageFps, 2));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-MinFPS"), FloatToStringPrec(this.m_benchmarkSummary.minFps, 2));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-MaxFPS"), FloatToStringPrec(this.m_benchmarkSummary.maxFps, 2));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-Time"), FloatToStringPrec(this.m_benchmarkSummary.time, 2));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-FrameNumber"), ToString(this.m_benchmarkSummary.frameNumber));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, "", "");
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-SystemSpecification"), "");
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-GameVersion"), this.m_benchmarkSummary.gameVersion);
+    if NotEquals(GetPlatformShortName(), "mac") {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-GPUModel"), this.m_benchmarkSummary.gpuName);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-GPUMemory"), gpuMemoryVal);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-GPUDriverVersion"), this.m_benchmarkSummary.gpuDriverVersion);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-CPUModel"), this.m_benchmarkSummary.cpuName);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-SystemMemory"), systemMemoryVal);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-OSName"), this.m_benchmarkSummary.osName);
+    } else {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, "Mac", this.m_benchmarkSummary.macProductName);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-Chip"), this.m_benchmarkSummary.cpuName);
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-UnifiedMemory"), systemMemoryVal);
+    };
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.left, GetLocalizedTextByKey(n"UI-Benchmark-OSVersion"), this.m_benchmarkSummary.osVersion);
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Labels-Settings"), "");
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-PresetName"), GetLocalizedTextByKey(this.m_benchmarkSummary.presetLocalizedName));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TextureQuality"), GetLocalizedTextByKey(this.m_benchmarkSummary.textureQualityPresetLocalizedName));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Display-Resolution"), resolution);
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Display-WindowMode"), this.GetWindowModeLocKey(this.m_benchmarkSummary.windowMode));
+    this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-VerticalSync"), this.m_benchmarkSummary.verticalSync ? locOn : locOff);
+    if this.m_benchmarkSummary.fpsClamp > 0 {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximumFPS"), ToString(this.m_benchmarkSummary.fpsClamp));
+    } else {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximumFPS"), locOff);
+    };
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FrameGeneration"), "");
+    if this.m_benchmarkSummary.frameGenerationType == 1u && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK")) {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLSS_FrameGeneration"), this.m_benchmarkSummary.DLSSFrameGenEnabled ? locOn : locOff);
+      if this.m_benchmarkSummary.DLSSMultiFrameGenEnabled {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLSS_MultiFrameGeneration"), GetLocalizedTextByKey(dlssFrameGenValues[this.m_benchmarkSummary.DLSSMultiFrameGenFrameToGenerate]));
+      };
+    } else {
+      if this.m_benchmarkSummary.frameGenerationType == 2u && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK")) || this.m_benchmarkSummary.frameGenerationType == 2u && Equals(GetPlatformShortName(), "mac") {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR3_FrameGeneration"), this.m_benchmarkSummary.FSR3FrameGenEnabled ? locOn : locOff);
+      } else {
+        if this.m_benchmarkSummary.frameGenerationType == 3u && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK")) {
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-XeSS_FrameGeneration"), this.m_benchmarkSummary.XeSSFrameGenEnabled ? locOn : locOff);
+        } else {
+          if this.m_benchmarkSummary.frameGenerationType == 5u && Equals(GetPlatformShortName(), "mac") {
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MetalFX_FrameGeneration"), this.m_benchmarkSummary.MFXFrameGenEnabled ? locOn : locOff);
+          } else {
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FrameGeneration"), locOff);
+          };
+        };
+      };
+    };
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-ResolutionScaling"), "");
+    if this.m_benchmarkSummary.upscalingType == 1u && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK")) {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLSS_BackendPreset"), GetLocalizedTextByKey(dlssBackendPreset[this.m_benchmarkSummary.DLSSPreset]));
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-DLSSQuality"), GetLocalizedTextByKey(dlssValues[this.m_benchmarkSummary.DLSSQuality]));
+      if this.m_benchmarkSummary.DLAAEnabled {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLAA_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.DLAASharpness, 2));
+      } else {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-DLSS_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.DLSSSharpness, 2));
+      };
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-DLSSDEnabled"), this.m_benchmarkSummary.DLSSDEnabled ? locOn : locOff);
+      if this.m_benchmarkSummary.DLSSQuality == 6 {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+      };
+    } else {
+      if this.m_benchmarkSummary.upscalingType == 7u && Equals(GetPlatformShortName(), "mac") {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MFX"), GetLocalizedTextByKey(mfxValues[this.m_benchmarkSummary.MFXQuality]));
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MFX_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.MFXSharpness, 2));
+        if this.m_benchmarkSummary.MFXQuality == 4 {
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+        };
+      } else {
+        if this.m_benchmarkSummary.upscalingType == 2u {
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR2"), GetLocalizedTextByKey(fsr2Values[this.m_benchmarkSummary.FSR2Quality]));
+          this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR2_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.FSR2Sharpness, 2));
+          if this.m_benchmarkSummary.FSR2Quality == 4 {
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+          };
+        } else {
+          if this.m_benchmarkSummary.upscalingType == 3u {
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR3"), GetLocalizedTextByKey(fsr3Values[this.m_benchmarkSummary.FSR3Quality]));
+            this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR3_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.FSR3Sharpness, 2));
+            if this.m_benchmarkSummary.FSR3Quality == 5 {
+              this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+              this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+              this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+            };
+          } else {
+            if this.m_benchmarkSummary.upscalingType == 4u {
+              this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR4"), GetLocalizedTextByKey(fsr4Values[this.m_benchmarkSummary.FSR4Quality]));
+              this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-FSR4_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.FSR4Sharpness, 2));
+              if this.m_benchmarkSummary.FSR4Quality == 6 {
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+              };
+            } else {
+              if this.m_benchmarkSummary.upscalingType == 5u {
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-XeSS"), GetLocalizedTextByKey(xessValues[this.m_benchmarkSummary.XeSSQuality]));
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-XeSS_Sharpness"), FloatToStringPrec(this.m_benchmarkSummary.XeSSSharpness, 2));
+                if this.m_benchmarkSummary.XeSSQuality == 6 {
+                  this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-TargetFPS"), ToString(this.m_benchmarkSummary.DRSTargetFPS));
+                  this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MinimalResolution"), ToString(this.m_benchmarkSummary.DRSMinimalResolutionPercentage) + "%");
+                  this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-MaximalResolution"), ToString(this.m_benchmarkSummary.DRSMaximalResolutionPercentage) + "%");
+                };
+              } else {
+                this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-ResolutionScaling"), locOff);
+              };
+            };
+          };
+        };
+      };
+    };
+    this.SpawnSummaryLine(this.m_sectionEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracing"), "");
+    if this.m_benchmarkSummary.rayTracedPathTracingEnabled {
+      this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracedPathTracing"), this.m_benchmarkSummary.rayTracedPathTracingEnabled ? locOn : locOff);
+    } else {
+      if this.m_benchmarkSummary.rayTracingEnabled {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-RayTracingEnabled"), locOn);
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracedReflections"), this.m_benchmarkSummary.rayTracedReflections ? locOn : locOff);
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracedSunShadows"), this.m_benchmarkSummary.rayTracedSunShadows ? locOn : locOff);
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracedLocalShadows"), this.m_benchmarkSummary.rayTracedLocalShadows ? locOn : locOff);
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Settings-Video-Advanced-RayTracedLighting"), this.GetRayTracedLightingQualityLocKey(this.m_benchmarkSummary.rayTracedLightingQuality));
+      } else {
+        this.SpawnSummaryLine(this.m_lineEntryName, EEntryColumn.right, GetLocalizedTextByKey(n"UI-Benchmark-RayTracingEnabled"), locOff);
+      };
+    };
+  }
+
+  private final func GetWindowModeLocKey(windowMode: Uint8) -> String {
+    let locKey: String;
+    switch windowMode {
+      case 0u:
+        locKey = "UI-Settings-Video-WindowModeSetting-Windowed";
+        break;
+      case 1u:
+        locKey = "UI-Settings-Video-WindowModeSetting-BorderlessWindowed";
+        break;
+      case 2u:
+        locKey = "UI-Settings-Video-WindowModeSetting-Fullscreen";
+        break;
+      default:
+        locKey = "Common-Characters-SymbolForUnknown";
+    };
+    return locKey;
+  }
+
+  private final func GetRayTracedLightingQualityLocKey(RTLightQuality: Int32) -> String {
+    let locKey: String;
+    switch RTLightQuality {
+      case 0:
+        locKey = "UI-Settings-Video-QualitySetting-Off";
+        break;
+      case 1:
+        locKey = "UI-Settings-Video-QualitySetting-Medium";
+        break;
+      case 2:
+        locKey = "UI-Settings-Video-QualitySetting-Ultra";
+        break;
+      case 3:
+        locKey = "UI-Settings-Video-QualitySetting-Insane";
+        break;
+      default:
+        locKey = "Common-Characters-SymbolForUnknown";
+    };
+    return locKey;
+  }
+}

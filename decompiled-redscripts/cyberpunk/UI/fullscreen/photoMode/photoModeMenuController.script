@@ -1,0 +1,1654 @@
+
+public native class gameuiPhotoModeMenuController extends gameuiMenuGameController {
+
+  private edit let m_menuListRoot: inkWidgetRef;
+
+  private edit let m_additionalListRoot: inkWidgetRef;
+
+  private edit let m_radioButtons: inkCompoundRef;
+
+  private edit let m_listContainerId: CName;
+
+  private edit let m_addtionalContainerID: CName;
+
+  private edit let m_menuArea: inkWidgetRef;
+
+  private edit let m_additionalMenuArea: inkWidgetRef;
+
+  private edit let m_inputCameraGlobalControlKbd: inkWidgetRef;
+
+  private edit let m_inputCameraMovementControlKbd: inkWidgetRef;
+
+  private edit let m_inputCameraZoomControlKbd: inkWidgetRef;
+
+  private edit let m_inputCameraKbd: inkWidgetRef;
+
+  private edit let m_inputCameraGlobalControlPad: inkWidgetRef;
+
+  private edit let m_inputCameraMovementControlPad: inkWidgetRef;
+
+  private edit let m_inputCameraZoomControlPad: inkWidgetRef;
+
+  private edit let m_inputCameraPad: inkWidgetRef;
+
+  private edit let m_inputLightControlKbd: inkWidgetRef;
+
+  private edit let m_inputLightKbd: inkWidgetRef;
+
+  private edit let m_inputLightControlPad: inkWidgetRef;
+
+  private edit let m_inputLightPad: inkWidgetRef;
+
+  private edit let m_inputStickersKbd: inkWidgetRef;
+
+  private edit let m_inputStickersPad: inkWidgetRef;
+
+  private edit let m_inputSaveLoadKbd: inkWidgetRef;
+
+  private edit let m_inputSaveLoadPad: inkWidgetRef;
+
+  private edit let m_inputExit: inkWidgetRef;
+
+  private edit let m_inputScreenshot: inkWidgetRef;
+
+  private edit let m_cameraLocation: inkWidgetRef;
+
+  private edit let m_inputBottomRoot: inkHorizontalPanelRef;
+
+  private edit let m_lightIndicator: inkWidgetRef;
+
+  private edit let m_tabTitleText: inkRichTextBoxRef;
+
+  private edit let m_tabTitleIcon: inkImageRef;
+
+  private edit let m_aspectRatioPanel: inkWidgetRef;
+
+  private edit let m_LeftBlackBar: inkWidgetRef;
+
+  private edit let m_RightBlackBar: inkWidgetRef;
+
+  private edit let m_TopBlackBar: inkWidgetRef;
+
+  private edit let m_BottomBlackBar: inkWidgetRef;
+
+  private edit let m_ps4InputLibraryId: CName;
+
+  private edit let m_xboxInputLibraryId: CName;
+
+  private edit let m_stadiaInputLibraryId: CName;
+
+  private edit let m_nintendoSwitchInputLibraryId: CName;
+
+  private let m_rootWidget: wref<inkCompoundWidget>;
+
+  private let ps4InputWidget: wref<inkWidget>;
+
+  private let xboxInputWidget: wref<inkWidget>;
+
+  private let stadiaInputWidget: wref<inkWidget>;
+
+  private let nintendoSwitchInputWidget: wref<inkWidget>;
+
+  private let m_menuPages: [wref<inkWidget>];
+
+  private let m_topButtonsController: wref<PhotoModeTopBarController>;
+
+  private let m_cameraLocationController: wref<PhotoModeCameraLocation>;
+
+  private let m_currentPage: Uint32;
+
+  private let m_IsHoverOver: Bool;
+
+  private let m_holdSafeguard: Bool;
+
+  private let m_notificationUserData: ref<inkGameNotificationData>;
+
+  private let m_notificationToken: ref<inkGameNotificationToken>;
+
+  private let loopAnimproxy: ref<inkAnimProxy>;
+
+  private let m_uiVisiblityFadeAnim: ref<inkAnimProxy>;
+
+  private let m_currentNpc: Int32;
+
+  private let m_exitConfirmationToken: ref<inkGameNotificationToken>;
+
+  private edit let m_horizontalLineUp: inkWidgetRef;
+
+  private edit let m_horizontalLineDown: inkWidgetRef;
+
+  private edit let m_verticalLineLeft: inkWidgetRef;
+
+  private edit let m_verticalLineRight: inkWidgetRef;
+
+  private let m_fakePlayer: wref<PlayerPuppet>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  public let m_anyOptionChanged: Bool;
+
+  public final native func OnHoverStateChanged(hover: Bool) -> Void;
+
+  public final native func OnAttributeUpdated(attributeKey: Uint32, attributeValue: Float, opt doApply: Bool) -> Void;
+
+  public final native func OnAttributeSelected(attributeKey: Uint32) -> Void;
+
+  public final native func OnEditCategoryChanged(editCategory: Uint32) -> Void;
+
+  public final native func OnHoldComplete(attributeKey: Uint32, actionName: CName) -> Void;
+
+  public final native func OnAnimationEnded(animationType: Uint32) -> Void;
+
+  public final native func SetLightIndicator(controller: wref<PhotomodeLightIndicatorController>) -> Void;
+
+  public final native func OnExitConfirmed(confirm: Bool) -> Void;
+
+  public final func HideTabRoot(isHide: Bool) -> Void {
+    if inkWidgetRef.IsValid(this.m_menuArea) {
+      inkWidgetRef.SetVisible(this.m_menuArea, !isHide);
+    };
+    if inkWidgetRef.IsValid(this.m_inputBottomRoot) {
+      inkWidgetRef.SetVisible(this.m_inputBottomRoot, !isHide);
+    };
+    if inkWidgetRef.IsValid(this.m_tabTitleText) {
+      inkWidgetRef.SetVisible(this.m_tabTitleText, !isHide);
+    };
+    if inkWidgetRef.IsValid(this.m_tabTitleIcon) {
+      inkWidgetRef.SetVisible(this.m_tabTitleIcon, !isHide);
+    };
+    if inkWidgetRef.IsValid(this.m_aspectRatioPanel) {
+      inkWidgetRef.SetVisible(this.m_aspectRatioPanel, !isHide);
+    };
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_IsHoverOver = false;
+    this.m_holdSafeguard = false;
+    if !IsDefined(this.m_topButtonsController) {
+      this.m_topButtonsController = inkWidgetRef.GetController(this.m_radioButtons) as PhotoModeTopBarController;
+      this.m_topButtonsController.RegisterToCallback(n"OnValueChanged", this, n"OnTopBarValueChanged");
+    };
+    if !IsDefined(this.m_cameraLocationController) {
+      this.m_cameraLocationController = inkWidgetRef.GetController(this.m_cameraLocation) as PhotoModeCameraLocation;
+    };
+    if inkWidgetRef.IsValid(this.m_menuArea) {
+      inkWidgetRef.RegisterToCallback(this.m_menuArea, n"OnHoverOver", this, n"OnMenuHovered");
+      inkWidgetRef.RegisterToCallback(this.m_menuArea, n"OnHoverOut", this, n"OnMenuHoverOut");
+      inkWidgetRef.RegisterToCallback(this.m_additionalMenuArea, n"OnHoverOver", this, n"OnMenuHovered");
+      inkWidgetRef.RegisterToCallback(this.m_additionalMenuArea, n"OnHoverOut", this, n"OnMenuHoverOut");
+    };
+    if inkWidgetRef.IsValid(this.m_lightIndicator) {
+      this.SetLightIndicator(inkWidgetRef.GetController(this.m_lightIndicator) as PhotomodeLightIndicatorController);
+    };
+    this.RegisterToCallback(n"OnSetAttributeOptionEnabled", this, n"OnSetAttributeOptionEnabled");
+    this.RegisterToCallback(n"OnSetCategoryEnabled", this, n"OnSetCategoryEnabled");
+    this.RegisterToCallback(n"OnSetStickerImage", this, n"OnSetStickerImage");
+    this.RegisterToCallback(n"OnSetNpcImage", this, n"OnSetNpcImage");
+    this.RegisterToCallback(n"OnSetSetSelectedNpc", this, n"OnSetSetSelectedNpc");
+    this.m_rootWidget = this.GetRootCompoundWidget();
+    this.m_anyOptionChanged = false;
+  }
+
+  protected cb func OnSetSetSelectedNpc(npcIndex: Int32) -> Bool {
+    if npcIndex >= 0 {
+      this.m_currentNpc = npcIndex;
+    } else {
+      this.m_currentNpc = -1;
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnSetAttributeOptionEnabled", this, n"OnSetAttributeOptionEnabled");
+    this.UnregisterFromCallback(n"OnSetCategoryEnabled", this, n"OnSetCategoryEnabled");
+    this.UnregisterFromCallback(n"OnSetStickerImage", this, n"OnSetStickerImage");
+    this.UnregisterFromCallback(n"OnSetNpcImage", this, n"OnSetNpcImage");
+    this.UnregisterFromCallback(n"OnSetSetSelectedNpc", this, n"OnSetSetSelectedNpc");
+    if inkWidgetRef.IsValid(this.m_menuArea) {
+      inkWidgetRef.UnregisterFromCallback(this.m_menuArea, n"OnHoverOver", this, n"OnMenuHovered");
+      inkWidgetRef.UnregisterFromCallback(this.m_menuArea, n"OnHoverOut", this, n"OnMenuHoverOut");
+      inkWidgetRef.UnregisterFromCallback(this.m_additionalMenuArea, n"OnHoverOver", this, n"OnMenuHovered");
+      inkWidgetRef.UnregisterFromCallback(this.m_additionalMenuArea, n"OnHoverOut", this, n"OnMenuHoverOut");
+    };
+    if IsDefined(this.m_topButtonsController) {
+      this.m_topButtonsController.UnregisterFromCallback(n"OnValueChanged", this, n"OnTopBarValueChanged");
+    };
+  }
+
+  protected cb func OnTryExitPhotomode() -> Bool {
+    if this.m_anyOptionChanged {
+      this.m_exitConfirmationToken = GenericMessageNotification.Show(this, "UI-PhotoMode-Input-ExitPhotoMode", "UI-PhotoMode-Input-ExitConfirmDesc", GenericMessageNotificationType.ConfirmCancel);
+      this.m_exitConfirmationToken.RegisterListener(this, n"OnExitConfirm");
+    } else {
+      this.OnExitConfirmed(true);
+    };
+  }
+
+  protected cb func OnExitConfirm(data: ref<inkGameNotificationData>) -> Bool {
+    let resultData: ref<GenericMessageNotificationCloseData> = data as GenericMessageNotificationCloseData;
+    if IsDefined(resultData) && Equals(resultData.result, GenericMessageNotificationResult.Confirm) {
+      this.OnExitConfirmed(true);
+    };
+    this.m_exitConfirmationToken = null;
+  }
+
+  protected cb func OnIntroAnimEnded(e: ref<inkAnimProxy>) -> Bool {
+    let options: inkAnimOptions;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnPMButtonRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnPMButtonHold");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnOptionHold");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnOptionHoldRelease");
+    this.OnAnimationEnded(0u);
+    options.loopType = inkanimLoopType.Cycle;
+    options.loopInfinite = true;
+    this.loopAnimproxy = this.PlayLibraryAnimation(n"idle_loop", options);
+    this.m_anyOptionChanged = false;
+  }
+
+  protected cb func OnOutroAnimEnded(e: ref<inkAnimProxy>) -> Bool {
+    this.OnAnimationEnded(1u);
+  }
+
+  protected cb func OnChangeAspectRatioRate(aspectRatioRate: Float) -> Bool {
+    let formerRatio: Float;
+    let frameSize: Vector2;
+    let x: Float;
+    let y: Float;
+    let screenSize: Vector2 = this.m_rootWidget.GetSize();
+    if inkWidgetRef.IsValid(this.m_aspectRatioPanel) {
+      if aspectRatioRate > 0.00 {
+        formerRatio = screenSize.X / screenSize.Y;
+        if formerRatio < aspectRatioRate {
+          frameSize.Y = screenSize.X / aspectRatioRate;
+          frameSize.X = screenSize.X;
+        } else {
+          frameSize.X = screenSize.Y * aspectRatioRate;
+          frameSize.Y = screenSize.Y;
+        };
+        inkWidgetRef.SetSize(this.m_aspectRatioPanel, frameSize);
+        x = (screenSize.X - frameSize.X) / 2.00;
+        y = (screenSize.Y - frameSize.Y) / 2.00;
+        inkWidgetRef.SetMargin(this.m_aspectRatioPanel, x, y, 0.00, 0.00);
+      } else {
+        inkWidgetRef.SetSize(this.m_aspectRatioPanel, screenSize);
+        inkWidgetRef.SetMargin(this.m_aspectRatioPanel, 0.00, 0.00, 0.00, 0.00);
+      };
+      inkWidgetRef.SetMargin(this.m_verticalLineLeft, (screenSize.X + x) / 3.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_verticalLineRight, 0.00, 0.00, (screenSize.X + x) / 3.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_horizontalLineUp, 0.00, (screenSize.Y + y) / 3.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_horizontalLineDown, 0.00, 0.00, 0.00, (screenSize.Y + y) / 3.00);
+      inkWidgetRef.SetSize(this.m_LeftBlackBar, x, screenSize.Y);
+      inkWidgetRef.SetSize(this.m_RightBlackBar, x, screenSize.Y);
+      inkWidgetRef.SetSize(this.m_TopBlackBar, screenSize.X, y);
+      inkWidgetRef.SetSize(this.m_BottomBlackBar, screenSize.X, y);
+      inkWidgetRef.SetMargin(this.m_RightBlackBar, (screenSize.X + frameSize.X) / 2.00 + x, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_BottomBlackBar, 0.00, (screenSize.Y + frameSize.Y) / 2.00 + y, 0.00, 0.00);
+    };
+  }
+
+  protected cb func OnSetBlackBars(enabled: Bool) -> Bool {
+    inkWidgetRef.SetVisible(this.m_LeftBlackBar, enabled);
+    inkWidgetRef.SetVisible(this.m_RightBlackBar, enabled);
+    inkWidgetRef.SetVisible(this.m_TopBlackBar, enabled);
+    inkWidgetRef.SetVisible(this.m_BottomBlackBar, enabled);
+  }
+
+  protected cb func OnShow(reversedUI: Bool) -> Bool {
+    let animproxy: ref<inkAnimProxy>;
+    let i: Int32;
+    let pageController: wref<PhotoModeListController>;
+    let widget: wref<inkWidget>;
+    this.HideTabRoot(false);
+    widget = this.GetRootWidget();
+    widget.SetOpacity(1.00);
+    if this.m_topButtonsController.GetCurrentIndex() != 0 {
+      this.m_topButtonsController.Toggle(0);
+    };
+    i = 0;
+    while i < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(i));
+      pageController.SetReversedUI(reversedUI);
+      i += 1;
+    };
+    this.OnSetCurrentMenuPage(0u);
+    animproxy = this.PlayLibraryAnimation(n"intro");
+    animproxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimEnded");
+    this.CloseWeaponsWheelAndStopEffects();
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).AddTriggerEffect(n"te_off", n"Photomode_VerticalCamera");
+    this.m_anyOptionChanged = false;
+  }
+
+  protected final func CloseWeaponsWheelAndStopEffects() -> Void {
+    let radialMenuCloseEvt: ref<ForceRadialWheelShutdown> = new ForceRadialWheelShutdown();
+    let requestStopPulse: ref<PulseFinishedRequest> = new PulseFinishedRequest();
+    this.GetPlayerControlledObject().QueueEvent(radialMenuCloseEvt);
+    this.GetPlayerControlledObject().GetHudManager().QueueRequest(requestStopPulse);
+    GameObjectEffectHelper.StopEffectEvent(this.GetPlayerControlledObject(), n"fx_health_low");
+  }
+
+  protected cb func OnHide() -> Bool {
+    let animproxy: ref<inkAnimProxy>;
+    let playerHelthState: Uint32;
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnPMButtonRelease");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnPMButtonHold");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnOptionHold");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnOptionHoldRelease");
+    if IsDefined(this.loopAnimproxy) {
+      this.loopAnimproxy.Stop();
+      this.loopAnimproxy = null;
+    };
+    animproxy = this.PlayLibraryAnimation(n"outro");
+    animproxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimEnded");
+    playerHelthState = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().PhotoMode).GetUint(GetAllBlackboardDefs().PhotoMode.PlayerHealthState);
+    if playerHelthState == 1u {
+      GameObjectEffectHelper.StartEffectEvent(this.GetPlayerControlledObject(), n"fx_health_low");
+    };
+    this.m_uiVisiblityFadeAnim = null;
+    if IsDefined(this.m_cameraLocationController) {
+      this.m_cameraLocationController.OnHide();
+    };
+    GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).RemoveTriggerEffect(n"Photomode_VerticalCamera");
+  }
+
+  protected cb func OnSetStickerImage(stickerIndex: Uint32, atlasPath: ResRef, imagePart: CName, imageIndex: Int32) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(35u);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.SetGridButtonImage(stickerIndex, atlasPath, imagePart, imageIndex);
+    };
+  }
+
+  protected cb func OnSetNpcImage(npcIndex: Uint32, atlasPath: ResRef, imagePart: CName, imageIndex: Int32) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(55u);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.SetGridButtonImage(npcIndex, atlasPath, imagePart, imageIndex);
+      photoModeListItem.SetGridButtonImageForceVisible(npcIndex);
+    };
+  }
+
+  protected cb func OnSetScreenshotEnabled(screenshotVersion: Uint32) -> Bool {
+    let displayController: ref<inkInputDisplayController> = inkWidgetRef.GetController(this.m_inputScreenshot) as inkInputDisplayController;
+    if screenshotVersion == 0u {
+      displayController.SetVisible(true);
+    } else {
+      displayController.SetVisible(false);
+      this.AddConsoleScreenshotInput(screenshotVersion);
+    };
+  }
+
+  protected cb func OnHideScreenshotInputForGGP() -> Bool {
+    inkWidgetRef.SetVisible(this.m_inputScreenshot, false);
+  }
+
+  protected cb func OnUpdate(timeDelta: Float) -> Bool {
+    let exitLocked: Bool;
+    let i: Int32;
+    let pageController: ref<PhotoModeListController>;
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetCurrentSelectedMenuListItem();
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.Update(timeDelta);
+    };
+    i = 0;
+    while i < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(i));
+      pageController.Update(timeDelta);
+      i += 1;
+    };
+    exitLocked = GameInstance.GetPhotoModeSystem(this.GetPlayerControlledObject().GetGame()).IsExitLocked();
+    if exitLocked && inkWidgetRef.IsVisible(this.m_inputExit) {
+      inkWidgetRef.SetVisible(this.m_inputExit, false);
+    } else {
+      if !exitLocked && !inkWidgetRef.IsVisible(this.m_inputExit) {
+        inkWidgetRef.SetVisible(this.m_inputExit, true);
+      };
+    };
+    if IsDefined(this.m_cameraLocationController) {
+      this.m_cameraLocationController.RefreshValue(GameInstance.GetPhotoModeSystem(this.GetPlayerControlledObject().GetGame()));
+    };
+  }
+
+  public final func SetCurrentMenuPage(page: Uint32) -> Void {
+    let data: ref<PhotoModeMenuListItemData>;
+    let firstVisible: Int32;
+    let newPage: wref<PhotoModeListController>;
+    let pageController: wref<PhotoModeListController>;
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(i));
+      if i == Cast<Int32>(page) {
+        pageController.ShowAnimated(0.15);
+      } else {
+        if i == Cast<Int32>(this.m_currentPage) {
+          pageController.HideAnimated(0.00);
+        };
+      };
+      i += 1;
+    };
+    this.m_currentPage = page;
+    newPage = this.GetMenuPage(page);
+    firstVisible = newPage.GetFirstVisibleIndex();
+    newPage.GetList().SetSelectedIndex(firstVisible);
+    this.OnEditCategoryChanged(page);
+    this.HideTabRoot(false);
+    if page == 0u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabCamera");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_cam");
+    };
+    if page == 1u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabTimeWeather");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_timeweather");
+    };
+    if page == 2u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabPose");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_pose");
+    };
+    if page == 3u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabNPC");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_npc");
+    };
+    if page == 4u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabLights");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_light");
+    };
+    if page == 5u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabEffect");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_eff");
+    };
+    if page == 6u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabColorBalance");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_color");
+    };
+    if page == 7u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabStickers");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_sticker");
+    };
+    if page == 8u {
+      inkTextRef.SetLocalizedText(this.m_tabTitleText, n"UI-PhotoMode-TabLoadSave");
+      inkImageRef.SetTexturePart(this.m_tabTitleIcon, n"ico_save");
+    };
+    photoModeListItem = this.GetCurrentSelectedMenuListItem();
+    data = photoModeListItem.GetData() as PhotoModeMenuListItemData;
+    this.OnAttributeSelected(data.attributeKey);
+  }
+
+  protected cb func OnSetCurrentMenuPage(page: Uint32) -> Bool {
+    this.SetCurrentMenuPage(page);
+  }
+
+  protected cb func OnTopBarValueChanged(controller: wref<inkRadioGroupController>, selectedIndex: Int32) -> Bool {
+    this.OnSetCurrentMenuPage(Cast<Uint32>(selectedIndex));
+  }
+
+  protected cb func OnAddMenuItem(labelText: String, attributeKey: Uint32, page: Uint32) -> Bool {
+    this.AddMenuItem(labelText, attributeKey, page, false);
+  }
+
+  protected cb func OnAddAdditionalMenuItem(labelText: String, attributeKey: Uint32, page: Uint32) -> Bool {
+    this.AddMenuItem(labelText, attributeKey, page, true);
+  }
+
+  protected final func AddConsoleScreenshotInput(screenshotVersion: Uint32) -> Void {
+    if screenshotVersion == 1u && this.ps4InputWidget == null {
+      this.ps4InputWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_inputBottomRoot), this.m_ps4InputLibraryId);
+      this.ps4InputWidget.SetMargin(50.00, 0.00, 0.00, 0.00);
+      inkCompoundRef.ReorderChild(this.m_inputBottomRoot, this.ps4InputWidget, 2);
+    } else {
+      if screenshotVersion == 2u && this.xboxInputWidget == null {
+        this.xboxInputWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_inputBottomRoot), this.m_xboxInputLibraryId);
+        this.xboxInputWidget.SetMargin(50.00, 0.00, 0.00, 0.00);
+        inkCompoundRef.ReorderChild(this.m_inputBottomRoot, this.xboxInputWidget, 2);
+      } else {
+        if screenshotVersion == 3u && this.stadiaInputWidget == null {
+          this.stadiaInputWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_inputBottomRoot), this.m_stadiaInputLibraryId);
+          this.stadiaInputWidget.SetMargin(50.00, 0.00, 0.00, 0.00);
+          inkCompoundRef.ReorderChild(this.m_inputBottomRoot, this.stadiaInputWidget, 2);
+        } else {
+          if screenshotVersion == 4u && this.nintendoSwitchInputWidget == null {
+            this.nintendoSwitchInputWidget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_inputBottomRoot), this.m_nintendoSwitchInputLibraryId);
+            this.nintendoSwitchInputWidget.SetMargin(50.00, 0.00, 0.00, 0.00);
+            inkCompoundRef.ReorderChild(this.m_inputBottomRoot, this.nintendoSwitchInputWidget, 2);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnAddingMenuItemsFinished() -> Bool {
+    let pageController: ref<PhotoModeListController>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(i));
+      pageController.PostInitItems();
+      i += 1;
+    };
+  }
+
+  protected cb func OnForceAttributeVaulue(attribute: Uint32, value: Float, doApply: Bool) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.ForceValue(value, doApply);
+    };
+  }
+
+  protected cb func OnHueChanged(attribute: Uint32, value: Float) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.RefreshSaturation(value);
+    };
+  }
+
+  protected cb func OnFadeVisibility(opacity: Float) -> Bool {
+    let animDef: ref<inkAnimDef>;
+    let animInterp: ref<inkAnimTransparency>;
+    let widget: wref<inkWidget> = this.GetRootWidget();
+    if widget.GetOpacity() != opacity {
+      animDef = new inkAnimDef();
+      animInterp = new inkAnimTransparency();
+      animInterp.SetStartTransparency(widget.GetOpacity());
+      animInterp.SetEndTransparency(opacity);
+      animInterp.SetDuration(0.30);
+      animInterp.SetDirection(inkanimInterpolationDirection.To);
+      animInterp.SetUseRelativeDuration(true);
+      animDef.AddInterpolator(animInterp);
+      if this.m_uiVisiblityFadeAnim != null {
+        this.m_uiVisiblityFadeAnim.Stop();
+      };
+      this.m_uiVisiblityFadeAnim = widget.PlayAnimation(animDef);
+    };
+  }
+
+  protected cb func OnHideForScreenshot() -> Bool {
+    if this.m_uiVisiblityFadeAnim != null {
+      this.m_uiVisiblityFadeAnim.Stop();
+      this.m_uiVisiblityFadeAnim = null;
+    };
+  }
+
+  protected cb func OnSetupGridSelector(attribute: Uint32, gridData: [PhotoModeOptionGridButtonData], elementsCount: Uint32, elementsInRow: Uint32) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.m_photoModeController = this;
+      photoModeListItem.SetupGridSelector(gridData, elementsCount, elementsInRow);
+      photoModeListItem.SetIsEnabled(true);
+      this.OnAttributeUpdated(attribute, photoModeListItem.GetSliderValue());
+    };
+  }
+
+  protected cb func OnSetupScrollBar(attribute: Uint32, startValue: Float, minValue: Float, maxValue: Float, step: Float, displayType: Uint32) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.m_photoModeController = this;
+      photoModeListItem.SetupScrollBar(startValue, minValue, maxValue, step, displayType);
+      photoModeListItem.SetIsEnabled(true);
+      this.OnAttributeUpdated(attribute, photoModeListItem.GetSliderValue());
+    };
+  }
+
+  protected cb func OnSetupHueBar(attribute: Uint32, startValue: Float, minValue: Float, maxValue: Float, step: Float, displayType: Uint32) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.m_photoModeController = this;
+      photoModeListItem.SetupHueBar(startValue, minValue, maxValue, step, displayType);
+      photoModeListItem.SetIsEnabled(true);
+      this.OnAttributeUpdated(attribute, photoModeListItem.GetSliderValue());
+    };
+  }
+
+  protected cb func OnSetupOptionSelector(attribute: Uint32, values: [PhotoModeOptionSelectorData], startData: Int32, doApply: Bool) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.m_photoModeController = this;
+      photoModeListItem.SetupOptionSelector(values, startData);
+      photoModeListItem.SetIsEnabled(true);
+      if attribute == 72u {
+        photoModeListItem.SetLeftArrowVisible(false);
+      };
+      this.OnAttributeUpdated(attribute, Cast<Float>(values[photoModeListItem.GetSelectedOptionIndex()].optionData), doApply);
+    };
+  }
+
+  protected cb func OnSetupOptionButton(attribute: Uint32, value: PhotoModeOptionSelectorData) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attribute);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.m_photoModeController = this;
+      photoModeListItem.SetupOptionButton(value);
+      photoModeListItem.SetIsEnabled(true);
+      this.OnAttributeUpdated(attribute, Cast<Float>(photoModeListItem.GetSelectedOptionIndex()));
+    };
+  }
+
+  protected cb func OnSetAttributeOptionEnabled(attributeKey: Uint32, enabled: Bool) -> Bool {
+    let pageController: ref<PhotoModeListController>;
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetMenuItem(attributeKey);
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.SetIsEnabled(enabled);
+      if !enabled {
+        if this.GetCurrentSelectedMenuListItem() == photoModeListItem {
+          pageController = this.GetMenuPage(this.m_currentPage);
+          pageController.GetList().SetSelectedIndex(pageController.GetFirstVisibleIndex());
+        };
+      };
+    };
+  }
+
+  protected cb func OnSetCategoryEnabled(category: Uint32, enabled: Bool) -> Bool {
+    this.m_topButtonsController.SetToggleEnabled(Cast<Int32>(category), enabled);
+  }
+
+  protected cb func OnPhotoModeFailedToOpenEvent() -> Bool {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    notificationEvent.m_notificationType = UIInGameNotificationType.PhotoModeDisabledRestriction;
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(new UIInGameNotificationRemoveEvent());
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(notificationEvent);
+  }
+
+  protected cb func OnPhotoModeFailedToOpenComplete(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_notificationToken = null;
+    this.m_notificationUserData = null;
+  }
+
+  protected cb func OnPhotoModeLastInputDeviceEvent(wasKeyboardMouse: Bool) -> Bool {
+    let kbdWidget: inkWidgetRef;
+    let padWidget: inkWidgetRef;
+    inkWidgetRef.SetVisible(this.m_inputCameraKbd, false);
+    inkWidgetRef.SetVisible(this.m_inputCameraPad, false);
+    inkWidgetRef.SetVisible(this.m_inputLightKbd, false);
+    inkWidgetRef.SetVisible(this.m_inputLightPad, false);
+    inkWidgetRef.SetVisible(this.m_inputStickersKbd, false);
+    inkWidgetRef.SetVisible(this.m_inputStickersPad, false);
+    inkWidgetRef.SetVisible(this.m_inputSaveLoadKbd, false);
+    inkWidgetRef.SetVisible(this.m_inputSaveLoadPad, false);
+    if this.m_currentPage == 7u {
+      kbdWidget = this.m_inputStickersKbd;
+      padWidget = this.m_inputStickersPad;
+    } else {
+      if this.m_currentPage == 8u {
+        kbdWidget = this.m_inputSaveLoadKbd;
+        padWidget = this.m_inputSaveLoadPad;
+      } else {
+        if this.m_currentPage == 4u {
+          kbdWidget = this.m_inputLightKbd;
+          padWidget = this.m_inputLightPad;
+        } else {
+          kbdWidget = this.m_inputCameraKbd;
+          padWidget = this.m_inputCameraPad;
+        };
+      };
+    };
+    if wasKeyboardMouse {
+      inkWidgetRef.SetVisible(kbdWidget, true);
+      inkWidgetRef.SetVisible(padWidget, false);
+    } else {
+      inkWidgetRef.SetVisible(kbdWidget, false);
+      inkWidgetRef.SetVisible(padWidget, true);
+    };
+  }
+
+  protected cb func OnSetInteractive(interactive: Bool) -> Bool {
+    let i: Int32;
+    let listItemWidget: wref<inkWidget>;
+    let pageController: ref<PhotoModeListController>;
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let j: Int32 = 0;
+    while j < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(j));
+      i = 0;
+      while i < pageController.GetList().Size() {
+        listItemWidget = pageController.GetList().GetItemAt(i);
+        if IsDefined(listItemWidget) {
+          photoModeListItem = listItemWidget.GetControllerByType(n"PhotoModeMenuListItem") as PhotoModeMenuListItem;
+          photoModeListItem.SetInteractive(interactive);
+        };
+        i += 1;
+      };
+      j += 1;
+    };
+    this.m_topButtonsController.SetInteractive(interactive);
+  }
+
+  protected cb func OnChangeCameraControlHintVisibility(movementVisible: Bool, rotationVisible: Bool) -> Bool {
+    let globalVisible: Bool = movementVisible || rotationVisible;
+    if inkWidgetRef.IsValid(this.m_inputCameraGlobalControlKbd) {
+      inkWidgetRef.SetVisible(this.m_inputCameraGlobalControlKbd, globalVisible);
+    };
+    if inkWidgetRef.IsValid(this.m_inputCameraMovementControlKbd) {
+      inkWidgetRef.SetVisible(this.m_inputCameraMovementControlKbd, movementVisible);
+    };
+    if inkWidgetRef.IsValid(this.m_inputCameraZoomControlKbd) {
+      inkWidgetRef.SetVisible(this.m_inputCameraZoomControlKbd, movementVisible);
+    };
+    if inkWidgetRef.IsValid(this.m_inputCameraGlobalControlPad) {
+      inkWidgetRef.SetVisible(this.m_inputCameraGlobalControlPad, globalVisible);
+    };
+    if inkWidgetRef.IsValid(this.m_inputCameraMovementControlPad) {
+      inkWidgetRef.SetVisible(this.m_inputCameraMovementControlPad, movementVisible);
+    };
+    if inkWidgetRef.IsValid(this.m_inputCameraZoomControlPad) {
+      inkWidgetRef.SetVisible(this.m_inputCameraZoomControlPad, movementVisible);
+    };
+  }
+
+  public final func GetMenuItem(attributeKey: Uint32) -> ref<PhotoModeMenuListItem> {
+    let data: ref<PhotoModeMenuListItemData>;
+    let i: Int32;
+    let listItemWidget: wref<inkWidget>;
+    let pageController: ref<PhotoModeListController>;
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let j: Int32 = 0;
+    while j < ArraySize(this.m_menuPages) {
+      pageController = this.GetMenuPage(Cast<Uint32>(j));
+      i = 0;
+      while i < pageController.GetList().Size() {
+        listItemWidget = pageController.GetList().GetItemAt(i);
+        if IsDefined(listItemWidget) {
+          photoModeListItem = listItemWidget.GetControllerByType(n"PhotoModeMenuListItem") as PhotoModeMenuListItem;
+          data = photoModeListItem.GetData() as PhotoModeMenuListItemData;
+          if data.attributeKey == attributeKey {
+            return photoModeListItem;
+          };
+        };
+        i += 1;
+      };
+      j += 1;
+    };
+    return null;
+  }
+
+  protected final func AddMenuPage(isAdditional: Bool) -> ref<PhotoModeListController> {
+    let newmenuList: wref<inkWidget>;
+    let pageController: ref<PhotoModeListController>;
+    if isAdditional {
+      newmenuList = this.SpawnFromLocal(inkWidgetRef.Get(this.m_additionalListRoot), this.m_addtionalContainerID);
+    } else {
+      newmenuList = this.SpawnFromLocal(inkWidgetRef.Get(this.m_menuListRoot), this.m_listContainerId);
+    };
+    newmenuList.SetMargin(0.00, 100.00, 0.00, 0.00);
+    ArrayPush(this.m_menuPages, newmenuList);
+    pageController = newmenuList.GetController() as PhotoModeListController;
+    pageController.SetMenuController(this);
+    pageController.RegisterToCallback(n"OnItemSelected", this, n"OnMenuItemSelected");
+    return pageController;
+  }
+
+  protected final func GetMenuPage(pageIndex: Uint32) -> ref<PhotoModeListController> {
+    return this.m_menuPages[Cast<Int32>(pageIndex)].GetController() as PhotoModeListController;
+  }
+
+  protected final func AddMenuItem(const label: script_ref<String>, attributeKey: Uint32, page: Uint32, isAdditional: Bool) -> Void {
+    let data: ref<PhotoModeMenuListItemData>;
+    let pageController: ref<PhotoModeListController>;
+    if Cast<Int32>(page) >= ArraySize(this.m_menuPages) {
+      pageController = this.AddMenuPage(isAdditional);
+    } else {
+      pageController = this.GetMenuPage(page);
+    };
+    data = new PhotoModeMenuListItemData();
+    data.label = Deref(label);
+    data.attributeKey = attributeKey;
+    pageController.GetList().PushData(data);
+  }
+
+  protected final func GetCurrentSelectedMenuListItem() -> ref<PhotoModeMenuListItem> {
+    let listItemWidget: wref<inkWidget>;
+    let pageController: ref<PhotoModeListController> = this.GetMenuPage(this.m_currentPage);
+    let itemIndex: Int32 = pageController.GetList().GetSelectedIndex();
+    if itemIndex >= 0 {
+      listItemWidget = pageController.GetList().GetItemAt(itemIndex);
+      if IsDefined(listItemWidget) {
+        return listItemWidget.GetControllerByType(n"PhotoModeMenuListItem") as PhotoModeMenuListItem;
+      };
+    };
+    return null;
+  }
+
+  protected cb func OnPMButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let pageController: ref<PhotoModeListController> = this.GetMenuPage(this.m_currentPage);
+    pageController.HandleInputWithVisibilityCheck(evt, this);
+    this.m_topButtonsController.HandleInput(evt, this);
+    photoModeListItem = this.GetCurrentSelectedMenuListItem();
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.HandleReleasedInput(evt, this);
+    };
+  }
+
+  protected cb func OnPMButtonHold(evt: ref<inkPointerEvent>) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetCurrentSelectedMenuListItem();
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.HandleHoldInput(evt, this);
+    };
+  }
+
+  protected cb func OnMenuItemSelected(index: Int32, target: ref<ListItemController>) -> Bool {
+    let photoModeListItem: ref<PhotoModeMenuListItem> = target as PhotoModeMenuListItem;
+    let data: ref<PhotoModeMenuListItemData> = photoModeListItem.GetData() as PhotoModeMenuListItemData;
+    this.OnAttributeSelected(data.attributeKey);
+  }
+
+  protected cb func OnMenuHovered(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_IsHoverOver {
+      this.OnHoverStateChanged(true);
+      this.SetCursorContext(n"Hover");
+    };
+    this.m_IsHoverOver = true;
+  }
+
+  protected cb func OnMenuHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_IsHoverOver {
+      this.OnHoverStateChanged(false);
+      this.SetCursorContext(n"Default");
+    };
+    this.m_IsHoverOver = false;
+  }
+
+  protected cb func OnOptionHold(evt: ref<inkPointerEvent>) -> Bool {
+    let data: ref<PhotoModeMenuListItemData>;
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let progress: Float = evt.GetHoldProgress();
+    if evt.IsAction(n"PhotoMode_SaveSettings") || evt.IsAction(n"PhotoMode_LoadSettings") {
+      photoModeListItem = this.GetCurrentSelectedMenuListItem();
+      if IsDefined(photoModeListItem) {
+        if progress >= 1.00 && !this.m_holdSafeguard {
+          this.m_holdSafeguard = true;
+          photoModeListItem.SetHoldProgress(1.00);
+          data = photoModeListItem.GetData() as PhotoModeMenuListItemData;
+          if evt.IsAction(n"PhotoMode_SaveSettings") {
+            this.OnHoldComplete(data.attributeKey, n"PhotoMode_SaveSettings");
+          } else {
+            if evt.IsAction(n"PhotoMode_LoadSettings") {
+              this.OnHoldComplete(data.attributeKey, n"PhotoMode_LoadSettings");
+            };
+          };
+        } else {
+          photoModeListItem.SetHoldProgress(progress);
+        };
+      };
+    };
+  }
+
+  protected cb func OnOptionHoldRelease(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_holdSafeguard = false;
+    let photoModeListItem: ref<PhotoModeMenuListItem> = this.GetCurrentSelectedMenuListItem();
+    if IsDefined(photoModeListItem) {
+      photoModeListItem.SetHoldProgress(0.00);
+    };
+  }
+
+  protected cb func OnEquipWardrobeSet(wardrobeSet: ref<Wardrobe>) -> Bool;
+}
+
+public class PhotoModeMenuListItem extends ListItemController {
+
+  private edit let m_ScrollBarRef: inkWidgetRef;
+
+  private edit let m_HueBarRef: inkWidgetRef;
+
+  private edit let m_CounterLabelRef: inkTextRef;
+
+  private edit let m_LeftLabelRef: inkTextRef;
+
+  private edit let m_TextLabelRef: inkTextRef;
+
+  private edit let m_OptionSelectorRef: inkWidgetRef;
+
+  private edit let m_LeftArrow: inkWidgetRef;
+
+  private edit let m_RightArrow: inkWidgetRef;
+
+  private edit let m_LeftButton: inkWidgetRef;
+
+  private edit let m_RightButton: inkWidgetRef;
+
+  private edit let m_OptionLabelRef: inkTextRef;
+
+  private edit let m_SelectedWidgetRef: inkWidgetRef;
+
+  private edit let m_TextRootWidgetRef: inkWidgetRef;
+
+  private edit let m_SliderRootWidgetRef: inkWidgetRef;
+
+  private edit let m_OptionSelectorRootWidgetRef: inkWidgetRef;
+
+  private edit let m_HoldButtonRootWidgetRef: inkWidgetRef;
+
+  private edit let m_HueSliderRootWidgetRef: inkWidgetRef;
+
+  private edit let m_ScrollBarLineRef: inkWidgetRef;
+
+  private edit let m_ScrollBarHandleRef: inkWidgetRef;
+
+  private edit let m_ScrollSlidingAreaRef: inkWidgetRef;
+
+  private edit let m_HueSlidingAreaRef: inkWidgetRef;
+
+  private edit let m_ColorSelectorUpFGRef: inkWidgetRef;
+
+  private edit let m_ColorSelectorUpBGRef: inkWidgetRef;
+
+  private edit let m_ColorSelectorDownFGRef: inkWidgetRef;
+
+  private edit let m_ColorSelectorDownBGRef: inkWidgetRef;
+
+  private edit let m_HueBackgroundRef: inkWidgetRef;
+
+  private edit let m_SaturationBackgroundRef: inkWidgetRef;
+
+  private edit let m_SaturationColorRef: inkWidgetRef;
+
+  private edit let m_LuminosityBackgroundRef: inkWidgetRef;
+
+  private edit let m_HoldProgressRef: inkWidgetRef;
+
+  private edit let m_GridRoot: inkWidgetRef;
+
+  private edit let m_GridTopRow: inkWidgetRef;
+
+  private edit let m_GridBottomRow: inkWidgetRef;
+
+  private let m_ScrollBar: wref<inkSliderController>;
+
+  private let m_HueBar: wref<inkSliderController>;
+
+  private let m_OptionSelector: wref<SelectorController>;
+
+  private let m_OptionSelectorValues: [PhotoModeOptionSelectorData];
+
+  private let m_GridSelector: wref<PhotoModeGridList>;
+
+  private let m_SliderValue: Float;
+
+  private let m_StepValue: Float;
+
+  private let m_SliderDisplayType: Uint32;
+
+  public let m_photoModeController: wref<gameuiPhotoModeMenuController>;
+
+  private let m_doApply: Bool;
+
+  private let m_holdBgInitMargin: inkMargin;
+
+  private let m_allowHold: Bool;
+
+  private let m_inputDirection: Int32;
+
+  private let m_inputStepTime: Float;
+
+  private let m_inputHoldTime: Float;
+
+  private let m_arrowClickedTime: Float;
+
+  private let m_isSelected: Bool;
+
+  private let m_fadeAnim: ref<inkAnimProxy>;
+
+  private let m_RightArrowInitOpacity: Float;
+
+  private let m_LeftArrowInitOpacity: Float;
+
+  private let m_ScrollBarHandleInitOpacity: Float;
+
+  private let m_ScrollBarLineInitOpacity: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_RightArrowInitOpacity = inkWidgetRef.GetOpacity(this.m_RightArrow);
+    this.m_LeftArrowInitOpacity = inkWidgetRef.GetOpacity(this.m_LeftArrow);
+    this.m_ScrollBarHandleInitOpacity = inkWidgetRef.GetOpacity(this.m_ScrollBarHandleRef);
+    this.m_ScrollBarLineInitOpacity = inkWidgetRef.GetOpacity(this.m_ScrollBarLineRef);
+    if inkWidgetRef.IsValid(this.m_ScrollBarRef) {
+      this.m_ScrollBar = inkWidgetRef.GetControllerByType(this.m_ScrollBarRef, n"inkSliderController") as inkSliderController;
+    };
+    if IsDefined(this.m_ScrollBar) {
+      this.m_ScrollBar.RegisterToCallback(n"OnSliderValueChanged", this, n"OnScrollBarValueChanged");
+      this.m_ScrollBar.RegisterToCallback(n"OnSliderHandleReleased", this, n"OnSliderHandleReleased");
+    };
+    if inkWidgetRef.IsValid(this.m_HueBarRef) {
+      this.m_HueBar = inkWidgetRef.GetControllerByType(this.m_HueBarRef, n"inkSliderController") as inkSliderController;
+    };
+    if IsDefined(this.m_HueBar) {
+      this.m_HueBar.RegisterToCallback(n"OnSliderValueChanged", this, n"OnHueBarValueChanged");
+      this.m_HueBar.RegisterToCallback(n"OnSliderHandleReleased", this, n"OnSliderHandleReleased");
+    };
+    if inkWidgetRef.IsValid(this.m_OptionSelectorRef) {
+      this.m_OptionSelector = inkWidgetRef.GetController(this.m_OptionSelectorRef) as SelectorController;
+    };
+    inkWidgetRef.SetVisible(this.m_SelectedWidgetRef, false);
+    inkWidgetRef.SetOpacity(this.m_SelectedWidgetRef, 0.00);
+    this.RegisterToCallback(n"OnSelected", this, n"OnSelected");
+    this.RegisterToCallback(n"OnDeselected", this, n"OnDeselected");
+    this.RegisterToCallback(n"OnAddedToList", this, n"OnAddedToList");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    if inkWidgetRef.IsValid(this.m_LeftArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_LeftButton, n"OnRelease", this, n"OnOptionLeft");
+      inkWidgetRef.SetOpacity(this.m_LeftArrow, 0.00);
+    };
+    if inkWidgetRef.IsValid(this.m_RightArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_RightButton, n"OnRelease", this, n"OnOptionRight");
+      inkWidgetRef.SetOpacity(this.m_RightArrow, 0.00);
+    };
+    if inkWidgetRef.IsValid(this.m_HoldProgressRef) {
+      this.m_holdBgInitMargin = inkWidgetRef.GetMargin(this.m_HoldProgressRef);
+    };
+    inkWidgetRef.SetOpacity(this.m_ScrollBarHandleRef, this.m_ScrollBarLineInitOpacity);
+    inkWidgetRef.SetOpacity(this.m_ScrollBarLineRef, 0.01);
+    inkWidgetRef.Get(this.m_ScrollBarHandleRef).BindProperty(n"tintColor", n"MainColors.Red");
+    inkWidgetRef.Get(this.m_CounterLabelRef).BindProperty(n"tintColor", n"MainColors.Red");
+    inkWidgetRef.Get(this.m_ColorSelectorUpFGRef).BindProperty(n"tintColor", n"MainColors.PanelRed");
+    inkWidgetRef.Get(this.m_ColorSelectorUpBGRef).BindProperty(n"tintColor", n"MainColors.PanelDarkRed");
+    inkWidgetRef.Get(this.m_ColorSelectorDownFGRef).BindProperty(n"tintColor", n"MainColors.PanelRed");
+    inkWidgetRef.Get(this.m_ColorSelectorDownBGRef).BindProperty(n"tintColor", n"MainColors.PanelDarkRed");
+    this.m_allowHold = false;
+    this.m_arrowClickedTime = 0.00;
+    this.m_isSelected = false;
+    this.m_doApply = true;
+    this.ResetInputHold();
+    super.OnInitialize();
+  }
+
+  protected cb func OnSliderHandleReleased() -> Bool {
+    GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+  }
+
+  public final func SetReversedUI(isRevesed: Bool) -> Void {
+    if isRevesed {
+      inkWidgetRef.SetMargin(this.m_TextRootWidgetRef, 1040.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetAnchor(this.m_TextLabelRef, inkEAnchor.CenterRight);
+      inkWidgetRef.SetAnchorPoint(this.m_TextLabelRef, 1.00, 0.50);
+      inkWidgetRef.SetMargin(this.m_TextLabelRef, 0.00, 0.00, 100.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_SliderRootWidgetRef, 80.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_OptionSelectorRootWidgetRef, 80.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_HoldButtonRootWidgetRef, 0.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_HueSliderRootWidgetRef, 80.00, 0.00, 0.00, 0.00);
+    } else {
+      inkWidgetRef.SetMargin(this.m_TextRootWidgetRef, 0.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetAnchor(this.m_TextLabelRef, inkEAnchor.CenterLeft);
+      inkWidgetRef.SetAnchorPoint(this.m_TextLabelRef, 0.00, 0.50);
+      inkWidgetRef.SetMargin(this.m_TextLabelRef, 30.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_SliderRootWidgetRef, 530.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_OptionSelectorRootWidgetRef, 530.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_HoldButtonRootWidgetRef, 450.00, 0.00, 0.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_HueSliderRootWidgetRef, 530.00, 0.00, 0.00, 0.00);
+    };
+  }
+
+  private final func PlayFadeAnimation(widget: inkWidgetRef, opacity: Float) -> Void {
+    let animDef: ref<inkAnimDef>;
+    let animInterp: ref<inkAnimTransparency>;
+    if inkWidgetRef.GetOpacity(widget) == opacity {
+      return;
+    };
+    animDef = new inkAnimDef();
+    animInterp = new inkAnimTransparency();
+    animInterp.SetStartTransparency(inkWidgetRef.GetOpacity(widget));
+    animInterp.SetEndTransparency(opacity);
+    animInterp.SetDuration(0.30);
+    animInterp.SetDirection(inkanimInterpolationDirection.To);
+    animInterp.SetUseRelativeDuration(true);
+    animDef.AddInterpolator(animInterp);
+    if this.m_fadeAnim != null {
+      this.m_fadeAnim.Stop();
+    };
+    this.m_fadeAnim = inkWidgetRef.PlayAnimation(widget, animDef);
+  }
+
+  private final func SetSelectedVisualState(isSelected: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_SelectedWidgetRef, true);
+    if isSelected {
+      if this.m_OptionSelector.GetValuesCount() > 1 {
+        inkWidgetRef.SetOpacity(this.m_RightArrow, this.m_RightArrowInitOpacity);
+        inkWidgetRef.SetOpacity(this.m_LeftArrow, this.m_LeftArrowInitOpacity);
+      } else {
+        inkWidgetRef.SetOpacity(this.m_RightArrow, 0.00);
+        inkWidgetRef.SetOpacity(this.m_LeftArrow, 0.00);
+      };
+      inkWidgetRef.SetOpacity(this.m_ScrollBarHandleRef, this.m_ScrollBarHandleInitOpacity);
+      inkWidgetRef.SetOpacity(this.m_ScrollBarLineRef, this.m_ScrollBarLineInitOpacity);
+      inkWidgetRef.Get(this.m_ScrollBarHandleRef).BindProperty(n"tintColor", n"MainColors.Blue");
+      inkWidgetRef.Get(this.m_CounterLabelRef).BindProperty(n"tintColor", n"MainColors.DarkRed");
+      inkWidgetRef.Get(this.m_OptionLabelRef).BindProperty(n"tintColor", n"MainColors.Blue");
+      inkWidgetRef.Get(this.m_ColorSelectorUpFGRef).BindProperty(n"tintColor", n"MainColors.SupBlue");
+      inkWidgetRef.Get(this.m_ColorSelectorUpBGRef).BindProperty(n"tintColor", n"MainColors.Blue");
+      inkWidgetRef.Get(this.m_ColorSelectorDownFGRef).BindProperty(n"tintColor", n"MainColors.SupBlue");
+      inkWidgetRef.Get(this.m_ColorSelectorDownBGRef).BindProperty(n"tintColor", n"MainColors.Blue");
+      if !this.m_isSelected {
+        inkWidgetRef.SetOpacity(this.m_SelectedWidgetRef, 0.00);
+      };
+      if IsDefined(this.m_GridSelector) {
+        this.m_GridSelector.OnSelected();
+      };
+    } else {
+      inkWidgetRef.SetOpacity(this.m_RightArrow, 0.00);
+      inkWidgetRef.SetOpacity(this.m_LeftArrow, 0.00);
+      inkWidgetRef.SetOpacity(this.m_ScrollBarHandleRef, this.m_ScrollBarLineInitOpacity);
+      inkWidgetRef.SetOpacity(this.m_ScrollBarLineRef, 0.01);
+      inkWidgetRef.Get(this.m_ScrollBarHandleRef).BindProperty(n"tintColor", n"MainColors.Red");
+      inkWidgetRef.Get(this.m_CounterLabelRef).BindProperty(n"tintColor", n"MainColors.Red");
+      inkWidgetRef.Get(this.m_OptionLabelRef).BindProperty(n"tintColor", n"MainColors.Red");
+      inkWidgetRef.Get(this.m_ColorSelectorUpFGRef).BindProperty(n"tintColor", n"MainColors.PanelRed");
+      inkWidgetRef.Get(this.m_ColorSelectorUpBGRef).BindProperty(n"tintColor", n"MainColors.PanelDarkRed");
+      inkWidgetRef.Get(this.m_ColorSelectorDownFGRef).BindProperty(n"tintColor", n"MainColors.PanelRed");
+      inkWidgetRef.Get(this.m_ColorSelectorDownBGRef).BindProperty(n"tintColor", n"MainColors.PanelDarkRed");
+      if this.m_isSelected {
+        inkWidgetRef.SetOpacity(this.m_SelectedWidgetRef, 1.00);
+      };
+      if IsDefined(this.m_GridSelector) {
+        this.m_GridSelector.OnDeSelected();
+      };
+    };
+  }
+
+  protected cb func OnSelected(target: wref<ListItemController>) -> Bool {
+    this.SetSelectedVisualState(true);
+    this.PlayFadeAnimation(this.m_SelectedWidgetRef, 1.00);
+    this.SetHoldProgress(0.00);
+    this.ResetInputHold();
+    this.m_isSelected = true;
+  }
+
+  protected cb func OnDeselected(parent: wref<ListItemController>) -> Bool {
+    this.SetSelectedVisualState(false);
+    this.PlayFadeAnimation(this.m_SelectedWidgetRef, 0.00);
+    inkWidgetRef.SetMargin(this.m_HoldProgressRef, this.m_holdBgInitMargin);
+    this.SetHoldProgress(0.00);
+    this.ResetInputHold();
+    this.m_isSelected = false;
+  }
+
+  protected cb func OnAddedToList(target: wref<ListItemController>) -> Bool;
+
+  public final func OnVisbilityChanged(visible: Bool) -> Void {
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.OnVisbilityChanged(visible);
+    };
+  }
+
+  public final func SetInteractive(interactive: Bool) -> Void {
+    this.GetRootWidget().SetInteractive(interactive);
+    inkWidgetRef.SetInteractive(this.m_TextRootWidgetRef, interactive);
+    inkWidgetRef.SetInteractive(this.m_OptionLabelRef, interactive);
+    if this.m_ScrollBar.GetRootWidget().IsVisible() {
+      inkWidgetRef.SetInteractive(this.m_ScrollSlidingAreaRef, interactive);
+    };
+    if this.m_OptionSelector.GetRootWidget().IsVisible() {
+      inkWidgetRef.SetInteractive(this.m_LeftButton, interactive);
+      inkWidgetRef.SetInteractive(this.m_RightButton, interactive);
+    };
+  }
+
+  public final func SetIsEnabled(enabled: Bool) -> Void {
+    this.GetRootWidget().SetVisible(enabled);
+  }
+
+  public final func ForceValue(value: Float, doApply: Bool) -> Void {
+    let i: Int32;
+    let setIndex: Int32;
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if this.m_ScrollBar.GetRootWidget().IsVisible() {
+      this.m_doApply = doApply;
+      this.m_ScrollBar.ChangeValue(value);
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, value, doApply);
+      this.m_doApply = true;
+    };
+    if this.m_HueBar.GetRootWidget().IsVisible() {
+      this.m_doApply = doApply;
+      this.m_HueBar.ChangeValue(value);
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, value, doApply);
+      this.m_doApply = true;
+    };
+    if this.m_OptionSelector.GetRootWidget().IsVisible() {
+      setIndex = 0;
+      i = 0;
+      while i < ArraySize(this.m_OptionSelectorValues) {
+        if this.m_OptionSelectorValues[i].optionData == Cast<Int32>(value) {
+          setIndex = i;
+        };
+        i += 1;
+      };
+      this.m_OptionSelector.SetCurrIndex(setIndex);
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(this.m_OptionSelectorValues[setIndex].optionData), doApply);
+    };
+  }
+
+  public final func RefreshSaturation(value: Float) -> Void {
+    if inkWidgetRef.IsValid(this.m_SaturationColorRef) {
+      inkWidgetRef.SetTintColor(this.m_SaturationColorRef, Color.HSBToColor(value, true));
+    };
+  }
+
+  public final func SetupGridSelector(const gridData: script_ref<[PhotoModeOptionGridButtonData]>, elementsCount: Uint32, elementsInRow: Uint32) -> Void {
+    let visibleSize: Float;
+    let widgetToHide: wref<inkWidget>;
+    let rootSize: Vector2 = this.GetRootWidget().GetSize();
+    let rows: Int32 = Cast<Int32>(elementsCount) / Cast<Int32>(elementsInRow);
+    if Cast<Int32>(elementsCount) % Cast<Int32>(elementsInRow) != 0 {
+      rows += 1;
+    };
+    if IsDefined(this.m_ScrollBar) {
+      widgetToHide = this.m_ScrollBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_CounterLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_ScrollSlidingAreaRef, false);
+    };
+    if IsDefined(this.m_OptionSelector) {
+      widgetToHide = this.m_OptionSelector.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+    };
+    if inkWidgetRef.IsValid(this.m_GridRoot) {
+      this.m_GridSelector = inkWidgetRef.GetControllerByType(this.m_GridRoot, n"PhotoModeGridList") as PhotoModeGridList;
+      if Cast<Int32>(elementsInRow) > 5 {
+        inkWidgetRef.SetMargin(this.m_GridRoot, 30.00, 0.00, 0.00, 0.00);
+        inkWidgetRef.SetSize(this.m_GridRoot, 1475.00, 80.00);
+        rootSize.X += 50.00;
+      };
+      visibleSize = this.m_GridSelector.Setup(this, rows, Cast<Int32>(elementsInRow));
+      this.m_GridSelector.SetGridData(gridData);
+      this.GetRootWidget().SetSize(rootSize.X, visibleSize);
+    };
+    if IsDefined(this.m_HueBar) {
+      widgetToHide = this.m_HueBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_LeftLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_HueSlidingAreaRef, false);
+    };
+  }
+
+  public final func SetupScrollBar(startValue: Float, minValue: Float, maxValue: Float, step: Float, displayType: Uint32) -> Void {
+    let widgetToHide: wref<inkWidget>;
+    this.m_StepValue = step;
+    this.m_SliderDisplayType = displayType;
+    if IsDefined(this.m_ScrollBar) {
+      this.m_ScrollBar.Setup(minValue, maxValue, startValue, step);
+    };
+    if IsDefined(this.m_OptionSelector) {
+      widgetToHide = this.m_OptionSelector.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+    };
+    if inkWidgetRef.IsValid(this.m_GridRoot) {
+      inkWidgetRef.SetVisible(this.m_GridRoot, false);
+    };
+    if IsDefined(this.m_HueBar) {
+      widgetToHide = this.m_HueBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_LeftLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_HueSlidingAreaRef, false);
+    };
+  }
+
+  public final func SetupHueBar(startValue: Float, minValue: Float, maxValue: Float, step: Float, displayType: Uint32) -> Void {
+    let widgetToHide: wref<inkWidget>;
+    this.m_StepValue = step;
+    this.m_SliderDisplayType = displayType;
+    if IsDefined(this.m_HueBar) {
+      this.m_HueBar.Setup(minValue, maxValue, startValue, step);
+      if displayType != 0u && inkWidgetRef.IsValid(this.m_HueBackgroundRef) {
+        inkWidgetRef.SetVisible(this.m_HueBackgroundRef, false);
+      };
+      if displayType != 1u && inkWidgetRef.IsValid(this.m_SaturationBackgroundRef) {
+        inkWidgetRef.SetVisible(this.m_SaturationBackgroundRef, false);
+      };
+      if displayType != 2u && inkWidgetRef.IsValid(this.m_LuminosityBackgroundRef) {
+        inkWidgetRef.SetVisible(this.m_LuminosityBackgroundRef, false);
+      };
+      if displayType == 1u && inkWidgetRef.IsValid(this.m_SaturationColorRef) {
+        inkWidgetRef.SetTintColor(this.m_SaturationColorRef, Color.HSBToColor(startValue, true));
+      };
+    };
+    if IsDefined(this.m_ScrollBar) {
+      widgetToHide = this.m_ScrollBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_CounterLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_ScrollSlidingAreaRef, false);
+    };
+    if IsDefined(this.m_OptionSelector) {
+      widgetToHide = this.m_OptionSelector.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+    };
+    if inkWidgetRef.IsValid(this.m_GridRoot) {
+      inkWidgetRef.SetVisible(this.m_GridRoot, false);
+    };
+  }
+
+  public final func SetupOptionSelector(const values: script_ref<[PhotoModeOptionSelectorData]>, startData: Int32) -> Void {
+    let i: Int32;
+    let startIndex: Int32;
+    let widgetToHide: wref<inkWidget>;
+    this.m_StepValue = 1.00;
+    if IsDefined(this.m_ScrollBar) {
+      widgetToHide = this.m_ScrollBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_CounterLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_ScrollSlidingAreaRef, false);
+    };
+    if IsDefined(this.m_OptionSelector) {
+      startIndex = 0;
+      this.m_OptionSelectorValues = Deref(values);
+      this.m_OptionSelector.Clear();
+      i = 0;
+      while i < ArraySize(this.m_OptionSelectorValues) {
+        if this.m_OptionSelectorValues[i].optionData == startData {
+          startIndex = i;
+        };
+        this.m_OptionSelector.AddValue(this.m_OptionSelectorValues[i].optionText);
+        i += 1;
+      };
+      this.m_OptionSelector.SetCurrIndex(startIndex);
+      if inkWidgetRef.IsVisible(this.m_SelectedWidgetRef) {
+        this.OnSelected(null);
+      };
+    };
+    if inkWidgetRef.IsValid(this.m_GridRoot) {
+      inkWidgetRef.SetVisible(this.m_GridRoot, false);
+    };
+    if IsDefined(this.m_HueBar) {
+      widgetToHide = this.m_HueBar.GetRootWidget();
+      widgetToHide.SetVisible(false);
+      widgetToHide as inkCompoundWidget.RemoveAllChildren();
+      inkWidgetRef.SetVisible(this.m_LeftLabelRef, false);
+      inkWidgetRef.SetInteractive(this.m_HueSlidingAreaRef, false);
+    };
+  }
+
+  public final func SetupOptionButton(const value: script_ref<PhotoModeOptionSelectorData>) -> Void {
+    let values: array<PhotoModeOptionSelectorData>;
+    ArrayPush(values, Deref(value));
+    this.SetupOptionSelector(values, 0);
+    inkWidgetRef.SetVisible(this.m_LeftArrow, false);
+    inkWidgetRef.SetVisible(this.m_RightArrow, false);
+    inkWidgetRef.SetVisible(this.m_LeftButton, false);
+    inkWidgetRef.SetVisible(this.m_RightButton, false);
+    this.m_allowHold = true;
+  }
+
+  public final func GetSliderValue() -> Float {
+    return this.m_SliderValue;
+  }
+
+  public final func GetSelectedOptionIndex() -> Int32 {
+    if IsDefined(this.m_OptionSelector) {
+      return this.m_OptionSelector.GetCurrIndex();
+    };
+    return -1;
+  }
+
+  public final func GetGridSelector() -> wref<PhotoModeGridList> {
+    return this.m_GridSelector;
+  }
+
+  public final func SetGridButtonImage(buttonIndex: Uint32, atlasPath: ResRef, imagePart: CName, buttonData: Int32) -> Void {
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.SetGridButtonImage(buttonIndex, atlasPath, imagePart, buttonData);
+    };
+  }
+
+  public final func SetGridButtonImageForceVisible(buttonIndex: Uint32) -> Void {
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.SetGridButtonImageForceVisible(buttonIndex);
+    };
+  }
+
+  public final func SetSelectedGridButton(index: Int32) -> Void {
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.SelectButton(index);
+    };
+  }
+
+  public final func SetHoldProgress(progress: Float) -> Void {
+    let margin: inkMargin;
+    if this.m_allowHold {
+      margin = this.m_holdBgInitMargin;
+      margin.right = this.m_holdBgInitMargin.right * (1.00 - progress);
+      inkWidgetRef.SetMargin(this.m_HoldProgressRef, margin);
+    };
+  }
+
+  public final func HandleHoldInput(e: ref<inkPointerEvent>, opt gameCtrl: wref<inkGameController>) -> Void {
+    if this.m_ScrollBar.GetRootWidget().IsVisible() || this.m_HueBar.GetRootWidget().IsVisible() {
+      if e.IsAction(n"PhotoMode_Left_Button") {
+        this.m_inputDirection = -1;
+      } else {
+        if e.IsAction(n"PhotoMode_Right_Button") {
+          this.m_inputDirection = 1;
+        };
+      };
+    };
+  }
+
+  public final func HandleReleasedInput(e: ref<inkPointerEvent>, opt gameCtrl: wref<inkGameController>) -> Void {
+    let optionValue: Int32;
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if this.m_OptionSelector.GetRootWidget().IsVisible() {
+      if e.IsAction(n"PhotoMode_Left_Button") {
+        this.m_OptionSelector.Prior();
+        this.StartArrowClickedEffect(this.m_LeftArrow);
+        optionValue = this.m_OptionSelectorValues[this.m_OptionSelector.GetCurrIndex()].optionData;
+        this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(optionValue));
+        GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+        this.m_photoModeController.m_anyOptionChanged = true;
+      } else {
+        if e.IsAction(n"PhotoMode_Right_Button") {
+          this.m_OptionSelector.Next();
+          this.StartArrowClickedEffect(this.m_RightArrow);
+          optionValue = this.m_OptionSelectorValues[this.m_OptionSelector.GetCurrIndex()].optionData;
+          this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(optionValue));
+          GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+          this.m_photoModeController.m_anyOptionChanged = true;
+        };
+      };
+    };
+    if this.m_ScrollBar.GetRootWidget().IsVisible() || this.m_HueBar.GetRootWidget().IsVisible() {
+      if e.IsAction(n"PhotoMode_Left_Button") || e.IsAction(n"PhotoMode_Right_Button") {
+        this.ResetInputHold();
+        GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+        this.m_photoModeController.m_anyOptionChanged = true;
+      };
+    };
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.HandleReleasedInput(e, gameCtrl);
+    };
+  }
+
+  protected cb func OnScrollBarValueChanged(controller: wref<inkSliderController>, progress: Float, newValue: Float) -> Bool {
+    let data: ref<PhotoModeMenuListItemData>;
+    let intFractionValue: Int32;
+    let intNewValue: Int32;
+    let newValuePercent: Float;
+    let prefix: String;
+    let scrollBarRange: Float;
+    let stepDigits: Int32;
+    let suffix: String;
+    if this.m_SliderDisplayType == 1u {
+      scrollBarRange = MaxF(AbsF(this.m_ScrollBar.GetMaxValue()), AbsF(this.m_ScrollBar.GetMinValue()));
+      newValuePercent = (100.00 * newValue) / scrollBarRange;
+      intNewValue = RoundMath(newValuePercent);
+      if intNewValue == 0 && newValue < 0.00 {
+        prefix = "-";
+      };
+      inkTextRef.SetText(this.m_CounterLabelRef, prefix + IntToString(intNewValue));
+    } else {
+      if this.m_SliderDisplayType == 2u {
+        prefix = IntToString(RoundF(newValue / 60.00));
+        suffix = IntToString(RoundF(newValue % 60.00));
+        if RoundF(newValue / 60.00) < 10 {
+          prefix = "0" + prefix;
+        };
+        if RoundF(newValue % 60.00) < 10 {
+          suffix = "0" + suffix;
+        };
+        inkTextRef.SetText(this.m_CounterLabelRef, prefix + ":" + suffix);
+      } else {
+        intNewValue = Cast<Int32>(newValue);
+        intFractionValue = Cast<Int32>(100.00 * AbsF(newValue) % 1.00);
+        stepDigits = Cast<Int32>(this.m_StepValue * 100.00) % 10 == 0 ? 10 : 1;
+        if intNewValue == 0 && newValue < 0.00 {
+          prefix = "-";
+        };
+        if this.m_StepValue % 1.00 == 0.00 {
+          inkTextRef.SetText(this.m_CounterLabelRef, prefix + IntToString(intNewValue));
+        } else {
+          if intFractionValue < 10 && intFractionValue != 0 {
+            inkTextRef.SetText(this.m_CounterLabelRef, prefix + IntToString(intNewValue) + ".0" + IntToString(intFractionValue));
+          } else {
+            intFractionValue = intFractionValue / stepDigits;
+            inkTextRef.SetText(this.m_CounterLabelRef, prefix + IntToString(intNewValue) + "." + IntToString(intFractionValue));
+          };
+        };
+      };
+    };
+    this.m_SliderValue = newValue;
+    data = this.GetData() as PhotoModeMenuListItemData;
+    this.m_photoModeController.OnAttributeUpdated(data.attributeKey, this.m_SliderValue, this.m_doApply);
+    this.m_photoModeController.m_anyOptionChanged = true;
+  }
+
+  protected cb func OnHueBarValueChanged(controller: wref<inkSliderController>, progress: Float, newValue: Float) -> Bool {
+    let data: ref<PhotoModeMenuListItemData>;
+    let prefix: String;
+    let intNewValue: Int32 = Cast<Int32>(newValue);
+    let intFractionValue: Int32 = Cast<Int32>(100.00 * AbsF(newValue) % 1.00);
+    let stepDigits: Int32 = Cast<Int32>(this.m_StepValue * 100.00) % 10 == 0 ? 10 : 1;
+    if intNewValue == 0 && newValue < 0.00 {
+      prefix = "-";
+    };
+    if this.m_StepValue % 1.00 == 0.00 {
+      inkTextRef.SetText(this.m_LeftLabelRef, prefix + IntToString(intNewValue));
+    } else {
+      if intFractionValue < 10 && intFractionValue != 0 {
+        inkTextRef.SetText(this.m_LeftLabelRef, prefix + IntToString(intNewValue) + ".0" + IntToString(intFractionValue));
+      } else {
+        intFractionValue = intFractionValue / stepDigits;
+        inkTextRef.SetText(this.m_LeftLabelRef, prefix + IntToString(intNewValue) + "." + IntToString(intFractionValue));
+      };
+    };
+    this.m_SliderValue = newValue;
+    data = this.GetData() as PhotoModeMenuListItemData;
+    this.m_photoModeController.OnAttributeUpdated(data.attributeKey, this.m_SliderValue, this.m_doApply);
+    this.m_photoModeController.m_anyOptionChanged = true;
+  }
+
+  protected cb func OnOptionLeft(e: ref<inkPointerEvent>) -> Bool {
+    let optionValue: Int32;
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.m_OptionSelector.GetRootWidget().IsVisible() {
+      this.StartArrowClickedEffect(this.m_LeftArrow);
+      optionValue = this.m_OptionSelectorValues[this.m_OptionSelector.GetCurrIndex()].optionData;
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(optionValue));
+      GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+      this.m_photoModeController.m_anyOptionChanged = true;
+    };
+  }
+
+  protected cb func OnOptionRight(e: ref<inkPointerEvent>) -> Bool {
+    let optionValue: Int32;
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.m_OptionSelector.GetRootWidget().IsVisible() {
+      this.StartArrowClickedEffect(this.m_RightArrow);
+      optionValue = this.m_OptionSelectorValues[this.m_OptionSelector.GetCurrIndex()].optionData;
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(optionValue));
+      GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+      this.m_photoModeController.m_anyOptionChanged = true;
+    };
+  }
+
+  public final func GridElementAction(elementIndex: Int32, buttonData: Int32) -> Void {
+    let photoModeListItem: ref<PhotoModeMenuListItem>;
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if data.attributeKey == 35u {
+      this.m_photoModeController.SetCurrentMenuPage(9u);
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(elementIndex));
+      this.m_photoModeController.HideTabRoot(true);
+      photoModeListItem = this.m_photoModeController.GetMenuItem(36u);
+      photoModeListItem.SetSelectedGridButton(buttonData + 1);
+    } else {
+      if data.attributeKey == 36u {
+        this.m_photoModeController.SetCurrentMenuPage(7u);
+        this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(buttonData));
+        this.m_photoModeController.HideTabRoot(false);
+        GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+        this.m_photoModeController.m_anyOptionChanged = true;
+      } else {
+        if data.attributeKey == 55u {
+          this.m_photoModeController.SetCurrentMenuPage(10u);
+          this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(elementIndex));
+          this.m_photoModeController.HideTabRoot(true);
+          photoModeListItem = this.m_photoModeController.GetMenuItem(63u);
+          photoModeListItem.SetSelectedGridButton(buttonData + 1);
+        } else {
+          if data.attributeKey == 63u {
+            this.m_photoModeController.SetCurrentMenuPage(3u);
+            this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(buttonData));
+            this.m_photoModeController.HideTabRoot(false);
+            GameInstance.GetTelemetrySystem(this.m_photoModeController.GetPlayerControlledObject().GetGame()).LogPhotomodeAttributeChanged();
+            this.m_photoModeController.m_anyOptionChanged = true;
+          };
+        };
+      };
+    };
+  }
+
+  public final func GridElementSelected(elementIndex: Int32) -> Void {
+    let data: ref<PhotoModeMenuListItemData> = this.GetData() as PhotoModeMenuListItemData;
+    if data.attributeKey == 35u {
+      this.m_photoModeController.OnAttributeUpdated(data.attributeKey, Cast<Float>(elementIndex));
+      this.m_photoModeController.m_anyOptionChanged = true;
+    };
+  }
+
+  private final func StartArrowClickedEffect(widget: inkWidgetRef) -> Void {
+    inkWidgetRef.SetOpacity(widget, 0.00);
+    this.m_arrowClickedTime = 0.10;
+  }
+
+  public final func ResetInputHold() -> Void {
+    this.m_inputDirection = 0;
+    this.m_inputHoldTime = 0.00;
+    this.m_inputStepTime = 0.00;
+  }
+
+  public final func Update(timeDelta: Float) -> Void {
+    if IsDefined(this.m_GridSelector) {
+      this.m_GridSelector.Update(timeDelta);
+    };
+    if this.m_arrowClickedTime > 0.00 {
+      this.m_arrowClickedTime -= timeDelta;
+      if this.m_arrowClickedTime <= 0.00 {
+        this.SetSelectedVisualState(this.m_isSelected);
+        this.m_arrowClickedTime = 0.00;
+      };
+    };
+    if this.m_inputDirection != 0 {
+      this.m_inputHoldTime += timeDelta;
+      this.m_inputStepTime -= timeDelta;
+      if this.m_inputStepTime <= 0.00 {
+        if this.m_inputHoldTime > 0.40 {
+          this.m_inputStepTime = 0.01;
+        } else {
+          if this.m_inputHoldTime > 0.20 {
+            this.m_inputStepTime = 0.07;
+          } else {
+            this.m_inputStepTime = 0.20;
+          };
+        };
+        if this.m_inputDirection == -1 {
+          this.m_ScrollBar.Prior();
+          this.m_HueBar.Prior();
+        } else {
+          if this.m_inputDirection == 1 {
+            this.m_ScrollBar.Next();
+            this.m_HueBar.Next();
+          };
+        };
+      };
+    };
+  }
+
+  public final func SetLeftArrowVisible(visible: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_LeftButton, visible);
+  }
+}

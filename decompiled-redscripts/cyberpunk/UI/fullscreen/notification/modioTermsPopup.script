@@ -1,0 +1,269 @@
+
+public class ModioToolTipInMenu extends inkLogicController {
+
+  private edit let m_mainContainer: inkWidgetRef;
+
+  public edit let m_content: inkTextRef;
+
+  private edit let m_TopMargin: inkCanvasRef;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.SetVisible(this.m_mainContainer, false);
+  }
+
+  public final func SetText(str: String) -> Void {
+    inkTextRef.SetText(this.m_content, str);
+    inkWidgetRef.SetVisible(this.m_mainContainer, StrLen(str) > 0);
+  }
+
+  public final func SetMarginTop(top: Float) -> Void {
+    let size: Vector2 = inkWidgetRef.Get(this.m_TopMargin).GetSize();
+    size.Y = top;
+    inkWidgetRef.Get(this.m_TopMargin).SetSize(size);
+  }
+}
+
+public class ModioTermsPopupController extends inkGameController {
+
+  private edit let m_hyperlinkButtonRef1: inkWidgetRef;
+
+  private edit let m_hyperlinkButtonRef2: inkWidgetRef;
+
+  private edit let m_hyperlinkButtonRef3: inkWidgetRef;
+
+  private edit let m_agreeBtnRef: inkWidgetRef;
+
+  private edit let m_NoThanksBtnRef: inkWidgetRef;
+
+  private edit let m_toggleSelectBtnRef: inkWidgetRef;
+
+  private edit let m_agreeTxtRef: inkTextRef;
+
+  private edit let m_questionOne_ContainerRef: inkWidgetRef;
+
+  private edit let m_questionTwo_ContainerRef: inkWidgetRef;
+
+  private edit let m_questionOne_ToggleFillRef: inkWidgetRef;
+
+  private edit let m_questionTwo_ToggleFillRef: inkWidgetRef;
+
+  private edit let m_consoleWarning: inkTextRef;
+
+  private edit let m_ps5Warning: inkRichTextBoxRef;
+
+  private let m_data: ref<ModioTermsPopupData>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_acceptButtonController: wref<inkButtonController>;
+
+  @default(ModioTermsPopupController, false)
+  private let m_questionOne_State: Bool;
+
+  @default(ModioTermsPopupController, false)
+  private let m_questionTwo_State: Bool;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_data = this.GetRootWidget().GetUserData(n"ModioTermsPopupData") as ModioTermsPopupData;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnPress", this, n"OnTermsPress");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnHoverOver", this, n"OnTermsHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnHoverOut", this, n"OnTermsHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnPress", this, n"OnPrivacyPress");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnHoverOver", this, n"OnPrivacyHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnHoverOut", this, n"OnPrivacyHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef3, n"OnPress", this, n"OnCDPRPrivacyPress");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef3, n"OnHoverOver", this, n"OnCDPRPrivacyHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef3, n"OnHoverOut", this, n"OnCDPRPrivacyHoverOut");
+    inkWidgetRef.SetVisible(this.m_consoleWarning, true);
+    if Equals(GetPlatformShortName(), "xseriess") || Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "windowsGDK") {
+      inkTextRef.SetText(this.m_consoleWarning, GetLocalizedText("UI-Modio-ErrorMessages-WarningNoAchievements"));
+    } else {
+      if Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro") {
+        inkTextRef.SetText(this.m_consoleWarning, GetLocalizedText("UI-Modio-ErrorMessages-WarningNoTrophies"));
+      } else {
+        if Equals(GetPlatformShortName(), "emporium") {
+          inkWidgetRef.SetVisible(this.m_consoleWarning, false);
+        } else {
+          inkTextRef.SetText(this.m_consoleWarning, GetLocalizedText("UI-Modio-ErrorMessages-WarningNoAchieveTrophies"));
+        };
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_ps5Warning, false);
+    inkWidgetRef.RegisterToCallback(this.m_agreeBtnRef, n"OnButtonClick", this, n"OnAgreePress");
+    inkWidgetRef.RegisterToCallback(this.m_NoThanksBtnRef, n"OnButtonClick", this, n"OnCancelPress");
+    inkWidgetRef.RegisterToCallback(this.m_toggleSelectBtnRef, n"OnButtonClick", this, n"OnToggleSelectPress");
+    inkWidgetRef.RegisterToCallback(this.m_questionOne_ContainerRef, n"OnPress", this, n"OnPressQuestionOne");
+    inkWidgetRef.RegisterToCallback(this.m_questionTwo_ContainerRef, n"OnPress", this, n"OnPressQuestionTwo");
+    inkWidgetRef.RegisterToCallback(this.m_questionOne_ContainerRef, n"OnHoverOut", this, n"OnHoverOutQuestionOne");
+    inkWidgetRef.RegisterToCallback(this.m_questionTwo_ContainerRef, n"OnHoverOut", this, n"OnHoverOutQuestionTwo");
+    this.m_acceptButtonController = inkWidgetRef.GetControllerByType(this.m_agreeBtnRef, n"inkButtonController") as inkButtonController;
+    this.UpdateToggleOne();
+    this.UpdateToggleTwo();
+    inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef3, false);
+    inkWidgetRef.RegisterToCallback(this.m_agreeBtnRef, n"OnRelease", this, n"OnAgreeTouch");
+    inkWidgetRef.RegisterToCallback(this.m_NoThanksBtnRef, n"OnRelease", this, n"OnCancelTouch");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnPress", this, n"OnTermsPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnHoverOver", this, n"OnTermsHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnHoverOut", this, n"OnTermsHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnPress", this, n"OnPrivacyPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnHoverOver", this, n"OnPrivacyHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnHoverOut", this, n"OnPrivacyHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef3, n"OnPress", this, n"OnCDPRPrivacyPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef3, n"OnHoverOver", this, n"OnCDPRPrivacyHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef3, n"OnHoverOut", this, n"OnCDPRPrivacyHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_agreeBtnRef, n"OnButtonClick", this, n"OnAgreePress");
+    inkWidgetRef.UnregisterFromCallback(this.m_NoThanksBtnRef, n"OnButtonClick", this, n"OnCancelPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_toggleSelectBtnRef, n"OnButtonClick", this, n"OnToggleSelectPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_questionOne_ContainerRef, n"OnPress", this, n"OnPressQuestionOne");
+    inkWidgetRef.UnregisterFromCallback(this.m_questionTwo_ContainerRef, n"OnPress", this, n"OnPressQuestionTwo");
+    inkWidgetRef.UnregisterFromCallback(this.m_questionOne_ContainerRef, n"OnHoverOut", this, n"OnHoverOutQuestionOne");
+    inkWidgetRef.UnregisterFromCallback(this.m_questionTwo_ContainerRef, n"OnHoverOut", this, n"OnHoverOutQuestionTwo");
+    inkWidgetRef.UnregisterFromCallback(this.m_agreeBtnRef, n"OnRelease", this, n"OnAgreeTouch");
+    inkWidgetRef.UnregisterFromCallback(this.m_NoThanksBtnRef, n"OnRelease", this, n"OnCancelTouch");
+  }
+
+  protected cb func OnTermsPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      Modio.OpenUrl(0);
+    };
+  }
+
+  protected cb func OnTermsHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef1).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+  }
+
+  protected cb func OnTermsHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef1).BindProperty(n"tintColor", this.m_colorNames.redName);
+  }
+
+  protected cb func OnPrivacyPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      Modio.OpenUrl(1);
+    };
+  }
+
+  protected cb func OnPrivacyHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef2).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+  }
+
+  protected cb func OnPrivacyHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef2).BindProperty(n"tintColor", this.m_colorNames.redName);
+  }
+
+  protected cb func OnCDPRPrivacyPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_requestHandler.OpenPrivacyPolicyUrl();
+    };
+  }
+
+  protected cb func OnCDPRPrivacyHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef3).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+  }
+
+  protected cb func OnCDPRPrivacyHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef3).BindProperty(n"tintColor", this.m_colorNames.redName);
+  }
+
+  protected cb func OnAgreePress(controller: wref<inkButtonController>) -> Bool {
+    this.Agree();
+  }
+
+  protected cb func OnCancelPress(controller: wref<inkButtonController>) -> Bool {
+    this.Close();
+  }
+
+  protected cb func OnAgreeTouch(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"tap") && this.m_acceptButtonController.GetEnabled() {
+      this.Agree();
+    };
+  }
+
+  protected cb func OnCancelTouch(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"tap") {
+      this.Close();
+    };
+  }
+
+  protected cb func OnToggleSelectPress(controller: wref<inkButtonController>) -> Bool {
+    if !(this.m_questionOne_State && this.m_questionTwo_State) {
+      this.m_questionOne_State = this.m_questionTwo_State = true;
+    } else {
+      this.m_questionOne_State = this.m_questionTwo_State = false;
+    };
+    this.UpdateToggleOne();
+    this.UpdateToggleTwo();
+  }
+
+  private final func Agree() -> Void {
+    let closeEvent: ref<ModioTermsPopupCloseEvent> = new ModioTermsPopupCloseEvent();
+    closeEvent.m_isAccepted = true;
+    GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame()).QueueEvent(closeEvent);
+    this.Close();
+  }
+
+  private final func Close() -> Void {
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") {
+      this.Close();
+    } else {
+      if evt.IsAction(n"mod_notification_confirm") && this.m_questionOne_State && this.m_questionTwo_State {
+        this.Agree();
+      };
+    };
+  }
+
+  protected cb func OnPressQuestionOne(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_questionOne_State = !this.m_questionOne_State;
+      this.UpdateToggleOne();
+    };
+  }
+
+  protected cb func OnPressQuestionTwo(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_questionTwo_State = !this.m_questionTwo_State;
+      this.UpdateToggleTwo();
+    };
+  }
+
+  private final func UpdateToggleOne() -> Void {
+    inkWidgetRef.SetState(this.m_questionOne_ContainerRef, this.m_questionOne_State ? n"Selected" : n"Default");
+    inkWidgetRef.SetVisible(this.m_questionOne_ToggleFillRef, this.m_questionOne_State);
+    this.UpdateAcceptButton();
+  }
+
+  private final func UpdateToggleTwo() -> Void {
+    inkWidgetRef.SetState(this.m_questionTwo_ContainerRef, this.m_questionTwo_State ? n"Selected" : n"Default");
+    inkWidgetRef.SetVisible(this.m_questionTwo_ToggleFillRef, this.m_questionTwo_State);
+    this.UpdateAcceptButton();
+  }
+
+  private final func UpdateAcceptButton() -> Void {
+    this.m_acceptButtonController.SetSelectable(this.m_questionOne_State && this.m_questionTwo_State);
+    this.m_acceptButtonController.SetEnabled(this.m_questionOne_State && this.m_questionTwo_State);
+    if this.m_questionOne_State && this.m_questionTwo_State {
+      inkWidgetRef.Get(this.m_agreeTxtRef).BindProperty(n"tintColor", n"PopupButton.textColor");
+    } else {
+      inkWidgetRef.Get(this.m_agreeTxtRef).BindProperty(n"tintColor", n"MainColors.Grey");
+    };
+  }
+
+  protected cb func OnHoverOutQuestionOne(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_questionOne_ContainerRef, this.m_questionOne_State ? n"Selected" : n"Default");
+  }
+
+  protected cb func OnHoverOutQuestionTwo(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_questionTwo_ContainerRef, this.m_questionTwo_State ? n"Selected" : n"Default");
+  }
+}

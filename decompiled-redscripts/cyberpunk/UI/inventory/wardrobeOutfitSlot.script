@@ -1,0 +1,115 @@
+
+public class WardrobeOutfitSlotController extends inkLogicController {
+
+  private edit let m_slotNumberText: inkTextRef;
+
+  private edit let m_newSetIndicator: inkWidgetRef;
+
+  private let m_index: Int32;
+
+  private let m_hovered: Bool;
+
+  private let m_active: Bool;
+
+  private let m_equipped: Bool;
+
+  private let m_isNew: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+  }
+
+  public final func Setup(index: Int32, active: Bool, equipped: Bool, isNew: Bool) -> Void {
+    this.m_index = index;
+    this.m_active = active;
+    this.m_equipped = equipped;
+    this.m_isNew = isNew;
+    inkTextRef.SetText(this.m_slotNumberText, IntToString(this.m_index + 1));
+    inkWidgetRef.SetVisible(this.m_newSetIndicator, isNew);
+    this.UpdateState();
+  }
+
+  public final func Update(active: Bool, equipped: Bool) -> Void {
+    this.m_active = active;
+    this.m_equipped = equipped;
+    this.UpdateState();
+  }
+
+  public final func SetIsNew(isNew: Bool) -> Void {
+    this.m_isNew = isNew;
+    inkWidgetRef.SetVisible(this.m_newSetIndicator, isNew);
+  }
+
+  public final func GetIndex() -> Int32 {
+    return this.m_index;
+  }
+
+  public final func IsNew() -> Bool {
+    return this.m_isNew;
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<WardrobeOutfitSlotHoverOverEvent>;
+    this.m_hovered = true;
+    this.UpdateState();
+    evt = new WardrobeOutfitSlotHoverOverEvent();
+    evt.controller = this;
+    evt.evt = e;
+    this.QueueEvent(evt);
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.m_hovered = false;
+    this.UpdateState();
+    this.QueueEvent(new WardrobeOutfitSlotHoverOutEvent());
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<WardrobeOutfitSlotClickedEvent>;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      if this.m_active {
+        this.PlaySound(n"Button", n"OnPress");
+        evt = new WardrobeOutfitSlotClickedEvent();
+        evt.index = this.m_index;
+        evt.equipped = this.m_equipped;
+        this.QueueEvent(evt);
+      } else {
+        this.PlaySound(n"Item", n"OnCraftFailed");
+      };
+    };
+  }
+
+  private final func UpdateState() -> Void {
+    if this.m_active {
+      if this.m_hovered && this.m_equipped {
+        this.GetRootWidget().SetState(n"EquippedHover");
+      } else {
+        if this.m_hovered {
+          this.GetRootWidget().SetState(n"Hover");
+        } else {
+          if this.m_equipped {
+            this.GetRootWidget().SetState(n"Equipped");
+          } else {
+            this.GetRootWidget().SetState(n"Default");
+          };
+        };
+      };
+    } else {
+      this.GetRootWidget().SetState(n"Disabled");
+    };
+  }
+}
+
+public class WardrobeOutfitInfoTooltipController extends AGenericTooltipController {
+
+  public edit let m_videoWidget: inkVideoRef;
+
+  public func SetData(tooltipData: ref<ATooltipData>) -> Void {
+    inkVideoRef.Stop(this.m_videoWidget);
+    inkVideoRef.SetVideoPath(this.m_videoWidget, r"base\\movies\\misc\\wardrobe\\wardrobe_tooltip_footage_1.bk2");
+    inkVideoRef.SetLoop(this.m_videoWidget, true);
+    inkVideoRef.Play(this.m_videoWidget);
+  }
+}

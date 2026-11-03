@@ -1,0 +1,97 @@
+
+public class ItemSlotsFilledPrereqState extends PrereqState {
+
+  public let m_equipmentBlackboardCallback: ref<CallbackHandle>;
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_equipAreas: [gamedataEquipmentArea];
+
+  public let m_inverted: Bool;
+
+  protected cb func OnEquipAreaChanged(value: Int32) -> Bool {
+    let prereq: ref<ItemSlotsFilledPrereq>;
+    if IsDefined(this.m_owner) {
+      if ArrayContains(this.m_equipAreas, IntEnum<gamedataEquipmentArea>(value)) {
+        prereq = this.GetPrereq() as ItemSlotsFilledPrereq;
+        this.OnChanged(prereq.CheckEquipAreaSlots(this.m_owner));
+      };
+    };
+  }
+}
+
+public class ItemSlotsFilledPrereq extends IScriptablePrereq {
+
+  public let m_equipAreas: [gamedataEquipmentArea];
+
+  public let m_inverted: Bool;
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    let equipArea: gamedataEquipmentArea;
+    this.m_inverted = TDB.GetBool(recordID + t".inverted");
+    let areas: array<CName> = TDB.GetCNameArray(recordID + t".equipAreas");
+    let i: Int32 = 0;
+    while i < ArraySize(areas) {
+      equipArea = IntEnum<gamedataEquipmentArea>(Cast<Int32>(EnumValueFromName(n"gamedataEquipmentArea", areas[i])));
+      ArrayPush(this.m_equipAreas, equipArea);
+      i += 1;
+    };
+  }
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let equipmentBlackboard: wref<IBlackboard>;
+    let castedState: ref<ItemSlotsFilledPrereqState> = state as ItemSlotsFilledPrereqState;
+    let player: ref<GameObject> = context as GameObject;
+    if IsDefined(player) {
+      castedState.m_owner = player;
+      equipmentBlackboard = GameInstance.GetBlackboardSystem(player.GetGame()).Get(GetAllBlackboardDefs().UI_Equipment);
+      castedState.m_equipmentBlackboardCallback = equipmentBlackboard.RegisterListenerInt(GetAllBlackboardDefs().UI_Equipment.areaChanged, castedState, n"OnEquipAreaChanged");
+      castedState.m_equipAreas = this.m_equipAreas;
+      castedState.m_inverted = this.m_inverted;
+    };
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let equipmentBlackboard: wref<IBlackboard>;
+    let castedState: ref<ItemSlotsFilledPrereqState> = state as ItemSlotsFilledPrereqState;
+    let player: ref<GameObject> = context as GameObject;
+    if IsDefined(player) {
+      equipmentBlackboard = GameInstance.GetBlackboardSystem(player.GetGame()).Get(GetAllBlackboardDefs().UI_Equipment);
+      if IsDefined(castedState.m_equipmentBlackboardCallback) {
+        equipmentBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_Equipment.itemEquipped, castedState.m_equipmentBlackboardCallback);
+      };
+    };
+  }
+
+  protected const func OnApplied(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let castedState: ref<ItemSlotsFilledPrereqState> = state as ItemSlotsFilledPrereqState;
+    if !IsDefined(castedState.m_owner) {
+      return;
+    };
+    castedState.OnChanged(this.CheckEquipAreaSlots(context));
+  }
+
+  public const func IsFulfilled(game: GameInstance, context: ref<IScriptable>) -> Bool {
+    return this.CheckEquipAreaSlots(context);
+  }
+
+  public final const func CheckEquipAreaSlots(context: ref<IScriptable>) -> Bool {
+    let equipmentSystemPlayerData: ref<EquipmentSystemPlayerData>;
+    let i: Int32;
+    let itemCount: Int32;
+    let slotCount: Int32;
+    let player: ref<GameObject> = context as GameObject;
+    if !IsDefined(player) {
+      return false;
+    };
+    equipmentSystemPlayerData = EquipmentSystem.GetData(player);
+    i = 0;
+    while i < ArraySize(this.m_equipAreas) {
+      slotCount += equipmentSystemPlayerData.GetNumberOfSlots(this.m_equipAreas[i]);
+      itemCount += equipmentSystemPlayerData.GetNumberOfItemsInEquipmentArea(this.m_equipAreas[i]);
+      i += 1;
+    };
+    return this.m_inverted ? slotCount != itemCount : slotCount == itemCount;
+  }
+}

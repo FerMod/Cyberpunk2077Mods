@@ -1,0 +1,189 @@
+
+public class PitchEulaGameController extends gameuiMenuGameController {
+
+  private edit let m_eulaWidget: inkWidgetRef;
+
+  private edit let m_sliderWidget: inkWidgetRef;
+
+  private edit let m_declineButtonText: inkTextRef;
+
+  private edit let m_acceptButtonText: inkTextRef;
+
+  private edit let m_contentTextRef: inkTextRef;
+
+  @default(PitchEulaGameController, UI-EULA-EULAFullText)
+  private edit let m_contentTextLocKey: CName;
+
+  private edit let m_gamerTagContainerRef: inkWidgetRef;
+
+  private edit let m_gamerTagText: inkTextRef;
+
+  private edit let m_declineEulaPopup: inkWidgetRef;
+
+  private edit let m_declineEulaPopupConfirmButtonRef: inkWidgetRef;
+
+  private edit let m_declineEulaQuitGameHintRef: inkWidgetRef;
+
+  private edit let m_eulaHintsContainerRef: inkWidgetRef;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_delaySystem: ref<DelaySystem>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  @default(PitchEulaGameController, false)
+  private let m_eulaIsAccepted: Bool;
+
+  @default(PitchEulaGameController, false)
+  private let m_eulaRead: Bool;
+
+  @default(PitchEulaGameController, false)
+  private let m_eulaReadWhenButtonWasPressed: Bool;
+
+  @default(PitchEulaGameController, false)
+  private let m_declinePopupOpened: Bool;
+
+  private let m_sliderController: wref<inkSliderController>;
+
+  private let m_declineEulaPopupConfirmButtonController: wref<inkButtonController>;
+
+  private let m_declineEulaPopupProxy: ref<inkAnimProxy>;
+
+  private let m_eulaAnimationProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+      this.m_delaySystem = GameInstance.GetDelaySystem(this.GetPlayerControlledObject().GetGame());
+    };
+    inkWidgetRef.SetState(this.m_declineButtonText, n"Disabled");
+    inkWidgetRef.SetState(this.m_acceptButtonText, n"Disabled");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnShortcutRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnShortcutPress");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnHold");
+    this.m_declineEulaPopupConfirmButtonController = inkWidgetRef.GetControllerByType(this.m_declineEulaPopupConfirmButtonRef, n"inkButtonController") as inkButtonController;
+    this.InitializeAndShowEula();
+    if Equals(GetPlatformShortName(), "xseriess") || Equals(GetPlatformShortName(), "xseriesx") || Equals(GetPlatformShortName(), "windowsGDK") {
+      this.RequestPlatformUsername();
+    };
+  }
+
+  protected func PlatformUsernameReceived(platformName: String) -> Void {
+    inkWidgetRef.SetVisible(this.m_gamerTagContainerRef, true);
+    inkTextRef.SetText(this.m_gamerTagText, platformName);
+  }
+
+  private final func InitializeAndShowEula() -> Void {
+    inkTextRef.SetLocalizedText(this.m_contentTextRef, this.m_contentTextLocKey);
+    inkWidgetRef.SetVisible(this.m_eulaWidget, true);
+    this.GetPlayerControlledObject().RegisterInputListener(this, n"system_quit_game");
+    this.m_sliderController = inkWidgetRef.GetControllerByType(this.m_sliderWidget, n"inkSliderController") as inkSliderController;
+    this.m_sliderController.RegisterToCallback(n"OnSliderValueChanged", this, n"OnEulaScrollbarValueChanged");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnPostOnRelease", this, n"OnShortcutRelease");
+    this.UnregisterFromCallback(n"OnPostOnPress", this, n"OnShortcutPress");
+    this.m_sliderController.UnregisterFromCallback(n"OnSliderValueChanged", this, n"OnEulaScrollbarValueChanged");
+  }
+
+  protected cb func OnSetMenuEventDispatcher(d: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = d;
+  }
+
+  protected cb func OnEulaScrollbarValueChanged(sliderController: wref<inkSliderController>, progress: Float, value: Float) -> Bool {
+    if progress >= 0.96 {
+      this.m_eulaRead = true;
+      inkWidgetRef.SetState(this.m_declineButtonText, n"Normal");
+      inkWidgetRef.SetState(this.m_acceptButtonText, n"Normal");
+    };
+  }
+
+  protected cb func OnShortcutRelease(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"system_notification_confirm") {
+      if this.m_declinePopupOpened {
+        this.CloseDeclineEula();
+      } else {
+        if this.m_eulaReadWhenButtonWasPressed {
+          this.AcceptEula();
+        };
+      };
+    };
+    if !this.m_declinePopupOpened && e.IsAction(n"cancel") {
+      this.DeclineEula();
+    };
+  }
+
+  protected cb func OnShortcutPress(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"system_notification_confirm") {
+      this.m_eulaReadWhenButtonWasPressed = this.m_eulaRead;
+    };
+  }
+
+  protected cb func OnHold(evt: ref<inkPointerEvent>) -> Bool {
+    let progress: Float = evt.GetHoldProgress();
+    if progress < 1.00 {
+      return false;
+    };
+    if !this.m_declinePopupOpened {
+      return false;
+    };
+    if evt.IsAction(n"close_popup_hold") && (Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux") || Equals(GetPlatformShortName(), "mac")) {
+      evt.Handle();
+      this.m_requestHandler.ExitGame();
+    };
+  }
+
+  private final func DeclineEula() -> Void {
+    let quitGameVisible: Bool;
+    inkWidgetRef.SetVisible(this.m_declineEulaPopup, true);
+    this.PlayLibraryAnimation(n"decline_popup_intro");
+    quitGameVisible = Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux") || Equals(GetPlatformShortName(), "mac");
+    inkWidgetRef.SetVisible(this.m_declineEulaQuitGameHintRef, quitGameVisible);
+    this.m_declinePopupOpened = true;
+    this.m_declineEulaPopupConfirmButtonController.RegisterToCallback(n"OnButtonStateChanged", this, n"OnPopupCloseButtonStateChanged");
+    inkWidgetRef.SetVisible(this.m_eulaHintsContainerRef, false);
+  }
+
+  private final func CloseDeclineEula() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.playReversed = true;
+    this.m_declineEulaPopupProxy = this.PlayLibraryAnimation(n"decline_popup_intro", playbackOptions);
+    this.m_declineEulaPopupProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnEulaDeclinePopupClosed");
+    this.m_declineEulaPopupConfirmButtonController.UnregisterFromCallback(n"OnButtonStateChanged", this, n"OnPopupCloseButtonStateChanged");
+  }
+
+  protected cb func OnEulaDeclinePopupClosed(e: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_declineEulaPopup, false);
+    inkWidgetRef.SetVisible(this.m_eulaHintsContainerRef, true);
+    this.m_declinePopupOpened = false;
+  }
+
+  private final func OnPopupCloseButtonStateChanged(controller: wref<inkButtonController>, oldState: inkEButtonState, newState: inkEButtonState) -> Void {
+    if Equals(newState, inkEButtonState.Press) {
+      this.CloseDeclineEula();
+    };
+  }
+
+  private final func AcceptEula() -> Void {
+    if !this.m_declinePopupOpened && this.m_eulaRead {
+      inkWidgetRef.SetState(this.m_acceptButtonText, EnumValueToName(n"inkEButtonState", 2l));
+      inkWidgetRef.SetState(this.m_declineButtonText, EnumValueToName(n"inkEButtonState", 0l));
+      this.m_uiSystem.SetIsEulaAccepted(true);
+      this.m_eventDispatcher.SpawnEvent(n"OnSwitchToPitchMenu");
+    };
+  }
+
+  protected cb func OnEulaIsAccepted(e: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(this.m_eulaAnimationProxy) {
+      this.m_eulaAnimationProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnEulaIsAccepted");
+    };
+    this.m_uiSystem.SetIsEulaAccepted(true);
+    this.m_eventDispatcher.SpawnEvent(n"OnSwitchToPitchMenu");
+  }
+}

@@ -1,0 +1,2196 @@
+
+public native class gameuiInventoryGameController extends gameuiMenuGameController {
+
+  private edit let m_TooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_itemModeControllerRef: inkWidgetRef;
+
+  private edit let m_defaultWrapper: inkWidgetRef;
+
+  private edit let m_itemWrapper: inkWidgetRef;
+
+  private edit let m_cyberwareSlotRootRefs: inkCompoundRef;
+
+  private edit let m_cyberwareHolder: inkWidgetRef;
+
+  private edit let m_cyberdeckInventoryStatsContainer: inkCompoundRef;
+
+  private edit let m_paperDollWidget: inkWidgetRef;
+
+  private edit let m_sortingButton: inkWidgetRef;
+
+  private edit let m_sortingDropdown: inkWidgetRef;
+
+  private edit let m_notificationRoot: inkWidgetRef;
+
+  private edit let m_playerStatsWidget: inkWidgetRef;
+
+  private edit let m_btnBackpack: inkWidgetRef;
+
+  private edit let m_btnCyberware: inkWidgetRef;
+
+  private edit let m_btnCrafting: inkWidgetRef;
+
+  private edit let m_btnStats: inkWidgetRef;
+
+  private edit let m_btnSets: inkWidgetRef;
+
+  private edit let m_itemNotificationRoot: inkWidgetRef;
+
+  private let m_TooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_mode: InventoryModes;
+
+  private let m_itemViewMode: ItemViewModes;
+
+  private let m_itemModeLogicController: wref<InventoryItemModeLogicController>;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let m_animDef: ref<inkAnimDef>;
+
+  private let m_itemModeProxy: ref<inkAnimProxy>;
+
+  private let m_itemModeOutroProxy: ref<inkAnimProxy>;
+
+  private let m_paperDollProxy: ref<inkAnimProxy>;
+
+  private let m_targetPaperDollVisibility: Bool;
+
+  @default(gameuiInventoryGameController, false)
+  private let m_refreshUIRequested: Bool;
+
+  private let m_InventoryList: [wref<InventoryItemDisplay>];
+
+  private let m_WeaponsList: [wref<InventoryItemDisplayController>];
+
+  private let m_EquipmentList: [wref<InventoryItemDisplayController>];
+
+  private let m_CyberwareList: [wref<InventoryItemDisplayController>];
+
+  private let m_PocketList: [wref<InventoryItemDisplayController>];
+
+  private let m_ConsumablesList: [wref<InventoryItemDisplayController>];
+
+  private let m_animationList: [wref<InventoryItemDisplayController>];
+
+  private let m_InventoryManager: ref<InventoryDataManagerV2>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_comparisonResolver: ref<ItemPreferredComparisonResolver>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  private let m_transactionSystem: wref<TransactionSystem>;
+
+  private let m_EquipAreas: [gamedataEquipmentArea];
+
+  private let m_ConsumablesAreas: [gamedataEquipmentArea];
+
+  protected let m_UIBBEquipment: ref<UI_EquipmentDef>;
+
+  protected let m_UIBBItemMod: ref<UI_ItemModSystemDef>;
+
+  private let m_DisassembleCallback: ref<UI_CraftingDef>;
+
+  protected let m_UIBBEquipmentBlackboard: wref<IBlackboard>;
+
+  protected let m_UIBBItemModBlackbord: wref<IBlackboard>;
+
+  private let m_DisassembleBlackboard: wref<IBlackboard>;
+
+  private let m_InventoryBBID: ref<CallbackHandle>;
+
+  private let m_EquipmentBBID: ref<CallbackHandle>;
+
+  private let m_SubEquipmentBBID: ref<CallbackHandle>;
+
+  private let m_ItemModBBID: ref<CallbackHandle>;
+
+  private let m_DisassembleBBID: ref<CallbackHandle>;
+
+  private let m_isE3Demo: Bool;
+
+  private let m_inventoryStatsListener: ref<InventoryStatsListener>;
+
+  private let m_quantityPickerPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_psmBlackboard: wref<IBlackboard>;
+
+  private let m_cyberdeckInventoryStatsController: wref<CyberdeckInventoryStatsController>;
+
+  private let m_equipmentAreaCategoryEventQueue: [ref<EquipmentAreaCategoryCreated>];
+
+  private let m_cyberwareItems: [InventoryItemData];
+
+  private let m_equipmentAreaCategories: [ref<EquipmentAreaCategory>];
+
+  private let m_wardrobeOutfitAreas: [gamedataEquipmentArea];
+
+  @default(gameuiInventoryGameController, -1)
+  private let m_lastClothingSetIndex: Int32;
+
+  private let m_registeredAttachmentSlotListener: ref<AttachmentSlotsScriptListener>;
+
+  private let m_attachmentSlotListener: ref<InventoryAttachmentSlotsScriptCallback>;
+
+  private let m_previewPuppet: wref<gamePuppet>;
+
+  private let telemetrySystem: wref<TelemetrySystem>;
+
+  private let m_CyberwareScreenUserData: ref<CyberwareDisplayWrapper>;
+
+  private let m_openItemMode: Bool;
+
+  private let m_isInputLockedForSelect: Bool;
+
+  private let m_isInputLockedForClick: Bool;
+
+  private let m_canToggleWeapon: Bool;
+
+  protected final native func HidePuppetPreview() -> Void;
+
+  public final native func ShowPuppetPreview() -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    let playerPuppet: wref<GameObject>;
+    this.SpawnFromLocal(inkWidgetRef.Get(this.m_notificationRoot), n"notification_layer");
+    this.PlayLibraryAnimation(n"menu_intro");
+    this.SpawnFromExternal(inkWidgetRef.Get(this.m_itemNotificationRoot), r"base\\gameplay\\gui\\widgets\\activity_log\\activity_log_panels.inkwidget", n"RootVert");
+    playerPuppet = this.GetOwnerEntity() as PlayerPuppet;
+    this.m_psmBlackboard = this.GetPSMBlackboard(playerPuppet);
+    AT_AddATID(this.GetRootWidget(), "InventoryScreen_MainScreen");
+    super.OnInitialize();
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    this.m_CyberwareScreenUserData = userData as CyberwareDisplayWrapper;
+    this.m_player = GameInstance.GetPlayerSystem(this.GetPlayerControlledObject().GetGame()).GetLocalPlayerMainGameObject() as PlayerPuppet;
+    this.m_isE3Demo = GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"e3_2020") > 0;
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.m_comparisonResolver = ItemPreferredComparisonResolver.Make(this.m_InventoryManager);
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_equipmentSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    this.m_transactionSystem = GameInstance.GetTransactionSystem(this.m_player.GetGame());
+    this.m_EquipAreas = InventoryDataManagerV2.GetInventoryEquipmentAreas();
+    this.m_TooltipsManager = inkWidgetRef.GetControllerByType(this.m_TooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_TooltipsManager.Setup(ETooltipsStyle.Menus);
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddCharacterRoatateButtonHint();
+    this.m_itemModeLogicController = inkWidgetRef.GetController(this.m_itemModeControllerRef) as InventoryItemModeLogicController;
+    this.m_itemModeLogicController.SetupData(this.m_buttonHintsController, this.m_TooltipsManager, this.m_InventoryManager, this.m_player);
+    inkCompoundRef.RemoveAllChildren(this.m_cyberwareSlotRootRefs);
+    this.RegisterToBB();
+    inkWidgetRef.SetOpacity(this.m_itemWrapper, 0.00);
+    this.OpenDefaultMode(true);
+    this.RefreshUI();
+    this.HandlePostInitializeQueue();
+    inkWidgetRef.RegisterToCallback(this.m_sortingButton, n"OnRelease", this, n"OnSortingButtonClicked");
+    this.UpdateDropdownContext(DropdownDisplayContext.Default);
+    this.SetupPlayerStats(this.m_player, this.GetPlayerControlledObject().GetGame());
+    if IsDefined(this.m_CyberwareScreenUserData) {
+      this.m_openItemMode = true;
+      this.OpenItemMode(this.m_CyberwareScreenUserData.displayData);
+      inkWidgetRef.SetOpacity(this.m_itemWrapper, 1.00);
+      inkWidgetRef.SetVisible(this.m_defaultWrapper, false);
+    };
+    HubMenuUtils.SetMenuHyperlinkData(this.m_btnStats, HubMenuItems.Stats, HubMenuItems.Inventory, n"temp_stats", n"ico_stats_hub", n"UI-PanelNames-STATS");
+    HubMenuUtils.SetMenuHyperlinkData(this.m_btnSets, HubMenuItems.VisualSets, HubMenuItems.Inventory, n"wardrobe", n"ico_wardrobe", n"Gameplay-Devices-DisplayNames-Wardrobe");
+    HubMenuUtils.SetMenuHyperlinkData(this.m_btnCyberware, HubMenuItems.Cyberware, HubMenuItems.Inventory, n"cyberware_equip", n"ico_deck_hub", n"UI-PanelNames-CYBERWARE");
+    HubMenuUtils.SetMenuHyperlinkData(this.m_btnBackpack, HubMenuItems.Backpack, HubMenuItems.Inventory, n"backpack", n"ico_backpack", n"UI-PanelNames-BACKPACK");
+    if HubMenuUtility.IsCraftingAvailable(this.m_player) {
+      HubMenuUtils.SetMenuHyperlinkData(this.m_btnCrafting, HubMenuItems.Crafting, HubMenuItems.Inventory, n"crafting_main", n"ico_cafting", n"Gameplay-RPG-Skills-CraftingName");
+    } else {
+      inkWidgetRef.SetVisible(this.m_btnCrafting, false);
+    };
+    this.SetupSetButton();
+    if IsDefined(this.m_player) {
+      this.telemetrySystem = GameInstance.GetTelemetrySystem(this.m_player.GetGame());
+    };
+  }
+
+  private final func SetupSetButton() -> Void {
+    let btnConrtoller: wref<MenuItemController>;
+    let setLabel: String;
+    let set: ref<ClothingSet> = EquipmentSystem.GetActiveWardrobeSet(this.m_player);
+    if set != null && !ClothingSet.IsEmpty(set) {
+      btnConrtoller = inkWidgetRef.GetController(this.m_btnSets) as MenuItemController;
+      setLabel = "#" + ToString(set.setID);
+      btnConrtoller.UpdateButton(setLabel, set.iconID);
+    };
+  }
+
+  private final func RefreshPlayerCyberware() -> Void {
+    let allFilters: array<gamedataEquipmentArea>;
+    let i: Int32;
+    let itemData: InventoryItemData;
+    let itemId: ItemID;
+    let limit: Int32;
+    let slotSpawnData: ref<CyberwareSlotSpawnData>;
+    let slotsToSpawn: Int32;
+    ArrayPush(allFilters, gamedataEquipmentArea.SystemReplacementCW);
+    ArrayPush(allFilters, gamedataEquipmentArea.ArmsCW);
+    ArrayPush(allFilters, gamedataEquipmentArea.HandsCW);
+    ArrayClear(this.m_cyberwareItems);
+    inkCompoundRef.RemoveAllChildren(this.m_cyberwareSlotRootRefs);
+    i = 0;
+    limit = ArraySize(allFilters);
+    while i < limit {
+      itemId = EquipmentSystem.GetData(this.GetPlayerControlledObject()).GetActiveItem(allFilters[i]);
+      itemData = this.m_InventoryManager.GetItemDataFromIDInLoadout(itemId);
+      if !itemData.Empty {
+        ArrayPush(this.m_cyberwareItems, itemData);
+      };
+      i += 1;
+    };
+    slotsToSpawn = ArraySize(this.m_cyberwareItems);
+    i = 0;
+    limit = slotsToSpawn - inkCompoundRef.GetNumChildren(this.m_cyberwareSlotRootRefs);
+    while i < limit {
+      inkCompoundRef.RemoveChildByIndex(this.m_cyberwareSlotRootRefs, 0);
+      i += 1;
+    };
+    i = 0;
+    limit = slotsToSpawn;
+    while i < limit {
+      slotSpawnData = new CyberwareSlotSpawnData();
+      slotSpawnData.index = i;
+      ItemDisplayUtils.SpawnCommonSlotAsync(this, this.m_cyberwareSlotRootRefs, n"itemDisplay", n"OnSlotSpawned", slotSpawnData);
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_cyberwareHolder, slotsToSpawn > 0);
+  }
+
+  protected cb func OnSlotSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let controller: ref<InventoryItemDisplayController> = widget.GetController() as InventoryItemDisplayController;
+    let data: ref<CyberwareSlotSpawnData> = userData as CyberwareSlotSpawnData;
+    let itemData: InventoryItemData = this.m_cyberwareItems[data.index];
+    controller.Setup(itemData, InventoryItemData.GetEquipmentArea(itemData));
+  }
+
+  private final func OpenCyberwareModificationScreen(displayData: InventoryItemDisplayData) -> Void {
+    this.OpenItemMode(displayData);
+  }
+
+  private final func OpenCyberwareMenu() -> Void {
+    let prevEvt: ref<OpenMenuRequest>;
+    let evt: ref<OpenMenuRequest> = new OpenMenuRequest();
+    evt.m_menuName = n"cyberware_equip";
+    evt.m_eventData.m_overrideDefaultUserData = true;
+    evt.m_jumpBack = true;
+    evt.m_isMainMenu = true;
+    let menuData: ref<PreviousMenuData> = new PreviousMenuData();
+    menuData.openMenuRequest = prevEvt;
+    evt.m_eventData.userData = menuData;
+    this.QueueBroadcastEvent(evt);
+  }
+
+  protected cb func OnItemChooserItemChanged(e: ref<ItemChooserItemChanged>) -> Bool {
+    if Equals(InventoryItemData.GetEquipmentArea(e.itemData), gamedataEquipmentArea.Weapon) {
+      this.UpdateDropdownContext(DropdownDisplayContext.ItemChooserWeapon);
+    } else {
+      this.UpdateDropdownContext(DropdownDisplayContext.Default);
+    };
+  }
+
+  protected final func HandlePostInitializeQueue() -> Void {
+    while ArraySize(this.m_equipmentAreaCategoryEventQueue) > 0 {
+      this.OnEquipmentAreaCategoryCreated(ArrayPop(this.m_equipmentAreaCategoryEventQueue));
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnCloseMenu", this, n"OnCloseMenu");
+    this.m_InventoryManager.UnInitialize();
+    this.UnregisterFromBB();
+    if IsDefined(this.m_inventoryStatsListener) {
+      GameInstance.GetStatsSystem(this.m_player.GetGame()).UnregisterListener(Cast<StatsObjectID>(this.m_player.GetEntityID()), this.m_inventoryStatsListener);
+      this.m_inventoryStatsListener = null;
+    };
+    super.OnUninitialize();
+  }
+
+  private final func RegisterToBB() -> Void {
+    this.m_UIBBEquipment = GetAllBlackboardDefs().UI_Equipment;
+    this.m_UIBBEquipmentBlackboard = this.GetBlackboardSystem().Get(this.m_UIBBEquipment);
+    this.m_UIBBItemMod = GetAllBlackboardDefs().UI_ItemModSystem;
+    this.m_UIBBItemModBlackbord = this.GetBlackboardSystem().Get(this.m_UIBBItemMod);
+    this.m_DisassembleCallback = GetAllBlackboardDefs().UI_Crafting;
+    this.m_DisassembleBlackboard = this.GetBlackboardSystem().Get(this.m_DisassembleCallback);
+    if IsDefined(this.m_UIBBEquipmentBlackboard) {
+      this.m_EquipmentBBID = this.m_UIBBEquipmentBlackboard.RegisterDelayedListenerVariant(this.m_UIBBEquipment.itemEquipped, this, n"OnRefreshUI");
+    };
+    if IsDefined(this.m_UIBBItemModBlackbord) {
+      this.m_ItemModBBID = this.m_UIBBItemModBlackbord.RegisterDelayedListenerVariant(this.m_UIBBItemMod.ItemModSystemUpdated, this, n"OnRefreshUI");
+    };
+    if IsDefined(this.m_DisassembleBlackboard) {
+      this.m_DisassembleBBID = this.m_DisassembleBlackboard.RegisterDelayedListenerVariant(this.m_DisassembleCallback.lastIngredients, this, n"OnDisassembleComplete", true);
+    };
+  }
+
+  private final func UnregisterFromBB() -> Void {
+    if IsDefined(this.m_UIBBEquipmentBlackboard) {
+      this.m_UIBBEquipmentBlackboard.UnregisterDelayedListener(this.m_UIBBEquipment.itemEquipped, this.m_EquipmentBBID);
+    };
+    if IsDefined(this.m_UIBBItemModBlackbord) {
+      this.m_UIBBItemModBlackbord.UnregisterDelayedListener(this.m_UIBBItemMod.ItemModSystemUpdated, this.m_ItemModBBID);
+    };
+    if IsDefined(this.m_DisassembleBlackboard) {
+      this.m_DisassembleBlackboard.UnregisterDelayedListener(this.m_DisassembleCallback.lastIngredients, this.m_DisassembleBBID);
+    };
+  }
+
+  private final func SetupPlayerStats(player: wref<PlayerPuppet>, game: GameInstance) -> Void {
+    let controller: ref<InventoryStatsController> = inkWidgetRef.GetController(this.m_playerStatsWidget) as InventoryStatsController;
+    if IsDefined(this.m_inventoryStatsListener) {
+      GameInstance.GetStatsSystem(game).UnregisterListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_inventoryStatsListener);
+      this.m_inventoryStatsListener = null;
+    };
+    this.m_inventoryStatsListener = new InventoryStatsListener();
+    this.m_inventoryStatsListener.m_owner = player;
+    this.m_inventoryStatsListener.m_controller = controller;
+    GameInstance.GetStatsSystem(game).RegisterListener(Cast<StatsObjectID>(player.GetEntityID()), this.m_inventoryStatsListener);
+    controller.Setup(player);
+  }
+
+  private final func UpdateDropdownContext(context: DropdownDisplayContext) -> Void {
+    let controller: ref<DropdownListController> = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+    let sortingButtonController: ref<DropdownButtonController> = inkWidgetRef.GetController(this.m_sortingButton) as DropdownButtonController;
+    if NotEquals(context, controller.GetDisplayContext()) {
+      controller.Setup(this, context, sortingButtonController);
+      sortingButtonController.SetData(SortingDropdownData.GetDropdownOption(controller.GetData(), ItemSortMode.Default));
+    };
+  }
+
+  protected cb func OnDropdownItemClickedEvent(evt: ref<DropdownItemClickedEvent>) -> Bool {
+    let sortingButtonController: ref<DropdownButtonController>;
+    let identifier: ItemSortMode = FromVariant<ItemSortMode>(evt.identifier);
+    let data: ref<DropdownItemData> = SortingDropdownData.GetDropdownOption((inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController).GetData(), identifier);
+    if IsDefined(data) {
+      sortingButtonController = inkWidgetRef.GetController(this.m_sortingButton) as DropdownButtonController;
+      sortingButtonController.SetData(data);
+      this.m_itemModeLogicController.SetSortMode(identifier);
+    };
+  }
+
+  protected cb func OnSortingButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: ref<DropdownListController>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+      controller.Toggle();
+    };
+  }
+
+  protected final func GetEquipmentAreas(iw: wref<inkCompoundWidget>, levels: Int32) -> [wref<inkCompoundWidget>] {
+    let child: wref<inkCompoundWidget>;
+    let innerResult: array<wref<inkCompoundWidget>>;
+    let j: Int32;
+    let result: array<wref<inkCompoundWidget>>;
+    let i: Int32 = 0;
+    while i < iw.GetNumChildren() {
+      child = iw.GetWidgetByIndex(i) as inkCompoundWidget;
+      if IsDefined(child) {
+        if levels > 1 {
+          innerResult = this.GetEquipmentAreas(child, levels - 1);
+          j = 0;
+          while j < ArraySize(innerResult) {
+            if IsDefined(innerResult[j].GetController() as InventoryItemDisplayEquipmentArea) {
+              ArrayPush(result, innerResult[j]);
+            };
+            j += 1;
+          };
+        };
+      };
+      if IsDefined(child.GetController() as InventoryItemDisplayEquipmentArea) {
+        ArrayPush(result, child);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  protected cb func OnRefreshUI(value: Variant) -> Bool {
+    if !this.m_refreshUIRequested {
+      this.QueueEvent(new DelayedRefreshUI());
+      this.m_refreshUIRequested = true;
+    };
+  }
+
+  protected cb func OnDelayedRefreshUI(evt: ref<DelayedRefreshUI>) -> Bool {
+    this.m_refreshUIRequested = false;
+    this.m_InventoryManager.MarkToRebuild();
+    this.RefreshUI();
+  }
+
+  private final func RefreshUI() -> Void {
+    let categoryAreas: array<wref<InventoryItemDisplayEquipmentArea>>;
+    let clothingSet: gameWardrobeClothingSetIndex;
+    let displays: array<ref<InventoryItemDisplayController>>;
+    let equipmentAreas: array<gamedataEquipmentArea>;
+    let equippedClothingSetIndex: Int32;
+    let i: Int32;
+    let isLockedArea: Bool;
+    let isOutfitSlot: Bool;
+    let j: Int32;
+    let k: Int32;
+    let wardrbeSetChanged: Bool;
+    let outfit: ItemID = this.m_InventoryManager.GetEquippedItemIdInArea(gamedataEquipmentArea.Outfit);
+    let isOutfitEquipped: Bool = ItemID.IsValid(outfit);
+    this.HideTooltips();
+    this.RefreshEquippedWardrobeItems();
+    clothingSet = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetActiveClothingSetIndex();
+    equippedClothingSetIndex = WardrobeSystem.WardrobeClothingSetIndexToNumber(clothingSet);
+    wardrbeSetChanged = equippedClothingSetIndex != this.m_lastClothingSetIndex;
+    i = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      isLockedArea = false;
+      displays = this.m_equipmentAreaCategories[i].GetDisplays();
+      categoryAreas = this.m_equipmentAreaCategories[i].parentCategory.GetCategoryAreas();
+      j = 0;
+      while j < ArraySize(categoryAreas) {
+        equipmentAreas = categoryAreas[j].GetEquipmentAreas();
+        k = 0;
+        while k < ArraySize(equipmentAreas) {
+          if this.IsAreaLockedByOutfit(equipmentAreas[k]) {
+            isLockedArea = true;
+          };
+          k += 1;
+        };
+        j += 1;
+      };
+      j = 0;
+      while j < ArraySize(displays) {
+        isOutfitSlot = Equals(displays[j].GetEquipmentArea(), gamedataEquipmentArea.Outfit);
+        if isOutfitSlot || !wardrbeSetChanged {
+          displays[j].InvalidateContent(isOutfitSlot, equippedClothingSetIndex);
+        };
+        displays[j].SetLocked(isOutfitEquipped && isLockedArea, true);
+        displays[j].SetTransmoged(ArrayContains(this.m_wardrobeOutfitAreas, displays[j].GetEquipmentArea()));
+        j += 1;
+      };
+      i += 1;
+    };
+    this.m_lastClothingSetIndex = equippedClothingSetIndex;
+  }
+
+  private final func RefreshedEquippedItemData(equippedItem: InventoryItemData) -> Void {
+    equippedItem = this.m_InventoryManager.GetInventoryItemData(this.m_InventoryManager.GetExternalGameItemData(this.m_player.GetEntityID(), InventoryItemData.GetID(equippedItem)));
+  }
+
+  private final func RefreshEquippedWardrobeItems() -> Void {
+    let clothingSet: ref<ClothingSet> = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetActiveClothingSet();
+    ArrayClear(this.m_wardrobeOutfitAreas);
+    if IsDefined(clothingSet) {
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.Head);
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.Face);
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.OuterChest);
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.InnerChest);
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.Legs);
+      ArrayPush(this.m_wardrobeOutfitAreas, gamedataEquipmentArea.Feet);
+    };
+  }
+
+  protected cb func OnDisassembleComplete(value: Variant) -> Bool {
+    let disassembledIngredientData: array<IngredientData> = FromVariant<array<IngredientData>>(value);
+    if ArraySize(disassembledIngredientData) > 0 {
+      this.m_InventoryManager.MarkToRebuild();
+      this.RefreshUI();
+    };
+  }
+
+  private final func SwapMode(mode: InventoryModes) -> Void {
+    let isComparisionDisabled: Bool;
+    this.m_mode = mode;
+    this.m_buttonHintsController.ClearButtonHints();
+    if Equals(this.m_mode, InventoryModes.Item) {
+      this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("UI-UserActions-NavigateBack"));
+      isComparisionDisabled = this.m_uiScriptableSystem.IsComparisionTooltipDisabled();
+      this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText(isComparisionDisabled ? "UI-UserActions-EnableComparison" : "UI-UserActions-DisableComparison"));
+    } else {
+      this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    };
+  }
+
+  private final func OpenDefaultMode(opt openingMenu: Bool) -> Void {
+    let controller: ref<DropdownListController>;
+    this.SwapMode(InventoryModes.Default);
+    this.m_itemModeLogicController.m_isShown = false;
+    this.m_canToggleWeapon = true;
+    this.m_isInputLockedForSelect = false;
+    this.m_isInputLockedForClick = false;
+    this.StartModeTransitionAnimation();
+    controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+    controller.Close();
+  }
+
+  public final func GetEquipementAreaDisplays(equipmentArea: gamedataEquipmentArea) -> ref<EquipmentAreaDisplays> {
+    let equipmentAreas: array<ref<EquipmentAreaDisplays>>;
+    let j: Int32;
+    let k: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      equipmentAreas = this.m_equipmentAreaCategories[i].areaDisplays;
+      j = 0;
+      while j < ArraySize(equipmentAreas) {
+        k = 0;
+        while k < ArraySize(equipmentAreas[j].equipmentAreas) {
+          if Equals(equipmentAreas[j].equipmentAreas[k], equipmentArea) {
+            return equipmentAreas[j];
+          };
+          k += 1;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetEquipmentCategory(equipmentCategory: ref<InventoryItemDisplayCategoryArea>) -> ref<EquipmentAreaCategory> {
+    let areaDisplays: array<ref<EquipmentAreaDisplays>>;
+    let areaDisplaysEquipmnetAreas: array<gamedataEquipmentArea>;
+    let equipmentAreas: array<gamedataEquipmentArea>;
+    let j: Int32;
+    let k: Int32;
+    let passed: Bool;
+    let targetCategoryAreas: array<wref<InventoryItemDisplayEquipmentArea>>;
+    let targetCategoryEquipmentAreas: array<gamedataEquipmentArea>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      areaDisplays = this.m_equipmentAreaCategories[i].areaDisplays;
+      targetCategoryAreas = equipmentCategory.GetCategoryAreas();
+      if ArraySize(areaDisplays) == ArraySize(targetCategoryAreas) && ArraySize(areaDisplays) > 0 {
+        passed = true;
+        ArrayClear(areaDisplaysEquipmnetAreas);
+        ArrayClear(targetCategoryEquipmentAreas);
+        j = 0;
+        while j < ArraySize(areaDisplays) {
+          k = 0;
+          while k < ArraySize(areaDisplays[j].equipmentAreas) {
+            ArrayPush(areaDisplaysEquipmnetAreas, areaDisplays[j].equipmentAreas[k]);
+            k += 1;
+          };
+          ArrayClear(equipmentAreas);
+          equipmentAreas = targetCategoryAreas[j].GetEquipmentAreas();
+          k = 0;
+          while k < ArraySize(equipmentAreas) {
+            ArrayPush(targetCategoryEquipmentAreas, equipmentAreas[k]);
+            k += 1;
+          };
+          j += 1;
+        };
+        j = 0;
+        while j < ArraySize(areaDisplaysEquipmnetAreas) {
+          if !ArrayContains(targetCategoryEquipmentAreas, areaDisplaysEquipmnetAreas[j]) {
+            passed = false;
+            break;
+          };
+          j += 1;
+        };
+        if !passed {
+        } else {
+          return this.m_equipmentAreaCategories[i];
+        };
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetEquipmentCategoryByArea(equipmentArea: gamedataEquipmentArea) -> ref<EquipmentAreaCategory> {
+    let equipmentAreas: array<ref<EquipmentAreaDisplays>>;
+    let j: Int32;
+    let k: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      equipmentAreas = this.m_equipmentAreaCategories[i].areaDisplays;
+      j = 0;
+      while j < ArraySize(equipmentAreas) {
+        k = 0;
+        while j < ArraySize(equipmentAreas[j].equipmentAreas) {
+          if Equals(equipmentAreas[j].equipmentAreas[k], equipmentArea) {
+            return this.m_equipmentAreaCategories[i];
+          };
+          k += 1;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetEquipmentAreaDisplaysFromCategory(const equipmentAreas: script_ref<[gamedataEquipmentArea]>, categoryArea: ref<EquipmentAreaCategory>) -> ref<EquipmentAreaDisplays> {
+    let j: Int32;
+    let k: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(categoryArea.areaDisplays) {
+      j = 0;
+      while j < ArraySize(categoryArea.areaDisplays[i].equipmentAreas) {
+        k = 0;
+        while k < ArraySize(Deref(equipmentAreas)) {
+          if Equals(categoryArea.areaDisplays[i].equipmentAreas[j], Deref(equipmentAreas)[k]) {
+            return categoryArea.areaDisplays[i];
+          };
+          k += 1;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  private final func GetSlotType(const areaTypes: script_ref<[gamedataEquipmentArea]>) -> CName {
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(areaTypes)) {
+      switch Deref(areaTypes)[i] {
+        case gamedataEquipmentArea.Weapon:
+          return n"weaponDisplay";
+        case gamedataEquipmentArea.ArmsCW:
+        case gamedataEquipmentArea.HandsCW:
+        case gamedataEquipmentArea.SystemReplacementCW:
+          return n"itemDisplay";
+        case gamedataEquipmentArea.Outfit:
+          return n"outfitDisplay";
+      };
+      i += 1;
+    };
+    return n"itemDisplay";
+  }
+
+  private final func IsEquipmentAreaCyberware(const itemData: script_ref<InventoryItemData>) -> Bool {
+    let itemRecord: wref<Item_Record>;
+    if IsDefined(this.m_player) {
+      itemRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(InventoryItemData.GetID(itemData)));
+      if IsDefined(itemRecord) && Equals(itemRecord.ItemCategory().Type(), gamedataItemCategory.Cyberware) {
+        return true;
+      };
+    };
+    return InventoryDataManagerV2.IsEquipmentAreaCyberware(InventoryItemData.GetEquipmentArea(itemData));
+  }
+
+  protected cb func OnEquipmentAreaCategoryCreated(e: ref<EquipmentAreaCategoryCreated>) -> Bool {
+    let equipmentAreaCategory: ref<EquipmentAreaCategory>;
+    let equipmentAreaController: ref<InventoryItemDisplayEquipmentArea>;
+    let equipmentAreaDisplays: ref<EquipmentAreaDisplays>;
+    let equipmentAreas: array<gamedataEquipmentArea>;
+    let i: Int32;
+    let j: Int32;
+    let numberOfSlots: Int32;
+    this.RefreshEquippedWardrobeItems();
+    if IsDefined(this.m_InventoryManager) {
+      equipmentAreaCategory = this.GetEquipmentCategory(e.categoryController);
+      if equipmentAreaCategory == null {
+        equipmentAreaCategory = new EquipmentAreaCategory();
+        equipmentAreaCategory.parentCategory = e.categoryController;
+        ArrayPush(this.m_equipmentAreaCategories, equipmentAreaCategory);
+      };
+      i = 0;
+      while i < ArraySize(e.equipmentAreasControllers) {
+        equipmentAreaController = e.equipmentAreasControllers[i];
+        equipmentAreaDisplays = this.GetEquipmentAreaDisplaysFromCategory(equipmentAreaController.GetEquipmentAreas(), equipmentAreaCategory);
+        if equipmentAreaDisplays == null {
+          equipmentAreaDisplays = new EquipmentAreaDisplays();
+          equipmentAreas = equipmentAreaController.GetEquipmentAreas();
+          j = 0;
+          while j < ArraySize(equipmentAreas) {
+            ArrayPush(equipmentAreaDisplays.equipmentAreas, equipmentAreas[j]);
+            j += 1;
+          };
+          equipmentAreaDisplays.displaysRoot = equipmentAreaController.GetRootWidget();
+          ArrayPush(equipmentAreaCategory.areaDisplays, equipmentAreaDisplays);
+          numberOfSlots = equipmentAreaController.GetNumberOfSlots();
+          this.PopulateArea(equipmentAreaDisplays.displaysRoot as inkCompoundWidget, equipmentAreaDisplays, numberOfSlots, equipmentAreas);
+        };
+        i += 1;
+      };
+    } else {
+      ArrayPush(this.m_equipmentAreaCategoryEventQueue, e);
+    };
+  }
+
+  private final func CountNewItems(items: script_ref<[ItemID]>) -> Int32 {
+    let result: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(items)) {
+      if this.m_uiScriptableSystem.IsInventoryItemNew(Deref(items)[i]) {
+        result += 1;
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func IsAreaLockedByOutfit(equipmentArea: gamedataEquipmentArea) -> Bool {
+    return Equals(equipmentArea, gamedataEquipmentArea.Head) || Equals(equipmentArea, gamedataEquipmentArea.Face) || Equals(equipmentArea, gamedataEquipmentArea.OuterChest) || Equals(equipmentArea, gamedataEquipmentArea.InnerChest) || Equals(equipmentArea, gamedataEquipmentArea.Legs) || Equals(equipmentArea, gamedataEquipmentArea.Feet);
+  }
+
+  private final func PopulateArea(targetRoot: wref<inkCompoundWidget>, container: ref<EquipmentAreaDisplays>, numberOfSlots: Int32, const equipmentAreas: script_ref<[gamedataEquipmentArea]>) -> Void {
+    let clothingSet: gameWardrobeClothingSetIndex;
+    let clothingSetIndex: Int32;
+    let currentEquipmentArea: gamedataEquipmentArea;
+    let equipedCyberwares: array<InventoryItemData>;
+    let i: Int32;
+    let slot: wref<InventoryItemDisplayController>;
+    let outfit: ItemID = this.m_InventoryManager.GetEquippedItemIdInArea(gamedataEquipmentArea.Outfit);
+    let isOutfitEquipped: Bool = ItemID.IsValid(outfit);
+    let isOutfitSlot: Bool = ArrayContains(Deref(equipmentAreas), gamedataEquipmentArea.Outfit);
+    if isOutfitSlot {
+      clothingSet = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetActiveClothingSetIndex();
+      clothingSetIndex = WardrobeSystem.WardrobeClothingSetIndexToNumber(clothingSet);
+    } else {
+      clothingSetIndex = -1;
+    };
+    while ArraySize(container.displayControllers) > numberOfSlots {
+      slot = ArrayPop(container.displayControllers);
+      targetRoot.RemoveChild(slot.GetRootWidget());
+    };
+    while ArraySize(container.displayControllers) < numberOfSlots {
+      slot = ItemDisplayUtils.SpawnCommonSlotController(this, targetRoot, this.GetSlotType(equipmentAreas)) as InventoryItemDisplayController;
+      ArrayPush(container.displayControllers, slot);
+    };
+    i = 0;
+    while i < numberOfSlots {
+      currentEquipmentArea = gamedataEquipmentArea.Invalid;
+      if IsDefined(container.displayControllers[i]) {
+        if InventoryDataManagerV2.IsEquipmentAreaCyberware(equipmentAreas) {
+          equipedCyberwares = this.m_InventoryManager.GetInventoryCyberware();
+          currentEquipmentArea = InventoryItemData.GetEquipmentArea(equipedCyberwares[i]);
+          container.displayControllers[i].Bind(this.m_InventoryManager, currentEquipmentArea, ItemDisplayContext.GearPanel);
+        } else {
+          currentEquipmentArea = Deref(equipmentAreas)[0];
+          container.displayControllers[i].Bind(this.m_InventoryManager, currentEquipmentArea, i, ItemDisplayContext.GearPanel, clothingSetIndex > -1, clothingSetIndex);
+        };
+        container.displayControllers[i].SetItemCounterDisabled(true);
+        container.displayControllers[i].BindComparisonAndScriptableSystem(this.m_uiScriptableSystem, this.m_comparisonResolver);
+        container.displayControllers[i].SetLocked(isOutfitEquipped && this.IsAreaLockedByOutfit(currentEquipmentArea), true);
+        container.displayControllers[i].SetTransmoged(ArrayContains(this.m_wardrobeOutfitAreas, currentEquipmentArea));
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    let canClose: Bool;
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+      return false;
+    };
+    if this.m_openItemMode && IsDefined(this.m_CyberwareScreenUserData) {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnRefreshCurrentTab");
+      super.OnBack(userData);
+    } else {
+      if this.m_openItemMode {
+        super.OnBack(userData);
+      } else {
+        if NotEquals(this.m_mode, InventoryModes.Default) || this.m_openItemMode {
+          canClose = this.m_itemModeLogicController.RequestClose();
+          if canClose {
+            this.OpenDefaultMode();
+            this.UpdateNewItemsIndicators();
+            if GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"close_inventory_mode_tutorial") == 0 && GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"disable_tutorials") == 0 {
+              GameInstance.GetQuestsSystem(this.m_player.GetGame()).SetFact(n"close_inventory_mode_tutorial", 1);
+            };
+          };
+        } else {
+          this.m_menuEventDispatcher.SpawnEvent(n"OnCloseHubMenu");
+        };
+      };
+    };
+  }
+
+  private final func UpdateNewItemsIndicators() -> Void {
+    let j: Int32;
+    let k: Int32;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      j = 0;
+      while j < ArraySize(this.m_equipmentAreaCategories[i].areaDisplays) {
+        k = 0;
+        while k < ArraySize(this.m_equipmentAreaCategories[i].areaDisplays[j].displayControllers) {
+          this.m_equipmentAreaCategories[i].areaDisplays[j].displayControllers[k].BindComparisonAndScriptableSystem(this.m_uiScriptableSystem, this.m_comparisonResolver);
+          k += 1;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnCloseMenu(userData: ref<IScriptable>) -> Bool {
+    if ArraySize(this.m_itemModeLogicController.m_itemDropQueue) == 1 && this.m_itemModeLogicController.m_itemDropQueue[0].quantity == 1 {
+      ItemActionsHelper.DropItem(this.m_player, this.m_itemModeLogicController.m_itemDropQueue[0].itemID);
+      ArrayClear(this.m_itemModeLogicController.m_itemDropQueue);
+    } else {
+      if ArraySize(this.m_itemModeLogicController.m_itemDropQueue) > 0 {
+        RPGManager.DropManyItems(this.m_player.GetGame(), this.m_player, this.m_itemModeLogicController.m_itemDropQueue);
+        ArrayClear(this.m_itemModeLogicController.m_itemDropQueue);
+      };
+    };
+    if IsDefined(this.telemetrySystem) {
+      this.telemetrySystem.LogInventoryMenuClosed();
+    };
+  }
+
+  private final func IsUnequipBlocked(itemID: ItemID) -> Bool {
+    let itemData: wref<gameItemData> = RPGManager.GetItemData(this.m_player.GetGame(), this.m_player, itemID);
+    return IsDefined(itemData) && itemData.HasTag(n"UnequipBlocked");
+  }
+
+  private final func WardrobeOutfitUnequipSet() -> Void {
+    let req: ref<UnequipWardrobeSetRequest> = new UnequipWardrobeSetRequest();
+    req.owner = this.m_player;
+    this.m_equipmentSystem.QueueRequest(req);
+  }
+
+  protected cb func OnEquipmentClick(evt: ref<ItemDisplayClickEvent>) -> Bool {
+    let hotkey: EHotkey;
+    let itemData: InventoryItemData;
+    let pressedOpenModsExclusiveHotkey: Bool;
+    let weaponDisplayController: ref<InventoryWeaponDisplayController>;
+    let controller: wref<InventoryItemDisplayController> = evt.display;
+    if Equals(this.m_mode, InventoryModes.Item) {
+      return false;
+    };
+    if evt.actionName.IsAction(n"install_quickhack") {
+      pressedOpenModsExclusiveHotkey = true;
+    };
+    if evt.actionName.IsAction(n"switch_to_secondary") && !InventoryItemData.IsEmpty(evt.itemData) && InventoryItemData.IsWeapon(evt.itemData) && InventoryItemData.CanDualWield(evt.itemData) {
+      this.ToggleDualWieldWeapon(evt.display.GetSlotIndex(), false);
+      return false;
+    };
+    if evt.actionName.IsAction(n"switch_to_primary") {
+      this.ToggleDualWieldWeapon(evt.display.GetSlotIndex(), true);
+      return false;
+    };
+    if evt.actionName.IsAction(n"unequip_item") {
+      itemData = controller.GetItemData();
+      if Equals(controller.GetEquipmentArea(), gamedataEquipmentArea.Outfit) {
+        if NotEquals(GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetActiveClothingSetIndex(), gameWardrobeClothingSetIndex.INVALID) {
+          if this.m_InventoryManager.IsWardrobeEnabled() {
+            this.WardrobeOutfitUnequipSet();
+            return false;
+          };
+        };
+      };
+      if !InventoryItemData.IsEmpty(itemData) {
+        this.m_InventoryManager.GetHotkeyTypeForItemID(InventoryItemData.GetID(itemData), hotkey);
+        if NotEquals(hotkey, EHotkey.INVALID) && NotEquals(hotkey, EHotkey.LBRB) {
+          this.m_equipmentSystem.GetPlayerData(this.m_player).ClearItemFromHotkey(hotkey);
+          this.NotifyItemUpdate(hotkey);
+        } else {
+          if this.IsEquipmentAreaCyberware(itemData) {
+            return false;
+          };
+          if !InventoryGPRestrictionHelper.CanUse(itemData, this.m_player) || this.IsUnequipBlocked(InventoryItemData.GetID(itemData)) {
+            this.ShowNotification(this.m_player.GetGame(), UIMenuNotificationType.InventoryActionBlocked);
+            return false;
+          };
+          if controller.IsLocked() {
+            this.ShowNotification(this.m_player.GetGame(), UIMenuNotificationType.InventoryActionBlocked);
+            return false;
+          };
+          this.UnequipItem(controller, itemData);
+        };
+        this.PlaySound(n"ItemAdditional", n"OnUnequip");
+        this.PlayRumble(RumbleStrength.Light, RumbleType.Pulse, RumblePosition.Right);
+      };
+    } else {
+      if evt.actionName.IsAction(n"select") || evt.actionName.IsAction(n"click") {
+        if this.m_canToggleWeapon {
+          if this.m_isInputLockedForClick {
+            this.m_isInputLockedForClick = false;
+            return false;
+          };
+          if this.m_isInputLockedForSelect {
+            this.m_isInputLockedForSelect = false;
+            return false;
+          };
+        };
+        this.PlaySound(n"Button", n"OnPress");
+        if Equals(controller.GetEquipmentArea(), gamedataEquipmentArea.Invalid) {
+          return false;
+        };
+        if controller.IsLocked() {
+          this.ShowNotification(this.m_player.GetGame(), UIMenuNotificationType.InventoryActionBlocked);
+          return false;
+        };
+        itemData = controller.GetItemData();
+        if InventoryDataManagerV2.IsEquipmentAreaCyberware(controller.GetEquipmentArea()) {
+          if InventoryItemData.IsEmpty(itemData) {
+            return false;
+          };
+          if controller.GetAttachmentsSize() > 0 {
+            this.OpenCyberwareModificationScreen(controller.GetItemDisplayData());
+          } else {
+            if !pressedOpenModsExclusiveHotkey {
+              this.OpenCyberwareMenu();
+            };
+          };
+          return false;
+        };
+        if !evt.toggleVisibilityRequest {
+          weaponDisplayController = controller as InventoryWeaponDisplayController;
+          if IsDefined(weaponDisplayController) {
+            if weaponDisplayController.GetToggleToPrimary() || weaponDisplayController.GetToggleToSecondary() {
+              this.ToggleDualWieldWeapon(evt.display.GetSlotIndex(), weaponDisplayController.GetToggleToPrimary());
+              weaponDisplayController.ResetToggle();
+              evt.evt.Handle();
+              return false;
+            };
+          };
+          this.OpenItemMode(controller.GetItemDisplayData());
+        };
+      };
+    };
+  }
+
+  private final func ToggleDualWieldWeapon(slotIndex: Int32, isLeftWeapon: Bool) -> Void {
+    let currentEquipmentArea: array<gamedataEquipmentArea>;
+    let displayedSlotIndex: Int32;
+    let equipmentAreaCategory: ref<EquipmentAreaCategory>;
+    let equipmentAreaDisplays: ref<EquipmentAreaDisplays>;
+    let targetSlotIndex: Int32;
+    let weaponDisplayController: ref<InventoryWeaponDisplayController>;
+    let dualWieldIndexOffset: Int32 = 3;
+    if !this.m_InventoryManager.HasPlayerDualWield() {
+      return;
+    };
+    ArrayPush(currentEquipmentArea, gamedataEquipmentArea.Weapon);
+    equipmentAreaCategory = this.GetEquipmentCategoryByArea(currentEquipmentArea[0]);
+    equipmentAreaDisplays = this.GetEquipmentAreaDisplaysFromCategory(currentEquipmentArea, equipmentAreaCategory);
+    displayedSlotIndex = isLeftWeapon ? slotIndex - dualWieldIndexOffset : slotIndex;
+    targetSlotIndex = isLeftWeapon ? displayedSlotIndex : displayedSlotIndex + dualWieldIndexOffset;
+    weaponDisplayController = equipmentAreaDisplays.displayControllers[displayedSlotIndex] as InventoryWeaponDisplayController;
+    if IsDefined(weaponDisplayController) {
+      weaponDisplayController.Bind(this.m_InventoryManager, currentEquipmentArea[0], targetSlotIndex, ItemDisplayContext.GearPanel, false, -1);
+      this.m_itemModeLogicController.UpdateDualWieldHint(weaponDisplayController);
+      this.m_itemModeLogicController.UpdateItemDisplayHover(weaponDisplayController.GetItemData());
+    };
+  }
+
+  private final func NotifyItemUpdate(opt equipmentArea: gamedataEquipmentArea, opt slotIndex: Int32, opt hotkey: EHotkey) -> Void {
+    let itemChangedEvent: ref<ItemModeItemChanged> = new ItemModeItemChanged();
+    if Equals(hotkey, EHotkey.DPAD_UP) {
+      equipmentArea = gamedataEquipmentArea.Consumable;
+    } else {
+      if Equals(hotkey, EHotkey.RB) {
+        equipmentArea = gamedataEquipmentArea.QuickSlot;
+      };
+    };
+    itemChangedEvent.equipmentArea = equipmentArea;
+    itemChangedEvent.slotIndex = slotIndex;
+    itemChangedEvent.hotkey = hotkey;
+    this.QueueEvent(itemChangedEvent);
+  }
+
+  private final func ShowNotification(gameInstance: GameInstance, type: UIMenuNotificationType) -> Void {
+    let inventoryNotification: ref<UIMenuNotificationEvent> = new UIMenuNotificationEvent();
+    inventoryNotification.m_notificationType = type;
+    GameInstance.GetUISystem(gameInstance).QueueEvent(inventoryNotification);
+  }
+
+  protected cb func OnInventoryHold(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: wref<InventoryItemDisplay> = this.GetInventoryItemControllerFromTarget(evt);
+    let itemData: InventoryItemData = controller.GetItemData();
+    let progress: Float = evt.GetHoldProgress();
+    if progress >= 1.00 {
+      if evt.IsAction(n"disassemble_item") && !this.m_isE3Demo {
+        if InventoryItemData.GetQuantity(itemData) > 1 {
+          this.OpenQuantityPicker(itemData, QuantityPickerActionType.Disassembly);
+        } else {
+          this.PlaySound(n"ItemGeneric", n"OnDisassemble");
+          ItemActionsHelper.DisassembleItem(this.m_player, InventoryItemData.GetID(itemData));
+          this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+        };
+      } else {
+        if evt.IsAction(n"use_item") {
+          if Equals(InventoryItemData.GetItemType(itemData), gamedataItemType.Con_Inhaler) || Equals(InventoryItemData.GetItemType(itemData), gamedataItemType.Con_Injector) {
+            return false;
+          };
+          if !InventoryGPRestrictionHelper.CanUse(itemData, this.m_player) {
+            this.ShowNotification(this.m_player.GetGame(), UIMenuNotificationType.InventoryActionBlocked);
+            return false;
+          };
+          if Equals(InventoryItemData.GetItemType(itemData), gamedataItemType.Con_Edible) {
+            GameInstance.GetAudioSystem(this.m_player.GetGame()).Play(n"ui_loot_eat_ui");
+          };
+          this.PlayRumble(RumbleStrength.Light, RumbleType.Pulse, RumblePosition.Right);
+          ItemActionsHelper.PerformItemAction(this.m_player, InventoryItemData.GetID(itemData));
+          this.m_InventoryManager.MarkToRebuild();
+        };
+      };
+    };
+  }
+
+  protected cb func OnItemDisplayHold(evt: ref<ItemDisplayHoldEvent>) -> Bool {
+    let isLeftWeapon: Bool = evt.display.GetSlotIndex() >= 3 && evt.display.GetSlotIndex() <= 5;
+    if evt.actionName.IsAction(n"switch_to_other_weapon") && (!InventoryItemData.IsEmpty(evt.itemData) && InventoryItemData.CanDualWield(evt.itemData) || InventoryItemData.IsEmpty(evt.itemData) && isLeftWeapon) {
+      this.m_isInputLockedForSelect = true;
+      this.m_isInputLockedForClick = true;
+      this.m_canToggleWeapon = false;
+      this.ToggleDualWieldWeapon(evt.display.GetSlotIndex(), isLeftWeapon);
+      this.QueueEvent(new DelayedItemDisplayHold());
+    };
+  }
+
+  protected cb func OnDelayedResetDualWieldItemToggled(evt: ref<DelayedItemDisplayHold>) -> Bool {
+    this.m_canToggleWeapon = true;
+  }
+
+  protected cb func OnOpenInventoryQuantityPickerRequest(request: ref<OpenInventoryQuantityPickerRequest>) -> Bool {
+    this.OpenQuantityPicker(request.itemData, request.actionType);
+  }
+
+  private final func OpenQuantityPicker(const itemData: script_ref<InventoryItemData>, actionType: QuantityPickerActionType, opt local: Bool) -> Void {
+    let data: ref<QuantityPickerPopupData> = new QuantityPickerPopupData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\item_quantity_picker.inkwidget";
+    data.isBlocking = true;
+    data.useCursor = true;
+    data.queueName = n"modal_popup";
+    data.maxValue = InventoryItemData.GetQuantity(itemData);
+    data.gameItemData = Deref(itemData);
+    data.actionType = actionType;
+    this.m_quantityPickerPopupToken = this.ShowGameNotification(data);
+    this.m_quantityPickerPopupToken.RegisterListener(this, local ? n"OnLocalQuantityPickerPopupClosed" : n"OnQuantityPickerPopupClosed");
+    this.m_buttonHintsController.Hide();
+  }
+
+  protected cb func OnLocalQuantityPickerPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_quantityPickerPopupToken = null;
+    let quantityData: ref<QuantityPickerPopupCloseData> = data as QuantityPickerPopupCloseData;
+    if quantityData.choosenQuantity != -1 {
+      switch quantityData.actionType {
+        case QuantityPickerActionType.Disassembly:
+          this.OnQuantityPickerDisassembly(quantityData);
+      };
+    };
+  }
+
+  public final func OnQuantityPickerDisassembly(data: ref<QuantityPickerPopupCloseData>) -> Void {
+    this.PlaySound(n"ItemGeneric", n"OnDisassemble");
+    ItemActionsHelper.DisassembleItem(this.m_player, InventoryItemData.GetID(data.itemData), data.choosenQuantity);
+    this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+  }
+
+  protected cb func OnQuantityPickerPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_quantityPickerPopupToken = null;
+    let quantityData: ref<QuantityPickerPopupCloseData> = data as QuantityPickerPopupCloseData;
+    this.m_itemModeLogicController.OnQuantityPickerPopupClosed(quantityData);
+  }
+
+  private func ReadUICondition(condition: gamedataUICondition) -> Bool {
+    return Equals(condition, gamedataUICondition.IsSetEquippingSubMenu) && this.m_itemModeLogicController.IsOutfitMode();
+  }
+
+  public final func OpenItemMode(displayData: InventoryItemDisplayData) -> Void {
+    let isItemACyberdeck: Bool;
+    let pairedWeaponDisplayData: InventoryItemDisplayData;
+    let paperdollTargetPosition: PaperdollPositionAnimation;
+    this.SwapMode(InventoryModes.Item);
+    pairedWeaponDisplayData = this.CreatePairedItemDisplayData(displayData);
+    if Equals(displayData.m_equipmentArea, gamedataEquipmentArea.Weapon) && EquipmentSystemPlayerData.IsLeftWeaponSlotIndex(displayData.m_slotIndex) {
+      this.m_itemModeLogicController.SetupMode(pairedWeaponDisplayData, displayData, this.m_InventoryManager, this, true);
+    } else {
+      this.m_itemModeLogicController.SetupMode(displayData, pairedWeaponDisplayData, this.m_InventoryManager, this);
+    };
+    this.QueueEvent(new DelayedSetItemModeShown());
+    paperdollTargetPosition = this.GetEquipmentAreaPaperdollLocation(displayData.m_equipmentArea);
+    if Equals(paperdollTargetPosition, PaperdollPositionAnimation.Right) {
+      this.m_itemModeLogicController.SetTranslation(new Vector2(0.00, 0.00));
+    } else {
+      if Equals(paperdollTargetPosition, PaperdollPositionAnimation.Left) || Equals(paperdollTargetPosition, PaperdollPositionAnimation.LeftFullBody) {
+        this.m_itemModeLogicController.SetTranslation(new Vector2(1400.00, 0.00));
+      };
+    };
+    isItemACyberdeck = this.IsItemACyberdeck(displayData);
+    if isItemACyberdeck {
+      this.m_cyberdeckInventoryStatsController = inkWidgetRef.GetController(this.m_cyberdeckInventoryStatsContainer) as CyberdeckInventoryStatsController;
+      if IsDefined(this.m_cyberdeckInventoryStatsController) {
+        this.m_cyberdeckInventoryStatsController.SetupData(ItemID.GetTDBID(displayData.m_itemID), this.m_player, this.m_TooltipsManager);
+        inkWidgetRef.SetVisible(this.m_cyberdeckInventoryStatsContainer, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_cyberdeckInventoryStatsContainer, false);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_cyberdeckInventoryStatsContainer, false);
+    };
+    if isItemACyberdeck && GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"cyberdeck_inventory_tutorial") == 0 && GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"disable_tutorials") == 0 {
+      GameInstance.GetQuestsSystem(this.m_player.GetGame()).SetFact(n"cyberdeck_inventory_tutorial", 1);
+    };
+    this.StartModeTransitionAnimation(displayData);
+  }
+
+  private final func CreatePairedItemDisplayData(displayData: InventoryItemDisplayData) -> InventoryItemDisplayData {
+    let pairedDisplayData: InventoryItemDisplayData;
+    let pairedItemData: InventoryItemData;
+    let slotIndex: Int32;
+    if NotEquals(displayData.m_equipmentArea, gamedataEquipmentArea.Weapon) {
+      return pairedDisplayData;
+    };
+    slotIndex = EquipmentSystemPlayerData.GetOppositeWeaponSlotIndex(displayData.m_slotIndex);
+    pairedItemData = this.m_InventoryManager.GetWeaponEquippedInSlot(slotIndex);
+    pairedDisplayData.m_itemID = InventoryItemData.GetID(pairedItemData);
+    pairedDisplayData.m_equipmentArea = displayData.m_equipmentArea;
+    pairedDisplayData.m_slotIndex = slotIndex;
+    return pairedDisplayData;
+  }
+
+  protected cb func OnDelayedSetItemModeShown(evt: ref<DelayedSetItemModeShown>) -> Bool {
+    this.m_itemModeLogicController.m_isShown = true;
+  }
+
+  private final func IsItemACyberdeck(displayData: InventoryItemDisplayData) -> Bool {
+    return Equals(TweakDBInterface.GetCName(ItemID.GetTDBID(displayData.m_itemID) + t".cyberwareType", n"None"), n"Cyberdeck");
+  }
+
+  private final func UnequipItem(controller: ref<InventoryItemDisplayController>, const itemData: script_ref<InventoryItemData>) -> Void {
+    this.HandleCyberwareStyleUpdate(InventoryItemData.GetEquipmentArea(itemData), Deref(itemData).SlotID, true);
+    this.m_InventoryManager.UnequipItem(controller.GetEquipmentArea(), controller.GetSlotIndex());
+    this.m_InventoryManager.RemoveInventoryItemFromCache(controller.GetItemID());
+    this.m_itemModeLogicController.SetInventoryItemButtonHintsHoverOut();
+  }
+
+  private final func EquipItem(const itemData: script_ref<InventoryItemData>) -> Void {
+    if !InventoryItemData.IsEmpty(itemData) && !InventoryItemData.IsEquipped(itemData) {
+      if InventoryItemData.IsPart(itemData) || Equals(InventoryItemData.GetEquipmentArea(itemData), gamedataEquipmentArea.Invalid) {
+        return;
+      };
+      this.HandleCyberwareStyleUpdate(InventoryItemData.GetEquipmentArea(itemData), Deref(itemData).SlotID, false);
+      if Equals(InventoryItemData.GetEquipmentArea(itemData), gamedataEquipmentArea.Weapon) {
+        this.m_InventoryManager.EquipItem(InventoryItemData.GetID(itemData), this.GetFirstAvailableWeaponSlot(), true);
+      } else {
+        this.m_InventoryManager.EquipItem(InventoryItemData.GetID(itemData), 0, true);
+      };
+    };
+  }
+
+  protected cb func OnInventoryPuppetReceived(puppet: ref<gamePuppet>) -> Bool {
+    this.m_previewPuppet = puppet;
+    this.m_registeredAttachmentSlotListener = this.m_transactionSystem.RegisterAttachmentSlotListener(this.m_previewPuppet, this.m_attachmentSlotListener);
+  }
+
+  public final func HandleCyberwareStyleUpdate(const changedItemEquipmentArea: gamedataEquipmentArea, const slotID: TweakDBID, isUnequipping: Bool) -> Void {
+    let cyberwareStyleEquipped: ItemID;
+    if Equals(changedItemEquipmentArea, gamedataEquipmentArea.Outfit) || Equals(changedItemEquipmentArea, gamedataEquipmentArea.OuterChest) || Equals(changedItemEquipmentArea, gamedataEquipmentArea.InnerChest) {
+      cyberwareStyleEquipped = EquipmentSystem.GetData(this.GetPlayerControlledObject()).GetItemInEquipSlot(gamedataEquipmentArea.ArmsCWStyle, 0);
+      if ItemID.IsValid(cyberwareStyleEquipped) {
+        this.HidePuppetPreview();
+        this.m_attachmentSlotListener = new InventoryAttachmentSlotsScriptCallback();
+        this.m_attachmentSlotListener.m_player = this.m_player;
+        this.m_attachmentSlotListener.m_transactionSystem = this.m_transactionSystem;
+        this.m_attachmentSlotListener.m_isUnequipping = isUnequipping;
+        this.m_attachmentSlotListener.m_showDelay = isUnequipping ? 0.40 : 0.10;
+        this.m_attachmentSlotListener.m_controller = this;
+        this.m_attachmentSlotListener.m_slotToWaitFor = slotID;
+      };
+    };
+  }
+
+  public final func ClothVisualsReady() -> Void {
+    this.ShowPuppetPreview();
+    this.m_transactionSystem.UnregisterAttachmentSlotListener(this.m_previewPuppet, this.m_registeredAttachmentSlotListener);
+  }
+
+  public final func IsSpawningCloth() -> Bool {
+    let item: ItemID;
+    let equipData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.GetPlayerControlledObject());
+    let clothingInfos: array<SSlotInfo> = equipData.GetClothingSlotsInfo();
+    let i: Int32 = 0;
+    while i < ArraySize(clothingInfos) {
+      item = equipData.GetVisualItemInSlot(clothingInfos[i].areaType, clothingInfos[i].equipSlot);
+      if ItemID.IsValid(item) {
+        if this.m_transactionSystem.IsSlotSpawningAnyItem(this.m_player, clothingInfos[i].equipSlot) {
+          return true;
+        };
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  protected cb func OnVisualSlotsUpdatedEvent(evt: ref<VisualSlotsUpdatedEvent>) -> Bool {
+    this.ClothVisualsReady();
+  }
+
+  private final func OnInventoryItemHoverOver(const itemData: script_ref<InventoryItemData>, target: wref<inkWidget>) -> Void {
+    let equippedItem: InventoryItemData;
+    if !InventoryItemData.IsEmpty(itemData) {
+      if Equals(this.m_mode, InventoryModes.Default) {
+        equippedItem = this.m_InventoryManager.GetEquippedCounterpartForInventroyItem(itemData);
+      };
+      this.ShowTooltipsForItemData(equippedItem, itemData, target);
+    };
+  }
+
+  private final func ShowTooltipsForItemData(const equippedItem: script_ref<InventoryItemData>, const inspectedItemData: script_ref<InventoryItemData>, target: wref<inkWidget>) -> Void {
+    let itemTooltips: [CName; 2];
+    let tooltipsData: array<ref<ATooltipData>>;
+    this.HideTooltips();
+    if InventoryItemData.IsWeapon(Deref(inspectedItemData)) {
+      itemTooltips[0] = n"newItemTooltip";
+      itemTooltips[1] = n"newItemTooltipComparision";
+    } else {
+      itemTooltips[0] = n"itemTooltip";
+      itemTooltips[1] = n"itemTooltipComparision";
+    };
+    if !InventoryItemData.IsEmpty(inspectedItemData) {
+      if !InventoryItemData.IsEmpty(equippedItem) && NotEquals(equippedItem, inspectedItemData) {
+        this.m_InventoryManager.PushIdentifiedComparisonTooltipsData(tooltipsData, itemTooltips[0], itemTooltips[1], equippedItem, inspectedItemData);
+        this.m_TooltipsManager.ShowTooltipsAtWidget(tooltipsData, target);
+      } else {
+        this.m_TooltipsManager.ShowTooltipAtWidget(itemTooltips[0], target, this.m_InventoryManager.GetTooltipDataForInventoryItem(inspectedItemData, false), gameuiETooltipPlacement.RightTop, true);
+      };
+    };
+  }
+
+  private final func HideTooltips() -> Void {
+    this.m_TooltipsManager.HideTooltips();
+  }
+
+  private final func SetInventoryItemButtonHintsHoverOver(const displayingData: script_ref<InventoryItemData>) -> Void {
+    let cursorData: ref<MenuCursorUserData> = new MenuCursorUserData();
+    let playerState: gamePSMVehicle = IntEnum<gamePSMVehicle>(this.m_psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle));
+    if !InventoryItemData.IsEmpty(displayingData) {
+      if !InventoryItemData.IsPart(displayingData) && NotEquals(InventoryItemData.GetEquipmentArea(displayingData), gamedataEquipmentArea.Invalid) {
+        this.m_buttonHintsController.AddButtonHint(n"equip_item", GetLocalizedText("UI-UserActions-Equip"));
+      };
+      if !this.m_isE3Demo {
+        if RPGManager.CanItemBeDisassembled(this.m_player.GetGame(), InventoryItemData.GetID(displayingData)) && !InventoryItemData.IsEquipped(displayingData) {
+          this.m_buttonHintsController.AddButtonHint(n"disassemble_item", "[" + GetLocalizedText("Gameplay-Devices-Interactions-Helpers-Hold") + "] " + GetLocalizedText("UI-ScriptExports-Disassemble0"));
+          cursorData.AddAction(n"disassemble_item");
+        };
+      };
+      if !InventoryItemData.IsEquipped(displayingData) && RPGManager.CanItemBeDropped(this.m_player, InventoryItemData.GetGameItemData(displayingData)) {
+        if NotEquals(playerState, gamePSMVehicle.Default) {
+          this.m_buttonHintsController.AddButtonHint(n"drop_item", GetLocalizedText("UI-ScriptExports-Drop0"));
+        } else {
+          this.m_buttonHintsController.RemoveButtonHint(n"drop_item");
+        };
+      };
+      if Equals(InventoryItemData.GetEquipmentArea(displayingData), gamedataEquipmentArea.Consumable) {
+        this.m_buttonHintsController.AddButtonHint(n"UseConsumable", "[" + GetLocalizedText("Gameplay-Devices-Interactions-Helpers-Hold") + "] " + GetLocalizedText("UI-UserActions-Use"));
+        cursorData.AddAction(n"use_item");
+      };
+      if cursorData.GetActionsListSize() >= 0 {
+        this.SetCursorContext(n"HoldToComplete", cursorData);
+      } else {
+        this.SetCursorContext(n"Hover");
+      };
+    } else {
+      this.SetCursorContext(n"Default");
+    };
+  }
+
+  private final func SetInventoryItemButtonHintsHoverOut() -> Void {
+    this.m_buttonHintsController.RemoveButtonHint(n"equip_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"disassemble_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"drop_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"UseConsumable");
+  }
+
+  private final func StartModeTransitionAnimation(opt displayData: InventoryItemDisplayData) -> Void {
+    let isCyberware: Bool = InventoryDataManagerV2.IsEquipmentAreaCyberware(displayData.m_equipmentArea);
+    let hidePaperdoll: Bool = isCyberware || Equals(displayData.m_equipmentArea, gamedataEquipmentArea.Weapon);
+    if IsDefined(this.m_itemModeProxy) {
+      this.m_itemModeProxy.Stop();
+    };
+    if IsDefined(this.m_itemModeOutroProxy) {
+      this.m_itemModeOutroProxy.GotoEndAndStop();
+      this.m_itemModeOutroProxy = null;
+    };
+    switch this.m_mode {
+      case InventoryModes.Default:
+        this.PlayShowHideItemChooserAnimation(false);
+        this.ZoomCamera(0);
+        this.PlaySlidePaperdollAnimation(PaperdollPositionAnimation.Center);
+        this.m_itemModeProxy = this.PlayLibraryAnimation(n"default_wrapper_Intro");
+        this.RefreshPlayerCyberware();
+        break;
+      case InventoryModes.Item:
+        this.PlayShowHideItemChooserAnimation(true);
+        this.ZoomCamera(EnumInt(this.GetZoomArea(displayData.m_equipmentArea)));
+        this.PlaySlidePaperdollAnimation(this.GetEquipmentAreaPaperdollLocation(displayData.m_equipmentArea), hidePaperdoll);
+        this.m_itemModeOutroProxy = this.PlayLibraryAnimation(n"default_wrapper_outro");
+        this.m_itemModeProxy = this.PlayLibraryAnimation(isCyberware ? n"cyberware_grid_intro" : n"inventory_grid_intro");
+    };
+  }
+
+  private final func ZoomCamera(target: Int32) -> Void {
+    let setCameraSetupEvent: ref<gameuiPuppetPreview_SetCameraSetupEvent> = new gameuiPuppetPreview_SetCameraSetupEvent();
+    setCameraSetupEvent.setupIndex = Cast<Uint32>(target);
+    this.QueueEvent(setCameraSetupEvent);
+  }
+
+  private final func GetVisibleSlots(opt slotToSkip: ref<InventoryItemDisplayController>) -> [ref<InventoryItemDisplayController>] {
+    let displays: array<ref<InventoryItemDisplayController>>;
+    let j: Int32;
+    let result: array<ref<InventoryItemDisplayController>>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      displays = this.m_equipmentAreaCategories[i].GetDisplays();
+      j = 0;
+      while j < ArraySize(displays) {
+        if displays[j] != slotToSkip {
+          ArrayPush(result, displays[j]);
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func GetVisibleAdditionalWidgets() -> [wref<inkWidget>] {
+    let areasToHide: array<inkWidgetRef>;
+    let j: Int32;
+    let result: array<wref<inkWidget>>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipmentAreaCategories) {
+      areasToHide = this.m_equipmentAreaCategories[i].parentCategory.GetAreasToHide();
+      j = 0;
+      while j < ArraySize(areasToHide) {
+        if IsDefined(inkWidgetRef.Get(areasToHide[j])) {
+          ArrayPush(result, inkWidgetRef.Get(areasToHide[j]));
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func PlayGearToItemModeAnimation(moveAnimation: CName, hideAnimation: CName, target: ref<InventoryItemDisplayController>, const itemToHide: script_ref<[ref<InventoryItemDisplayController>]>) -> Void;
+
+  private final func PlayMoveAnimation(target: ref<InventoryItemDisplayController>) -> Void;
+
+  private final func GetZoomArea(equipmentArea: gamedataEquipmentArea) -> InventoryPaperdollZoomArea {
+    switch equipmentArea {
+      case gamedataEquipmentArea.Weapon:
+        return InventoryPaperdollZoomArea.Weapon;
+      case gamedataEquipmentArea.Legs:
+        return InventoryPaperdollZoomArea.Legs;
+      case gamedataEquipmentArea.Feet:
+        return InventoryPaperdollZoomArea.Feet;
+      case gamedataEquipmentArea.ArmsCW:
+      case gamedataEquipmentArea.HandsCW:
+      case gamedataEquipmentArea.SystemReplacementCW:
+        return InventoryPaperdollZoomArea.Cyberware;
+      case gamedataEquipmentArea.QuickSlot:
+        return InventoryPaperdollZoomArea.QuickSlot;
+      case gamedataEquipmentArea.Consumable:
+        return InventoryPaperdollZoomArea.Consumable;
+      case gamedataEquipmentArea.Outfit:
+        return InventoryPaperdollZoomArea.Outfit;
+      case gamedataEquipmentArea.Head:
+        return InventoryPaperdollZoomArea.Head;
+      case gamedataEquipmentArea.Face:
+        return InventoryPaperdollZoomArea.Face;
+      case gamedataEquipmentArea.InnerChest:
+        return InventoryPaperdollZoomArea.InnerChest;
+      case gamedataEquipmentArea.OuterChest:
+        return InventoryPaperdollZoomArea.OuterChest;
+    };
+    return InventoryPaperdollZoomArea.Default;
+  }
+
+  private final func GetEquipmentAreaPaperdollLocation(equipmentArea: gamedataEquipmentArea) -> PaperdollPositionAnimation {
+    switch equipmentArea {
+      case gamedataEquipmentArea.Weapon:
+      case gamedataEquipmentArea.ArmsCW:
+      case gamedataEquipmentArea.HandsCW:
+      case gamedataEquipmentArea.SystemReplacementCW:
+        return PaperdollPositionAnimation.Right;
+      case gamedataEquipmentArea.OuterChest:
+      case gamedataEquipmentArea.InnerChest:
+      case gamedataEquipmentArea.Face:
+      case gamedataEquipmentArea.Head:
+        return PaperdollPositionAnimation.Left;
+      case gamedataEquipmentArea.Outfit:
+      case gamedataEquipmentArea.Feet:
+      case gamedataEquipmentArea.Legs:
+      case gamedataEquipmentArea.Consumable:
+      case gamedataEquipmentArea.Gadget:
+      case gamedataEquipmentArea.QuickSlot:
+        return PaperdollPositionAnimation.LeftFullBody;
+    };
+    return PaperdollPositionAnimation.Center;
+  }
+
+  private final func PlayShowHideItemChooserAnimation(visible: Bool) -> Void {
+    let transparencyAnimationProxy: ref<inkAnimProxy>;
+    let transparencyAnimation: ref<inkAnimDef> = new inkAnimDef();
+    let transparencyInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(0.15);
+    transparencyInterpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    transparencyInterpolator.SetType(inkanimInterpolationType.Linear);
+    transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    transparencyInterpolator.SetStartTransparency(visible ? 0.00 : 1.00);
+    transparencyInterpolator.SetEndTransparency(visible ? 1.00 : 0.00);
+    transparencyAnimation.AddInterpolator(transparencyInterpolator);
+    transparencyAnimationProxy = inkWidgetRef.PlayAnimation(this.m_itemWrapper, transparencyAnimation);
+    if !visible {
+      transparencyAnimationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnItemChooserHideAnimationComplete");
+    };
+  }
+
+  private final func PlaySlidePaperdollAnimation(position: PaperdollPositionAnimation, opt hide: Bool) -> Void {
+    let translationAnimation: ref<inkAnimDef>;
+    let translationInterpolator: ref<inkAnimTranslation>;
+    let transparencyInterpolator: ref<inkAnimTransparency>;
+    if IsDefined(this.m_paperDollProxy) {
+      this.m_paperDollProxy.Stop();
+    };
+    translationAnimation = new inkAnimDef();
+    translationInterpolator = new inkAnimTranslation();
+    translationInterpolator.SetDuration(0.20);
+    translationInterpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+    translationInterpolator.SetType(inkanimInterpolationType.Linear);
+    translationInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    if hide || !hide && !this.m_targetPaperDollVisibility {
+      transparencyInterpolator = new inkAnimTransparency();
+      transparencyInterpolator.SetDuration(0.20);
+      transparencyInterpolator.SetDirection(inkanimInterpolationDirection.FromTo);
+      transparencyInterpolator.SetType(inkanimInterpolationType.Linear);
+      transparencyInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+      transparencyInterpolator.SetStartTransparency(inkWidgetRef.GetOpacity(this.m_paperDollWidget));
+      transparencyInterpolator.SetEndTransparency(hide ? 0.00 : 1.00);
+      this.m_targetPaperDollVisibility = !hide;
+    };
+    translationInterpolator.SetStartTranslation(inkWidgetRef.GetTranslation(this.m_paperDollWidget));
+    switch position {
+      case PaperdollPositionAnimation.Center:
+        translationInterpolator.SetEndTranslation(new Vector2(0.00, 0.00));
+        break;
+      case PaperdollPositionAnimation.Left:
+        translationInterpolator.SetEndTranslation(new Vector2(-1000.00, 0.00));
+        break;
+      case PaperdollPositionAnimation.LeftFullBody:
+        translationInterpolator.SetEndTranslation(new Vector2(-990.00, 0.00));
+        break;
+      case PaperdollPositionAnimation.Right:
+        translationInterpolator.SetEndTranslation(new Vector2(1200.00, 0.00));
+    };
+    translationAnimation.AddInterpolator(translationInterpolator);
+    translationAnimation.AddInterpolator(transparencyInterpolator);
+    this.m_paperDollProxy = inkWidgetRef.PlayAnimation(this.m_paperDollWidget, translationAnimation);
+  }
+
+  protected cb func OnItemModeItemChanged(e: ref<ItemModeItemChanged>) -> Bool {
+    let equipmentAreaDisplays: ref<EquipmentAreaDisplays>;
+    let i: Int32;
+    let equipmentAreaToUpdate: gamedataEquipmentArea = e.equipmentArea;
+    if Equals(equipmentAreaToUpdate, gamedataEquipmentArea.Outfit) {
+      this.InvlidateAllClothes();
+      return false;
+    };
+    if Equals(e.hotkey, EHotkey.INVALID) {
+      if InventoryDataManagerV2.IsEquipmentAreaCyberware(equipmentAreaToUpdate) {
+        equipmentAreaToUpdate = gamedataEquipmentArea.SystemReplacementCW;
+      };
+    };
+    equipmentAreaDisplays = this.GetEquipementAreaDisplays(equipmentAreaToUpdate);
+    i = 0;
+    while i < ArraySize(equipmentAreaDisplays.equipmentAreas) {
+      if Equals(equipmentAreaDisplays.equipmentAreas[i], gamedataEquipmentArea.Invalid) {
+        return false;
+      };
+      i += 1;
+    };
+    if ArraySize(equipmentAreaDisplays.displayControllers) >= e.slotIndex {
+      equipmentAreaDisplays.displayControllers[e.slotIndex].InvalidateContent();
+    };
+  }
+
+  private final func InvlidateAllClothes() -> Void {
+    let areasToInvalidate: array<gamedataEquipmentArea>;
+    let equipmentAreaDisplays: ref<EquipmentAreaDisplays>;
+    let i: Int32;
+    let j: Int32;
+    let outfit: ItemID = this.m_InventoryManager.GetEquippedItemIdInArea(gamedataEquipmentArea.Outfit);
+    let isOutfitEquipped: Bool = ItemID.IsValid(outfit);
+    this.RefreshEquippedWardrobeItems();
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.Head);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.Face);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.OuterChest);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.InnerChest);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.Legs);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.Feet);
+    ArrayPush(areasToInvalidate, gamedataEquipmentArea.Outfit);
+    i = 0;
+    while i < ArraySize(areasToInvalidate) {
+      equipmentAreaDisplays = this.GetEquipementAreaDisplays(areasToInvalidate[i]);
+      j = 0;
+      while j < ArraySize(equipmentAreaDisplays.equipmentAreas) {
+        if Equals(equipmentAreaDisplays.equipmentAreas[j], gamedataEquipmentArea.Invalid) {
+        };
+        j += 1;
+      };
+      j = 0;
+      while j < ArraySize(equipmentAreaDisplays.displayControllers) {
+        equipmentAreaDisplays.displayControllers[j].InvalidateContent();
+        equipmentAreaDisplays.displayControllers[j].SetLocked(isOutfitEquipped && this.IsAreaLockedByOutfit(areasToInvalidate[i]), true);
+        equipmentAreaDisplays.displayControllers[j].SetTransmoged(ArrayContains(this.m_wardrobeOutfitAreas, areasToInvalidate[i]));
+        j += 1;
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnDefaultToItemModeComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  protected cb func OnItemtoDefaultModeComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  protected cb func OnItemModeFadeInComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  protected cb func OnItemModeFadeOutComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  protected cb func OnDefaultModeFadeInComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  protected cb func OnDefaultModeFadeOutComplete(anim: ref<inkAnimProxy>) -> Bool;
+
+  private final func GetAttachmentDataForInventoryItem(const itemData: script_ref<InventoryItemData>, boxData: script_ref<[InventoryComboBoxData]>, allowUnequip: Bool) -> Void {
+    let attachments: ref<InventoryItemAttachments>;
+    let currItemData: InventoryItemData;
+    let dataToDisplay: array<InventoryItemData>;
+    let message: String;
+    let showcaseItemData: InventoryItemData;
+    let attachmentsSize: Int32 = InventoryItemData.GetAttachmentsSize(itemData);
+    let i: Int32 = 0;
+    let limit: Int32 = attachmentsSize;
+    while i < limit {
+      attachments = InventoryItemData.GetAttachment(itemData, i);
+      currItemData = attachments.ItemData;
+      ArrayClear(dataToDisplay);
+      if InventoryItemData.IsEmpty(currItemData) {
+        message = "No " + GetLocalizedText(attachments.SlotName) + " attached";
+      } else {
+        message = "Attached " + GetLocalizedText(attachments.SlotName);
+        ArrayPush(dataToDisplay, currItemData);
+      };
+      ArrayPush(Deref(boxData), new InventoryComboBoxData(message, dataToDisplay, allowUnequip, showcaseItemData, false, false));
+      i += 1;
+    };
+  }
+
+  private final func GetAttachmentDataForCustomizeFromInventory(const inspectedItemData: script_ref<InventoryItemData>, const equipmentData: script_ref<[InventoryItemData]>, boxData: script_ref<[InventoryComboBoxData]>) -> Void {
+    let attachments: ref<InventoryItemAttachments>;
+    let attachmentsSize: Int32;
+    let currentEquipment: InventoryItemData;
+    let itemsToDisplay: array<InventoryItemData>;
+    let j: Int32;
+    let limitJ: Int32;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(equipmentData));
+    while i < limit {
+      currentEquipment = Deref(equipmentData)[i];
+      ArrayClear(itemsToDisplay);
+      attachmentsSize = InventoryItemData.GetAttachmentsSize(currentEquipment);
+      j = 0;
+      limitJ = attachmentsSize;
+      while j < limitJ {
+        attachments = InventoryItemData.GetAttachment(currentEquipment, i);
+        if !InventoryItemData.IsEmpty(currentEquipment) && InventoryItemData.PlacementSlotsContains(inspectedItemData, attachments.SlotID) {
+          ArrayPush(itemsToDisplay, attachments.ItemData);
+        };
+        j += 1;
+      };
+      if ArraySize(itemsToDisplay) > 0 {
+        ArrayPush(Deref(boxData), new InventoryComboBoxData("Attatch to " + GetLocalizedText(InventoryItemData.GetName(currentEquipment)), itemsToDisplay, false, currentEquipment, true, false));
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    super.OnSetMenuEventDispatcher(menuEventDispatcher);
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnCloseMenu", this, n"OnCloseMenu");
+  }
+
+  private final func GetSlotNameFromEqArea(area: gamedataEquipmentArea) -> String {
+    return EnumValueToString("gamedataEquipmentArea", Cast<Int64>(EnumInt(area)));
+  }
+
+  private final func GetInventoryItemControllerFromTarget(evt: ref<inkPointerEvent>) -> ref<InventoryItemDisplay> {
+    let widget: ref<inkWidget> = evt.GetCurrentTarget();
+    let controller: wref<InventoryItemDisplay> = widget.GetController() as InventoryItemDisplay;
+    return controller;
+  }
+
+  private final func GetEquipmentSlotControllerFromTarget(evt: ref<inkPointerEvent>) -> ref<InventoryItemDisplayController> {
+    let widget: ref<inkWidget> = evt.GetCurrentTarget();
+    let controller: wref<InventoryItemDisplayController> = widget.GetController() as InventoryItemDisplayController;
+    return controller;
+  }
+
+  private final func IsAnEquipmentArea(equipmentArea: gamedataEquipmentArea) -> Bool {
+    let isEquipmentArea: Bool;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_EquipAreas) {
+      if Equals(this.m_EquipAreas[i], equipmentArea) {
+        return true;
+      };
+      i += 1;
+    };
+    return isEquipmentArea;
+  }
+
+  private final func GetFirstAvailableWeaponSlot() -> Int32 {
+    let tempItemData: InventoryItemData;
+    let tempWeaponEquipmentSlot: wref<InventoryItemDisplayController>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_WeaponsList) {
+      tempWeaponEquipmentSlot = this.m_WeaponsList[i];
+      tempItemData = tempWeaponEquipmentSlot.GetItemData();
+      if InventoryItemData.IsEmpty(tempItemData) {
+        return i;
+      };
+      i += 1;
+    };
+    return 0;
+  }
+
+  private final func GetAssociatedCategory(controller: ref<InventoryItemDisplayController>) -> [wref<InventoryItemDisplayController>] {
+    let controllerList: array<wref<InventoryItemDisplayController>>;
+    switch controller.GetEquipmentArea() {
+      case gamedataEquipmentArea.SystemReplacementCW:
+        controllerList = this.m_CyberwareList;
+        break;
+      case gamedataEquipmentArea.Weapon:
+        controllerList = this.m_WeaponsList;
+        break;
+      case gamedataEquipmentArea.Quest:
+      case gamedataEquipmentArea.Gadget:
+      case gamedataEquipmentArea.QuickSlot:
+        controllerList = this.m_PocketList;
+        break;
+      case gamedataEquipmentArea.Consumable:
+        controllerList = this.m_ConsumablesList;
+        break;
+      case gamedataEquipmentArea.Feet:
+      case gamedataEquipmentArea.Legs:
+      case gamedataEquipmentArea.OuterChest:
+      case gamedataEquipmentArea.InnerChest:
+      case gamedataEquipmentArea.Face:
+      case gamedataEquipmentArea.Head:
+        controllerList = this.m_EquipmentList;
+    };
+    return controllerList;
+  }
+
+  private final func GetSide(controller: ref<InventoryItemDisplayController>) -> Bool {
+    let isLeft: Bool;
+    switch controller.GetEquipmentArea() {
+      case gamedataEquipmentArea.Weapon:
+      case gamedataEquipmentArea.SystemReplacementCW:
+        isLeft = true;
+        break;
+      case gamedataEquipmentArea.Outfit:
+      case gamedataEquipmentArea.Feet:
+      case gamedataEquipmentArea.Legs:
+      case gamedataEquipmentArea.OuterChest:
+      case gamedataEquipmentArea.InnerChest:
+      case gamedataEquipmentArea.Face:
+      case gamedataEquipmentArea.Head:
+      case gamedataEquipmentArea.Consumable:
+      case gamedataEquipmentArea.Quest:
+      case gamedataEquipmentArea.Gadget:
+        isLeft = false;
+    };
+    return isLeft;
+  }
+
+  private final func GetTooltipPlacement(controller: ref<InventoryItemDisplayController>) -> gameuiETooltipPlacement {
+    switch controller.GetEquipmentArea() {
+      case gamedataEquipmentArea.Consumable:
+      case gamedataEquipmentArea.Outfit:
+      case gamedataEquipmentArea.OuterChest:
+      case gamedataEquipmentArea.InnerChest:
+      case gamedataEquipmentArea.SystemReplacementCW:
+      case gamedataEquipmentArea.Weapon:
+        return gameuiETooltipPlacement.RightTop;
+      case gamedataEquipmentArea.Feet:
+      case gamedataEquipmentArea.Legs:
+      case gamedataEquipmentArea.Face:
+      case gamedataEquipmentArea.Head:
+      case gamedataEquipmentArea.QuickSlot:
+      case gamedataEquipmentArea.Gadget:
+        return gameuiETooltipPlacement.LeftTop;
+      default:
+        return gameuiETooltipPlacement.RightTop;
+    };
+    return gameuiETooltipPlacement.RightTop;
+  }
+
+  public final func GetCategoryHeader(displayData: InventoryItemDisplayData) -> String {
+    let controllerLabel: String;
+    switch displayData.m_equipmentArea {
+      case gamedataEquipmentArea.SystemReplacementCW:
+        controllerLabel = "Gameplay-RPG-Items-Categories-Cyberware";
+        break;
+      case gamedataEquipmentArea.Weapon:
+        controllerLabel = EquipmentSystemPlayerData.IsLeftWeaponSlotIndex(displayData.m_slotIndex) ? "Gameplay-Weapons-DualWield-SecondaryWeapon" : "Gameplay-RPG-Items-Categories-Weapon";
+        break;
+      case gamedataEquipmentArea.Quest:
+      case gamedataEquipmentArea.Gadget:
+      case gamedataEquipmentArea.QuickSlot:
+        controllerLabel = "Gameplay-RPG-Items-Categories-Gadget";
+        break;
+      case gamedataEquipmentArea.Consumable:
+        controllerLabel = "Gameplay-RPG-Items-Categories-Consumable";
+        break;
+      case gamedataEquipmentArea.Feet:
+      case gamedataEquipmentArea.Legs:
+      case gamedataEquipmentArea.OuterChest:
+      case gamedataEquipmentArea.InnerChest:
+      case gamedataEquipmentArea.Face:
+      case gamedataEquipmentArea.Head:
+        controllerLabel = "Gameplay-RPG-Items-Categories-Clothing";
+        break;
+      case gamedataEquipmentArea.Outfit:
+        controllerLabel = "UI-Inventory-Labels-Outfit";
+    };
+    return controllerLabel;
+  }
+}
+
+public class ItemDisplayInventoryMiniGrid extends inkLogicController {
+
+  private edit let m_gridList: inkCompoundRef;
+
+  private edit let m_label: inkTextRef;
+
+  private let m_gridWidth: Int32;
+
+  private let m_gridData: [wref<InventoryItemDisplayController>];
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_gridWidth = 4;
+    inkWidgetRef.SetVisible(this.m_label, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let gridListItem: wref<InventoryItemDisplayController>;
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+  }
+
+  public final func SetupData(const label: script_ref<String>, const playerEquipAreaInventory: script_ref<[InventoryItemData]>, opt equipArea: gamedataEquipmentArea, opt displayContext: ItemDisplayContext) -> Void {
+    let displayToUse: CName;
+    let emptyItemData: InventoryItemData;
+    let gridListItem: wref<InventoryItemDisplayController>;
+    let gridSize: Int32;
+    let i: Int32;
+    let limit: Int32;
+    let numOfRows: Int32;
+    if Equals(equipArea, gamedataEquipmentArea.Weapon) || Equals(equipArea, gamedataEquipmentArea.SystemReplacementCW) {
+      InventoryItemData.SetItemShape(emptyItemData, EInventoryItemShape.DoubleSlot);
+    };
+    if ArraySize(Deref(playerEquipAreaInventory)) % this.m_gridWidth > 0 {
+      numOfRows = CeilF(Cast<Float>(ArraySize(Deref(playerEquipAreaInventory))) / Cast<Float>(this.m_gridWidth) + 0.50);
+      gridSize = this.m_gridWidth * numOfRows;
+    } else {
+      if ArraySize(Deref(playerEquipAreaInventory)) == 0 {
+        gridSize = this.m_gridWidth;
+      } else {
+        gridSize = ArraySize(Deref(playerEquipAreaInventory));
+      };
+    };
+    limit = gridSize;
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+    i = 0;
+    while i < limit {
+      displayToUse = n"gridItemDisplay";
+      if Equals(InventoryItemData.GetEquipmentArea(Deref(playerEquipAreaInventory)[i]), gamedataEquipmentArea.Weapon) {
+        displayToUse = n"gridWeaponDisplay";
+      };
+      gridListItem = ItemDisplayUtils.SpawnCommonSlotController(this, this.m_gridList, displayToUse) as InventoryItemDisplayController;
+      ArrayPush(this.m_gridData, gridListItem);
+      if ArraySize(Deref(playerEquipAreaInventory)) > i {
+        gridListItem.Setup(Deref(playerEquipAreaInventory)[i], displayContext);
+      } else {
+        gridListItem.Setup(emptyItemData);
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_label, true);
+    inkTextRef.SetText(this.m_label, Deref(label));
+  }
+
+  public final func GetInventoryItemDisplays() -> [wref<InventoryItemDisplayController>] {
+    return this.m_gridData;
+  }
+
+  public final func RemoveElement() -> Void {
+    let gridListItem: wref<InventoryItemDisplayController>;
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+    inkWidgetRef.SetVisible(this.m_label, false);
+  }
+}
+
+public class ItemInventoryMiniGrid extends inkLogicController {
+
+  private edit let m_gridList: inkCompoundRef;
+
+  private edit let m_label: inkTextRef;
+
+  private let m_gridWidth: Int32;
+
+  private let m_gridData: [wref<InventoryItemDisplay>];
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_gridWidth = 4;
+    inkWidgetRef.SetVisible(this.m_label, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let gridListItem: wref<InventoryItemDisplay>;
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+  }
+
+  public final func SetupData(const label: script_ref<String>, const playerEquipAreaInventory: script_ref<[InventoryItemData]>, opt equipArea: gamedataEquipmentArea) -> Void {
+    let emptyItemData: InventoryItemData;
+    let gridListItem: wref<InventoryItemDisplay>;
+    let gridSize: Int32;
+    let i: Int32;
+    let limit: Int32;
+    let numOfRows: Int32;
+    if Equals(equipArea, gamedataEquipmentArea.Weapon) || Equals(equipArea, gamedataEquipmentArea.SystemReplacementCW) {
+      InventoryItemData.SetItemShape(emptyItemData, EInventoryItemShape.DoubleSlot);
+    };
+    if ArraySize(Deref(playerEquipAreaInventory)) % this.m_gridWidth > 0 {
+      numOfRows = CeilF(Cast<Float>(ArraySize(Deref(playerEquipAreaInventory))) / Cast<Float>(this.m_gridWidth) + 0.50);
+      gridSize = this.m_gridWidth * numOfRows;
+    } else {
+      if ArraySize(Deref(playerEquipAreaInventory)) == 0 {
+        gridSize = this.m_gridWidth;
+      } else {
+        gridSize = ArraySize(Deref(playerEquipAreaInventory));
+      };
+    };
+    limit = gridSize;
+    while ArraySize(this.m_gridData) > limit {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+    while ArraySize(this.m_gridData) < limit {
+      gridListItem = ItemDisplayUtils.SpawnCommonSlotController(this, this.m_gridList, n"inventoryHudItem") as InventoryItemDisplay;
+      ArrayPush(this.m_gridData, gridListItem);
+    };
+    i = 0;
+    while i < ArraySize(this.m_gridData) {
+      gridListItem = this.m_gridData[i];
+      if ArraySize(Deref(playerEquipAreaInventory)) > i {
+        gridListItem.Setup(Deref(playerEquipAreaInventory)[i]);
+      } else {
+        gridListItem.Setup(emptyItemData);
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_label, true);
+    inkTextRef.SetText(this.m_label, Deref(label));
+  }
+
+  public final func SetGridWith(gridWidth: Int32) -> Void {
+    this.m_gridWidth = gridWidth;
+  }
+
+  public final func GetInventoryItemDisplays() -> [wref<InventoryItemDisplay>] {
+    return this.m_gridData;
+  }
+
+  public final func RemoveElement() -> Void {
+    let gridListItem: wref<InventoryItemDisplay>;
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridList, gridListItem.GetRootWidget());
+    };
+    inkWidgetRef.SetVisible(this.m_label, false);
+  }
+}
+
+public class EquipmentAreaCategory extends IScriptable {
+
+  public let parentCategory: wref<InventoryItemDisplayCategoryArea>;
+
+  public let areaDisplays: [ref<EquipmentAreaDisplays>];
+
+  public final func GetDisplays() -> [ref<InventoryItemDisplayController>] {
+    let j: Int32;
+    let result: array<ref<InventoryItemDisplayController>>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.areaDisplays) {
+      j = 0;
+      while j < ArraySize(this.areaDisplays[i].displayControllers) {
+        ArrayPush(result, this.areaDisplays[i].displayControllers[j]);
+        j += 1;
+      };
+      i += 1;
+    };
+    return result;
+  }
+}
+
+public class InventoryStatsListener extends ScriptStatsListener {
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_controller: wref<InventoryStatsController>;
+
+  public func OnStatChanged(ownerID: StatsObjectID, statType: gamedataStatType, diff: Float, total: Float) -> Void {
+    if IsDefined(this.m_owner as PlayerPuppet) {
+      if Equals(statType, gamedataStatType.Armor) || Equals(statType, gamedataStatType.Health) || Equals(statType, gamedataStatType.Stamina) {
+        this.m_controller.NotifyStatUpdate(statType, total);
+      };
+    };
+  }
+}
+
+public class InventoryStatsController extends inkLogicController {
+
+  protected edit let m_detailsButton: inkWidgetRef;
+
+  protected edit let m_entryContainer: inkCompoundRef;
+
+  protected let m_healthEntryController: wref<InventoryStatsEntryController>;
+
+  protected let m_armorEntryController: wref<InventoryStatsEntryController>;
+
+  protected let m_staminaEntryController: wref<InventoryStatsEntryController>;
+
+  public final func Setup(player: wref<PlayerPuppet>) -> Void {
+    inkCompoundRef.RemoveAllChildren(this.m_entryContainer);
+    this.m_armorEntryController = this.SetupEntry(player, gamedataStatType.Armor, n"Gameplay-RPG-Stats-Armor", n"inventory_stat_armor");
+    this.m_healthEntryController = this.SetupEntry(player, gamedataStatType.Health, n"Gameplay-RPG-Stats-Health", n"inventory_stat_health");
+    this.m_staminaEntryController = this.SetupEntry(player, gamedataStatType.Stamina, n"Gameplay-RPG-Stats-Stamina", n"inventory_stat_stamina");
+    this.m_armorEntryController.AT_SetATID("InventoryStats_ArmorStat");
+    this.m_healthEntryController.AT_SetATID("InventoryStats_HealthStat");
+    this.m_staminaEntryController.AT_SetATID("InventoryStats_StaminaStat");
+  }
+
+  public final func NotifyStatUpdate(statType: gamedataStatType, value: Float) -> Void {
+    switch statType {
+      case gamedataStatType.Armor:
+        this.m_armorEntryController.SetValue(value);
+        break;
+      case gamedataStatType.Health:
+        this.m_armorEntryController.SetValue(value);
+        break;
+      case gamedataStatType.Stamina:
+        this.m_armorEntryController.SetValue(value);
+    };
+  }
+
+  public final func SetupEntry(player: wref<PlayerPuppet>, stat: gamedataStatType, localizationKey: CName, icon: CName) -> wref<InventoryStatsEntryController> {
+    let controller: wref<InventoryStatsEntryController>;
+    let value: Float;
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(player.GetGame());
+    let widget: wref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_entryContainer), n"statContainer");
+    if Equals(stat, gamedataStatType.Health) {
+      value = Cast<Float>(CeilF(statsSystem.GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), stat)));
+    } else {
+      value = statsSystem.GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), stat);
+    };
+    controller = widget.GetController() as InventoryStatsEntryController;
+    controller.Setup(icon, GetLocalizedText(ToString(localizationKey)), value);
+    return controller;
+  }
+}
+
+public class InventoryStatsEntryController extends inkLogicController {
+
+  protected edit let m_iconWidget: inkImageRef;
+
+  protected edit let m_labelWidget: inkTextRef;
+
+  protected edit let m_valueWidget: inkTextRef;
+
+  public final func Setup(icon: CName, const label: script_ref<String>, value: Float) -> Void {
+    inkTextRef.SetText(this.m_labelWidget, Deref(label));
+    InkImageUtils.RequestSetImage(this, this.m_iconWidget, n"UIIcon." + icon);
+    this.SetValue(value);
+  }
+
+  public final func SetValue(value: Float) -> Void {
+    inkTextRef.SetText(this.m_valueWidget, IntToString(RoundMath(value)));
+  }
+
+  public final func AT_SetATID(const ATID: script_ref<String>) -> Void {
+    AT_AddATID(inkWidgetRef.Get(this.m_valueWidget), ATID);
+  }
+}
+
+public class CyberdeckInventoryStatsController extends inkLogicController {
+
+  @runtimeProperty("category", "Buffer")
+  public edit let m_bufferTotal: inkTextRef;
+
+  @runtimeProperty("category", "Buffer")
+  public edit let m_bufferBase: inkTextRef;
+
+  @runtimeProperty("category", "Buffer")
+  public edit let m_bufferBonus: inkTextRef;
+
+  @runtimeProperty("category", "Buffer")
+  public edit let m_bufferHoverArea: inkWidgetRef;
+
+  @runtimeProperty("category", "Buffer")
+  @default(CyberdeckInventoryStatsController, gameuiETooltipPlacement.LeftTop)
+  public edit let m_bufferTooltipPlacement: gameuiETooltipPlacement;
+
+  @runtimeProperty("category", "RAM")
+  public edit let m_ramTotal: inkTextRef;
+
+  @runtimeProperty("category", "RAM")
+  public edit let m_ramBase: inkTextRef;
+
+  @runtimeProperty("category", "RAM")
+  public edit let m_ramBonus: inkTextRef;
+
+  @runtimeProperty("category", "RAM")
+  public edit let m_ramHoverArea: inkWidgetRef;
+
+  @runtimeProperty("category", "RAM")
+  @default(CyberdeckInventoryStatsController, gameuiETooltipPlacement.LeftTop)
+  public edit let m_ramTooltipPlacement: gameuiETooltipPlacement;
+
+  private let m_tooltipsManager: wref<gameuiTooltipsManager>;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_bufferHoverArea, n"OnHoverOver", this, n"OnBufferHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_bufferHoverArea, n"OnHoverOut", this, n"OnHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_ramHoverArea, n"OnHoverOver", this, n"OnRamHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_ramHoverArea, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_bufferHoverArea, n"OnHoverOver", this, n"OnBufferHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_bufferHoverArea, n"OnHoverOut", this, n"OnHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_ramHoverArea, n"OnHoverOver", this, n"OnRamHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_ramHoverArea, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func SetupData(tweakID: TweakDBID, player: wref<PlayerPuppet>, tooltipsManager: wref<gameuiTooltipsManager>) -> Void {
+    let cyberdeckBufferValue: Int32;
+    let cyberdeckMemoryValue: Int32;
+    let i: Int32;
+    let j: Int32;
+    let onEquipList: array<wref<GameplayLogicPackage_Record>>;
+    let playerBufferValue: Int32;
+    let playerMemoryValue: Int32;
+    let stat: wref<ConstantStatModifier_Record>;
+    let statType: wref<Stat_Record>;
+    let statsList: array<wref<StatModifier_Record>>;
+    this.m_tooltipsManager = tooltipsManager;
+    let tweakRecord: wref<Item_Record> = TweakDBInterface.GetItemRecord(tweakID);
+    tweakRecord.OnEquip(onEquipList);
+    i = 0;
+    while i < ArraySize(onEquipList) {
+      onEquipList[i].Stats(statsList);
+      j = 0;
+      while j < ArraySize(statsList) {
+        statType = statsList[j].StatType();
+        stat = statsList[j] as ConstantStatModifier_Record;
+        if IsDefined(stat) {
+          if Equals(statType.StatType(), gamedataStatType.Memory) {
+            cyberdeckMemoryValue = RoundMath(stat.Value());
+          } else {
+            if Equals(statType.StatType(), gamedataStatType.BufferSize) {
+              cyberdeckBufferValue = RoundMath(stat.Value());
+            };
+          };
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    playerBufferValue = RoundMath(GameInstance.GetStatsSystem(player.GetGame()).GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatType.BufferSize));
+    playerMemoryValue = RoundMath(GameInstance.GetStatPoolsSystem(player.GetGame()).GetStatPoolValue(Cast<StatsObjectID>(player.GetEntityID()), gamedataStatPoolType.Memory, false));
+    inkTextRef.SetText(this.m_bufferTotal, IntToString(playerBufferValue));
+    inkTextRef.SetText(this.m_bufferBase, IntToString(playerBufferValue - cyberdeckBufferValue));
+    inkTextRef.SetText(this.m_bufferBonus, IntToString(cyberdeckBufferValue));
+    inkTextRef.SetText(this.m_ramTotal, IntToString(playerMemoryValue));
+    inkTextRef.SetText(this.m_ramBase, IntToString(playerMemoryValue - cyberdeckMemoryValue));
+    inkTextRef.SetText(this.m_ramBonus, IntToString(cyberdeckMemoryValue));
+  }
+
+  protected cb func OnBufferHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    let messageData: ref<MessageTooltipData> = new MessageTooltipData();
+    messageData.Title = GetLocalizedItemNameByCName(n"UI-Inventory-Cyberdeck-BufferTooltip");
+    this.m_tooltipsManager.ShowTooltipAtWidget(0, inkWidgetRef.Get(this.m_bufferHoverArea), messageData, this.m_bufferTooltipPlacement);
+  }
+
+  protected cb func OnRamHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    let messageData: ref<MessageTooltipData> = new MessageTooltipData();
+    messageData.Title = GetLocalizedItemNameByCName(n"UI-Inventory-Cyberdeck-RamTooltip");
+    this.m_tooltipsManager.ShowTooltipAtWidget(0, inkWidgetRef.Get(this.m_ramHoverArea), messageData, this.m_ramTooltipPlacement);
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_tooltipsManager.HideTooltips();
+  }
+}
+
+public class InventoryAttachmentSlotsScriptCallback extends AttachmentSlotsScriptCallback {
+
+  public let m_player: wref<PlayerPuppet>;
+
+  public let m_transactionSystem: wref<TransactionSystem>;
+
+  public let m_controller: wref<gameuiInventoryGameController>;
+
+  public let m_isUnequipping: Bool;
+
+  public let m_showDelay: Float;
+
+  public let m_slotToWaitFor: TweakDBID;
+
+  public func OnItemEquippedVisual(slot: TweakDBID, item: ItemID) -> Void {
+    this.ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot, item);
+  }
+
+  public func OnItemUnequippedComplete(slot: TweakDBID, item: ItemID) -> Void {
+    this.ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot, item);
+  }
+
+  private final func ShowPuppetPreviewOnceItemsVisualsAreUpdated(slot: TweakDBID, item: ItemID) -> Void {
+    let delayEvent: ref<VisualSlotsUpdatedEvent>;
+    if this.m_isUnequipping {
+      if slot == t"AttachmentSlots.TppHead" {
+        delayEvent = new VisualSlotsUpdatedEvent();
+        GameInstance.GetDelaySystem(this.m_player.GetGame()).DelayEvent(this.m_player, delayEvent, this.m_showDelay, false);
+      };
+    } else {
+      if slot == this.m_slotToWaitFor {
+        delayEvent = new VisualSlotsUpdatedEvent();
+        GameInstance.GetDelaySystem(this.m_player.GetGame()).DelayEvent(this.m_player, delayEvent, this.m_showDelay, false);
+      };
+    };
+  }
+}

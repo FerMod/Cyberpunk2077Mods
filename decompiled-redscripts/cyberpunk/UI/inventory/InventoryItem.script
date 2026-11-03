@@ -1,0 +1,1142 @@
+
+public class UIInventoryItemProgramData extends IScriptable {
+
+  public let MemoryCost: Int32;
+
+  public let BaseCost: Int32;
+
+  public let UploadTime: Float;
+
+  public let Duration: Float;
+
+  public let Cooldown: Float;
+
+  public let AttackEffects: [ref<DamageEffectUIEntry>];
+
+  private final static func GetDurationAndAttackEffects(instance: wref<UIInventoryItemProgramData>, actionRecord: wref<ObjectAction_Record>, player: wref<PlayerPuppet>) -> Void {
+    let dummyEntityID: EntityID;
+    let duration: wref<StatModifierGroup_Record>;
+    let durationMods: array<wref<ObjectActionEffect_Record>>;
+    let effectToCast: wref<StatusEffect_Record>;
+    let effects: array<ref<DamageEffectUIEntry>>;
+    let emptyObject: ref<GameObject>;
+    let i: Int32;
+    let ignoredDurationStats: array<wref<StatusEffect_Record>>;
+    let j: Int32;
+    let lastMatchingEffect: wref<StatusEffect_Record>;
+    let limit: Int32;
+    let limitJ: Int32;
+    let statModifiers: array<wref<StatModifier_Record>>;
+    ArrayPush(ignoredDurationStats, TweakDBInterface.GetStatusEffectRecord(t"BaseStatusEffect.WasQuickHacked"));
+    ArrayPush(ignoredDurationStats, TweakDBInterface.GetStatusEffectRecord(t"BaseStatusEffect.QuickHackUploaded"));
+    actionRecord.CompletionEffects(durationMods);
+    i = 0;
+    limit = ArraySize(durationMods);
+    while i < limit {
+      if !InventoryDataManagerV2.ProcessQuickhackEffects(player, durationMods[i].StatusEffect(), effects) {
+      } else {
+        j = 0;
+        limitJ = ArraySize(effects);
+        while j < limitJ {
+          ArrayPush(instance.AttackEffects, effects[j]);
+          j += 1;
+        };
+      };
+      i += 1;
+    };
+    if ArraySize(durationMods) > 0 {
+      i = 0;
+      limit = ArraySize(durationMods);
+      while i < limit {
+        effectToCast = durationMods[i].StatusEffect();
+        if IsDefined(effectToCast) {
+          if !ArrayContains(ignoredDurationStats, effectToCast) {
+            lastMatchingEffect = effectToCast;
+          };
+        } else {
+          if IsDefined(durationMods[i].EffectorToTrigger()) && Equals(durationMods[i].EffectorToTrigger().EffectorClassName(), n"ApplyLegendaryWhistleEffector") {
+            lastMatchingEffect = TweakDBInterface.GetStatusEffectRecord(t"BaseStatusEffect.WhistleLvl4");
+          };
+        };
+        i += 1;
+      };
+      effectToCast = lastMatchingEffect;
+      duration = effectToCast.Duration();
+      duration.StatModifiers(statModifiers);
+      instance.Duration = RPGManager.CalculateStatModifiers(statModifiers, player.GetGame(), emptyObject, Cast<StatsObjectID>(dummyEntityID), Cast<StatsObjectID>(player.GetEntityID()));
+      if effectToCast.GameplayTagsContains(n"Overheat") {
+        instance.Duration += UIInventoryItemProgramData.GetAdditionalOverheatDuration(effectToCast);
+      };
+    };
+  }
+
+  private final static func GetUploadTime(instance: wref<UIInventoryItemProgramData>, actionRecord: wref<ObjectAction_Record>, player: wref<PlayerPuppet>) -> Void {
+    let baseActionRecord: wref<ObjectAction_Record>;
+    let baseStatModifiers: array<wref<StatModifier_Record>>;
+    let dummyEntityID: EntityID;
+    let statModifiers: array<wref<StatModifier_Record>>;
+    actionRecord.ActivationTime(statModifiers);
+    baseActionRecord.ActivationTime(baseStatModifiers);
+    statModifiers = UIInventoryItemProgramData.StatModifiersExcept(statModifiers, baseStatModifiers);
+    instance.UploadTime = RPGManager.CalculateStatModifiers(statModifiers, player.GetGame(), player, Cast<StatsObjectID>(dummyEntityID), Cast<StatsObjectID>(player.GetEntityID()));
+  }
+
+  private final static func StatModifiersExcept(const statModifiers: script_ref<[wref<StatModifier_Record>]>, const except: script_ref<[wref<StatModifier_Record>]>) -> [wref<StatModifier_Record>] {
+    let result: array<wref<StatModifier_Record>>;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(statModifiers)) {
+      if !ArrayContains(Deref(except), Deref(statModifiers)[i]) {
+        ArrayPush(result, Deref(statModifiers)[i]);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final static func GetCooldown(instance: wref<UIInventoryItemProgramData>, actionRecord: wref<ObjectAction_Record>, player: wref<PlayerPuppet>) -> Void {
+    let actionStartEffects: array<wref<ObjectActionEffect_Record>>;
+    let baseStatModifiers: array<wref<StatModifier_Record>>;
+    let dummyEntityID: EntityID;
+    let i: Int32;
+    let limit: Int32;
+    let statModifiers: array<wref<StatModifier_Record>>;
+    let baseCooldownRecord: wref<StatModifierGroup_Record> = TweakDBInterface.GetStatModifierGroupRecord(t"BaseStatusEffect.QuickHackCooldownDuration");
+    baseCooldownRecord.StatModifiers(baseStatModifiers);
+    actionRecord.StartEffects(actionStartEffects);
+    i = 0;
+    limit = ArraySize(actionStartEffects);
+    while i < limit {
+      if Equals(actionStartEffects[i].StatusEffect().StatusEffectType().Type(), gamedataStatusEffectType.PlayerCooldown) {
+        ArrayClear(statModifiers);
+        actionStartEffects[i].StatusEffect().Duration().StatModifiers(statModifiers);
+        statModifiers = UIInventoryItemProgramData.StatModifiersExcept(statModifiers, baseStatModifiers);
+        instance.Cooldown = RPGManager.CalculateStatModifiers(statModifiers, player.GetGame(), player, Cast<StatsObjectID>(dummyEntityID), Cast<StatsObjectID>(player.GetEntityID()));
+      };
+      if instance.Cooldown != 0.00 {
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  private final static func GetAdditionalOverheatDuration(effectToCast: wref<StatusEffect_Record>) -> Float {
+    let i: Int32;
+    let iLimit: Int32;
+    let j: Int32;
+    let jLimit: Int32;
+    let packages: array<wref<GameplayLogicPackage_Record>>;
+    let stat: wref<ConstantStatModifier_Record>;
+    let stats: array<wref<StatModifier_Record>>;
+    effectToCast.Packages(packages);
+    i = 0;
+    iLimit = ArraySize(packages);
+    while i < iLimit {
+      packages[i].Stats(stats);
+      j = 0;
+      jLimit = ArraySize(stats);
+      while j < jLimit {
+        if Equals(stats[j].StatType().StatType(), gamedataStatType.OverheatDurationIncrease) {
+          stat = stats[j] as ConstantStatModifier_Record;
+          if IsDefined(stat) {
+            return stat.Value();
+          };
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    return 0.00;
+  }
+
+  public final static func Make(itemRecord: wref<Item_Record>, player: wref<PlayerPuppet>) -> ref<UIInventoryItemProgramData> {
+    let actionRecords: array<wref<ObjectAction_Record>>;
+    let i: Int32;
+    let isQuickhackOfDeviceOrPuppetType: Bool;
+    let shouldHideCooldown: Bool;
+    let tempActionHasBiggerPriority: Bool;
+    let actionRecord: wref<ObjectAction_Record> = null;
+    let instance: ref<UIInventoryItemProgramData> = new UIInventoryItemProgramData();
+    itemRecord.ObjectActions(actionRecords);
+    i = 0;
+    while i < ArraySize(actionRecords) {
+      isQuickhackOfDeviceOrPuppetType = Equals(actionRecords[i].ObjectActionType().Type(), gamedataObjectActionType.DeviceQuickHack) || Equals(actionRecords[i].ObjectActionType().Type(), gamedataObjectActionType.PuppetQuickHack);
+      if isQuickhackOfDeviceOrPuppetType {
+        if !IsDefined(actionRecord) {
+          actionRecord = actionRecords[i];
+        } else {
+          tempActionHasBiggerPriority = actionRecords[i].Priority() > actionRecord.Priority();
+          if !tempActionHasBiggerPriority {
+          } else {
+            actionRecord = actionRecords[i];
+          };
+        };
+      };
+      i += 1;
+    };
+    shouldHideCooldown = TweakDBInterface.GetBool(itemRecord.GetID() + t".hideCooldownUI", false);
+    instance.BaseCost = BaseScriptableAction.GetBaseCostStatic(player, actionRecord);
+    instance.MemoryCost = instance.BaseCost;
+    UIInventoryItemProgramData.GetDurationAndAttackEffects(instance, actionRecord, player);
+    UIInventoryItemProgramData.GetUploadTime(instance, actionRecord, player);
+    if !shouldHideCooldown {
+      UIInventoryItemProgramData.GetCooldown(instance, actionRecord, player);
+    };
+    return instance;
+  }
+}
+
+public class UIInventoryItemComparisonManager extends IScriptable {
+
+  public let ComparedStats: [ref<UIInventoryItemStatComparison>];
+
+  public let ComparedItem: wref<UIInventoryItem>;
+
+  private let m_comparisonHash: Uint64;
+
+  public final static func Make(localItem: wref<UIInventoryItem>, comparisonItem: wref<UIInventoryItem>) -> ref<UIInventoryItemComparisonManager> {
+    let comparableStat: wref<UIInventoryItemStat>;
+    let comparedStat: ref<UIInventoryItemStatComparison>;
+    let localStat: wref<UIInventoryItemStat>;
+    let instance: ref<UIInventoryItemComparisonManager> = new UIInventoryItemComparisonManager();
+    instance.ComparedItem = comparisonItem;
+    let localStatsManager: wref<UIInventoryItemStatsManager> = localItem.GetStatsManager();
+    let i: Int32 = 0;
+    let limit: Int32 = localStatsManager.Size();
+    while i < limit {
+      localStat = localStatsManager.Get(i);
+      comparableStat = comparisonItem.GetStatsManager().GetByType(localStat.Type);
+      comparedStat = new UIInventoryItemStatComparison();
+      comparedStat.Type = localStat.Type;
+      if IsDefined(comparableStat) {
+        comparedStat.Value = localStat.Value - comparableStat.Value;
+      } else {
+        comparedStat.Value = localStat.Value;
+      };
+      ArrayPush(instance.ComparedStats, comparedStat);
+      i += 1;
+    };
+    if localItem.IsWeapon() && comparisonItem.IsWeapon() || localItem.IsCyberwareWeapon() && comparisonItem.IsCyberwareWeapon() || localItem.IsHealingItem() && comparisonItem.IsHealingItem() {
+      localItem.GetStatsManager().GetWeaponBars().SetComparedBars(comparisonItem.GetStatsManager().GetWeaponBars());
+      comparisonItem.GetStatsManager().GetWeaponBars().SetComparedBars(localItem.GetStatsManager().GetWeaponBars());
+    };
+    return instance;
+  }
+
+  public final func GetByType(type: gamedataStatType) -> wref<UIInventoryItemStatComparison> {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.ComparedStats);
+    while i < limit {
+      if Equals(this.ComparedStats[i].Type, type) {
+        return this.ComparedStats[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func GetQuality() -> gamedataQuality {
+    if this.ComparedItem == null {
+      return gamedataQuality.Invalid;
+    };
+    return this.ComparedItem.GetQuality();
+  }
+
+  public final func GetComparisonQualityF() -> Float {
+    if this.ComparedItem == null {
+      return -1.00;
+    };
+    return this.ComparedItem.GetComparisonQualityF();
+  }
+}
+
+public class UIInventoryItem extends IScriptable {
+
+  public let ID: ItemID;
+
+  public let Hash: Uint64;
+
+  public let DEBUG_iconErrorInfo: ref<DEBUG_IconErrorInfo>;
+
+  private let m_manager: wref<UIInventoryItemsManager>;
+
+  private let m_owner: wref<GameObject>;
+
+  private let m_itemData: wref<gameItemData>;
+
+  private let m_realItemData: wref<gameItemData>;
+
+  private let m_recipeItemData: ref<gameItemData>;
+
+  private let m_itemRecord: wref<Item_Record>;
+
+  private let m_realItemRecord: wref<Item_Record>;
+
+  private let m_itemTweakID: TweakDBID;
+
+  private let m_realItemTweakID: TweakDBID;
+
+  private let m_data: ref<UIInventoryItemInternalData>;
+
+  private let m_weaponData: ref<UIInventoryWeaponInternalData>;
+
+  private let m_programData: ref<UIInventoryItemProgramData>;
+
+  private let m_grenadeData: ref<UIInventoryItemGrenadeData>;
+
+  private let m_cyberwareUpgradeData: ref<InventoryTooltiData_CyberwareUpgradeData>;
+
+  private let m_parentItem: wref<gameItemData>;
+
+  private let m_slotID: TweakDBID;
+
+  private let m_fetchedFlags: Int32;
+
+  private let m_isQuantityDirty: Bool;
+
+  private let m_craftingResult: wref<CraftingResult_Record>;
+
+  private let TEMP_isEquippedPrefetched: Bool;
+
+  public let TEMP_isEquipped: Bool;
+
+  public final static func Make(owner: wref<GameObject>, itemData: ref<gameItemData>, opt manager: wref<UIInventoryItemsManager>) -> ref<UIInventoryItem> {
+    let itemTweakID: TweakDBID = ItemID.GetTDBID(itemData.GetID());
+    return UIInventoryItem.Make(owner, itemData, itemTweakID, TweakDBInterface.GetItemRecord(itemTweakID), manager);
+  }
+
+  public final static func Make(owner: wref<GameObject>, itemData: ref<gameItemData>, itemTweakID: TweakDBID, itemRecord: wref<Item_Record>, opt manager: wref<UIInventoryItemsManager>) -> ref<UIInventoryItem> {
+    let instance: ref<UIInventoryItem> = new UIInventoryItem();
+    instance.ID = itemData.GetID();
+    instance.Hash = ItemID.GetCombinedHash(instance.ID);
+    instance.m_owner = owner;
+    instance.m_realItemData = itemData;
+    instance.m_manager = manager;
+    instance.m_realItemRecord = itemRecord;
+    instance.m_realItemTweakID = itemTweakID;
+    instance.m_craftingResult = TweakDBInterface.GetItemRecipeRecord(instance.m_realItemTweakID).CraftingResult();
+    if IsDefined(instance.m_craftingResult) {
+      instance.m_itemRecord = instance.m_craftingResult.Item();
+      instance.m_itemTweakID = instance.m_itemRecord.GetID();
+      instance.m_recipeItemData = InventoryDataManagerV2.GetDryGameItemData(instance.m_itemRecord, instance.m_manager.GetInventoryManager(), instance.m_manager.GetAttachedPlayer(), RPGManager.GetItemDataQuality(instance.m_realItemData));
+      instance.m_itemData = instance.m_recipeItemData;
+    } else {
+      instance.m_itemRecord = instance.m_realItemRecord;
+      instance.m_itemTweakID = instance.m_realItemTweakID;
+      instance.m_itemData = instance.m_realItemData;
+    };
+    instance.m_data = new UIInventoryItemInternalData();
+    instance.FetchImmediate();
+    return instance;
+  }
+
+  public final static func FromMinimalItemTooltipData(owner: wref<GameObject>, data: ref<MinimalItemTooltipData>, opt manager: wref<UIInventoryItemsManager>) -> ref<UIInventoryItem> {
+    let iconPathName: CName;
+    let weaponType: WeaponType;
+    let instance: ref<UIInventoryItem> = new UIInventoryItem();
+    instance.ID = data.itemID;
+    instance.Hash = ItemID.GetCombinedHash(instance.ID);
+    instance.m_owner = owner;
+    instance.m_realItemData = data.itemData;
+    instance.m_manager = manager;
+    instance.m_realItemRecord = TweakDBInterface.GetItemRecord(instance.m_itemTweakID);
+    instance.m_realItemTweakID = ItemID.GetTDBID(instance.ID);
+    instance.m_craftingResult = TweakDBInterface.GetItemRecipeRecord(instance.m_realItemTweakID).CraftingResult();
+    if IsDefined(instance.m_craftingResult) {
+      instance.m_itemRecord = instance.m_craftingResult.Item();
+      instance.m_itemTweakID = instance.m_itemRecord.GetID();
+      instance.m_itemData = InventoryDataManagerV2.GetDryGameItemData(instance.m_itemRecord, instance.m_manager.GetInventoryManager(), instance.m_manager.GetAttachedPlayer(), RPGManager.GetItemDataQuality(instance.m_realItemData));
+    } else {
+      instance.m_itemRecord = instance.m_realItemRecord;
+      instance.m_itemTweakID = instance.m_realItemTweakID;
+    };
+    instance.m_data = new UIInventoryItemInternalData();
+    instance.m_data.Name = data.itemName;
+    instance.m_data.Quality = data.quality;
+    instance.m_data.ItemType = data.itemType;
+    instance.m_data.Quantity = data.quantity;
+    instance.m_data.Description = data.description;
+    instance.m_data.IconPath = data.iconPath;
+    if !IsStringValid(instance.m_data.IconPath) {
+      iconPathName = IconsNameResolver.GetIconsNameResolver().TranslateItemToIconName(instance.m_itemTweakID, data.useMaleIcon);
+      instance.m_data.IconPath = "UIIcon." + NameToString(iconPathName);
+    };
+    instance.m_data.IsQuestItem = instance.m_realItemData.HasTag(n"Quest") || instance.m_realItemData.HasTag(n"UnequipBlocked");
+    instance.m_data.IsIconicItem = RPGManager.IsItemIconic(instance.m_realItemData);
+    instance.m_data.EquipmentArea = data.equipmentArea;
+    instance.m_data.FilterCategory = ItemCategoryFliter.GetItemCategoryType(instance.m_realItemData);
+    instance.m_fetchedFlags |= 18303;
+    weaponType = UIInventoryItemsManager.GetItemTypeWeapon(instance.m_data.ItemType);
+    if NotEquals(weaponType, WeaponType.Invalid) {
+      instance.FetchWeaponImmediate(weaponType);
+    };
+    if UIInventoryItemsManager.IsItemTypeCloting(instance.m_data.ItemType) {
+      instance.m_data.UIItemCategory = UIItemCategory.Clothing;
+    };
+    instance.m_data.ItemTypeOrder = ItemCompareBuilder.GetItemTypeOrder(instance.m_realItemData, instance.m_data.EquipmentArea, instance.m_data.ItemType);
+    instance.m_data.Weight = instance.m_realItemData.GetStatValueByType(gamedataStatType.Weight);
+    instance.m_data.ItemPlus = instance.m_realItemData.GetStatValueByType(gamedataStatType.IsItemPlus);
+    instance.m_data.StatsManager = UIInventoryItemStatsManager.FromMinimalItemTooltipData(data, manager);
+    instance.TEMP_isEquipped = data.isEquipped;
+    instance.TEMP_isEquippedPrefetched = true;
+    return instance;
+  }
+
+  public final static func FromInventoryItemData(owner: wref<GameObject>, const itemData: script_ref<InventoryItemData>, opt manager: wref<UIInventoryItemsManager>) -> ref<UIInventoryItem> {
+    let weaponType: WeaponType;
+    let instance: ref<UIInventoryItem> = new UIInventoryItem();
+    instance.ID = InventoryItemData.GetID(itemData);
+    instance.Hash = ItemID.GetCombinedHash(instance.ID);
+    instance.m_owner = owner;
+    instance.m_realItemData = InventoryItemData.GetGameItemData(itemData);
+    instance.m_manager = manager;
+    instance.m_itemTweakID = ItemID.GetTDBID(instance.ID);
+    instance.m_itemRecord = TweakDBInterface.GetItemRecord(instance.m_itemTweakID);
+    instance.m_data = new UIInventoryItemInternalData();
+    instance.m_data.Name = InventoryItemData.GetName(itemData);
+    instance.m_data.Quality = UIItemsHelper.QualityNameToEnum(InventoryItemData.GetQuality(itemData));
+    instance.m_data.ItemType = InventoryItemData.GetItemType(itemData);
+    instance.m_data.Quantity = InventoryItemData.GetQuantity(itemData);
+    instance.m_data.Description = InventoryItemData.GetDescription(itemData);
+    instance.m_data.IconPath = InventoryItemData.GetIconPath(itemData);
+    instance.m_data.IsQuestItem = instance.m_realItemData.HasTag(n"Quest") || instance.m_realItemData.HasTag(n"UnequipBlocked");
+    instance.m_data.IsIconicItem = RPGManager.IsItemIconic(instance.m_realItemData);
+    instance.m_data.EquipmentArea = InventoryItemData.GetEquipmentArea(itemData);
+    instance.m_data.FilterCategory = ItemCategoryFliter.GetItemCategoryType(instance.m_realItemData);
+    instance.m_fetchedFlags |= 17407;
+    weaponType = UIInventoryItemsManager.GetItemTypeWeapon(instance.m_data.ItemType);
+    if NotEquals(weaponType, WeaponType.Invalid) {
+      instance.FetchWeaponImmediate(weaponType);
+    };
+    if UIInventoryItemsManager.IsItemTypeCloting(instance.m_data.ItemType) {
+      instance.m_data.UIItemCategory = UIItemCategory.Clothing;
+    };
+    instance.m_data.ItemTypeOrder = ItemCompareBuilder.GetItemTypeOrder(instance.m_realItemData, instance.m_data.EquipmentArea, instance.m_data.ItemType);
+    instance.m_data.Weight = instance.m_realItemData.GetStatValueByType(gamedataStatType.Weight);
+    instance.m_data.ItemPlus = instance.m_realItemData.GetStatValueByType(gamedataStatType.IsItemPlus);
+    return instance;
+  }
+
+  private final func FetchImmediate() -> Void {
+    let weaponType: WeaponType;
+    if this.m_itemRecord.TagsContains(n"Shard") {
+      if this.m_manager != null {
+        this.m_data.Name = UIItemsHelper.GetShardName(this.m_itemRecord, this.m_manager.GetAttachedPlayer().GetGame());
+      };
+      if !IsStringValid(this.m_data.Name) {
+        this.m_data.Name = "INVALID";
+      };
+      this.m_fetchedFlags = this.m_fetchedFlags | 1;
+    } else {
+      this.m_data.Name = UIItemsHelper.GetItemName(this.m_itemRecord, this.m_realItemData);
+    };
+    this.m_data.Quantity = this.m_realItemData.GetQuantity();
+    this.m_data.ItemType = this.m_itemRecord.ItemType().Type();
+    this.m_data.Quality = RPGManager.GetItemDataQuality(this.m_realItemData);
+    weaponType = UIInventoryItemsManager.GetItemTypeWeapon(this.m_data.ItemType);
+    if NotEquals(weaponType, WeaponType.Invalid) {
+      this.FetchWeaponImmediate(weaponType);
+    } else {
+      if UIInventoryItemsManager.IsItemTypeCloting(this.m_data.ItemType) {
+        this.m_data.UIItemCategory = UIItemCategory.Clothing;
+      } else {
+        if UIInventoryItemsManager.IsItemTypeCyberwareWeapon(this.m_data.ItemType) {
+          this.m_data.UIItemCategory = UIItemCategory.CyberwareWeapon;
+        } else {
+          if Equals(this.m_data.ItemType, gamedataItemType.Prt_Program) {
+            this.m_data.UIItemCategory = UIItemCategory.Program;
+          } else {
+            if UIInventoryItemsManager.IsItemTypeCyberware(this.m_data.ItemType) {
+              if EquipmentSystem.IsItemCyberdeck(this.ID) {
+                this.m_data.UIItemCategory = UIItemCategory.Cyberdeck;
+              } else {
+                this.m_data.UIItemCategory = UIItemCategory.Cyberware;
+              };
+            };
+          };
+        };
+      };
+    };
+    this.GetName();
+  }
+
+  public final func FetchWeaponImmediate(weaponType: WeaponType) -> Void {
+    this.m_data.UIItemCategory = UIItemCategory.Weapon;
+    this.m_weaponData = new UIInventoryWeaponInternalData();
+    this.m_weaponData.WeaponType = weaponType;
+    let modsManager: wref<UIInventoryItemModsManager> = this.GetModsManager();
+    if Equals(weaponType, WeaponType.Ranged) {
+      this.m_weaponData.HasSilencerInstalled = modsManager.UsedSlotsContains(t"AttachmentSlots.PowerModule");
+      this.m_weaponData.HasScopeInstalled = modsManager.UsedSlotsContains(t"AttachmentSlots.Scope");
+      if this.m_weaponData.HasSilencerInstalled {
+        this.m_weaponData.HasSilencerSlot = true;
+      } else {
+        this.m_weaponData.HasSilencerSlot = modsManager.EmptySlotsContains(t"AttachmentSlots.PowerModule");
+      };
+      if this.m_weaponData.HasScopeInstalled {
+        this.m_weaponData.HasScopeSlot = true;
+      } else {
+        this.m_weaponData.HasScopeSlot = modsManager.EmptySlotsContains(t"AttachmentSlots.Scope");
+      };
+      this.m_weaponData.HasPairedWeapon = this.m_manager.HasPairedWeapon(this.ID);
+      this.m_weaponData.IsLeftWeapon = this.m_manager.IsLeftWeapon(this.ID);
+      this.m_weaponData.CanDualWield = this.m_manager.CanDualWield(this.m_itemData);
+    };
+  }
+
+  public final func GetOwner() -> wref<GameObject> {
+    return this.m_owner;
+  }
+
+  public final func GetID() -> ItemID {
+    return this.ID;
+  }
+
+  public final func GetTweakDBID() -> TweakDBID {
+    return this.m_itemTweakID;
+  }
+
+  public final func GetRealTweakDBID() -> TweakDBID {
+    return this.m_realItemTweakID;
+  }
+
+  public final func GetItemData() -> wref<gameItemData> {
+    return this.m_itemData;
+  }
+
+  public final func GetRealItemData() -> wref<gameItemData> {
+    return this.m_realItemData;
+  }
+
+  public final func GetItemRecord() -> wref<Item_Record> {
+    return this.m_itemRecord;
+  }
+
+  public final func GetRealItemRecord() -> wref<Item_Record> {
+    return this.m_realItemRecord;
+  }
+
+  public final func Internal_GetParentItem() -> wref<gameItemData> {
+    return this.m_parentItem;
+  }
+
+  public final func Internal_GetSlotID() -> TweakDBID {
+    return this.m_slotID;
+  }
+
+  public final func Internal_MarkStatsDirty() -> Void {
+    this.m_data.StatsManager = null;
+    this.m_fetchedFlags &= -1025;
+  }
+
+  public final func Internal_MarkModsDirty() -> Void {
+    this.m_data.ModsManager = null;
+    this.m_fetchedFlags &= -2049;
+  }
+
+  public final func Internal_FlushRequirements() -> Void {
+    this.m_data.RequirementsManager = null;
+    this.m_fetchedFlags &= -4097;
+  }
+
+  public final func Internal_FlushComparedBars() -> Void {
+    let statsManager: wref<UIInventoryItemStatsManager>;
+    if Cast<Bool>(this.m_fetchedFlags & 1024) {
+      statsManager = this.m_data.StatsManager;
+      statsManager.FlushComparedBars();
+    };
+  }
+
+  public final func Internal_FlushCyberwareUpgrade() -> Void {
+    this.m_cyberwareUpgradeData = null;
+  }
+
+  public final func Internal_FlushCraftingResults() -> Void {
+    if IsDefined(this.m_recipeItemData) {
+      this.m_recipeItemData = null;
+      this.m_data = null;
+      this.m_fetchedFlags = 0;
+    };
+  }
+
+  public final func SetQuantity(quantity: Int32) -> Void {
+    this.m_data.Quantity = quantity;
+    this.m_isQuantityDirty = false;
+  }
+
+  public final func MarkQuantityDirty() -> Void {
+    this.m_isQuantityDirty = true;
+  }
+
+  public final func GetQuantity(opt update: Bool) -> Int32 {
+    if update || this.m_isQuantityDirty {
+      this.SetQuantity(this.m_realItemData.GetQuantity());
+    };
+    return this.m_data.Quantity;
+  }
+
+  public final func GetQuality() -> gamedataQuality {
+    return this.m_data.Quality;
+  }
+
+  public final func GetComparisonQualityF() -> Float {
+    if Cast<Bool>(this.m_fetchedFlags & 32768) {
+      return this.m_data.ComparisonQuality;
+    };
+    this.m_data.ComparisonQuality = Cast<Float>(this.GetQualityInt());
+    if this.IsIconic() {
+      this.m_data.ComparisonQuality += 0.50;
+    };
+    this.m_data.ComparisonQuality += this.GetItemPlus() / 10.00;
+    this.m_fetchedFlags |= 32768;
+    return this.m_data.ComparisonQuality;
+  }
+
+  public final func GetQualityText(opt type: RarityItemType) -> String {
+    let isProgramIconic: Bool;
+    let plus: Int32;
+    if Cast<Bool>(this.m_fetchedFlags & 131072) {
+      return this.m_data.QualityText;
+    };
+    if this.GetItemData().HasTag(n"ChimeraMod") {
+      this.m_data.QualityText = GetLocalizedText(UIItemsHelper.QualityToDefaultString(gamedataQuality.Iconic, type));
+      this.m_fetchedFlags |= 131072;
+      return this.m_data.QualityText;
+    };
+    plus = Cast<Int32>(this.GetItemPlus());
+    this.m_data.QualityText = GetLocalizedText(UIItemsHelper.QualityToDefaultString(this.GetQuality(), type));
+    if !this.IsProgram() {
+      if plus >= 2 {
+        this.m_data.QualityText += "++";
+      } else {
+        if plus >= 1 {
+          this.m_data.QualityText += "+";
+        };
+      };
+    } else {
+      if this.IsRecipe() {
+        isProgramIconic = RPGManager.IsItemIconic(this.m_itemData);
+      };
+    };
+    if this.IsIconic() || isProgramIconic {
+      this.m_data.QualityText += " / " + GetLocalizedText(UIItemsHelper.QualityToDefaultString(gamedataQuality.Iconic, type));
+    };
+    this.m_fetchedFlags |= 131072;
+    return this.m_data.QualityText;
+  }
+
+  public final func GetQualityInt() -> Int32 {
+    return UIInventoryItemsManager.QualityToInt(this.GetQuality());
+  }
+
+  public final func GetQualityName() -> CName {
+    return UIInventoryItemsManager.QualityToName(this.GetQuality());
+  }
+
+  public final func GetItemType() -> gamedataItemType {
+    return this.m_data.ItemType;
+  }
+
+  public final func GetUIItemCategory() -> UIItemCategory {
+    return this.m_data.UIItemCategory;
+  }
+
+  public final func IsRecipe() -> Bool {
+    if Cast<Bool>(this.m_fetchedFlags & 8192) {
+      return this.m_data.IsRecipeItem;
+    };
+    this.m_data.IsRecipeItem = this.m_realItemData.HasTag(n"Recipe") || this.m_itemData.HasTag(n"Recipe");
+    this.m_fetchedFlags |= 8192;
+    return this.m_data.IsRecipeItem;
+  }
+
+  public final func IsIllegal() -> Bool {
+    if this.m_itemData.HasTag(n"IllegalItem") {
+      return true;
+    };
+    return false;
+  }
+
+  public final func IsWeapon() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Weapon);
+  }
+
+  public final func IsClothing() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Clothing);
+  }
+
+  public final func IsCyberware() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Cyberware) || Equals(this.m_data.UIItemCategory, UIItemCategory.Cyberdeck);
+  }
+
+  public final func IsCyberwareWeapon() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.CyberwareWeapon);
+  }
+
+  public final func IsPart() -> Bool {
+    return this.m_itemRecord.IsPart();
+  }
+
+  public final func IsCyberdeck() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Cyberdeck);
+  }
+
+  public final func IsAnyCyberware() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Cyberware) || Equals(this.m_data.UIItemCategory, UIItemCategory.CyberwareWeapon) || Equals(this.m_data.UIItemCategory, UIItemCategory.Cyberdeck);
+  }
+
+  public final func IsProgram() -> Bool {
+    return Equals(this.m_data.UIItemCategory, UIItemCategory.Program);
+  }
+
+  public final func IsHealingItem() -> Bool {
+    return Equals(this.m_data.ItemType, gamedataItemType.Con_Injector) || Equals(this.m_data.ItemType, gamedataItemType.Con_Inhaler);
+  }
+
+  public final func IsJunk() -> Bool {
+    return Equals(this.m_data.ItemType, gamedataItemType.Gen_Junk) || Equals(this.m_data.ItemType, gamedataItemType.Gen_Jewellery);
+  }
+
+  public final func IsUsingBars() -> Bool {
+    return this.IsCyberwareWeapon() || this.IsHealingItem();
+  }
+
+  public final func GetName() -> String {
+    if Cast<Bool>(this.m_fetchedFlags & 1) {
+      return this.m_data.Name;
+    };
+    if IsDefined(this.m_craftingResult) {
+      this.m_data.Name = GetLocalizedItemNameByCName(this.m_craftingResult.Item().DisplayName());
+      this.m_data.Name = this.m_data.Name;
+    } else {
+      this.m_data.Name = GetLocalizedItemNameByCName(this.m_itemRecord.DisplayName());
+    };
+    this.m_fetchedFlags |= 1;
+    return this.m_data.Name;
+  }
+
+  public final func GetIconPath() -> String {
+    if Cast<Bool>(this.m_fetchedFlags & 4) {
+      return this.m_data.IconPath;
+    };
+    this.m_data.IconPath = UIInventoryItemsManager.ResolveItemIconName(this.m_itemTweakID, this.m_itemRecord, this.m_manager);
+    this.m_fetchedFlags |= 4;
+    return this.m_data.IconPath;
+  }
+
+  public final func IsQuestItem() -> Bool {
+    if Cast<Bool>(this.m_fetchedFlags & 8) {
+      return this.m_data.IsQuestItem;
+    };
+    this.m_data.IsQuestItem = this.m_realItemData.HasTag(n"Quest") || this.m_realItemData.HasTag(n"UnequipBlocked");
+    this.m_fetchedFlags |= 8;
+    return this.m_data.IsQuestItem;
+  }
+
+  public final func IsIconic() -> Bool {
+    if Cast<Bool>(this.m_fetchedFlags & 32) {
+      return this.m_data.IsIconicItem;
+    };
+    this.m_data.IsIconicItem = RPGManager.IsItemIconic(this.m_realItemData);
+    this.m_fetchedFlags |= 32;
+    return this.m_data.IsIconicItem;
+  }
+
+  public final func IsOfEquippableType() -> Bool {
+    return this.IsWeapon() || this.IsClothing() || this.IsCyberware() || this.IsCyberwareWeapon();
+  }
+
+  public final func GetEquipmentArea() -> gamedataEquipmentArea {
+    if Cast<Bool>(this.m_fetchedFlags & 16) {
+      return this.m_data.EquipmentArea;
+    };
+    if this.IsOfEquippableType() {
+      this.m_data.EquipmentArea = this.m_itemRecord.EquipArea().Type();
+    } else {
+      this.m_data.EquipmentArea = gamedataEquipmentArea.Invalid;
+    };
+    this.m_fetchedFlags |= 16;
+    return this.m_data.EquipmentArea;
+  }
+
+  public final func GetFilterCategory() -> ItemFilterCategory {
+    if Cast<Bool>(this.m_fetchedFlags & 64) {
+      return this.m_data.FilterCategory;
+    };
+    this.m_data.FilterCategory = ItemCategoryFliter.GetItemCategoryType(this.m_realItemData);
+    this.m_fetchedFlags |= 64;
+    return this.m_data.FilterCategory;
+  }
+
+  public final func GetPrimaryStat() -> wref<UIInventoryItemStat> {
+    if Cast<Bool>(this.m_fetchedFlags & 128) {
+      return this.m_data.PrimaryStat;
+    };
+    if this.IsWeapon() {
+      this.m_data.PrimaryStat = new UIInventoryItemStat();
+      this.m_data.PrimaryStat.Type = gamedataStatType.EffectiveDPS;
+      this.m_data.PrimaryStat.Value = this.m_itemData.GetStatValueByType(gamedataStatType.EffectiveDPS);
+    } else {
+      if this.IsCyberware() || this.IsCyberwareWeapon() {
+        this.m_data.PrimaryStat = new UIInventoryItemStat();
+        this.m_data.PrimaryStat.Type = gamedataStatType.Armor;
+        this.m_data.PrimaryStat.Value = this.m_itemData.GetStatValueByType(gamedataStatType.Armor);
+        this.m_data.PrimaryStat.Value -= this.m_itemData.GetStatValueByType(gamedataStatType.ItemArmor);
+        this.m_data.PrimaryStat.Value = MaxF(this.m_data.PrimaryStat.Value, 0.00);
+      };
+    };
+    this.m_fetchedFlags |= 128;
+    return this.m_data.PrimaryStat;
+  }
+
+  public final func GetWeight() -> Float {
+    if Cast<Bool>(this.m_fetchedFlags & 512) {
+      return this.m_data.Weight;
+    };
+    this.m_data.Weight = this.m_itemData.GetStatValueByType(gamedataStatType.Weight);
+    this.m_fetchedFlags |= 512;
+    return this.m_data.Weight;
+  }
+
+  public final func GetItemPlus() -> Float {
+    if Cast<Bool>(this.m_fetchedFlags & 16384) {
+      return this.m_data.ItemPlus;
+    };
+    this.m_data.ItemPlus = this.m_realItemData.GetStatValueByType(gamedataStatType.IsItemPlus);
+    this.m_fetchedFlags |= 16384;
+    return this.m_data.ItemPlus;
+  }
+
+  public final func GetItemTypeOrder() -> Int32 {
+    if Cast<Bool>(this.m_fetchedFlags & 256) {
+      return this.m_data.ItemTypeOrder;
+    };
+    this.m_data.ItemTypeOrder = ItemCompareBuilder.GetItemTypeOrder(this.m_realItemData, this.GetEquipmentArea(), this.GetItemType());
+    this.m_fetchedFlags |= 256;
+    return this.m_data.ItemTypeOrder;
+  }
+
+  public final func GetStatsManager() -> wref<UIInventoryItemStatsManager> {
+    let record: ref<UIStatsMap_Record>;
+    if Cast<Bool>(this.m_fetchedFlags & 1024) {
+      return this.m_data.StatsManager;
+    };
+    record = UIInventoryItemsManager.GetUIStatsMap(this.m_data.ItemType, this.m_manager);
+    this.m_data.StatsManager = UIInventoryItemStatsManager.Make(this, record, this.m_manager);
+    this.m_fetchedFlags |= 1024;
+    return this.m_data.StatsManager;
+  }
+
+  public final func GetStatsManagerPure() -> wref<UIInventoryItemStatsManager> {
+    return this.m_data.StatsManager;
+  }
+
+  public final func GetModsManager() -> wref<UIInventoryItemModsManager> {
+    let transactionSystem: ref<TransactionSystem>;
+    if Cast<Bool>(this.m_fetchedFlags & 2048) {
+      return this.m_data.ModsManager;
+    };
+    transactionSystem = IsDefined(this.m_manager) ? this.m_manager.GetTransactionSystem() : GameInstance.GetTransactionSystem(this.m_owner.GetGame());
+    this.m_data.ModsManager = UIInventoryItemModsManager.Make(this, transactionSystem);
+    this.m_fetchedFlags |= 2048;
+    return this.m_data.ModsManager;
+  }
+
+  public final func GetRequirementsManager(player: wref<GameObject>) -> wref<UIInventoryItemRequirementsManager> {
+    if Cast<Bool>(this.m_fetchedFlags & 4096) {
+      return this.m_data.RequirementsManager;
+    };
+    this.m_data.RequirementsManager = UIInventoryItemRequirementsManager.Make(this, player);
+    this.m_fetchedFlags |= 4096;
+    return this.m_data.RequirementsManager;
+  }
+
+  public final func GetDescription() -> String {
+    if Cast<Bool>(this.m_fetchedFlags & 2) {
+      return this.m_data.Description;
+    };
+    this.m_data.Description = LocKeyToString(this.m_itemRecord.LocalizedDescription());
+    this.m_fetchedFlags |= 2;
+    return this.m_data.Description;
+  }
+
+  public final func IsSellable() -> Bool {
+    if Cast<Bool>(this.m_fetchedFlags & 65536) {
+      return this.m_data.IsSellable;
+    };
+    if IsDefined(this.m_manager) {
+      this.m_data.IsSellable = this.m_manager.IsSellable(this.m_itemData);
+    } else {
+      this.m_data.IsSellable = NotEquals(this.GetItemType(), gamedataItemType.Gen_CraftingMaterial);
+    };
+    this.m_fetchedFlags |= 65536;
+    return this.m_data.IsSellable;
+  }
+
+  public final func GetSellPrice() -> Float {
+    return Cast<Float>(RPGManager.CalculateSellPriceItemData(this.m_owner.GetGame(), this.m_owner, this.GetRealItemData()));
+  }
+
+  public final func GetBuyPrice() -> Float {
+    return Cast<Float>(MarketSystem.GetBuyPrice(this.m_owner, this.ID));
+  }
+
+  public final func IsCrafted() -> Bool {
+    return RPGManager.IsItemCrafted(this.m_realItemData);
+  }
+
+  public final func IsBroken() -> Bool {
+    if Cast<Bool>(this.m_fetchedFlags & 262144) {
+      return this.m_data.IsBroken;
+    };
+    this.m_data.IsBroken = RPGManager.IsItemBroken(this.m_itemData);
+    this.m_fetchedFlags |= 262144;
+    return this.m_data.IsBroken;
+  }
+
+  public final func IsEquipped(opt force: Bool) -> Bool {
+    if this.TEMP_isEquippedPrefetched && !force {
+      return this.TEMP_isEquipped;
+    };
+    if IsDefined(this.m_manager) {
+      return this.m_manager.IsItemEquipped(this.ID);
+    };
+    return false;
+  }
+
+  public final func IsTransmogItem() -> Bool {
+    if IsDefined(this.m_manager) {
+      return this.m_manager.IsItemTransmog(this.ID);
+    };
+    return false;
+  }
+
+  public final func GetRequiredLevel() -> Int32 {
+    return 0;
+  }
+
+  public final func IsNew() -> Bool {
+    if IsDefined(this.m_manager) {
+      return this.m_manager.IsItemNew(this.ID);
+    };
+    return false;
+  }
+
+  public final func IsPlayerFavourite() -> Bool {
+    if IsDefined(this.m_manager) {
+      return this.m_manager.IsItemPlayerFavourite(this.ID);
+    };
+    return false;
+  }
+
+  public final func HasAnyTag(const tagsToCheck: script_ref<[CName]>) -> Bool {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(tagsToCheck));
+    while i < limit {
+      if this.m_realItemData.HasTag(Deref(tagsToCheck)[i]) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final func GetWeaponType() -> WeaponType {
+    if this.m_weaponData == null {
+      return WeaponType.Invalid;
+    };
+    return this.m_weaponData.WeaponType;
+  }
+
+  public final func HasSilencerSlot() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.HasSilencerSlot;
+  }
+
+  public final func HasScopeSlot() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.HasScopeSlot;
+  }
+
+  public final func HasSilencerInstalled() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.HasSilencerInstalled;
+  }
+
+  public final func HasScopeInstalled() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.HasScopeInstalled;
+  }
+
+  public final func HasPairedWeapon() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.HasPairedWeapon;
+  }
+
+  public final func IsLeftWeapon() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.IsLeftWeapon;
+  }
+
+  public final func CanDualWield() -> Bool {
+    if this.m_weaponData == null {
+      return false;
+    };
+    return this.m_weaponData.CanDualWield;
+  }
+
+  private final func FetchDamageData() -> Void {
+    let divideByPellets: Bool;
+    if Equals(this.GetWeaponType(), WeaponType.Ranged) {
+      this.m_weaponData.DamageMin = this.m_itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHitMin);
+      this.m_weaponData.DamageMax = this.m_itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHitMax);
+      this.m_weaponData.NumberOfPellets = RoundF(this.m_itemData.GetStatValueByType(gamedataStatType.ProjectilesPerShot));
+    } else {
+      this.m_weaponData.DamageMin = this.m_itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHit);
+      this.m_weaponData.DamageMax = this.m_weaponData.DamageMin;
+    };
+    divideByPellets = TweakDBInterface.GetBool(this.m_itemTweakID + t".divideAttacksByPelletsOnUI", false);
+    if divideByPellets && this.m_weaponData.NumberOfPellets > 0 {
+      this.m_weaponData.AttackSpeed = this.m_itemData.GetStatValueByType(gamedataStatType.AttacksPerSecond) / Cast<Float>(this.m_weaponData.NumberOfPellets);
+    } else {
+      this.m_weaponData.AttackSpeed = this.m_itemData.GetStatValueByType(gamedataStatType.AttacksPerSecond);
+    };
+  }
+
+  public final func GetDamageMin() -> Float {
+    if this.m_weaponData == null {
+      return 0.00;
+    };
+    if !Cast<Bool>(this.m_weaponData.m_fetchedFlags & 8) {
+      this.FetchDamageData();
+    };
+    return this.m_weaponData.DamageMin;
+  }
+
+  public final func GetDamageMax() -> Float {
+    if this.m_weaponData == null {
+      return 0.00;
+    };
+    if !Cast<Bool>(this.m_weaponData.m_fetchedFlags & 8) {
+      this.FetchDamageData();
+    };
+    return this.m_weaponData.DamageMax;
+  }
+
+  public final func GetAttackSpeed() -> Float {
+    if this.m_weaponData == null {
+      return 0.00;
+    };
+    if !Cast<Bool>(this.m_weaponData.m_fetchedFlags & 8) {
+      this.FetchDamageData();
+    };
+    return this.m_weaponData.AttackSpeed;
+  }
+
+  public final func GetNumberOfPellets() -> Int32 {
+    if this.m_weaponData == null {
+      return 0;
+    };
+    if !Cast<Bool>(this.m_weaponData.m_fetchedFlags & 8) {
+      this.FetchDamageData();
+    };
+    return this.m_weaponData.NumberOfPellets;
+  }
+
+  public final func GetWeaponEvolution() -> gamedataWeaponEvolution {
+    let weaponRecord: wref<WeaponItem_Record>;
+    if this.m_weaponData == null {
+      return gamedataWeaponEvolution.Invalid;
+    };
+    if Cast<Bool>(this.m_weaponData.m_fetchedFlags & 2) {
+      return this.m_weaponData.Evolution;
+    };
+    weaponRecord = this.m_itemRecord as WeaponItem_Record;
+    if IsDefined(weaponRecord) {
+      this.m_weaponData.Evolution = weaponRecord.Evolution().Type();
+    };
+    this.m_weaponData.m_fetchedFlags |= 2;
+    return this.m_weaponData.Evolution;
+  }
+
+  public final func GetPerkGroup() -> gamedataPerkWeaponGroupType {
+    if this.m_weaponData == null {
+      return gamedataPerkWeaponGroupType.Invalid;
+    };
+    if Cast<Bool>(this.m_weaponData.m_fetchedFlags & 4) {
+      return this.m_weaponData.PerkGroup;
+    };
+    this.m_weaponData.PerkGroup = UIItemsHelper.GetBasicPerkRelevanceGroup(this.m_data.ItemType);
+    this.m_weaponData.m_fetchedFlags |= 4;
+    return this.m_weaponData.PerkGroup;
+  }
+
+  public final func GetGameplayDescription() -> String {
+    let weaponRecord: wref<WeaponItem_Record>;
+    if this.m_weaponData == null {
+      return "";
+    };
+    weaponRecord = this.m_itemRecord as WeaponItem_Record;
+    if IsDefined(weaponRecord) {
+      this.m_weaponData.GameplayDescription = LocKeyToString(weaponRecord.GameplayDescription());
+    };
+    this.m_weaponData.m_fetchedFlags |= 16;
+    if Cast<Bool>(this.m_weaponData.m_fetchedFlags & 16) {
+      return this.m_weaponData.GameplayDescription;
+    };
+    return this.m_weaponData.GameplayDescription;
+  }
+
+  public final func GetAmmo(opt update: Bool) -> Int32 {
+    if this.m_weaponData == null {
+      return -1;
+    };
+    if Cast<Bool>(this.m_weaponData.m_fetchedFlags & 1) && !update {
+      return this.m_weaponData.Ammo;
+    };
+    this.m_weaponData.Ammo = UIInventoryItemsManager.GetAmmo(this.m_itemRecord, update, this.m_manager);
+    this.m_weaponData.m_fetchedFlags |= 1;
+    return this.m_weaponData.Ammo;
+  }
+
+  public final func GetProgramData(player: wref<PlayerPuppet>, force: Bool) -> wref<UIInventoryItemProgramData> {
+    if IsDefined(this.m_programData) && !force {
+      return this.m_programData;
+    };
+    if Equals(this.GetItemType(), gamedataItemType.Prt_Program) {
+      this.m_programData = UIInventoryItemProgramData.Make(this.m_itemRecord, player);
+    };
+    return this.m_programData;
+  }
+
+  public final func GetGrenadeData(player: wref<PlayerPuppet>, force: Bool) -> wref<UIInventoryItemGrenadeData> {
+    if IsDefined(this.m_grenadeData) && !force {
+      return this.m_grenadeData;
+    };
+    if Equals(this.GetItemType(), gamedataItemType.Gad_Grenade) {
+      this.m_grenadeData = UIInventoryItemGrenadeData.Make(this, player);
+    };
+    return this.m_grenadeData;
+  }
+
+  public final func GetCyberwareUpgradeData(player: wref<GameObject>, opt force: Bool) -> ref<InventoryTooltiData_CyberwareUpgradeData> {
+    if IsDefined(this.m_cyberwareUpgradeData) && !force {
+      return this.m_cyberwareUpgradeData;
+    };
+    if this.IsCyberware() || this.IsCyberwareWeapon() {
+      this.m_cyberwareUpgradeData = InventoryTooltiData_CyberwareUpgradeData.Make(this, player);
+    };
+    return this.m_cyberwareUpgradeData;
+  }
+}

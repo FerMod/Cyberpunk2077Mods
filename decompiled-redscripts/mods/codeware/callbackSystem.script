@@ -1,0 +1,9 @@
+
+public class ScriptableEnv extends ScriptableService {
+
+  public final static func Get(name: CName) -> ref<ScriptableService> {
+    let inName: CName = name;
+    let service: ref<ScriptableService> = GameInstance.GetScriptableServiceContainer().GetService(inName);
+    return service;
+  }
+}

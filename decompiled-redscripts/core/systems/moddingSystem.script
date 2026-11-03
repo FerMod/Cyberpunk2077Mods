@@ -1,0 +1,21 @@
+
+public native class ModdingSystem extends IGameSystem {
+
+  public final native func GetAllModsConfigsNames() -> [CName];
+
+  public final native func GetAllModsConfigsTypes() -> [gameModSettingType];
+
+  public final native func GetModsConfigValueByName(name: CName) -> Variant;
+
+  public final native func SetModsConfigValueByName(name: CName, value: Variant) -> Void;
+
+  public final native func SaveCurrentConfigsValue() -> Void;
+
+  protected cb func OnWorldAttached() -> Bool {
+    return true;
+  }
+
+  protected cb func OnWorldDetached() -> Bool {
+    return true;
+  }
+}

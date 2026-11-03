@@ -1,0 +1,160 @@
+
+public class UIInGameNotificationViewData extends GenericNotificationViewData {
+
+  public let animContainer: wref<inGameMenuAnimContainer>;
+
+  public let notificationType: UIInGameNotificationType;
+
+  public func CanMerge(data: ref<GenericNotificationViewData>) -> Bool {
+    return Equals(this.notificationType, data as UIInGameNotificationViewData.notificationType) ? IsDefined(this.animContainer) ? this.animContainer.m_animProxy.IsPlaying() : true : false;
+  }
+
+  public func OnRemoveNotification(data: ref<IScriptable>) -> Bool {
+    return true;
+  }
+}
+
+public class UIInGameNotificationQueue extends gameuiGenericNotificationGameController {
+
+  @default(UIInGameNotificationQueue, 5.0f)
+  private edit let m_duration: Float;
+
+  public func GetShouldSaveState() -> Bool {
+    return false;
+  }
+
+  private final func AdjustScreenPosition() -> Void {
+    let blackbars: Vector2 = this.GetBlackBarFullscreenWidgetOffsets();
+    let safezones: Vector2 = this.GetHudSafezoneWidgetOffsets();
+    this.GetRootWidget().SetTranslation(new Vector2(blackbars.X + safezones.X, blackbars.Y + safezones.Y));
+  }
+
+  protected cb func OnUINotification(evt: ref<UIInGameNotificationEvent>) -> Bool {
+    let notificationData: gameuiGenericNotificationData;
+    let widgetLibraryItemName: CName = n"ingame_popups_side";
+    let userData: ref<UIInGameNotificationViewData> = new UIInGameNotificationViewData();
+    this.AdjustScreenPosition();
+    switch evt.m_notificationType {
+      case UIInGameNotificationType.GenericNotification:
+        userData.title = evt.m_title;
+        break;
+      case UIInGameNotificationType.CombatRestriction:
+        userData.title = "UI-Notifications-CombatRestriction";
+        break;
+      case UIInGameNotificationType.ActionRestriction:
+        userData.title = "UI-Notifications-ActionBlocked";
+        break;
+      case UIInGameNotificationType.CantSaveActionRestriction:
+        userData.title = "UI-Notifications-CantSave-Generic";
+        break;
+      case UIInGameNotificationType.CantSaveCombatRestriction:
+        userData.title = "UI-Notifications-CantSave-Combat";
+        break;
+      case UIInGameNotificationType.CantSaveQuestRestriction:
+        userData.title = "UI-Notifications-CantSave-Generic";
+        break;
+      case UIInGameNotificationType.CantSaveDeathRestriction:
+        userData.title = "UI-Notifications-CantSave-Dead";
+        break;
+      case UIInGameNotificationType.NotEnoughSlotsSaveResctriction:
+        userData.title = "UI-Notifications-SaveNotEnoughSlots";
+        break;
+      case UIInGameNotificationType.NotEnoughSpaceSaveResctriction:
+        userData.title = "UI-Notifications-SaveNotEnoughSpace";
+        break;
+      case UIInGameNotificationType.PhotoModeDisabledRestriction:
+        userData.title = "UI-PhotoMode-NotSupported";
+        break;
+      case UIInGameNotificationType.SandevistanInCallRestriction:
+        userData.title = "UI-Notifications-SandevistanInCallRestriction";
+        break;
+      case UIInGameNotificationType.ExpansionInstalled:
+        userData.title = "UI-DLC-EP1-Reloading-InGameNotificationTitle";
+        userData.text = "UI-DLC-EP1-InGameNotification";
+        this.m_duration = 25.00;
+        widgetLibraryItemName = n"ingame_popups_expansion";
+    };
+    userData.soundEvent = n"QuestSuccessPopup";
+    userData.soundAction = n"OnOpen";
+    userData.animContainer = evt.m_animContainer;
+    userData.notificationType = evt.m_notificationType;
+    notificationData.time = this.m_duration;
+    notificationData.widgetLibraryItemName = widgetLibraryItemName;
+    notificationData.notificationData = userData;
+    if evt.m_overrideCurrentNotification {
+      this.RemoveNotification(evt);
+    };
+    this.AddNewNotificationData(notificationData);
+  }
+
+  protected cb func OnUINotificationRemove(evt: ref<UIInGameNotificationRemoveEvent>) -> Bool {
+    this.RemoveNotification(evt);
+  }
+}
+
+public class UIInGameNotification extends GenericNotificationController {
+
+  public func SetNotificationData(notificationData: ref<GenericNotificationViewData>) -> Void {
+    let inGameNotificationData: ref<UIInGameNotificationViewData>;
+    super.SetNotificationData(notificationData);
+    inGameNotificationData = notificationData as UIInGameNotificationViewData;
+    if Equals(inGameNotificationData.notificationType, UIInGameNotificationType.ExpansionInstalled) {
+      inGameNotificationData.animContainer.m_animProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"expasion_notification_intro", this.GetRootWidget());
+    } else {
+      inGameNotificationData.animContainer.m_animProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(n"notification_intro", this.GetRootWidget());
+    };
+  }
+}
+
+public class UIInGameNotificationEvent extends Event {
+
+  public let m_notificationType: UIInGameNotificationType;
+
+  public let m_animContainer: wref<inGameMenuAnimContainer>;
+
+  public let m_title: String;
+
+  public let m_overrideCurrentNotification: Bool;
+
+  public final static func CreateSavingLockedEvent(const locks: script_ref<[gameSaveLock]>) -> ref<UIInGameNotificationEvent> {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    notificationEvent.m_notificationType = UIInGameNotificationType.CantSaveActionRestriction;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(locks)) {
+      switch Deref(locks)[i].reason {
+        case gameSaveLockReason.Combat:
+          if EnumInt(notificationEvent.m_notificationType) < 3 {
+            notificationEvent.m_notificationType = UIInGameNotificationType.CantSaveCombatRestriction;
+          };
+          break;
+        case gameSaveLockReason.Tier:
+        case gameSaveLockReason.LoadingScreen:
+        case gameSaveLockReason.MainMenu:
+        case gameSaveLockReason.Boundary:
+        case gameSaveLockReason.Quest:
+        case gameSaveLockReason.Scene:
+        case gameSaveLockReason.GameServices:
+          if EnumInt(notificationEvent.m_notificationType) < 4 {
+            notificationEvent.m_notificationType = UIInGameNotificationType.CantSaveQuestRestriction;
+          };
+          break;
+        case gameSaveLockReason.PlayerState:
+          if EnumInt(notificationEvent.m_notificationType) < 5 {
+            notificationEvent.m_notificationType = UIInGameNotificationType.CantSaveDeathRestriction;
+          };
+          break;
+        case gameSaveLockReason.NotEnoughSlots:
+          if EnumInt(notificationEvent.m_notificationType) < 6 {
+            notificationEvent.m_notificationType = UIInGameNotificationType.NotEnoughSlotsSaveResctriction;
+          };
+          break;
+        case gameSaveLockReason.NotEnoughSpace:
+          if EnumInt(notificationEvent.m_notificationType) < 7 {
+            notificationEvent.m_notificationType = UIInGameNotificationType.NotEnoughSpaceSaveResctriction;
+          };
+      };
+      i += 1;
+    };
+    return notificationEvent;
+  }
+}

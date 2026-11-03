@@ -1,0 +1,124 @@
+
+public class ReloadFromEmptyPrereqState extends PrereqState {
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_minAmountOfAmmoReloaded: Int32;
+
+  public let m_listenerRightWeaponInt: ref<CallbackHandle>;
+
+  public let m_listenerEquipmentRight: ref<CallbackHandle>;
+
+  public let m_listenerLeftWeaponInt: ref<CallbackHandle>;
+
+  public let m_listenerEquipmentLeft: ref<CallbackHandle>;
+
+  private let m_reloadingInProgressRight: Bool;
+
+  private let m_reloadingInProgressLeft: Bool;
+
+  protected cb func OnWeaponStateUpdateRight(value: Int32) -> Bool {
+    let weaponObj: ref<WeaponObject>;
+    if Equals(IntEnum<gamePSMRangedWeaponStates>(value), gamePSMRangedWeaponStates.Reload) {
+      weaponObj = GameObject.GetRightActiveWeapon(this.m_owner);
+      if WeaponObject.GetMagazineAmmoCount(weaponObj) == 0u {
+        this.m_reloadingInProgressRight = true;
+      };
+      this.OnChanged(false);
+    } else {
+      if this.m_reloadingInProgressRight {
+        this.m_reloadingInProgressRight = false;
+        weaponObj = GameObject.GetRightActiveWeapon(this.m_owner);
+        this.OnChanged(Cast<Int32>(WeaponObject.GetMagazineAmmoCount(weaponObj)) >= this.m_minAmountOfAmmoReloaded);
+      };
+    };
+  }
+
+  protected cb func OnWeaponStateUpdateLeft(value: Int32) -> Bool {
+    let weaponObj: ref<WeaponObject>;
+    if Equals(IntEnum<gamePSMRangedWeaponStates>(value), gamePSMRangedWeaponStates.Reload) {
+      weaponObj = GameObject.GetLeftActiveWeapon(this.m_owner);
+      if WeaponObject.GetMagazineAmmoCount(weaponObj) == 0u {
+        this.m_reloadingInProgressLeft = true;
+      };
+      this.OnChanged(false);
+    } else {
+      if this.m_reloadingInProgressLeft {
+        this.m_reloadingInProgressLeft = false;
+        weaponObj = GameObject.GetLeftActiveWeapon(this.m_owner);
+        this.OnChanged(Cast<Int32>(WeaponObject.GetMagazineAmmoCount(weaponObj)) >= this.m_minAmountOfAmmoReloaded);
+      };
+    };
+  }
+
+  protected cb func OnInventoryChangeStateUpdate(value: Int32) -> Bool {
+    this.m_reloadingInProgressRight = false;
+    this.m_reloadingInProgressLeft = false;
+    this.OnChanged(false);
+  }
+}
+
+public class ReloadFromEmptyPrereq extends IScriptablePrereq {
+
+  private let m_minAmountOfAmmoReloaded: Int32;
+
+  private let m_listenedWeapons: [String];
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    this.m_minAmountOfAmmoReloaded = TDB.GetInt(recordID + t".minAmountOfAmmoReloaded");
+    this.m_listenedWeapons = TDB.GetStringArray(recordID + t".listenedWeapons");
+  }
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let castedState: ref<ReloadFromEmptyPrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState = state as ReloadFromEmptyPrereqState;
+      castedState.m_owner = context as GameObject;
+      castedState.m_minAmountOfAmmoReloaded = this.m_minAmountOfAmmoReloaded;
+      if ArrayContains(this.m_listenedWeapons, "WeaponRight") {
+        bb = player.GetPlayerStateMachineBlackboard();
+        castedState.m_listenerRightWeaponInt = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState, n"OnWeaponStateUpdateRight");
+        castedState.m_listenerEquipmentRight = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.EquipmentRight, castedState, n"OnInventoryChangeStateUpdate");
+      };
+      if ArrayContains(this.m_listenedWeapons, "WeaponLeft") {
+        bb = player.GetPlayerStateMachineBlackboard();
+        castedState.m_listenerLeftWeaponInt = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, castedState, n"OnWeaponStateUpdateLeft");
+        castedState.m_listenerEquipmentLeft = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.EquipmentLeft, castedState, n"OnInventoryChangeStateUpdate");
+      };
+    };
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let bb: ref<IBlackboard>;
+    let castedState: ref<ReloadFromEmptyPrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState = state as ReloadFromEmptyPrereqState;
+      bb = player.GetPlayerStateMachineBlackboard();
+      if IsDefined(castedState.m_listenerRightWeaponInt) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState.m_listenerRightWeaponInt);
+      };
+      if IsDefined(castedState.m_listenerLeftWeaponInt) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, castedState.m_listenerLeftWeaponInt);
+      };
+      if IsDefined(castedState.m_listenerEquipmentRight) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.EquipmentRight, castedState.m_listenerEquipmentRight);
+      };
+      if IsDefined(castedState.m_listenerEquipmentLeft) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.EquipmentLeft, castedState.m_listenerEquipmentLeft);
+      };
+    };
+  }
+
+  protected const func OnApplied(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let castedState: ref<ReloadFromEmptyPrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState = state as ReloadFromEmptyPrereqState;
+      castedState.OnChanged(false);
+    };
+  }
+}

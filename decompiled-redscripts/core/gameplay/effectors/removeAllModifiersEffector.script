@@ -1,0 +1,36 @@
+
+public class RemoveAllModifiersEffector extends Effector {
+
+  public let m_statType: gamedataStatType;
+
+  public let m_applicationTarget: CName;
+
+  public let m_targets: [StatsObjectID];
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_statType = TweakDBInterface.GetRemoveAllModifiersEffectorRecord(record).StatType().StatType();
+    this.m_applicationTarget = TweakDBInterface.GetCName(record + t".applicationTarget", n"None");
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ProcessEffector(owner);
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.ProcessEffector(owner);
+  }
+
+  private final func ProcessEffector(owner: ref<GameObject>) -> Void {
+    let i: Int32;
+    let ss: ref<StatsSystem>;
+    if !this.GetApplicationTargetAsStatsObjectID(owner, this.m_applicationTarget, this.m_targets) {
+      return;
+    };
+    ss = GameInstance.GetStatsSystem(owner.GetGame());
+    i = 0;
+    while i < ArraySize(this.m_targets) {
+      ss.RemoveAllModifiers(this.m_targets[i], this.m_statType, true);
+      i += 1;
+    };
+  }
+}

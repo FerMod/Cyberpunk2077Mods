@@ -1,0 +1,474 @@
+
+public class ExpansionStatePopupGameController extends inkGameController {
+
+  private edit let m_statusRef: inkTextRef;
+
+  @default(ExpansionStatePopupGameController, popupAnim)
+  private edit let m_animationName: CName;
+
+  protected cb func OnInitialize() -> Bool {
+    let animProxy: ref<inkAnimProxy>;
+    this.SetupData();
+    animProxy = this.PlayLibraryAnimation(this.m_animationName);
+    animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnAnimFinished");
+  }
+
+  protected cb func OnUninitialize() -> Bool;
+
+  protected cb func OnAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let data: ref<ExpansionPopupData>;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    data = this.GetRootWidget().GetUserData(n"ExpansionPopupData") as ExpansionPopupData;
+    if IsDefined(data) {
+      data.token.TriggerCallback(data);
+    };
+  }
+
+  private final func SetupData() -> Void {
+    let data: ref<ExpansionPopupData> = this.GetRootWidget().GetUserData(n"ExpansionPopupData") as ExpansionPopupData;
+    if IsDefined(data) {
+      switch data.m_state {
+        case ExpansionStatus.Owned:
+          inkTextRef.SetText(this.m_statusRef, "DOWNLOAD STARTED");
+          break;
+        case ExpansionStatus.Downloaded:
+          inkTextRef.SetText(this.m_statusRef, "DOWNLOAD FINISHED");
+          break;
+        case ExpansionStatus.Reloading:
+          inkTextRef.SetText(this.m_statusRef, "RELOADING FINISHED");
+      };
+    };
+  }
+}
+
+public class ExpansionPopupGameController extends inkGameController {
+
+  private edit let m_popupCanvasAnchor: inkWidgetRef;
+
+  private edit let m_expansionScreenName: CName;
+
+  private edit let m_thankYouScreenName: CName;
+
+  private edit let m_reloadingScreenName: CName;
+
+  private edit let m_preOrderScreenName: CName;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  @default(ExpansionPopupGameController, intro)
+  private edit let m_introAnimationName: CName;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_data: ref<ExpansionPopupData>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_showThankYouPanel: Bool;
+
+  private let m_introAnimProxy: ref<inkAnimProxy>;
+
+  private let m_featuresExpansionPopupController: wref<FeaturesExpansionPopupController>;
+
+  private let m_preOrderPopupController: wref<PreOrderPopupController>;
+
+  private let m_reloadingPopupController: wref<ReloadingExpansionPopupController>;
+
+  private let m_buyButton: inkWidgetRef;
+
+  private let m_preOrderButton: inkWidgetRef;
+
+  private let m_isProcessingPurchase: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let panelName: CName;
+    let widget: wref<inkWidget>;
+    this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    this.SetupData();
+    panelName = this.GetPanelName();
+    if Equals(panelName, n"None") || Equals(panelName, n"none") {
+      this.Close();
+    } else {
+      widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_popupCanvasAnchor), panelName);
+      if IsDefined(widget) {
+        if Equals(panelName, this.m_expansionScreenName) {
+          this.m_featuresExpansionPopupController = widget.GetController() as FeaturesExpansionPopupController;
+          if IsDefined(this.m_featuresExpansionPopupController) {
+            this.m_featuresExpansionPopupController.SetIsEp1Released(this.m_requestHandler.IsAdditionalContentReleased(n"EP1"));
+            this.m_featuresExpansionPopupController.SetState(this.m_data.m_state);
+            this.m_buyButton = this.m_featuresExpansionPopupController.GetButtonRef();
+            if Equals(this.m_data.m_state, ExpansionStatus.Available) {
+              this.m_requestHandler.LogPreorderPopupImpression(n"EP1");
+            };
+            inkWidgetRef.RegisterToCallback(this.m_buyButton, n"OnPress", this, n"OnPressBuy");
+            this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_PopUp");
+          };
+        } else {
+          if Equals(panelName, this.m_preOrderScreenName) {
+            this.m_preOrderPopupController = widget.GetController() as PreOrderPopupController;
+            if IsDefined(this.m_preOrderPopupController) {
+              this.m_preOrderButton = this.m_preOrderPopupController.GetButtonRef();
+              if Equals(this.m_data.m_state, ExpansionStatus.PreOrder) {
+                this.m_requestHandler.LogPreorderPopupImpression(n"EP1");
+              };
+              inkWidgetRef.RegisterToCallback(this.m_preOrderButton, n"OnPress", this, n"OnPressPreOrder");
+              this.m_preOrderPopupController.SetPreOrderSate(Equals(this.m_data.m_state, ExpansionStatus.PreOrderOwned));
+            };
+          } else {
+            if Equals(panelName, this.m_reloadingScreenName) {
+              this.m_reloadingPopupController = widget.GetController() as ReloadingExpansionPopupController;
+              this.m_requestHandler.RegisterToCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnAdditionalContentDataReloadProgress_PopUp");
+              this.RegisterToCallback(n"OnReloadingExpansionPopupCloseEvent", this, n"OnReloadingExpansionPopupCloseEvent");
+            };
+          };
+        };
+        inkWidgetRef.SetVisible(this.m_closeButtonRef, NotEquals(panelName, this.m_reloadingScreenName));
+        this.m_introAnimProxy = this.PlayLibraryAnimation(this.m_introAnimationName);
+      };
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    inkWidgetRef.UnregisterFromCallback(this.m_buyButton, n"OnPress", this, n"OnPressBuy");
+    inkWidgetRef.UnregisterFromCallback(this.m_preOrderButton, n"OnPress", this, n"OnPressPreOrder");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentDataReloadProgressCallback", this, n"OnAdditionalContentDataReloadProgress_PopUp");
+    this.m_requestHandler.UnregisterFromCallback(n"OnAdditionalContentPurchaseResult", this, n"OnAdditionalContentPurchaseResult_PopUp");
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") && !this.m_isProcessingPurchase && !this.m_introAnimProxy.IsPlaying() {
+      this.Close();
+    } else {
+      if IsDefined(this.m_featuresExpansionPopupController) && evt.IsAction(n"popup_purchase") {
+        this.BuyPressed();
+      } else {
+        if IsDefined(this.m_preOrderPopupController) && Equals(this.m_data.m_state, ExpansionStatus.PreOrder) && evt.IsAction(n"popup_purchase") {
+          this.OpenStorePage();
+        };
+      };
+    };
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") && !this.m_introAnimProxy.IsPlaying() {
+      this.Close();
+    };
+  }
+
+  protected cb func OnPressPreOrder(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") && Equals(this.m_data.m_state, ExpansionStatus.PreOrder) {
+      this.OpenStorePage();
+    };
+  }
+
+  protected cb func OnPressBuy(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") {
+      this.BuyPressed();
+    };
+  }
+
+  private final func SetupData() -> Void {
+    this.m_data = this.GetRootWidget().GetUserData(n"ExpansionPopupData") as ExpansionPopupData;
+  }
+
+  private final func GetPanelName() -> CName {
+    switch this.m_data.m_type {
+      case ExpansionPopupType.Features:
+        return this.m_expansionScreenName;
+      case ExpansionPopupType.ThankYou:
+        return this.m_thankYouScreenName;
+      case ExpansionPopupType.Reloading:
+        return this.m_reloadingScreenName;
+      case ExpansionPopupType.PreOrder:
+        return this.m_preOrderScreenName;
+    };
+    return n"None";
+  }
+
+  private final func BuyPressed() -> Void {
+    if this.m_requestHandler.IsPurchaseThroughAppEnabled() {
+      this.OpenStorePage();
+    } else {
+      this.m_uiSystem.QueueMenuEvent(n"OnRequetPurchaseDisabledError");
+      this.Close();
+    };
+  }
+
+  private final func OpenStorePage() -> Void {
+    this.m_requestHandler.RequestAdditionalContentPurchase(n"EP1");
+    this.m_requestHandler.LogPreorderClick(n"EP1");
+    this.m_featuresExpansionPopupController.SetState(ExpansionStatus.Processing);
+    this.m_isProcessingPurchase = true;
+    inkWidgetRef.SetVisible(this.m_closeButtonRef, false);
+  }
+
+  private final func Close() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.PlaySound(n"Button", n"OnPress");
+    playbackOptions.playReversed = true;
+    this.m_introAnimProxy = this.PlayLibraryAnimation(this.m_introAnimationName, playbackOptions);
+    this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+  }
+
+  public final func OnAdditionalContentPurchaseResult_PopUp(id: CName, success: Bool) -> Void {
+    this.m_isProcessingPurchase = false;
+    inkWidgetRef.SetVisible(this.m_closeButtonRef, true);
+    this.Close();
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2000) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2100) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2200) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2300) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2400) || this.m_uiSystem.IsPatchIntroNeeded(gameuiPatchIntro.Patch2500) {
+      this.m_uiSystem.QueueMenuEvent(n"OnRequetCloseExpansionPopup");
+    };
+    this.m_introAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+
+  protected cb func OnAdditionalContentDataReloadProgress_PopUp(progress: Float) -> Bool {
+    if IsDefined(this.m_reloadingPopupController) {
+      this.m_reloadingPopupController.UpdateProgress(progress);
+    };
+  }
+
+  protected cb func OnReloadingExpansionPopupCloseEvent(evt: ref<ReloadingExpansionPopupCloseEvent>) -> Bool {
+    this.Close();
+  }
+}
+
+public class FeaturesExpansionPopupController extends inkLogicController {
+
+  @runtimeProperty("category", "Main")
+  private edit let m_hoverAnimationName: CName;
+
+  @runtimeProperty("category", "Main")
+  private edit let m_hoverArrow: inkImageRef;
+
+  @runtimeProperty("category", "Buy Button")
+  private edit let m_buyButtonRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Buy Button")
+  private edit let m_buyButtonText: inkTextRef;
+
+  @runtimeProperty("category", "Buy Button")
+  private edit let m_buyButtonInputIcon: inkWidgetRef;
+
+  @runtimeProperty("category", "Buy Button")
+  private edit let m_buyButtonSpinner: inkWidgetRef;
+
+  @runtimeProperty("category", "Buy Button")
+  @default(FeaturesExpansionPopupController, UI-DLC-EP1-PurchaseFlow-EP1Popup-BuyNow)
+  private edit let m_locKey_Buy: CName;
+
+  @runtimeProperty("category", "Buy Button")
+  @default(FeaturesExpansionPopupController, UI-DLC-EP1-PurchaseFlow-MainMenuBanner-PreOrderNow)
+  private edit let m_locKey_PreOrder: CName;
+
+  @runtimeProperty("category", "Video Selector")
+  private edit let m_slectorContainerRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Video Selector")
+  private edit let m_slectorArrowLeftRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Video Selector")
+  private edit let m_slectorArrowRightRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Videos")
+  private edit let m_videoCarouselRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Videos")
+  private edit let m_videoContainerRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Videos")
+  private edit const let m_videoCarouselData: [VideoCarouselData];
+
+  private let m_videoCarouselController: wref<VideoCarouselController>;
+
+  private let m_buyButtonController: wref<inkButtonController>;
+
+  private let m_hoverAnimation: ref<inkAnimProxy>;
+
+  private let m_hoverAnimationOptions: inkAnimOptions;
+
+  private let m_isEp1Released: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_buyButtonController = inkWidgetRef.GetControllerByType(this.m_buyButtonRef, n"inkButtonController") as inkButtonController;
+    this.m_videoCarouselController = inkWidgetRef.GetController(this.m_videoCarouselRef) as VideoCarouselController;
+    this.m_videoCarouselController.PopulateVideos(this.m_videoCarouselData);
+    inkWidgetRef.RegisterToCallback(this.m_videoContainerRef, n"OnHoverOver", this, n"OnHoverVideo");
+    inkWidgetRef.RegisterToCallback(this.m_videoContainerRef, n"OnHoverOut", this, n"OnHoverOutVideo");
+    inkWidgetRef.RegisterToCallback(this.m_slectorContainerRef, n"OnHoverOver", this, n"OnHoverSelector");
+    inkWidgetRef.RegisterToCallback(this.m_slectorContainerRef, n"OnHoverOut", this, n"OnHoverOutSelector");
+    inkWidgetRef.SetVisible(this.m_slectorArrowLeftRef, false);
+    inkWidgetRef.SetVisible(this.m_slectorArrowRightRef, false);
+    this.SetState(ExpansionStatus.Available);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_videoContainerRef, n"OnHoverOver", this, n"OnHoverVideo");
+    inkWidgetRef.UnregisterFromCallback(this.m_videoContainerRef, n"OnHoverOut", this, n"OnHoverOutVideo");
+    inkWidgetRef.UnregisterFromCallback(this.m_slectorContainerRef, n"OnHoverOver", this, n"OnHoverSelector");
+    inkWidgetRef.UnregisterFromCallback(this.m_slectorContainerRef, n"OnHoverOut", this, n"OnHoverOutSelector");
+  }
+
+  public final func SetState(state: ExpansionStatus) -> Void {
+    if Equals(state, ExpansionStatus.Processing) {
+      inkTextRef.SetText(this.m_buyButtonText, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-Processing"));
+      inkWidgetRef.SetVisible(this.m_buyButtonInputIcon, false);
+      this.m_buyButtonController.SetEnabled(false);
+      inkWidgetRef.SetInteractive(this.m_buyButtonRef, false);
+      inkWidgetRef.SetVisible(this.m_buyButtonSpinner, true);
+      this.PlaySpinAnimation();
+    } else {
+      inkTextRef.SetText(this.m_buyButtonText, GetLocalizedTextByKey(this.m_isEp1Released ? this.m_locKey_Buy : this.m_locKey_PreOrder));
+      inkWidgetRef.SetVisible(this.m_buyButtonInputIcon, true);
+      this.m_buyButtonController.SetEnabled(true);
+      inkWidgetRef.SetInteractive(this.m_buyButtonRef, true);
+      inkWidgetRef.SetVisible(this.m_buyButtonSpinner, false);
+      this.PlaySpinAnimation();
+    };
+  }
+
+  private final func PlaySpinAnimation() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopInfinite = true;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    this.PlayLibraryAnimation(n"spin", playbackOptions);
+  }
+
+  public final func GetButtonRef() -> inkWidgetRef {
+    return this.m_buyButtonRef;
+  }
+
+  public final func SetIsEp1Released(isEp1Released: Bool) -> Void {
+    this.m_isEp1Released = isEp1Released;
+  }
+
+  protected cb func OnHoverVideo(e: ref<inkPointerEvent>) -> Bool {
+    this.m_videoCarouselController.PauseVideo(true);
+    if IsDefined(this.m_hoverAnimation) {
+      this.m_hoverAnimation.GotoEndAndStop();
+    };
+    this.m_hoverAnimationOptions.playReversed = false;
+    this.m_hoverAnimation = this.PlayLibraryAnimation(this.m_hoverAnimationName, this.m_hoverAnimationOptions);
+    inkImageRef.SetBrushMirrorType(this.m_hoverArrow, inkBrushMirrorType.Vertical);
+  }
+
+  protected cb func OnHoverOutVideo(e: ref<inkPointerEvent>) -> Bool {
+    this.m_videoCarouselController.PauseVideo(false);
+    if IsDefined(this.m_hoverAnimation) {
+      this.m_hoverAnimation.GotoEndAndStop();
+    };
+    this.m_hoverAnimationOptions.playReversed = true;
+    this.m_hoverAnimation = this.PlayLibraryAnimation(this.m_hoverAnimationName, this.m_hoverAnimationOptions);
+    inkImageRef.SetBrushMirrorType(this.m_hoverArrow, inkBrushMirrorType.NoMirror);
+  }
+
+  protected cb func OnHoverSelector(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_slectorArrowLeftRef, true);
+    inkWidgetRef.SetVisible(this.m_slectorArrowRightRef, true);
+  }
+
+  protected cb func OnHoverOutSelector(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_slectorArrowLeftRef, false);
+    inkWidgetRef.SetVisible(this.m_slectorArrowRightRef, false);
+  }
+}
+
+public class ReloadingExpansionPopupController extends inkLogicController {
+
+  private edit let m_progressBarRef: inkWidgetRef;
+
+  private edit let m_titleTextRef: inkTextRef;
+
+  private edit let m_descriptionTextRef: inkTextRef;
+
+  private edit let m_warningTextRef: inkTextRef;
+
+  private let m_progressBarController: wref<LoadingScreenProgressBarController>;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_progressBarController = inkWidgetRef.GetController(this.m_progressBarRef) as LoadingScreenProgressBarController;
+    this.SetPlatformSpecificText();
+  }
+
+  public final func UpdateProgress(progress: Float) -> Void {
+    if IsDefined(this.m_progressBarController) {
+      this.m_progressBarController.SetProgress(progress);
+    };
+    if progress >= 1.00 {
+      this.m_animProxy = this.PlayLibraryAnimation(n"reloadingFinished");
+      this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnReloadingAnimationFinished");
+    };
+  }
+
+  private final func SetPlatformSpecificText() -> Void {
+    let platform: String = GetPlatformShortName();
+    if Equals(platform, "xseriesx") || Equals(platform, "xseriess") {
+      inkTextRef.SetText(this.m_titleTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsBreach_XSX"));
+      inkTextRef.SetText(this.m_descriptionTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsPopup_XSX"));
+      inkTextRef.SetText(this.m_warningTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsPopupNote_XSX"));
+    } else {
+      if Equals(platform, "ps5") || Equals(platform, "ps5pro") {
+        inkTextRef.SetText(this.m_titleTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsBreach_PS5"));
+        inkTextRef.SetText(this.m_descriptionTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsPopup_PS5"));
+        inkTextRef.SetText(this.m_warningTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-Reloading-AdjustingSystemsPopupNote_PS5"));
+      } else {
+        inkTextRef.SetText(this.m_titleTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-AdjustingSystemsBreach"));
+        inkTextRef.SetText(this.m_descriptionTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-AdjustingSystemsPopup"));
+        inkTextRef.SetText(this.m_warningTextRef, GetLocalizedTextByKey(n"UI-DLC-EP1-AdjustingSystemsPopupNote"));
+      };
+    };
+  }
+
+  protected cb func OnReloadingAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let evt: ref<ReloadingExpansionPopupCloseEvent> = new ReloadingExpansionPopupCloseEvent();
+    this.QueueBroadcastEvent(evt);
+  }
+}
+
+public class PreOrderPopupController extends inkLogicController {
+
+  private edit let m_preOrderButtonRef: inkWidgetRef;
+
+  private edit let m_preOrderButtonText: inkTextRef;
+
+  private edit let m_preOrderButtonInputIcon: inkWidgetRef;
+
+  private edit let m_releaseDateContainer: inkWidgetRef;
+
+  private let m_buttonController: wref<inkButtonController>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_buttonController = inkWidgetRef.GetControllerByType(this.m_preOrderButtonRef, n"inkButtonController") as inkButtonController;
+  }
+
+  public final func GetButtonRef() -> inkWidgetRef {
+    return this.m_preOrderButtonRef;
+  }
+
+  public final func SetPreOrderSate(isPreOredOwned: Bool) -> Void {
+    if isPreOredOwned {
+      inkTextRef.SetText(this.m_preOrderButtonText, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-EP1Popup-Purchased"));
+      inkWidgetRef.SetVisible(this.m_preOrderButtonInputIcon, false);
+      this.m_buttonController.SetEnabled(false);
+      inkWidgetRef.SetInteractive(this.m_preOrderButtonRef, false);
+      inkWidgetRef.SetVisible(this.m_releaseDateContainer, true);
+    } else {
+      inkTextRef.SetText(this.m_preOrderButtonText, GetLocalizedTextByKey(n"UI-DLC-EP1-PurchaseFlow-MainMenuBanner-PreOrderNow"));
+      inkWidgetRef.SetVisible(this.m_preOrderButtonInputIcon, true);
+      this.m_buttonController.SetEnabled(true);
+      inkWidgetRef.SetInteractive(this.m_preOrderButtonRef, true);
+      inkWidgetRef.SetVisible(this.m_releaseDateContainer, false);
+    };
+  }
+}

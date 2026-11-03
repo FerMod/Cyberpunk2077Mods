@@ -1,0 +1,475 @@
+
+public native class MinimapContainerController extends MappinsContainerController {
+
+  protected edit let m_rootZoneSafety: wref<inkWidget>;
+
+  protected edit let m_locationTextWidget: inkTextRef;
+
+  protected edit let m_fluffText1: inkTextRef;
+
+  protected edit let m_securityAreaVignetteWidget: inkWidgetRef;
+
+  protected edit let m_securityAreaText: inkTextRef;
+
+  protected edit let m_combatModeHighlight: inkWidgetRef;
+
+  protected edit let m_courierTimerContainer: inkWidgetRef;
+
+  protected edit let m_courierTimerText: inkTextRef;
+
+  protected edit let m_alternativeIconContainer: inkWidgetRef;
+
+  protected edit let m_autoDriveModeHighlight: inkWidgetRef;
+
+  protected edit let m_autoDriveIconRef: inkWidgetLibraryReference;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  private let m_zoneVignetteAnimProxy: ref<inkAnimProxy>;
+
+  private let m_inPublicOrRestrictedZone: Bool;
+
+  @default(MinimapContainerController, 0)
+  private let m_fluffTextCount: Int32;
+
+  private let m_alternativePlayerIconAnimProxy: ref<inkAnimProxy>;
+
+  private let m_hasOverridenPlayerIcon: Bool;
+
+  private let m_psmBlackboard: wref<IBlackboard>;
+
+  private let m_mapBlackboard: wref<IBlackboard>;
+
+  private let m_mapDefinition: ref<UI_MapDef>;
+
+  private let m_locationDataCallback: ref<CallbackHandle>;
+
+  private let m_highlightRequestCallback: ref<CallbackHandle>;
+
+  private let m_countdownTimerBlackboard: wref<IBlackboard>;
+
+  private let m_countdownTimerDefinition: ref<UI_HUDCountdownTimerDef>;
+
+  private let m_countdownTimerActiveCallback: ref<CallbackHandle>;
+
+  private let m_countdownTimerTimeCallback: ref<CallbackHandle>;
+
+  private let m_securityBlackBoardID: ref<CallbackHandle>;
+
+  private let m_remoteControlledVehicleDataCallback: ref<CallbackHandle>;
+
+  private let m_remoteControlledVehicleCameraChangedToTPPCallback: ref<CallbackHandle>;
+
+  private let m_combatAnimation: ref<inkAnimProxy>;
+
+  private let m_autodriveDataDefinition: ref<UI_AutodriveDataDef>;
+
+  private let m_autodriveDataBlackboard: wref<IBlackboard>;
+
+  private let m_autoDriveEnabledCallback: ref<CallbackHandle>;
+
+  private let m_autoDriveEnabled: Bool;
+
+  private let m_autoDriveAnimation: ref<inkAnimProxy>;
+
+  private let m_playerInCombat: Bool;
+
+  private let m_currentZoneType: ESecurityAreaType;
+
+  private let m_messageCounterController: wref<inkCompoundWidget>;
+
+  private final native func RequestLayerHighlight(layer: minimapuiELayerType, highlightData: LayerHighlightRequestData) -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    inkWidgetRef.SetOpacity(this.m_securityAreaVignetteWidget, 0.00);
+    this.m_mapDefinition = GetAllBlackboardDefs().UI_Map;
+    this.m_mapBlackboard = this.GetBlackboardSystem().Get(this.m_mapDefinition);
+    this.m_locationDataCallback = this.m_mapBlackboard.RegisterListenerString(this.m_mapDefinition.currentLocation, this, n"OnLocationUpdated");
+    this.OnLocationUpdated(this.m_mapBlackboard.GetString(this.m_mapDefinition.currentLocation));
+    this.m_highlightRequestCallback = this.m_mapBlackboard.RegisterListenerVariant(this.m_mapDefinition.minimapLayerHighlightRequest, this, n"OnHighlightRequestUpdate");
+    this.m_countdownTimerDefinition = GetAllBlackboardDefs().UI_HUDCountdownTimer;
+    this.m_countdownTimerBlackboard = this.GetBlackboardSystem().Get(this.m_countdownTimerDefinition);
+    this.m_countdownTimerActiveCallback = this.m_countdownTimerBlackboard.RegisterListenerBool(this.m_countdownTimerDefinition.Active, this, n"OnCountdownTimerActiveUpdated");
+    this.m_countdownTimerTimeCallback = this.m_countdownTimerBlackboard.RegisterListenerFloat(this.m_countdownTimerDefinition.Progress, this, n"OnCountdownTimerTimeUpdated");
+    this.OnCountdownTimerActiveUpdated(this.m_countdownTimerBlackboard.GetBool(this.m_countdownTimerDefinition.Active));
+    this.m_autodriveDataDefinition = GetAllBlackboardDefs().UI_AutodriveData;
+    this.m_autodriveDataBlackboard = this.GetBlackboardSystem().Get(this.m_autodriveDataDefinition);
+    this.m_autoDriveEnabledCallback = this.m_autodriveDataBlackboard.RegisterListenerBool(this.m_autodriveDataDefinition.AutoDriveEnabled, this, n"OnAutoDriveStateChanged");
+  }
+
+  protected cb func OnUnitialize() -> Bool {
+    this.m_mapBlackboard.UnregisterListenerString(this.m_mapDefinition.currentLocation, this.m_locationDataCallback);
+    this.m_mapBlackboard.UnregisterListenerVariant(this.m_mapDefinition.minimapLayerHighlightRequest, this.m_highlightRequestCallback);
+    this.m_autodriveDataBlackboard.UnregisterListenerBool(this.m_autodriveDataDefinition.AutoDriveEnabled, this.m_autoDriveEnabledCallback);
+  }
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    this.InitializePlayer(player);
+  }
+
+  protected final func InitializePlayer(player: ref<GameObject>) -> Void {
+    let securityData: SecurityAreaData;
+    let variantData: Variant;
+    this.m_psmBlackboard = this.GetPSMBlackboard(player);
+    this.m_remoteControlledVehicleDataCallback = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveVehicleData).RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this, n"OnRemoteControlledVehicleChanged", true);
+    if IsDefined(this.m_psmBlackboard) {
+      this.m_remoteControlledVehicleCameraChangedToTPPCallback = this.m_psmBlackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleRemoteControlCameraTPP, this, n"OnPSMRemoteControlledVehicleCameraChangedToTPP");
+      this.m_securityBlackBoardID = this.m_psmBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().PlayerStateMachine.SecurityZoneData, this, n"OnSecurityDataChange");
+      this.m_playerInCombat = Equals(IntEnum<gamePSMCombat>(this.m_psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat)), gamePSMCombat.InCombat);
+      variantData = this.m_psmBlackboard.GetVariant(GetAllBlackboardDefs().PlayerStateMachine.SecurityZoneData);
+      if IsDefined(variantData) {
+        securityData = FromVariant<SecurityAreaData>(variantData);
+        this.m_currentZoneType = this.GetSecurityZoneBasedOnAreaData(securityData);
+      } else {
+        this.m_currentZoneType = ESecurityAreaType.DISABLED;
+      };
+      this.m_inPublicOrRestrictedZone = false;
+      this.SecurityZoneUpdate();
+    };
+  }
+
+  protected cb func OnPlayerDetach(player: ref<GameObject>) -> Bool {
+    if IsDefined(this.m_psmBlackboard) {
+      if IsDefined(this.m_securityBlackBoardID) {
+        this.m_psmBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().PlayerStateMachine.SecurityZoneData, this.m_securityBlackBoardID);
+      };
+      if IsDefined(this.m_remoteControlledVehicleCameraChangedToTPPCallback) {
+        this.m_psmBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleRemoteControlCameraTPP, this.m_remoteControlledVehicleCameraChangedToTPPCallback);
+      };
+    };
+    if IsDefined(this.m_remoteControlledVehicleDataCallback) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveVehicleData).UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this.m_remoteControlledVehicleDataCallback);
+    };
+  }
+
+  protected cb func OnCountdownTimerActiveUpdated(active: Bool) -> Bool {
+    inkWidgetRef.SetVisible(this.m_courierTimerContainer, active);
+  }
+
+  protected cb func OnCountdownTimerTimeUpdated(time: Float) -> Bool {
+    let result: String;
+    let minutes: Int32 = FloorF(time / 60.00);
+    let seconds: Int32 = FloorF(time) % 60;
+    if minutes < 10 {
+      result += "0";
+    };
+    result += IntToString(minutes);
+    result += ":";
+    if seconds < 10 {
+      result += "0";
+    };
+    result += IntToString(seconds);
+    inkTextRef.SetText(this.m_courierTimerText, result);
+  }
+
+  protected cb func OnLocationUpdated(value: String) -> Bool {
+    inkTextRef.SetText(this.m_locationTextWidget, StrLen(value) == 0 ? "Story-base-journal-contacts-unknown-Unknown_name" : value);
+  }
+
+  protected cb func OnHighlightRequestUpdate(variant: Variant) -> Bool {
+    let request: MinimapLayerHighlightRequest = FromVariant<MinimapLayerHighlightRequest>(variant);
+    this.RequestLayerHighlight(request.layer, request.data);
+  }
+
+  protected cb func OnAutoDriveStateChanged(state: Bool) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_autoDriveEnabled, state) {
+      inkWidgetRef.SetVisible(this.m_autoDriveModeHighlight, state);
+      if state && !this.m_autodriveDataBlackboard.GetBool(this.m_autodriveDataDefinition.AutoDriveDelamain) {
+        this.OverridePlayerIcon(this.m_autoDriveIconRef);
+        playbackOptions.loopInfinite = true;
+        playbackOptions.loopType = inkanimLoopType.Cycle;
+        this.m_autoDriveAnimation = this.PlayLibraryAnimation(n"AutoDriveMode", playbackOptions);
+      } else {
+        this.RemovePlayerIconOverride();
+        if this.m_autoDriveAnimation.IsPlaying() {
+          this.m_autoDriveAnimation.Stop();
+        };
+      };
+      this.m_autoDriveEnabled = state;
+    };
+  }
+
+  protected cb func OnPSMCombatChanged(psmCombatArg: gamePSMCombat) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    let wasCombat: Bool = this.m_playerInCombat;
+    this.m_playerInCombat = Equals(psmCombatArg, gamePSMCombat.InCombat);
+    if NotEquals(this.m_playerInCombat, wasCombat) {
+      inkWidgetRef.SetVisible(this.m_combatModeHighlight, this.m_playerInCombat);
+      if this.m_playerInCombat {
+        if !IsDefined(this.m_combatAnimation) || !this.m_combatAnimation.IsPlaying() {
+          playbackOptions.loopInfinite = true;
+          playbackOptions.loopType = inkanimLoopType.Cycle;
+          this.m_combatAnimation = this.PlayLibraryAnimation(n"CombatMode", playbackOptions);
+        };
+      } else {
+        if this.m_combatAnimation.IsPlaying() {
+          this.m_combatAnimation.Stop();
+        };
+      };
+      this.SecurityZoneUpdate();
+    };
+  }
+
+  private final func GetCurrentZoneName() -> CName {
+    return Equals(this.m_currentZoneType, ESecurityAreaType.DANGEROUS) ? this.GetFadeInZoneDangerName() : this.GetFadeInZoneSafetyName();
+  }
+
+  private final func GetFadeInZoneSafetyName() -> CName {
+    return n"FadeInZoneSafety";
+  }
+
+  private final func GetFadeInZoneDangerName() -> CName {
+    return n"FadeInZoneDanger";
+  }
+
+  private final func UpdateZoneText() -> Void {
+    inkWidgetRef.SetVisible(this.m_securityAreaText, !this.m_inPublicOrRestrictedZone);
+    if !this.m_inPublicOrRestrictedZone {
+      inkTextRef.SetLocalizationKey(this.m_securityAreaText, this.ZoneToTextKey(this.m_currentZoneType));
+    };
+  }
+
+  private final func PlayZoneVignetteAnimation(animationName: CName) -> Void {
+    this.TryStopZoneVignetteAnimation();
+    this.m_zoneVignetteAnimProxy = this.PlayLibraryAnimation(animationName);
+  }
+
+  private final func UpdateSecurityAreaZoneVignette() -> Void {
+    inkWidgetRef.SetState(this.m_securityAreaVignetteWidget, this.ZoneToState(this.m_currentZoneType));
+  }
+
+  protected cb func OnRemoteControlledVehicleChanged(value: Variant) -> Bool {
+    let data: RemoteControlDrivingUIData = FromVariant<RemoteControlDrivingUIData>(value);
+    let isTPP: Bool = this.m_psmBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleRemoteControlCameraTPP);
+    this.m_rootWidget.SetVisible(data.remoteControlledVehicle == null || !isTPP);
+  }
+
+  protected cb func OnPSMRemoteControlledVehicleCameraChangedToTPP(value: Bool) -> Bool {
+    this.m_rootWidget.SetVisible(!value);
+  }
+
+  protected cb func OnSecurityDataChange(value: Variant) -> Bool {
+    let newZoneType: ESecurityAreaType;
+    let securityData: SecurityAreaData;
+    if IsDefined(value) {
+      securityData = FromVariant<SecurityAreaData>(value);
+    };
+    newZoneType = this.GetSecurityZoneBasedOnAreaData(securityData);
+    if NotEquals(newZoneType, this.m_currentZoneType) {
+      this.m_currentZoneType = newZoneType;
+      this.SecurityZoneUpdate();
+    };
+  }
+
+  private final func GetSecurityZoneBasedOnAreaData(securityAreaData: SecurityAreaData) -> ESecurityAreaType {
+    return securityAreaData.shouldHideOnMinimap ? ESecurityAreaType.DISABLED : securityAreaData.securityAreaType;
+  }
+
+  private final func SecurityZoneUpdate() -> Void {
+    if this.m_playerInCombat {
+      this.SetMinimapVisualsForCombat();
+    } else {
+      this.TryPlayFadeInAnimation();
+      this.UpdateSecurityAreaZoneVignette();
+      this.UpdateFluffTextCount();
+    };
+    this.UpdateInPublicOrRestricedZoneFlag();
+    if !this.m_playerInCombat {
+      this.UpdateZoneText();
+    };
+  }
+
+  private final func SetMinimapVisualsForCombat() -> Void {
+    if inkWidgetRef.GetOpacity(this.m_securityAreaVignetteWidget) == 0.00 {
+      this.TryPlayFadeInAnimation();
+    };
+    inkWidgetRef.SetState(this.m_securityAreaVignetteWidget, n"Combat");
+    inkWidgetRef.SetVisible(this.m_securityAreaText, true);
+    inkTextRef.SetLocalizationKey(this.m_securityAreaText, n"Story-base-gameplay-gui-widgets-minimap-zones-Combat");
+  }
+
+  private final func UpdateFluffTextCount() -> Void {
+    this.m_fluffTextCount = this.m_fluffTextCount + 1;
+    if this.m_fluffTextCount > 10 {
+      this.m_fluffTextCount = 0;
+      inkTextRef.SetTextFromParts(this.m_fluffText1, "UI-Cyberpunk-Widgets-FRMWARE_2077V", IntToString(RandRange(10, 99)), "");
+    };
+  }
+
+  private final func TryPlayFadeInAnimation() -> Void {
+    switch this.m_currentZoneType {
+      case ESecurityAreaType.RESTRICTED:
+        if !this.m_inPublicOrRestrictedZone {
+          this.PlayZoneVignetteAnimation(this.GetFadeInZoneSafetyName());
+        };
+        break;
+      case ESecurityAreaType.DANGEROUS:
+        this.PlayZoneVignetteAnimation(this.GetFadeInZoneDangerName());
+        break;
+      case ESecurityAreaType.SAFE:
+        this.PlayZoneVignetteAnimation(this.GetFadeInZoneSafetyName());
+        break;
+      default:
+        if !this.m_inPublicOrRestrictedZone {
+          this.PlayZoneVignetteAnimation(this.GetFadeInZoneSafetyName());
+        };
+    };
+  }
+
+  private final func OverridePlayerIcon(overrideIcon: inkWidgetLibraryReference) -> Void {
+    let container: ref<inkCompoundWidget> = inkWidgetRef.Get(this.m_alternativeIconContainer) as inkCompoundWidget;
+    if this.m_hasOverridenPlayerIcon {
+      return;
+    };
+    if IsDefined(container) {
+      container.RemoveAllChildren();
+      this.SpawnFromExternal(inkWidgetRef.Get(this.m_alternativeIconContainer), inkWidgetLibraryResource.GetPath(overrideIcon.widgetLibrary), overrideIcon.widgetItem);
+      if this.m_alternativePlayerIconAnimProxy.IsValid() && this.m_alternativePlayerIconAnimProxy.IsPlaying() {
+        this.m_alternativePlayerIconAnimProxy.Stop();
+      };
+      this.m_alternativePlayerIconAnimProxy = this.PlayLibraryAnimation(n"ShowAlternativeIcon");
+      this.m_hasOverridenPlayerIcon = true;
+    };
+  }
+
+  private final func RemovePlayerIconOverride() -> Void {
+    if !this.m_hasOverridenPlayerIcon {
+      return;
+    };
+    if this.m_alternativePlayerIconAnimProxy.IsValid() && this.m_alternativePlayerIconAnimProxy.IsPlaying() {
+      this.m_alternativePlayerIconAnimProxy.Stop();
+    };
+    this.m_alternativePlayerIconAnimProxy = this.PlayLibraryAnimation(n"ShowPlayerIcon");
+    this.m_hasOverridenPlayerIcon = false;
+  }
+
+  private final func TryStopZoneVignetteAnimation() -> Void {
+    if IsDefined(this.m_zoneVignetteAnimProxy) && this.m_zoneVignetteAnimProxy.IsPlaying() {
+      this.m_zoneVignetteAnimProxy.Stop();
+    };
+  }
+
+  private final func UpdateInPublicOrRestricedZoneFlag() -> Void {
+    this.m_inPublicOrRestrictedZone = Equals(this.m_currentZoneType, ESecurityAreaType.RESTRICTED) || Equals(this.m_currentZoneType, ESecurityAreaType.DISABLED);
+  }
+
+  protected cb func OnPlayerEnterArea(controller: wref<MinimapSecurityAreaMappinController>) -> Bool;
+
+  protected cb func OnPlayerExitArea(controller: wref<MinimapSecurityAreaMappinController>) -> Bool;
+
+  public func CreateMappinUIProfile(mappin: wref<IMappin>, mappinVariant: gamedataMappinVariant, customData: ref<MappinControllerCustomData>) -> MappinUIProfile {
+    let questMappin: wref<QuestMappin>;
+    let roleData: ref<GameplayRoleMappinData>;
+    let defaultRuntimeProfile: TweakDBID = t"MinimapMappinUIProfile.Default";
+    if customData != null && (customData as MinimapQuestAreaInitData) != null {
+      return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_quest_area_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+    };
+    if mappin.IsExactlyA(n"gamemappinsPointOfInterestMappin") {
+      if Equals(mappinVariant, gamedataMappinVariant.Zzz09_CourierSandboxActivityVariant) {
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_courier_mappin.inkwidget", t"MappinUISpawnProfile.MediumRange", t"MinimapMappinUIProfile.Courier");
+      };
+      if Equals(mappinVariant, gamedataMappinVariant.Zzz12_WorldEncounterVariant) {
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_world_encounter_mappin.inkwidget", t"MappinUISpawnProfile.WorldEncounter", defaultRuntimeProfile);
+      };
+      return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", defaultRuntimeProfile);
+    };
+    roleData = mappin.GetScriptData() as GameplayRoleMappinData;
+    if roleData != null {
+      return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_device_mappin.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.GameplayRole");
+    };
+    switch mappinVariant {
+      case gamedataMappinVariant.FastTravelVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", t"MinimapMappinUIProfile.FastTravel");
+      case gamedataMappinVariant.Zzz17_NCARTVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", t"MinimapMappinUIProfile.FastTravel");
+      case gamedataMappinVariant.ServicePointDropPointVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", t"MinimapMappinUIProfile.DropPoint");
+      case gamedataMappinVariant.Zzz19_DelamainTaxiVariant:
+      case gamedataMappinVariant.Zzz03_MotorcycleVariant:
+      case gamedataMappinVariant.VehicleVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.Vehicle");
+      case gamedataMappinVariant.Zzz04_PreventionVehicleVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_prevention_vehicle.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.PreventionVehicle");
+      case gamedataMappinVariant.Zzz11_RoadBlockadeVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_road_blockade.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.PreventionVehicle");
+      case gamedataMappinVariant.CustomPositionVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+      case gamedataMappinVariant.Zzz20_DelamainTaxiDestinationVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_delamain_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+      case gamedataMappinVariant.Zzz16_RelicDeviceBasicVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", defaultRuntimeProfile);
+      case gamedataMappinVariant.ExclamationMarkVariant:
+        if mappin.IsQuestMappin() {
+          questMappin = mappin as QuestMappin;
+          if IsDefined(questMappin) && questMappin.IsUIAnimation() {
+            break;
+          };
+          if mappin.IsQuestEntityMappin() || mappin.IsQuestNPCMappin() {
+            return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_quest_mappin.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.Quest");
+          };
+        } else {
+          if customData != null && (customData as TrackedMappinControllerCustomData) != null {
+            return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+          };
+        };
+        break;
+      case gamedataMappinVariant.Zzz22_CityTourLandmark:
+      case gamedataMappinVariant.DefaultQuestVariant:
+        if mappin.IsQuestMappin() {
+          questMappin = mappin as QuestMappin;
+          if IsDefined(questMappin) && questMappin.IsUIAnimation() {
+            break;
+          };
+          if mappin.IsQuestEntityMappin() || mappin.IsQuestNPCMappin() {
+            return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_quest_mappin.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.Quest");
+          };
+        };
+        break;
+      case gamedataMappinVariant.HazardWarningVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_hazard_warning_mappin.inkwidget", t"MappinUISpawnProfile.ShortRange", defaultRuntimeProfile);
+      case gamedataMappinVariant.DynamicEventVariant:
+        return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_dynamic_event_mappin.inkwidget", t"MappinUISpawnProfile.MediumRange", defaultRuntimeProfile);
+      case gamedataMappinVariant.CPO_RemotePlayerVariant:
+        return MappinUIProfile.Create(r"multi\\gameplay\\gui\\widgets\\minimap\\minimap_remote_player_mappin.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.CPORemote");
+      case gamedataMappinVariant.CPO_PingGoHereVariant:
+        return MappinUIProfile.Create(r"multi\\gameplay\\gui\\widgets\\minimap\\minimap_pingsystem_mapping.inkwidget", t"MappinUISpawnProfile.Always", t"MinimapMappinUIProfile.CPORemote");
+      default:
+        if mappin.IsExactlyA(n"gamemappinsStealthMappin") {
+          return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_stealth_mappin.inkwidget", t"MappinUISpawnProfile.Stealth", t"MinimapMappinUIProfile.Stealth");
+        };
+        if mappin.IsExactlyA(n"gamemappinsStubMappin") {
+          return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_stub_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+        };
+        if customData != null && (customData as TrackedMappinControllerCustomData) != null {
+          return MappinUIProfile.Create(r"base\\gameplay\\gui\\widgets\\minimap\\minimap_poi_mappin.inkwidget", t"MappinUISpawnProfile.Always", defaultRuntimeProfile);
+        };
+    };
+    return MappinUIProfile.None();
+  }
+
+  private final func ZoneToState(zone: ESecurityAreaType) -> CName {
+    switch zone {
+      case ESecurityAreaType.SAFE:
+        return n"Safe";
+      case ESecurityAreaType.RESTRICTED:
+        return n"Default";
+      case ESecurityAreaType.DANGEROUS:
+        return n"Dangerous";
+    };
+    return n"Default";
+  }
+
+  private final func ZoneToTextKey(zone: ESecurityAreaType) -> CName {
+    switch zone {
+      case ESecurityAreaType.SAFE:
+        return n"Story-base-gameplay-gui-widgets-minimap-zones-Safe";
+      case ESecurityAreaType.RESTRICTED:
+        return n"Story-base-gameplay-gui-widgets-minimap-zones-Restricted";
+      case ESecurityAreaType.DANGEROUS:
+        return n"Story-base-gameplay-gui-widgets-minimap-zones-Hostile";
+    };
+    return n"Story-base-gameplay-gui-widgets-minimap-zones-Public";
+  }
+}

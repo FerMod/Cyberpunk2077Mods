@@ -1,0 +1,34 @@
+
+public class weaponSourceHasModWithTagPrereqCondition extends BaseHitPrereqCondition {
+
+  public let m_weaponRecordID: TweakDBID;
+
+  public let m_requierdModTag: CName;
+
+  public func SetData(recordID: TweakDBID) -> Void {
+    this.m_weaponRecordID = TweakDBInterface.GetForeignKey(recordID + t".weaponRecordID", t"NewPerks.Intelligence_Left_Milestone_2.preventInQueueAgain");
+    this.m_requierdModTag = TweakDBInterface.GetCName(recordID + t".requiredModTag", n"None");
+    super.SetData(recordID);
+  }
+
+  public func Evaluate(hitEvent: ref<gameHitEvent>) -> Bool {
+    return this.HasRequiredAttachmentMod(hitEvent.attackData.GetWeapon());
+  }
+
+  private final func HasRequiredAttachmentMod(weaponObject: ref<WeaponObject>) -> Bool {
+    let j: Int32;
+    let weaponParts: array<InnerItemData>;
+    if Equals(this.m_requierdModTag, n"None") {
+      return true;
+    };
+    weaponObject.GetItemData().GetItemParts(weaponParts);
+    j = 0;
+    while j < ArraySize(weaponParts) {
+      if TweakDBInterface.GetItemRecord(ItemID.GetTDBID(InnerItemData.GetItemID(weaponParts[j]))).TagsContains(this.m_requierdModTag) {
+        return true;
+      };
+      j += 1;
+    };
+    return false;
+  }
+}

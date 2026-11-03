@@ -1,0 +1,477 @@
+
+public class UIInventoryItemModsManager extends IScriptable {
+
+  private let m_emptySlots: [TweakDBID];
+
+  private let m_usedSlots: [TweakDBID];
+
+  private let m_mods: [ref<UIInventoryItemMod>];
+
+  private let m_attachments: [ref<UIInventoryItemModAttachment>];
+
+  private let m_dedicatedMod: ref<UIInventoryItemModAttachment>;
+
+  private let m_transactionSystem: ref<TransactionSystem>;
+
+  public final static func Make(inventoryItem: wref<UIInventoryItem>, transactionSystem: ref<TransactionSystem>) -> ref<UIInventoryItemModsManager> {
+    let instance: ref<UIInventoryItemModsManager> = new UIInventoryItemModsManager();
+    let owner: wref<GameObject> = inventoryItem.GetOwner();
+    let id: ItemID = inventoryItem.GetID();
+    if inventoryItem.IsRecipe() {
+      inventoryItem.GetItemData().GetEmptySlotsOnItem(instance.m_emptySlots);
+      inventoryItem.GetItemData().GetUsedSlotsOnItem(instance.m_usedSlots);
+    } else {
+      transactionSystem.GetEmptySlotsOnItem(owner, id, instance.m_emptySlots);
+      transactionSystem.GetUsedSlotsOnItem(owner, id, instance.m_usedSlots);
+    };
+    if !inventoryItem.IsCyberdeck() {
+      instance.FetchModsDataPackages(inventoryItem);
+    };
+    if inventoryItem.IsCyberdeck() {
+      instance.FilterProgramSlots();
+    };
+    if Equals(inventoryItem.GetItemType(), gamedataItemType.Cyb_NanoWires) {
+      instance.FilterNanoWireSlot(inventoryItem);
+    };
+    if NotEquals(inventoryItem.GetItemType(), gamedataItemType.Prt_Program) {
+      instance.GetAttachements(inventoryItem.GetOwner(), inventoryItem);
+    };
+    return instance;
+  }
+
+  public final func GetEmptySlotsSize() -> Int32 {
+    return ArraySize(this.m_emptySlots);
+  }
+
+  public final func GetUsedSlotsSize() -> Int32 {
+    return ArraySize(this.m_usedSlots);
+  }
+
+  public final func GetAllSlotsSize() -> Int32 {
+    return ArraySize(this.m_emptySlots) + ArraySize(this.m_usedSlots);
+  }
+
+  public final func GetModsSize() -> Int32 {
+    return ArraySize(this.m_mods);
+  }
+
+  public final func GetAttachmentsSize() -> Int32 {
+    return ArraySize(this.m_attachments);
+  }
+
+  public final func GetEmptySlot(index: Int32) -> TweakDBID {
+    return this.m_emptySlots[index];
+  }
+
+  public final func GetUsedSlot(index: Int32) -> TweakDBID {
+    return this.m_usedSlots[index];
+  }
+
+  public final func GetAttachment(index: Int32) -> ref<UIInventoryItemModAttachment> {
+    return this.m_attachments[index];
+  }
+
+  public final func GetMod(index: Int32) -> ref<UIInventoryItemMod> {
+    return this.m_mods[index];
+  }
+
+  public final func GetDedicatedMod() -> ref<UIInventoryItemModAttachment> {
+    return this.m_dedicatedMod;
+  }
+
+  public final func EmptySlotsContains(slotName: TweakDBID) -> Bool {
+    return ArrayContains(this.m_emptySlots, slotName);
+  }
+
+  public final func UsedSlotsContains(slotName: TweakDBID) -> Bool {
+    return ArrayContains(this.m_usedSlots, slotName);
+  }
+
+  private final func FilterProgramSlots() -> Void {
+    let i: Int32 = ArraySize(this.m_usedSlots) - 1;
+    while i >= 0 {
+      if !InventoryDataManagerV2.IsProgramSlot(this.m_usedSlots[i]) {
+        ArrayRemove(this.m_usedSlots, this.m_usedSlots[i]);
+      };
+      i -= 1;
+    };
+    i = ArraySize(this.m_emptySlots) - 1;
+    while i >= 0 {
+      if !InventoryDataManagerV2.IsProgramSlot(this.m_emptySlots[i]) {
+        ArrayRemove(this.m_emptySlots, this.m_emptySlots[i]);
+      };
+      i -= 1;
+    };
+  }
+
+  private final func FilterNanoWireSlot(inventoryItem: wref<UIInventoryItem>) -> Void {
+    let i: Int32;
+    let player: wref<GameObject> = GameInstance.GetPlayerSystem(inventoryItem.GetOwner().GetGame()).GetLocalPlayerMainGameObject();
+    let isSlotUnlocked: Bool = Cast<Bool>(PlayerDevelopmentSystem.GetData(player).IsNewPerkBought(gamedataNewPerkType.Espionage_Central_Milestone_1));
+    if !isSlotUnlocked {
+      i = ArraySize(this.m_usedSlots) - 1;
+      while i >= 0 {
+        if this.m_usedSlots[i] == t"AttachmentSlots.NanoWiresQuickhackSlot" {
+          ArrayRemove(this.m_usedSlots, this.m_usedSlots[i]);
+        };
+        i -= 1;
+      };
+      i = ArraySize(this.m_emptySlots) - 1;
+      while i >= 0 {
+        if this.m_emptySlots[i] == t"AttachmentSlots.NanoWiresQuickhackSlot" {
+          ArrayRemove(this.m_emptySlots, this.m_emptySlots[i]);
+        };
+        i -= 1;
+      };
+    };
+  }
+
+  private final func FetchModsDataPackages(inventoryItem: wref<UIInventoryItem>) -> Void {
+    let attunementStatRecord: ref<Stat_Record>;
+    let dataPackages: array<wref<GameplayLogicPackage_Record>>;
+    let dataPackagesToDisplay: array<wref<GameplayLogicPackageUIData_Record>>;
+    let i: Int32;
+    let innerItemData: InnerItemData;
+    let itemRecord: wref<Item_Record>;
+    let limit: Int32;
+    let recordData: ref<UIInventoryItemModDataPackage>;
+    let uiDataPackage: wref<GameplayLogicPackageUIData_Record>;
+    let isCyberware: Bool = inventoryItem.IsCyberware() || inventoryItem.IsCyberwareWeapon();
+    if isCyberware {
+      attunementStatRecord = TweakDBInterface.GetStatRecord(t"BaseStats.AttunementHelper");
+    };
+    itemRecord = inventoryItem.GetItemRecord();
+    itemRecord.OnEquip(dataPackages);
+    i = 0;
+    limit = ArraySize(dataPackages);
+    while i < limit {
+      uiDataPackage = dataPackages[i].UIData();
+      if IsStringValid(uiDataPackage.LocalizedDescription()) {
+        ArrayPush(dataPackagesToDisplay, uiDataPackage);
+      };
+      i += 1;
+    };
+    ArrayClear(dataPackages);
+    itemRecord.OnAttach(dataPackages);
+    i = 0;
+    limit = ArraySize(dataPackages);
+    while i < limit {
+      uiDataPackage = dataPackages[i].UIData();
+      if IsStringValid(uiDataPackage.LocalizedDescription()) {
+        ArrayPush(dataPackagesToDisplay, uiDataPackage);
+      };
+      i += 1;
+    };
+    i = 0;
+    limit = ArraySize(dataPackagesToDisplay);
+    while i < limit {
+      recordData = new UIInventoryItemModDataPackage();
+      recordData.Description = dataPackagesToDisplay[i].LocalizedDescription();
+      if isCyberware && dataPackagesToDisplay[i].StatsContains(attunementStatRecord) {
+        recordData.AttunementData = new UIInventoryItemModAttunementData();
+        recordData.AttunementData.Name = dataPackagesToDisplay[i].LocalizedName();
+        recordData.AttunementData.Icon = dataPackagesToDisplay[i].IconPath();
+      };
+      if IsDefined(inventoryItem.Internal_GetParentItem()) {
+        innerItemData = new InnerItemData();
+        inventoryItem.Internal_GetParentItem().GetItemPart(innerItemData, inventoryItem.Internal_GetSlotID());
+        recordData.DataPackage = UILocalizationDataPackage.FromLogicUIDataPackage(dataPackagesToDisplay[i], innerItemData);
+      } else {
+        recordData.DataPackage = UILocalizationDataPackage.FromLogicUIDataPackage(dataPackagesToDisplay[i], inventoryItem.GetItemData());
+      };
+      ArrayPush(this.m_mods, recordData);
+      i += 1;
+    };
+  }
+
+  private final func GetAttachements(owner: wref<GameObject>, inventoryItem: wref<UIInventoryItem>) -> Void {
+    let attachmentData: ref<UIInventoryItemModAttachment>;
+    let attachmentSlotRecord: wref<AttachmentSlot_Record>;
+    let attachmentType: InventoryItemAttachmentType;
+    let i: Int32;
+    let inventorySlots: array<TweakDBID>;
+    let itemId: ItemID;
+    let limit: Int32;
+    let partData: InnerItemData;
+    let slotsData: array<AttachmentSlotCacheData>;
+    let staticData: wref<Item_Record>;
+    let itemData: wref<gameItemData> = inventoryItem.GetItemData();
+    let usedSlots: array<TweakDBID> = this.m_usedSlots;
+    let emptySlots: array<TweakDBID> = this.m_emptySlots;
+    let emptySlotsSize: Int32 = ArraySize(emptySlots);
+    let usedSlotsSize: Int32 = ArraySize(usedSlots);
+    if emptySlotsSize < 1 && usedSlotsSize < 1 {
+      return;
+    };
+    itemId = inventoryItem.GetID();
+    inventorySlots = UIInventoryItemModsStaticData.GetAttachmentSlots(inventoryItem.GetItemType());
+    i = 0;
+    limit = ArraySize(inventorySlots);
+    while i < limit {
+      if emptySlotsSize > 0 && ArrayContains(emptySlots, inventorySlots[i]) {
+        attachmentSlotRecord = TweakDBInterface.GetAttachmentSlotRecord(inventorySlots[i]);
+        ArrayPush(slotsData, new AttachmentSlotCacheData(true, attachmentSlotRecord, RPGManager.ShouldSlotBeAvailable(owner, itemId, attachmentSlotRecord), inventorySlots[i]));
+        emptySlotsSize -= 1;
+        ArrayRemove(emptySlots, inventorySlots[i]);
+      };
+      if usedSlotsSize > 0 && ArrayContains(usedSlots, inventorySlots[i]) {
+        attachmentSlotRecord = TweakDBInterface.GetAttachmentSlotRecord(inventorySlots[i]);
+        ArrayPush(slotsData, new AttachmentSlotCacheData(false, attachmentSlotRecord, RPGManager.ShouldSlotBeAvailable(owner, itemId, attachmentSlotRecord), inventorySlots[i]));
+        usedSlotsSize -= 1;
+        ArrayRemove(usedSlots, inventorySlots[i]);
+      };
+      i += 1;
+    };
+    i = 0;
+    limit = ArraySize(slotsData);
+    while i < limit {
+      staticData = null;
+      if IsDefined(slotsData[i].attachmentSlotRecord) && slotsData[i].shouldBeAvailable {
+        if !slotsData[i].empty {
+          itemData.GetItemPart(partData, slotsData[i].slotId);
+          staticData = InnerItemData.GetStaticData(partData);
+          if staticData.TagsContains(n"DummyPart") {
+          } else {
+            attachmentType = UIInventoryItemModsStaticData.IsAttachmentDedicated(slotsData[i].slotId) ? InventoryItemAttachmentType.Dedicated : InventoryItemAttachmentType.Generic;
+            if Equals(attachmentType, InventoryItemAttachmentType.Dedicated) && staticData == null {
+            } else {
+              attachmentData = new UIInventoryItemModAttachment();
+              attachmentData.IsEmpty = slotsData[i].empty;
+              if staticData != null {
+                if InnerItemData.HasStatData(partData, gamedataStatType.Quality) {
+                  attachmentData.Quality = RPGManager.GetInnerItemDataQuality(partData);
+                  if staticData.TagsContains(n"ChimeraMod") {
+                    attachmentData.Quality = gamedataQuality.Iconic;
+                  };
+                } else {
+                  attachmentData.Quality = gamedataQuality.Invalid;
+                };
+                this.FillSpecialAbilities(staticData, attachmentData.Abilities, itemData, partData);
+                attachmentData.AbilitiesSize = ArraySize(attachmentData.Abilities);
+                attachmentData.SlotName = LocKeyToString(staticData.DisplayName());
+              } else {
+                attachmentData.SlotName = GetLocalizedText(UIItemsHelper.GetEmptySlotName(slotsData[i].slotId));
+                attachmentData.Quality = gamedataQuality.Invalid;
+              };
+              if Equals(attachmentType, InventoryItemAttachmentType.Dedicated) {
+                this.m_dedicatedMod = attachmentData;
+              } else {
+                ArrayPush(this.m_mods, attachmentData);
+                ArrayPush(this.m_attachments, attachmentData);
+              };
+            };
+          };
+        };
+        attachmentType = UIInventoryItemModsStaticData.IsAttachmentDedicated(slotsData[i].slotId) ? InventoryItemAttachmentType.Dedicated : InventoryItemAttachmentType.Generic;
+        if Equals(attachmentType, InventoryItemAttachmentType.Dedicated) && staticData == null {
+        } else {
+          attachmentData = new UIInventoryItemModAttachment();
+          attachmentData.IsEmpty = slotsData[i].empty;
+          if staticData != null {
+            if InnerItemData.HasStatData(partData, gamedataStatType.Quality) {
+              attachmentData.Quality = RPGManager.GetInnerItemDataQuality(partData);
+              if staticData.TagsContains(n"ChimeraMod") {
+                attachmentData.Quality = gamedataQuality.Iconic;
+              };
+            } else {
+              attachmentData.Quality = gamedataQuality.Invalid;
+            };
+            this.FillSpecialAbilities(staticData, attachmentData.Abilities, itemData, partData);
+            attachmentData.AbilitiesSize = ArraySize(attachmentData.Abilities);
+            attachmentData.SlotName = LocKeyToString(staticData.DisplayName());
+          } else {
+            attachmentData.SlotName = GetLocalizedText(UIItemsHelper.GetEmptySlotName(slotsData[i].slotId));
+            attachmentData.Quality = gamedataQuality.Invalid;
+          };
+          if Equals(attachmentType, InventoryItemAttachmentType.Dedicated) {
+            this.m_dedicatedMod = attachmentData;
+          } else {
+            ArrayPush(this.m_mods, attachmentData);
+            ArrayPush(this.m_attachments, attachmentData);
+          };
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final const func FillSpecialAbilities(itemRecord: ref<Item_Record>, abilities: script_ref<[InventoryItemAbility]>, opt itemData: wref<gameItemData>, opt partItemData: InnerItemData) -> Void {
+    let GLPAbilities: array<wref<GameplayLogicPackage_Record>>;
+    let ability: InventoryItemAbility;
+    let i: Int32;
+    let limit: Int32;
+    let uiData: wref<GameplayLogicPackageUIData_Record>;
+    itemRecord.OnAttach(GLPAbilities);
+    i = 0;
+    limit = ArraySize(GLPAbilities);
+    while i < limit {
+      if IsDefined(GLPAbilities[i]) {
+        uiData = GLPAbilities[i].UIData();
+        if IsDefined(uiData) {
+          ability = new InventoryItemAbility(uiData.IconPath(), uiData.LocalizedName(), uiData.LocalizedDescription(), UILocalizationDataPackage.FromLogicUIDataPackage(uiData, partItemData));
+          ArrayPush(Deref(abilities), ability);
+        };
+      };
+      i += 1;
+    };
+    ArrayClear(GLPAbilities);
+    itemRecord.OnEquip(GLPAbilities);
+    i = 0;
+    limit = ArraySize(GLPAbilities);
+    while i < limit {
+      if IsDefined(GLPAbilities[i]) {
+        uiData = GLPAbilities[i].UIData();
+        if IsDefined(uiData) {
+          ability = new InventoryItemAbility(uiData.IconPath(), uiData.LocalizedName(), uiData.LocalizedDescription(), UILocalizationDataPackage.FromLogicUIDataPackage(uiData));
+          ArrayPush(Deref(abilities), ability);
+        };
+      };
+      i += 1;
+    };
+  }
+}
+
+public abstract final class UIInventoryItemModsStaticData extends IScriptable {
+
+  public final static func GetAttachmentSlots(itemType: gamedataItemType) -> [TweakDBID] {
+    let slots: array<TweakDBID>;
+    switch itemType {
+      case gamedataItemType.Clo_Head:
+        ArrayPush(slots, t"AttachmentSlots.HeadFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.HeadFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.HeadFabricEnhancer3");
+        break;
+      case gamedataItemType.Clo_Face:
+        ArrayPush(slots, t"AttachmentSlots.FaceFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.FaceFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.FaceFabricEnhancer3");
+        break;
+      case gamedataItemType.Clo_OuterChest:
+        ArrayPush(slots, t"AttachmentSlots.OuterChestFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.OuterChestFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.OuterChestFabricEnhancer3");
+        ArrayPush(slots, t"AttachmentSlots.OuterChestFabricEnhancer4");
+        break;
+      case gamedataItemType.Clo_InnerChest:
+        ArrayPush(slots, t"AttachmentSlots.InnerChestFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.InnerChestFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.InnerChestFabricEnhancer3");
+        ArrayPush(slots, t"AttachmentSlots.InnerChestFabricEnhancer4");
+        break;
+      case gamedataItemType.Clo_Legs:
+        ArrayPush(slots, t"AttachmentSlots.LegsFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.LegsFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.LegsFabricEnhancer3");
+        break;
+      case gamedataItemType.Clo_Feet:
+        ArrayPush(slots, t"AttachmentSlots.FootFabricEnhancer1");
+        ArrayPush(slots, t"AttachmentSlots.FootFabricEnhancer2");
+        ArrayPush(slots, t"AttachmentSlots.FootFabricEnhancer3");
+        break;
+      case gamedataItemType.Wea_AssaultRifle:
+      case gamedataItemType.Wea_Handgun:
+      case gamedataItemType.Wea_SubmachineGun:
+      case gamedataItemType.Wea_SniperRifle:
+      case gamedataItemType.Wea_ShotgunDual:
+      case gamedataItemType.Wea_Shotgun:
+      case gamedataItemType.Wea_Rifle:
+      case gamedataItemType.Wea_Revolver:
+      case gamedataItemType.Wea_PrecisionRifle:
+      case gamedataItemType.Wea_LightMachineGun:
+      case gamedataItemType.Wea_HeavyMachineGun:
+        ArrayPush(slots, t"AttachmentSlots.Scope");
+        ArrayPush(slots, t"AttachmentSlots.PowerModule");
+        ArrayPush(slots, t"AttachmentSlots.Power_AR_SMG_LMG_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Power_AR_SMG_LMG_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Power_AR_SMG_LMG_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Power_AR_SMG_LMG_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Tech_AR_SMG_LMG_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Tech_AR_SMG_LMG_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Smart_AR_SMG_LMG_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Smart_AR_SMG_LMG_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Power_Handgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Power_Handgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Power_Handgun_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Power_Handgun_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Handgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Handgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Handgun_WeaponMod3");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Handgun_WeaponMod4");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Handgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Handgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Handgun_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Handgun_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Power_Precision_Sniper_Rifle_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Power_Precision_Sniper_Rifle_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Precision_Sniper_Rifle_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Precision_Sniper_Rifle_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Precision_Sniper_Rifle_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Precision_Sniper_Rifle_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Precision_Sniper_Rifle_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Precision_Sniper_Rifle_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Precision_Sniper_Rifle_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Precision_Sniper_Rifle_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Power_Shotgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Power_Shotgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Power_Shotgun_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Power_Shotgun_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Shotgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Tech_Shotgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Shotgun_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Smart_Shotgun_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.IconicWeaponModLegendary");
+        break;
+      case gamedataItemType.Wea_Machete:
+      case gamedataItemType.Wea_Chainsword:
+      case gamedataItemType.Wea_Axe:
+      case gamedataItemType.Wea_Knife:
+      case gamedataItemType.Wea_Sword:
+      case gamedataItemType.Wea_Katana:
+      case gamedataItemType.Wea_Melee:
+      case gamedataItemType.Wea_LongBlade:
+      case gamedataItemType.Wea_OneHandedClub:
+      case gamedataItemType.Wea_ShortBlade:
+      case gamedataItemType.Wea_Hammer:
+      case gamedataItemType.Wea_TwoHandedClub:
+      case gamedataItemType.Wea_Fists:
+        ArrayPush(slots, t"AttachmentSlots.Blade_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Blade_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Blade_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Blade_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Blunt_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Blunt_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Blunt_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Blunt_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Throwable_WeaponMod1");
+        ArrayPush(slots, t"AttachmentSlots.Throwable_WeaponMod2");
+        ArrayPush(slots, t"AttachmentSlots.Throwable_WeaponMod1_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.Throwable_WeaponMod2_Collectible");
+        ArrayPush(slots, t"AttachmentSlots.IconicMeleeWeaponMod1");
+        break;
+      default:
+        ArrayPush(slots, t"AttachmentSlots.KiroshiOpticsSlot1");
+        ArrayPush(slots, t"AttachmentSlots.KiroshiOpticsSlot2");
+        ArrayPush(slots, t"AttachmentSlots.KiroshiOpticsSlot3");
+        ArrayPush(slots, t"AttachmentSlots.SandevistanSlot1");
+        ArrayPush(slots, t"AttachmentSlots.SandevistanSlot2");
+        ArrayPush(slots, t"AttachmentSlots.SandevistanSlot3");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram1");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram2");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram3");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram4");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram5");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram6");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram7");
+        ArrayPush(slots, t"AttachmentSlots.CyberdeckProgram8");
+        ArrayPush(slots, t"AttachmentSlots.BerserkSlot1");
+        ArrayPush(slots, t"AttachmentSlots.BerserkSlot2");
+        ArrayPush(slots, t"AttachmentSlots.BerserkSlot3");
+        ArrayPush(slots, t"AttachmentSlots.NanoWiresQuickhackSlot");
+    };
+    return slots;
+  }
+
+  public final static func IsAttachmentDedicated(slotID: TweakDBID) -> Bool {
+    return slotID == t"AttachmentSlots.IconicMeleeWeaponMod1" || slotID == t"AttachmentSlots.IconicWeaponModLegendary";
+  }
+}

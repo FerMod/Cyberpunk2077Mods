@@ -1,0 +1,91 @@
+
+public class ClothingSetIconsPopup extends inkGameController {
+
+  private edit let m_iconGrid: inkWidgetRef;
+
+  private edit let m_buttonHintsRoot: inkWidgetRef;
+
+  private let m_data: ref<ClothingSetIconsPopupData>;
+
+  private edit let m_libraryPath: inkWidgetLibraryReference;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnHandlePressInput");
+    this.m_data = this.GetRootWidget().GetUserData(n"ClothingSetIconsPopupData") as ClothingSetIconsPopupData;
+    this.SetButtonHints();
+    this.FillIconGrid(this.m_data.IconIDs);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnHandlePressInput");
+  }
+
+  private final func FillIconGrid(const iconIDs: script_ref<[TweakDBID]>) -> Void {
+    let iconController: wref<ClothingSetIconButton>;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(iconIDs)) {
+      iconController = this.SpawnFromLocal(inkWidgetRef.Get(this.m_iconGrid), n"iconButton").GetController() as ClothingSetIconButton;
+      iconController.SetIcon(Deref(iconIDs)[i], Deref(iconIDs)[i] == this.m_data.IconID);
+      i += 1;
+    };
+  }
+
+  protected cb func OnSetIconClick(e: ref<SetIconSelectEvent>) -> Bool {
+    this.Close(true, e.IconID);
+  }
+
+  private final func SetButtonHints() -> Void {
+    this.AddButtonHints(n"UI_Cancel", "UI-ResourceExports-Cancel");
+  }
+
+  private final func AddButtonHints(actionName: CName, const label: script_ref<String>) -> Void {
+    let buttonHint: ref<LabelInputDisplayController> = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsRoot), inkWidgetLibraryResource.GetPath(this.m_libraryPath.widgetLibrary), this.m_libraryPath.widgetItem).GetController() as LabelInputDisplayController;
+    buttonHint.SetInputActionLabel(actionName, label);
+  }
+
+  protected cb func OnHandlePressInput(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"cancel") {
+      this.Close(false);
+    };
+  }
+
+  private final func Close(success: Bool, opt iconID: TweakDBID) -> Void {
+    let closeData: ref<ClothingSetIconsPopupData> = new ClothingSetIconsPopupData();
+    closeData.IconID = iconID;
+    closeData.IconChanged = success;
+    this.m_data.token.TriggerCallback(closeData);
+  }
+}
+
+public class ClothingSetIconButton extends BaseButtonView {
+
+  private edit let m_setIcon: inkImageRef;
+
+  private edit let m_currentIconFrame: inkWidgetRef;
+
+  private let m_iconID: TweakDBID;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    this.RegisterToCallback(n"OnRelease", this, n"OnSetIconClick");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnSetIconClick");
+  }
+
+  protected cb func OnSetIconClick(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<SetIconSelectEvent>;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      evt = new SetIconSelectEvent();
+      evt.IconID = this.m_iconID;
+      this.QueueEvent(evt);
+    };
+  }
+
+  public final func SetIcon(iconID: TweakDBID, choosen: Bool) -> Void {
+    InkImageUtils.RequestSetImage(this, this.m_setIcon, iconID);
+    this.m_iconID = iconID;
+    inkWidgetRef.SetVisible(this.m_currentIconFrame, choosen);
+  }
+}

@@ -1,0 +1,846 @@
+
+public class BaseInnerBunkerComputerGameController extends gameuiBaseBunkerComputerGameController {
+
+  protected final func GetGame() -> GameInstance {
+    let gameInstance: GameInstance;
+    let gameObject: ref<GameObject> = this.GetOwnerEntity() as GameObject;
+    if IsDefined(gameObject) {
+      gameInstance = gameObject.GetGame();
+    };
+    return gameInstance;
+  }
+}
+
+public class InnerBunkerCoreScreenGameController extends BaseInnerBunkerComputerGameController {
+
+  public edit let m_systems: [inkWidgetRef; 6];
+
+  public edit let m_statuses: [InnerBunkerCoreStatus; 6];
+
+  public edit let m_shutdownButton: inkWidgetRef;
+
+  public edit let m_processingPanel: inkWidgetRef;
+
+  public edit let m_failurePopup: inkWidgetRef;
+
+  public edit let m_successPopup: inkWidgetRef;
+
+  @default(InnerBunkerCoreScreenGameController, 2.5f)
+  public edit let m_systemCheckTimeOffline: Float;
+
+  @default(InnerBunkerCoreScreenGameController, 3.5f)
+  public edit let m_systemCheckTimeUnresponsive: Float;
+
+  @default(InnerBunkerCoreScreenGameController, 3.5f)
+  public edit let m_showResultTime: Float;
+
+  @default(InnerBunkerCoreScreenGameController, systems_check_loop)
+  public edit let m_systemsCheckAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, state_nominal)
+  public edit let m_coreStatusNormalAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, state_malfunction)
+  public edit let m_coreStatusMalfunctionAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, state_shutdown)
+  public edit let m_coreStatusShutdownAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, state_shuting_down)
+  public edit let m_coreStatusShutingDownAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, popup_01_fail)
+  public edit let m_failurePopupAnimName: CName;
+
+  @default(InnerBunkerCoreScreenGameController, popup_02_success)
+  public edit let m_successPopupAnimName: CName;
+
+  public let m_stage: InnerBunkerCoreStage;
+
+  @default(InnerBunkerCoreScreenGameController, 0)
+  public let m_sysIndex: Int32;
+
+  public let m_systemsCheckAnimProxy: ref<inkAnimProxy>;
+
+  public let m_resultPopupAnimProxy: ref<inkAnimProxy>;
+
+  public let m_coreStatusAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_shutdownButton, n"OnRelease", this, n"OnShutdownButtonClicked");
+    this.InitFromFacts();
+    this.ListenToFact(n"q305_all_subsystems_down");
+    this.ListenToFact(n"q305_core_shutdown_full_set");
+    this.ListenToFact(n"q305_start_final_shutdown_sequence");
+  }
+
+  protected cb func OnFactChanged(fact: CName, value: Int32) -> Bool {
+    this.InitFromFacts();
+  }
+
+  public final func InitFromFacts() -> Void {
+    let q305_all_subsystems_down: Int32 = GetFact(this.GetGame(), n"q305_all_subsystems_down");
+    let q305_core_shutdown_full_set: Int32 = GetFact(this.GetGame(), n"q305_core_shutdown_full_set");
+    let q305_start_final_shutdown_sequence: Int32 = GetFact(this.GetGame(), n"q305_start_final_shutdown_sequence");
+    let count: Int32 = ArraySize(this.m_systems);
+    let i: Int32 = 0;
+    while i < count {
+      inkWidgetRef.SetState(this.m_systems[i], n"Default");
+      i = i + 1;
+    };
+    this.ResetTimer(n"system_check");
+    this.ResetTimer(n"show_result");
+    this.m_sysIndex = 0;
+    if IsDefined(this.m_systemsCheckAnimProxy) {
+      this.m_systemsCheckAnimProxy.Stop();
+      this.m_systemsCheckAnimProxy = null;
+    };
+    if IsDefined(this.m_resultPopupAnimProxy) {
+      this.m_resultPopupAnimProxy.GotoStartAndStop();
+      this.m_resultPopupAnimProxy = null;
+    };
+    if IsDefined(this.m_coreStatusAnimProxy) {
+      this.m_coreStatusAnimProxy.Stop();
+      this.m_coreStatusAnimProxy = null;
+    };
+    if q305_all_subsystems_down > 0 {
+      this.m_stage = InnerBunkerCoreStage.Shutdown;
+      this.SetSystemsStatus(InnerBunkerCoreStatus.Offline);
+      if q305_all_subsystems_down > 1 {
+        this.UpdateVisibility(false);
+        this.SetCoreStatus(this.m_coreStatusShutdownAnimName);
+        this.AddTimer(n"show_result", this.m_showResultTime);
+      } else {
+        this.UpdateVisibility(false);
+        if q305_start_final_shutdown_sequence > 0 {
+          this.Shutdown();
+        };
+      };
+    } else {
+      if q305_core_shutdown_full_set > 0 {
+        this.m_stage = InnerBunkerCoreStage.Malfunction;
+        this.UpdateVisibility(false);
+        this.SetSystemsStatus();
+        this.SetCoreStatus(this.m_coreStatusMalfunctionAnimName);
+        this.AddTimer(n"show_result", this.m_showResultTime);
+      } else {
+        this.m_stage = InnerBunkerCoreStage.Normal;
+        this.UpdateVisibility(true);
+        this.SetSystemsStatus(InnerBunkerCoreStatus.Online);
+        this.SetCoreStatus(this.m_coreStatusNormalAnimName);
+      };
+    };
+  }
+
+  protected cb func OnShutdownButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.Shutdown();
+    };
+  }
+
+  public final func Shutdown() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_systemsCheckAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_systemsCheckAnimProxy = this.PlayLibraryAnimation(this.m_systemsCheckAnimName, playbackOptions);
+    };
+    this.SetCoreStatus(this.m_coreStatusShutingDownAnimName);
+    this.m_sysIndex = 0;
+    this.AddTimer(n"system_check", Equals(this.m_statuses[this.m_sysIndex], InnerBunkerCoreStatus.Unresponsive) ? this.m_systemCheckTimeUnresponsive : this.m_systemCheckTimeOffline);
+  }
+
+  protected cb func OnTimer(timerName: CName) -> Bool {
+    let checkState: CName;
+    let count: Int32;
+    let defaultState: CName;
+    let i: Int32;
+    if Equals(timerName, n"system_check") {
+      this.ResetTimer(n"system_check");
+      checkState = n"Check";
+      defaultState = n"Default";
+      count = ArraySize(this.m_systems);
+      i = 0;
+      while i < count {
+        inkWidgetRef.SetState(this.m_systems[i], this.m_sysIndex == i ? checkState : defaultState);
+        i = i + 1;
+      };
+      if this.m_sysIndex < count {
+        SetFactValue(this.GetGame(), n"q305_shutdown_error", 0);
+        SetFactValue(this.GetGame(), n"q305_shutdown_accepted", 0);
+        if Equals(this.m_stage, InnerBunkerCoreStage.Normal) {
+          this.SetStatus(inkWidgetRef.GetController(this.m_systems[this.m_sysIndex]), this.m_statuses[this.m_sysIndex]);
+          if Equals(this.m_statuses[this.m_sysIndex], InnerBunkerCoreStatus.Unresponsive) {
+            SetFactValue(this.GetGame(), n"q305_shutdown_error", 1);
+          } else {
+            if Equals(this.m_statuses[this.m_sysIndex], InnerBunkerCoreStatus.Offline) {
+              SetFactValue(this.GetGame(), n"q305_shutdown_accepted", 1);
+            };
+          };
+        } else {
+          if Equals(this.m_stage, InnerBunkerCoreStage.Shutdown) {
+            SetFactValue(this.GetGame(), n"q305_shutdown_accepted", 1);
+          };
+        };
+        this.m_sysIndex = this.m_sysIndex + 1;
+        if this.m_sysIndex < count {
+          this.AddTimer(n"system_check", Equals(this.m_statuses[this.m_sysIndex], InnerBunkerCoreStatus.Unresponsive) ? this.m_systemCheckTimeUnresponsive : this.m_systemCheckTimeOffline);
+        } else {
+          this.AddTimer(n"system_check", this.m_systemCheckTimeUnresponsive);
+        };
+      } else {
+        if IsDefined(this.m_systemsCheckAnimProxy) {
+          this.m_systemsCheckAnimProxy.Stop();
+          this.m_systemsCheckAnimProxy = null;
+        };
+        this.UpdateFacts();
+      };
+    } else {
+      if Equals(timerName, n"show_result") {
+        this.ResetTimer(n"show_result");
+        this.UpdateFacts();
+        this.ShowResult();
+      };
+    };
+  }
+
+  public final func UpdateVisibility(isButtonVisible: Bool) -> Void {
+    inkWidgetRef.SetOpacity(this.m_shutdownButton, isButtonVisible ? 1.00 : 0.00);
+    inkWidgetRef.SetOpacity(this.m_processingPanel, 0.00);
+    inkWidgetRef.SetOpacity(this.m_failurePopup, 0.00);
+    inkWidgetRef.SetOpacity(this.m_successPopup, 0.00);
+  }
+
+  public final func UpdateFacts() -> Void {
+    let q305_all_subsystems_down: Int32 = GetFact(this.GetGame(), n"q305_all_subsystems_down");
+    if Equals(this.m_stage, InnerBunkerCoreStage.Normal) {
+      SetFactValue(this.GetGame(), n"q305_core_shutdown_full_set", 1);
+    } else {
+      if Equals(this.m_stage, InnerBunkerCoreStage.Shutdown) {
+        if q305_all_subsystems_down > 1 {
+          SetFactValue(this.GetGame(), n"q305_shutdown_finished", 1);
+        } else {
+          SetFactValue(this.GetGame(), n"q305_all_subsystems_down", 2);
+        };
+      };
+    };
+  }
+
+  public final func ShowResult() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if Equals(this.m_stage, InnerBunkerCoreStage.Malfunction) {
+      if NotEquals(this.m_failurePopupAnimName, n"None") {
+        this.m_resultPopupAnimProxy = this.PlayLibraryAnimation(this.m_failurePopupAnimName, playbackOptions);
+      };
+    } else {
+      if Equals(this.m_stage, InnerBunkerCoreStage.Shutdown) {
+        if NotEquals(this.m_successPopupAnimName, n"None") {
+          this.m_resultPopupAnimProxy = this.PlayLibraryAnimation(this.m_successPopupAnimName, playbackOptions);
+        };
+      };
+    };
+  }
+
+  public final func SetCoreStatus(coreStatusAnimName: CName) -> Void {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(this.m_coreStatusAnimProxy) {
+      this.m_coreStatusAnimProxy.Stop();
+      this.m_coreStatusAnimProxy = null;
+    };
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.m_coreStatusAnimProxy = this.PlayLibraryAnimation(coreStatusAnimName, playbackOptions);
+  }
+
+  public final func SetSystemsStatus() -> Void {
+    let count: Int32 = ArraySize(this.m_systems);
+    let i: Int32 = 0;
+    while i < count {
+      this.SetStatus(inkWidgetRef.GetController(this.m_systems[i]), this.m_statuses[i]);
+      i = i + 1;
+    };
+  }
+
+  public final func SetSystemsStatus(status: InnerBunkerCoreStatus) -> Void {
+    let count: Int32 = ArraySize(this.m_systems);
+    let i: Int32 = 0;
+    while i < count {
+      this.SetStatus(inkWidgetRef.GetController(this.m_systems[i]), status);
+      i = i + 1;
+    };
+  }
+
+  public final func SetStatus(controller: wref<inkLogicController>, status: InnerBunkerCoreStatus) -> Void {
+    let statusController: ref<InnerBunkerSystemStatusLogicController> = controller as InnerBunkerSystemStatusLogicController;
+    if IsDefined(statusController) {
+      statusController.SetStatus(status);
+    };
+  }
+}
+
+public class InnerBunkerSystemStatusLogicController extends inkLogicController {
+
+  public edit let m_onlineRoot: inkWidgetRef;
+
+  public edit let m_offlineRoot: inkWidgetRef;
+
+  public edit let m_onlineIco: inkWidgetRef;
+
+  public edit let m_offlineIco: inkWidgetRef;
+
+  public edit let m_sysIndicator: inkWidgetRef;
+
+  public edit let m_stateAnimName: CName;
+
+  public edit const let m_widgetsToColor: [inkWidgetRef];
+
+  public edit const let m_textStatuses: [inkTextRef];
+
+  protected cb func OnInitialize() -> Bool {
+    let playbackOptions: inkAnimOptions;
+    let targets: ref<inkWidgetsSet>;
+    this.GetRootWidget().SetVisible(false);
+    if NotEquals(this.m_stateAnimName, n"None") {
+      targets = new inkWidgetsSet();
+      if inkWidgetRef.IsValid(this.m_onlineIco) {
+        targets.Select(inkWidgetRef.Get(this.m_onlineIco));
+      };
+      if inkWidgetRef.IsValid(this.m_sysIndicator) {
+        targets.Select(inkWidgetRef.Get(this.m_sysIndicator));
+      };
+      if inkWidgetRef.IsValid(this.m_offlineIco) {
+        targets.Select(inkWidgetRef.Get(this.m_offlineIco));
+      };
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.PlayLibraryAnimationOnTargets(this.m_stateAnimName, targets, playbackOptions);
+    };
+  }
+
+  public final func SetStatus(status: InnerBunkerCoreStatus) -> Void {
+    let count: Int32;
+    let i: Int32;
+    let isOnline: Bool;
+    let locKey: String;
+    let state: CName;
+    switch status {
+      case InnerBunkerCoreStatus.Online:
+        isOnline = true;
+        state = n"Online";
+        locKey = "LocKey#93579";
+        break;
+      case InnerBunkerCoreStatus.Offline:
+        isOnline = false;
+        state = n"Offline";
+        locKey = "LocKey#93580";
+        break;
+      case InnerBunkerCoreStatus.Unresponsive:
+        isOnline = true;
+        state = n"Unresponsive";
+        locKey = "LocKey#93624";
+    };
+    inkWidgetRef.SetVisible(this.m_onlineRoot, isOnline);
+    inkWidgetRef.SetVisible(this.m_offlineRoot, !isOnline);
+    count = ArraySize(this.m_widgetsToColor);
+    i = 0;
+    while i < count {
+      inkWidgetRef.SetState(this.m_widgetsToColor[i], state);
+      i = i + 1;
+    };
+    count = ArraySize(this.m_textStatuses);
+    i = 0;
+    while i < count {
+      inkTextRef.SetLocalizedTextScript(this.m_textStatuses[i], locKey);
+      i = i + 1;
+    };
+    this.GetRootWidget().SetVisible(true);
+  }
+}
+
+public class InnerSubsystemScreenGameController extends BaseInnerBunkerComputerGameController {
+
+  public edit let m_loopAnimName: [CName; 3];
+
+  @default(InnerSubsystemScreenGameController, popup_00_admin_access)
+  public edit let m_adminAccessPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_01_unrecognized)
+  public edit let m_unrecognizedPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_02_authorizing_01)
+  public edit let m_preAuthorizingPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_02_authorizing_02)
+  public edit let m_postAuthorizingPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_03_denied)
+  public edit let m_deniedPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_04_success)
+  public edit let m_successPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_05_error)
+  public edit let m_errorPopupAnimName: CName;
+
+  @default(InnerSubsystemScreenGameController, popup_06_ice)
+  public edit let m_icePopupAnimName: CName;
+
+  public edit let m_shutdownButton: [inkWidgetRef; 3];
+
+  public edit let m_adminPanelButton: [inkWidgetRef; 3];
+
+  public edit let m_adminPanelPopupButton: inkWidgetRef;
+
+  public edit let m_transitionToAuthorization: inkWidgetRef;
+
+  public edit let m_transitionToMinigame: inkWidgetRef;
+
+  public edit let m_transitionToAdminPanel: inkWidgetRef;
+
+  public let m_subsystemIndex: Int32;
+
+  public let m_adminAccessPopupAnimProxy: ref<inkAnimProxy>;
+
+  public let m_successPopupAnimProxy: ref<inkAnimProxy>;
+
+  public let m_errorPopupAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    let adminPanelButton: ref<inkWidget>;
+    let loopAnimName: CName;
+    let playbackOptions: inkAnimOptions;
+    let q305_ib_neural_shutdown_finished: CName;
+    let q305_subsystem_02_minigame_start: Int32;
+    let shutdownButton: ref<inkWidget>;
+    this.m_subsystemIndex = GetFact(this.GetGame(), n"q305_subsystem_index") - 1;
+    if this.m_subsystemIndex < 0 {
+      return false;
+    };
+    loopAnimName = this.m_loopAnimName[this.m_subsystemIndex];
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if NotEquals(loopAnimName, n"None") {
+      this.PlayLibraryAnimation(loopAnimName, playbackOptions);
+    };
+    if this.m_subsystemIndex == 0 {
+      q305_ib_neural_shutdown_finished = n"q305_ib_neural_shutdown_finished";
+      this.ListenToFact(q305_ib_neural_shutdown_finished);
+      this.OnFactChanged(q305_ib_neural_shutdown_finished, GetFact(this.GetGame(), q305_ib_neural_shutdown_finished));
+    } else {
+      if this.m_subsystemIndex == 1 {
+        q305_subsystem_02_minigame_start = GetFact(this.GetGame(), n"q305_subsystem_02_minigame_start");
+        if q305_subsystem_02_minigame_start < 3 {
+          shutdownButton = inkWidgetRef.Get(this.m_shutdownButton[this.m_subsystemIndex]);
+          if IsDefined(shutdownButton) {
+            shutdownButton.RegisterToCallback(n"OnRelease", this, n"OnShutdownButtonClicked");
+          };
+          adminPanelButton = inkWidgetRef.Get(this.m_adminPanelButton[this.m_subsystemIndex]);
+          if IsDefined(adminPanelButton) {
+            adminPanelButton.RegisterToCallback(n"OnRelease", this, n"OnAdminPanelButtonClicked");
+          };
+          inkWidgetRef.RegisterToCallback(this.m_adminPanelPopupButton, n"OnRelease", this, n"OnAdminPanelButtonClicked");
+        };
+        if q305_subsystem_02_minigame_start > 4 {
+          this.ShowPostAuthorizingPopup();
+        } else {
+          if q305_subsystem_02_minigame_start > 3 {
+            this.ShowPreAuthorizingPopup(true);
+          } else {
+            if q305_subsystem_02_minigame_start > 2 {
+              this.ShowDeniedPopup();
+            } else {
+              if q305_subsystem_02_minigame_start > 1 {
+                if GetFact(this.GetGame(), n"q305_subsystem_02_pre_authorizing") > 0 {
+                  this.ShowPreAuthorizingPopup(false);
+                } else {
+                  SetFactValue(this.GetGame(), n"q305_subsystem_02_pre_authorizing", 1);
+                  this.ShowUnrecognizedUserPopup(true);
+                };
+              } else {
+                if q305_subsystem_02_minigame_start > 0 {
+                  this.ShowUnrecognizedUserPopup(true);
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnFactChanged(fact: CName, value: Int32) -> Bool {
+    if Equals(fact, n"q305_ib_neural_shutdown_finished") {
+      if value > 0 {
+        this.ShowSuccessPopup();
+      } else {
+        this.ShowErrorPopup();
+      };
+    };
+  }
+
+  public final func DisableButtons() -> Void {
+    let count: Int32 = ArraySize(this.m_shutdownButton);
+    let i: Int32 = 0;
+    while i < count {
+      inkWidgetRef.SetInteractive(this.m_shutdownButton[i], false);
+      i = i + 1;
+    };
+    count = ArraySize(this.m_adminPanelButton);
+    i = 0;
+    while i < count {
+      inkWidgetRef.SetInteractive(this.m_adminPanelButton[i], false);
+      i = i + 1;
+    };
+  }
+
+  protected cb func OnShutdownButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.DisableButtons();
+      this.ShowAdminAccessPopup();
+    };
+  }
+
+  protected cb func OnAdminPanelButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.DisableButtons();
+      this.ShowUnrecognizedUserPopup(false);
+    };
+  }
+
+  public final func ShowAdminAccessPopup() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_adminAccessPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_adminAccessPopupAnimProxy = this.PlayLibraryAnimation(this.m_adminAccessPopupAnimName, playbackOptions);
+    };
+  }
+
+  public final func ShowUnrecognizedUserPopup(fromInit: Bool) -> Void {
+    let animProxy: ref<inkAnimProxy>;
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(this.m_adminAccessPopupAnimProxy) {
+      this.m_adminAccessPopupAnimProxy.Stop();
+    };
+    if NotEquals(this.m_unrecognizedPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      animProxy = this.PlayLibraryAnimation(this.m_unrecognizedPopupAnimName, playbackOptions);
+      if !fromInit {
+        animProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnUnrecognizedUserPopupEndLoop");
+      };
+    };
+  }
+
+  protected cb func OnUnrecognizedUserPopupEndLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    let webPageController: ref<WebPage> = this.GetRootWidget().GetController() as WebPage;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+      proxy.Stop();
+    };
+    webPageController.ActivateCanvasLink(inkWidgetRef.Get(this.m_transitionToAuthorization));
+  }
+
+  public final func ShowPreAuthorizingPopup(startMinigame: Bool) -> Void {
+    let animProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_preAuthorizingPopupAnimName, n"None") {
+      animProxy = this.PlayLibraryAnimation(this.m_preAuthorizingPopupAnimName);
+      if startMinigame {
+        animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShowPreAuthorizingPopupAnimFinished");
+      };
+    };
+  }
+
+  protected cb func OnShowPreAuthorizingPopupAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let webPageController: ref<WebPage> = this.GetRootWidget().GetController() as WebPage;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    webPageController.ActivateCanvasLink(inkWidgetRef.Get(this.m_transitionToMinigame));
+  }
+
+  public final func ShowPostAuthorizingPopup() -> Void {
+    let animProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_postAuthorizingPopupAnimName, n"None") {
+      animProxy = this.PlayLibraryAnimation(this.m_postAuthorizingPopupAnimName);
+      animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShowPostAuthorizingPopupAnimFinished");
+    };
+  }
+
+  protected cb func OnShowPostAuthorizingPopupAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let webPageController: ref<WebPage> = this.GetRootWidget().GetController() as WebPage;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    webPageController.ActivateCanvasLink(inkWidgetRef.Get(this.m_transitionToAdminPanel));
+  }
+
+  public final func ShowDeniedPopup() -> Void {
+    let animProxy: ref<inkAnimProxy>;
+    if NotEquals(this.m_deniedPopupAnimName, n"None") {
+      animProxy = this.PlayLibraryAnimation(this.m_deniedPopupAnimName);
+      animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnDeniedPopupAnimFinished");
+    };
+  }
+
+  protected cb func OnDeniedPopupAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    if NotEquals(this.m_icePopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.PlayLibraryAnimation(this.m_icePopupAnimName, playbackOptions);
+    };
+  }
+
+  public final func ShowErrorPopup() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.m_successPopupAnimProxy.Stop();
+    if NotEquals(this.m_errorPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_errorPopupAnimProxy = this.PlayLibraryAnimation(this.m_errorPopupAnimName, playbackOptions);
+    };
+  }
+
+  public final func ShowSuccessPopup() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.m_errorPopupAnimProxy.Stop();
+    if NotEquals(this.m_successPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_successPopupAnimProxy = this.PlayLibraryAnimation(this.m_successPopupAnimName, playbackOptions);
+    };
+  }
+}
+
+public class InnerAdminPanelScreenGameController extends BaseInnerBunkerComputerGameController {
+
+  @default(InnerAdminPanelScreenGameController, intro)
+  public edit let m_introAnimName: CName;
+
+  @default(InnerAdminPanelScreenGameController, code_loop)
+  public edit let m_loopAnimName: CName;
+
+  public edit let m_buttonAnimName: [CName; 3];
+
+  public edit let m_commandAnimName: [CName; 3];
+
+  public edit let m_successAnimName: [CName; 3];
+
+  @default(InnerAdminPanelScreenGameController, popup_01_success)
+  public edit let m_successPopupAnimName: CName;
+
+  @default(InnerAdminPanelScreenGameController, datafort_command_animation_loop)
+  public edit let m_attemptAnimName: CName;
+
+  @default(InnerAdminPanelScreenGameController, datafort_command_instant_loop)
+  public edit let m_instantAttemptAnimName: CName;
+
+  @default(InnerAdminPanelScreenGameController, popup_03_datafort_instant_loop)
+  public edit let m_instantAttemptPopupAnimName: CName;
+
+  public edit let m_shutdownButton: inkWidgetRef;
+
+  public let m_subsystemIndex: Int32;
+
+  public let m_animProxyFull1: ref<inkAnimProxy>;
+
+  public let m_animProxyFull2: ref<inkAnimProxy>;
+
+  public let m_animProxySuccess: ref<inkAnimProxy>;
+
+  public let m_animProxySuccessPopup: ref<inkAnimProxy>;
+
+  public let m_animProxyAttempt: ref<inkAnimProxy>;
+
+  public let m_animProxyAttemptPopup: ref<inkAnimProxy>;
+
+  public let m_zoomUICallbackHandle: ref<CallbackHandle>;
+
+  public let m_isUIZoomDevice: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let fact: CName;
+    this.m_subsystemIndex = GetFact(this.GetGame(), n"q305_subsystem_index") - 1;
+    if this.m_subsystemIndex == 1 {
+      fact = n"q305_ib_thermal_shutdown_finished";
+    } else {
+      if this.m_subsystemIndex == 2 {
+        fact = n"q305_ib_datafort_shutdown_finished";
+      };
+    };
+    if NotEquals(fact, n"None") {
+      this.ListenToFact(fact);
+      this.OnFactChanged(fact, GetFact(this.GetGame(), fact));
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.OnPlayerDetach(this.GetPlayerControlledObject());
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    let blackboard: ref<IBlackboard> = this.GetPSMBlackboard(playerPuppet);
+    if IsDefined(blackboard) {
+      this.m_zoomUICallbackHandle = blackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsUIZoomDevice, this, n"OnIsUIZoomDeviceChange");
+    };
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    let blackboard: ref<IBlackboard> = this.GetPSMBlackboard(playerPuppet);
+    if IsDefined(blackboard) && IsDefined(this.m_zoomUICallbackHandle) {
+      blackboard.UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsUIZoomDevice, this.m_zoomUICallbackHandle);
+    };
+  }
+
+  protected cb func OnIsUIZoomDeviceChange(value: Bool) -> Bool {
+    let fact: CName;
+    this.m_isUIZoomDevice = value;
+    if this.m_subsystemIndex == 2 {
+      fact = n"q305_ib_datafort_shutdown_finished";
+      this.OnFactChanged(fact, GetFact(this.GetGame(), fact));
+    };
+  }
+
+  protected cb func OnFactChanged(fact: CName, value: Int32) -> Bool {
+    this.m_animProxyFull1.Stop();
+    this.m_animProxyFull2.Stop();
+    this.m_animProxySuccess.Stop();
+    this.m_animProxySuccessPopup.Stop();
+    this.m_animProxyAttempt.Stop();
+    this.m_animProxyAttemptPopup.Stop();
+    if value > 0 {
+      this.StartSuccessLine();
+    } else {
+      if Equals(fact, n"q305_ib_thermal_shutdown_finished") {
+        this.StartFullLine();
+      } else {
+        if Equals(fact, n"q305_ib_datafort_shutdown_finished") {
+          this.StartAttemptLine();
+        };
+      };
+    };
+  }
+
+  public final func StartFullLine() -> Void {
+    if NotEquals(this.m_introAnimName, n"None") {
+      this.m_animProxyFull1 = this.PlayLibraryAnimation(this.m_introAnimName);
+      this.m_animProxyFull1.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimFinished");
+    };
+    inkWidgetRef.RegisterToCallback(this.m_shutdownButton, n"OnRelease", this, n"OnShutdownButtonClicked");
+  }
+
+  protected cb func OnIntroAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let buttonAnimName: CName;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    buttonAnimName = this.m_buttonAnimName[this.m_subsystemIndex];
+    if NotEquals(buttonAnimName, n"None") {
+      this.m_animProxyFull1 = this.PlayLibraryAnimation(buttonAnimName);
+      this.m_animProxyFull1.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnButtonAnimFinished");
+    };
+  }
+
+  protected cb func OnButtonAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    this.StartLoopAnim();
+  }
+
+  public final func StartLoopAnim() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if NotEquals(this.m_loopAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_animProxyFull1 = this.PlayLibraryAnimation(this.m_loopAnimName, playbackOptions);
+    };
+  }
+
+  protected cb func OnShutdownButtonClicked(e: ref<inkPointerEvent>) -> Bool {
+    let commandAnimName: CName;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      commandAnimName = this.m_commandAnimName[this.m_subsystemIndex];
+      if NotEquals(commandAnimName, n"None") {
+        this.m_animProxyFull2 = this.PlayLibraryAnimation(commandAnimName);
+        this.m_animProxyFull2.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCommandAnimFinished");
+        inkWidgetRef.SetInteractive(this.m_shutdownButton, false);
+        if this.m_subsystemIndex == 1 {
+          SetFactValue(this.GetGame(), n"q305_thermal_netrunner_shutdown", 1);
+        };
+      };
+    };
+  }
+
+  protected cb func OnCommandAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    };
+    if this.m_subsystemIndex == 2 {
+      this.StartAttemptLine();
+    } else {
+      this.StartSuccessLine();
+    };
+  }
+
+  public final func StartSuccessLine() -> Void {
+    let playbackOptions: inkAnimOptions;
+    let successAnimName: CName = this.m_successAnimName[this.m_subsystemIndex];
+    if NotEquals(successAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_animProxySuccess = this.PlayLibraryAnimation(successAnimName, playbackOptions);
+      this.m_animProxySuccess.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnSuccessAnimFinished");
+    };
+  }
+
+  protected cb func OnSuccessAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+    };
+    if NotEquals(this.m_successPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_animProxySuccessPopup = this.PlayLibraryAnimation(this.m_successPopupAnimName, playbackOptions);
+      if this.m_subsystemIndex == 1 {
+        SetFactValue(this.GetGame(), n"q305_thermal_netrunner_shutdown", 2);
+      };
+    };
+  }
+
+  public final func StartAttemptLine() -> Void {
+    let playbackOptions: inkAnimOptions;
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    if this.m_isUIZoomDevice {
+      if NotEquals(this.m_instantAttemptAnimName, n"None") {
+        this.m_animProxyAttempt = this.PlayLibraryAnimation(this.m_instantAttemptAnimName, playbackOptions);
+        this.m_animProxyAttempt.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnAttemptAnimFinished");
+      };
+    } else {
+      if NotEquals(this.m_attemptAnimName, n"None") {
+        this.m_animProxyAttempt = this.PlayLibraryAnimation(this.m_attemptAnimName, playbackOptions);
+      };
+    };
+    this.StartLoopAnim();
+  }
+
+  protected cb func OnAttemptAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(proxy) {
+      proxy.UnregisterFromAllCallbacks(inkanimEventType.OnEndLoop);
+    };
+    if NotEquals(this.m_instantAttemptPopupAnimName, n"None") {
+      playbackOptions.loopType = inkanimLoopType.Cycle;
+      playbackOptions.loopInfinite = true;
+      this.m_animProxyAttemptPopup = this.PlayLibraryAnimation(this.m_instantAttemptPopupAnimName, playbackOptions);
+    };
+  }
+}

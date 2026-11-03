@@ -1,0 +1,244 @@
+
+public class UIInventoryItemRequirementsManager extends IScriptable {
+
+  private let m_itemRequiredLevel: Int32;
+
+  private let m_requiredStrength: Int32;
+
+  private let m_requiredReflex: Int32;
+
+  private let m_perkRequirementName: String;
+
+  private let m_requiredArmCyberware: Int32;
+
+  private let m_isSmartlinkRequirementMet: Bool;
+
+  private let m_isLevelRequirementMet: Bool;
+
+  private let m_isStrengthRequirementMet: Bool;
+
+  private let m_isReflexRequirementMet: Bool;
+
+  private let m_isPerkRequirementMet: Bool;
+
+  private let m_isHumanityRequirementMet: Bool;
+
+  private let m_isArmCyberwareStyleRequirementMet: Bool;
+
+  private let m_isEquippable: Bool;
+
+  @default(UIInventoryItemRequirementsManager, true)
+  private let m_isEquippableAdditionalValue: Bool;
+
+  private let m_isEquippableFetched: Bool;
+
+  private let m_equipRequirements: [SItemStackRequirementData];
+
+  private let m_equipRequirementsFetched: Bool;
+
+  private let m_player: wref<GameObject>;
+
+  private let m_attachedItem: wref<UIInventoryItem>;
+
+  public final static func Make(inventoryItem: wref<UIInventoryItem>, player: wref<GameObject>) -> ref<UIInventoryItemRequirementsManager> {
+    let instance: ref<UIInventoryItemRequirementsManager> = new UIInventoryItemRequirementsManager();
+    instance.m_attachedItem = inventoryItem;
+    instance.m_player = player;
+    let itemData: ref<gameItemData> = inventoryItem.GetItemData();
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(player.GetGame());
+    instance.m_itemRequiredLevel = Cast<Int32>(itemData.GetStatValueByType(gamedataStatType.Level));
+    instance.m_requiredStrength = Cast<Int32>(itemData.GetStatValueByType(gamedataStatType.Strength));
+    instance.m_requiredReflex = Cast<Int32>(itemData.GetStatValueByType(gamedataStatType.Reflexes));
+    instance.Update(statsSystem);
+    return instance;
+  }
+
+  public final func Update(opt statsSystem: ref<StatsSystem>) -> Void {
+    let perkRequiredName: String;
+    let itemData: ref<gameItemData> = this.m_attachedItem.GetItemData();
+    if statsSystem == null {
+      statsSystem = GameInstance.GetStatsSystem(this.m_player.GetGame());
+    };
+    if RPGManager.HasSmartLinkRequirement(itemData) {
+      this.m_isSmartlinkRequirementMet = Cast<Bool>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.HasSmartLink));
+    } else {
+      this.m_isSmartlinkRequirementMet = true;
+    };
+    if this.m_itemRequiredLevel > 0 {
+      this.m_isLevelRequirementMet = this.m_itemRequiredLevel <= Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.Level));
+    } else {
+      this.m_isLevelRequirementMet = true;
+    };
+    if this.m_requiredStrength > 0 {
+      this.m_isStrengthRequirementMet = this.m_requiredStrength <= Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.Strength));
+    } else {
+      this.m_isStrengthRequirementMet = true;
+    };
+    if this.m_requiredReflex > 0 {
+      this.m_isReflexRequirementMet = this.m_requiredReflex <= Cast<Int32>(statsSystem.GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.Reflexes));
+    } else {
+      this.m_isReflexRequirementMet = true;
+    };
+    if RPGManager.CheckPerkPrereqs(itemData, this.m_player, perkRequiredName) {
+      this.m_isPerkRequirementMet = false;
+      this.m_perkRequirementName = perkRequiredName;
+    } else {
+      this.m_isPerkRequirementMet = true;
+    };
+    if this.m_attachedItem.IsCyberware() || this.m_attachedItem.IsCyberwareWeapon() {
+      if this.CheckStatEquipRequirement(gamedataStatType.HumanityAvailable, this.m_player, statsSystem) {
+        this.m_isHumanityRequirementMet = true;
+      } else {
+        this.m_isHumanityRequirementMet = false;
+      };
+    };
+    if Equals(this.m_attachedItem.GetItemType(), gamedataItemType.CyberwareStyle) {
+      this.m_isArmCyberwareStyleRequirementMet = this.CheckArmCyberwareStyleRequirement();
+    } else {
+      this.m_isArmCyberwareStyleRequirementMet = true;
+    };
+  }
+
+  private final func CheckStatEquipRequirement(statToCheck: gamedataStatType, player: wref<GameObject>, statsSystem: ref<StatsSystem>) -> Bool {
+    let i: Int32;
+    let limit: Int32;
+    this.FetchEquipRequirements();
+    i = 0;
+    limit = ArraySize(this.m_equipRequirements);
+    while i < limit {
+      if Equals(this.m_equipRequirements[i].statType, statToCheck) {
+        if statsSystem.GetStatValue(Cast<StatsObjectID>(player.GetEntityID()), statToCheck) < this.m_equipRequirements[i].requiredValue {
+          return false;
+        };
+        break;
+      };
+      i += 1;
+    };
+    return true;
+  }
+
+  private final func CheckArmCyberwareStyleRequirement() -> Bool {
+    let playerItems: array<wref<UIInventoryItem>> = UIInventoryScriptableSystem.GetInstance(this.m_player.GetGame()).GetPlayerAreaItems(gamedataEquipmentArea.ArmsCW);
+    if ArraySize(playerItems) > 0 {
+      switch playerItems[0].GetItemType() {
+        case gamedataItemType.Cyb_Launcher:
+          return this.m_attachedItem.GetItemData().HasTag(n"ProjectileLauncher");
+        case gamedataItemType.Cyb_MantisBlades:
+          return this.m_attachedItem.GetItemData().HasTag(n"MantisBlades");
+        case gamedataItemType.Cyb_NanoWires:
+          return this.m_attachedItem.GetItemData().HasTag(n"NanoWires");
+        case gamedataItemType.Cyb_StrongArms:
+          return this.m_attachedItem.GetItemData().HasTag(n"StrongArms");
+      };
+    };
+    return true;
+  }
+
+  public final func IsSmartlinkRequirementMet() -> Bool {
+    return this.m_isSmartlinkRequirementMet;
+  }
+
+  public final func IsLevelRequirementMet() -> Bool {
+    return this.m_isLevelRequirementMet;
+  }
+
+  public final func IsStrengthRequirementMet() -> Bool {
+    return this.m_isStrengthRequirementMet;
+  }
+
+  public final func IsReflexRequirementMet() -> Bool {
+    return this.m_isReflexRequirementMet;
+  }
+
+  public final func IsPerkRequirementMet() -> Bool {
+    return this.m_isPerkRequirementMet;
+  }
+
+  public final func IsHumanityRequirementMet() -> Bool {
+    let shouldIgnore: Bool;
+    if this.m_isEquippableFetched {
+      shouldIgnore = this.m_isEquippable;
+    };
+    return this.m_isHumanityRequirementMet || shouldIgnore;
+  }
+
+  public final func IsArmCyberwareStyleRequirementMet() -> Bool {
+    return this.m_isArmCyberwareStyleRequirementMet;
+  }
+
+  public final func IsRarityRequirementMet(parentItem: wref<UIInventoryItem>) -> Bool {
+    if this.m_attachedItem.IsPart() && parentItem.IsClothing() {
+      return parentItem.GetQualityInt() <= this.m_attachedItem.GetQualityInt();
+    };
+    return true;
+  }
+
+  public final func IsAnyRequirementNotMet() -> Bool {
+    return !this.IsSmartlinkRequirementMet() || !this.IsArmCyberwareStyleRequirementMet() || this.IsAnyItemDisplayRequirementNotMet();
+  }
+
+  public final func IsAnyItemDisplayRequirementNotMet() -> Bool {
+    let isNotEquippable: Bool;
+    if !this.m_attachedItem.IsEquipped() {
+      isNotEquippable = !this.IsEquippable();
+    };
+    return isNotEquippable || !this.IsLevelRequirementMet() || !this.IsStrengthRequirementMet() || !this.IsReflexRequirementMet() || !this.IsPerkRequirementMet();
+  }
+
+  public final func GetLevelRequirementValue() -> Int32 {
+    return this.m_itemRequiredLevel;
+  }
+
+  public final func GetStrengthRequirementValue() -> Int32 {
+    return this.m_requiredStrength;
+  }
+
+  public final func GetReflexRequirementValue() -> Int32 {
+    return this.m_requiredReflex;
+  }
+
+  public final func GetPerkRequirementValue() -> String {
+    return this.m_perkRequirementName;
+  }
+
+  public final func SetIsEquippable(value: Bool) -> Void {
+    this.m_isEquippableFetched = value;
+    this.m_isEquippable = value;
+    this.m_isHumanityRequirementMet = value;
+  }
+
+  public final func SetIsEquippableRaw(value: Bool) -> Void {
+    this.m_isEquippableFetched = true;
+    this.m_isEquippable = value;
+    this.m_isHumanityRequirementMet = value;
+  }
+
+  public final func SetIsEquippableAdditionalValue(value: Bool) -> Void {
+    this.m_isEquippableAdditionalValue = value;
+  }
+
+  public final func IsEquippableRaw(opt force: Bool) -> Bool {
+    if this.m_isEquippableFetched && !force {
+      return this.m_isEquippable;
+    };
+    this.m_isEquippable = EquipmentSystem.GetInstance(this.m_player).GetPlayerData(this.m_player).IsEquippable(this.m_attachedItem.GetItemData());
+    this.m_isEquippableFetched = true;
+    return this.m_isEquippable;
+  }
+
+  public final func IsEquippable(opt force: Bool) -> Bool {
+    return this.IsEquippableRaw(force) && this.m_isEquippableAdditionalValue;
+  }
+
+  private final func FetchEquipRequirements(opt force: Bool) -> Void {
+    if this.m_equipRequirementsFetched && !force {
+      return;
+    };
+    this.m_equipRequirements = RPGManager.GetEquipRequirements(this.m_player, this.m_attachedItem.GetItemData());
+  }
+
+  public final func GetFirstUnmetEquipRequirement() -> SItemStackRequirementData {
+    this.FetchEquipRequirements();
+    return RPGManager.GetFirstUnmetEquipRequirement(this.m_player, this.m_equipRequirements);
+  }
+}

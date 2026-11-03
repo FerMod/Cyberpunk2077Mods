@@ -1,0 +1,691 @@
+
+public class PhotoModePlayerEntityComponent extends ScriptableComponent {
+
+  private let usedRightWeaponItemId: ItemID;
+
+  private let usedLeftWeaponItemId: ItemID;
+
+  private let currentWeaponInRightSlot: ItemID;
+
+  private let currentWeaponInLeftSlot: ItemID;
+
+  private let swapMeleeWeaponItemId: ItemID;
+
+  private let swapHangunWeaponItemId: ItemID;
+
+  private let swapRifleWeaponItemId: ItemID;
+
+  private let swapShootgunWeaponItemId: ItemID;
+
+  private let fakePuppet: wref<gamePuppet>;
+
+  private let mainPuppet: wref<PlayerPuppet>;
+
+  private let currentPuppet: wref<PlayerPuppet>;
+
+  private let TS: ref<TransactionSystem>;
+
+  private let loadingItems: [ItemID];
+
+  private let loadingVisualItems: [ItemID];
+
+  private let itemsLoadingTime: Float;
+
+  private let muzzleEffectEnabled: Bool;
+
+  private let customizable: Bool;
+
+  private let holsteredArmsShouldBeVisible: Bool;
+
+  private let holsteredArmsBeingSpawned: Bool;
+
+  private let holsteredArmsVisible: Bool;
+
+  private let holsteredArmsItem: ItemID;
+
+  private let cyberwareArmsBeingSpawned: Bool;
+
+  private let cyberwareArmsVisible: Bool;
+
+  private let cyberwareArmsItem: ItemID;
+
+  private final func OnGameAttach() -> Void;
+
+  private final func OnGameDetach() -> Void;
+
+  private final func HasAllItemsFinishedLoading() -> Bool {
+    let time: Float = EngineTime.ToFloat(this.GetEngineTime()) - this.itemsLoadingTime;
+    if time > 5.00 {
+      ArrayClear(this.loadingItems);
+    };
+    return ArraySize(this.loadingItems) == 0;
+  }
+
+  private final func HasAllItemsVisualsFinishedLoading() -> Bool {
+    return ArraySize(this.loadingVisualItems) == 0;
+  }
+
+  private final func PutOnFakeItem(itemToAdd: ItemID, puppet: wref<PlayerPuppet>, isLeftHandWeapon: Bool) -> Void {
+    let currSlot: TweakDBID;
+    let item: ItemID;
+    let itemData: wref<gameItemData>;
+    let equipAreaType: gamedataEquipmentArea = EquipmentSystem.GetEquipAreaType(itemToAdd);
+    if EquipmentSystem.GetData(puppet).IsSlotHidden(equipAreaType) {
+      return;
+    };
+    item = ItemID.FromTDBID(ItemID.GetTDBID(itemToAdd));
+    if Equals(equipAreaType, gamedataEquipmentArea.RightArm) {
+      if !this.TS.HasItem(this.fakePuppet, item) {
+        this.TS.GiveItem(this.fakePuppet, item, 1);
+      };
+      this.holsteredArmsShouldBeVisible = true;
+      this.holsteredArmsBeingSpawned = true;
+      this.holsteredArmsItem = item;
+      this.ReevaluateArmsVisibility();
+    } else {
+      if Equals(equipAreaType, gamedataEquipmentArea.Weapon) || Equals(equipAreaType, gamedataEquipmentArea.WeaponLeft) || Equals(equipAreaType, gamedataEquipmentArea.WeaponHeavy) || Equals(equipAreaType, gamedataEquipmentArea.VDefaultHandgun) || Equals(equipAreaType, gamedataEquipmentArea.ArmsCW) {
+        item = itemToAdd;
+        if !this.TS.HasItem(this.fakePuppet, item) {
+          itemData = this.TS.GetItemData(puppet, itemToAdd);
+          this.TS.GiveItemByItemData(this.fakePuppet, itemData, true);
+        };
+        if Equals(equipAreaType, gamedataEquipmentArea.ArmsCW) {
+          this.holsteredArmsShouldBeVisible = false;
+          this.cyberwareArmsBeingSpawned = true;
+          this.cyberwareArmsItem = item;
+        } else {
+          this.holsteredArmsShouldBeVisible = true;
+        };
+        this.ReevaluateArmsVisibility();
+      } else {
+        if EquipmentSystem.IsClothing(item) {
+          this.TS.GivePreviewItemByItemID(this.fakePuppet, item);
+          item = this.TS.CreatePreviewItemID(item);
+        } else {
+          itemData = this.TS.GetItemData(puppet, itemToAdd);
+          this.TS.GivePreviewItemByItemData(this.fakePuppet, itemData);
+          item = this.TS.CreatePreviewItemID(itemToAdd);
+        };
+      };
+    };
+    currSlot = EquipmentSystem.GetPlacementSlot(itemToAdd, isLeftHandWeapon);
+    if this.TS.CanPlaceItemInSlot(this.fakePuppet, currSlot, item) && this.TS.AddItemToSlot(this.fakePuppet, currSlot, item, true) {
+      if this.TS.HasItemInSlot(puppet, currSlot, itemToAdd) {
+        ArrayPush(this.loadingItems, item);
+        ArrayPush(this.loadingVisualItems, item);
+      };
+      this.itemsLoadingTime = EngineTime.ToFloat(this.GetEngineTime());
+    };
+  }
+
+  private final func PutOnFakeItemFromMainPuppet(itemToAdd: ItemID, isLeftHandWeapon: Bool) -> Void {
+    this.PutOnFakeItem(itemToAdd, this.mainPuppet, isLeftHandWeapon);
+  }
+
+  private final func PutOnFakeItemFromCurrentPuppet(itemToAdd: ItemID, isLeftHandWeapon: Bool) -> Void {
+    this.PutOnFakeItem(itemToAdd, this.currentPuppet, isLeftHandWeapon);
+  }
+
+  private final func EquipHolsteredArms() -> Void {
+    if ItemID.IsValid(this.holsteredArmsItem) {
+      this.PutOnFakeItemFromMainPuppet(this.holsteredArmsItem, false);
+      this.holsteredArmsBeingSpawned = true;
+    };
+  }
+
+  private final func UnequipHolsteredArms() -> Void {
+    if ItemID.IsValid(this.holsteredArmsItem) {
+      this.TS.RemoveItemFromAnySlot(this.fakePuppet, ItemID.CreateQuery(ItemID.GetTDBID(this.holsteredArmsItem)));
+      this.holsteredArmsVisible = false;
+    };
+  }
+
+  private final func UnequipCyberwareArms() -> Void {
+    if ItemID.IsValid(this.cyberwareArmsItem) {
+      this.TS.RemoveItemFromAnySlot(this.fakePuppet, ItemID.CreateQuery(ItemID.GetTDBID(this.cyberwareArmsItem)));
+      this.cyberwareArmsVisible = false;
+    };
+  }
+
+  private final func ReevaluateArmsVisibility() -> Void {
+    if this.holsteredArmsShouldBeVisible {
+      if !this.holsteredArmsVisible && !this.holsteredArmsBeingSpawned {
+        this.EquipHolsteredArms();
+      };
+      if this.holsteredArmsVisible && this.cyberwareArmsVisible {
+        this.UnequipCyberwareArms();
+      };
+    } else {
+      if this.holsteredArmsVisible && this.cyberwareArmsVisible {
+        this.UnequipHolsteredArms();
+      };
+    };
+  }
+
+  private final func RemoveAllItems(const areas: script_ref<[SEquipArea]>) -> Void {
+    let currentPlayerItem: ItemID;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(areas)) {
+      currentPlayerItem = EquipmentSystem.GetData(this.fakePuppet).GetActiveItem(Deref(areas)[i].areaType);
+      if ItemID.IsValid(currentPlayerItem) {
+        this.TS.RemoveItem(this.fakePuppet, currentPlayerItem, 1);
+      };
+      i += 1;
+    };
+  }
+
+  private final func GetWeaponInRightHand() -> gamedataItemType {
+    let itemType: gamedataItemType;
+    if !ItemID.IsValid(this.usedRightWeaponItemId) {
+      return gamedataItemType.Invalid;
+    };
+    itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.usedRightWeaponItemId)).ItemType().Type();
+    return itemType;
+  }
+
+  private final func GetWeaponInLeftHand() -> gamedataItemType {
+    let itemType: gamedataItemType;
+    if !ItemID.IsValid(this.usedLeftWeaponItemId) {
+      return gamedataItemType.Invalid;
+    };
+    itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.usedLeftWeaponItemId)).ItemType().Type();
+    return itemType;
+  }
+
+  private final func IsItemOfThisType(item: ItemID, const typesList: script_ref<[gamedataItemType]>) -> Bool {
+    let itemType: gamedataItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(item)).ItemType().Type();
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(typesList)) {
+      if Equals(itemType, Deref(typesList)[i]) {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func AddAmmoForWeapon(weaponID: ItemID) -> Void {
+    let ammoID: ItemID = WeaponObject.GetAmmoType(weaponID);
+    if ItemID.IsValid(ammoID) {
+      this.TS.GiveItem(this.fakePuppet, ammoID, 1);
+    };
+  }
+
+  private final func AlreadyHaveEquippedWeaponsOfThisType(typesList: [gamedataItemType], inDualWield: Bool) -> Bool {
+    if inDualWield {
+      return ItemID.IsValid(this.currentWeaponInRightSlot) && this.IsItemOfThisType(this.currentWeaponInRightSlot, typesList) && ItemID.IsValid(this.currentWeaponInLeftSlot) && this.IsItemOfThisType(this.currentWeaponInLeftSlot, typesList);
+    };
+    if ItemID.IsValid(this.currentWeaponInRightSlot) {
+      return this.IsItemOfThisType(this.currentWeaponInRightSlot, typesList) && !ItemID.IsValid(this.currentWeaponInLeftSlot);
+    };
+    return ItemID.IsValid(this.currentWeaponInLeftSlot) && this.IsItemOfThisType(this.currentWeaponInLeftSlot, typesList);
+  }
+
+  private final func EquipWeaponOfThisType(typesList: [gamedataItemType], inDualWield: Bool) -> Void {
+    let area: gamedataEquipmentArea;
+    let armsCyberwareId: ItemID;
+    let currSlot: TweakDBID;
+    let itemRecord: ref<Item_Record>;
+    let selectedLeftWeaponId: ItemID;
+    let selectedRightWeaponId: ItemID;
+    if this.AlreadyHaveEquippedWeaponsOfThisType(typesList, inDualWield) {
+      return;
+    };
+    if ItemID.IsValid(this.usedRightWeaponItemId) && this.IsItemOfThisType(this.usedRightWeaponItemId, typesList) {
+      selectedRightWeaponId = this.usedRightWeaponItemId;
+    };
+    if (!ItemID.IsValid(selectedRightWeaponId) || inDualWield) && ItemID.IsValid(this.usedLeftWeaponItemId) && this.IsItemOfThisType(this.usedLeftWeaponItemId, typesList) {
+      selectedLeftWeaponId = this.usedLeftWeaponItemId;
+    };
+    if !ItemID.IsValid(selectedRightWeaponId) && !ItemID.IsValid(selectedLeftWeaponId) {
+      armsCyberwareId = EquipmentSystem.GetData(this.mainPuppet).GetActiveItem(gamedataEquipmentArea.ArmsCW);
+      if ItemID.IsValid(armsCyberwareId) && this.IsItemOfThisType(armsCyberwareId, typesList) {
+        itemRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(armsCyberwareId));
+        if Equals(itemRecord.ItemCategory().Type(), gamedataItemCategory.Weapon) {
+          selectedRightWeaponId = armsCyberwareId;
+        } else {
+          selectedLeftWeaponId = armsCyberwareId;
+        };
+      };
+    };
+    if inDualWield {
+      if !ItemID.IsValid(selectedRightWeaponId) || !ItemID.IsValid(selectedLeftWeaponId) {
+        this.FindMatchingPairEquipmentInWeaponWheel(typesList, selectedRightWeaponId, selectedLeftWeaponId);
+      };
+    } else {
+      if !ItemID.IsValid(selectedRightWeaponId) && !ItemID.IsValid(selectedLeftWeaponId) {
+        selectedRightWeaponId = this.FindMatchingEquipmentInEquipArea(gamedataEquipmentArea.WeaponWheel, typesList);
+      };
+    };
+    if !ItemID.IsValid(selectedRightWeaponId) && !ItemID.IsValid(selectedLeftWeaponId) {
+      if inDualWield {
+        this.FindMatchingPairEquipmentInInventory(typesList, selectedRightWeaponId, selectedLeftWeaponId);
+      } else {
+        selectedRightWeaponId = this.FindMatchingEquipmentInInventory(typesList);
+      };
+    } else {
+      if ItemID.IsValid(selectedRightWeaponId) && inDualWield && !ItemID.IsValid(selectedLeftWeaponId) {
+        selectedLeftWeaponId = this.FindMatchingEquipmentInInventory(typesList, selectedRightWeaponId);
+      };
+    };
+    if !ItemID.IsValid(selectedRightWeaponId) && !ItemID.IsValid(selectedLeftWeaponId) && ArrayContains(typesList, gamedataItemType.Wea_Handgun) {
+      selectedRightWeaponId = this.FindMatchingEquipmentInEquipArea(gamedataEquipmentArea.VDefaultHandgun, typesList);
+    };
+    if ItemID.IsValid(selectedRightWeaponId) {
+      if selectedRightWeaponId == this.currentWeaponInLeftSlot {
+        currSlot = EquipmentSystem.GetPlacementSlot(this.currentWeaponInLeftSlot, true);
+        this.TS.RemoveItemFromSlot(this.fakePuppet, currSlot, false);
+      };
+      this.AddAmmoForWeapon(selectedRightWeaponId);
+      this.PutOnFakeItemFromCurrentPuppet(selectedRightWeaponId, false);
+      this.currentWeaponInRightSlot = selectedRightWeaponId;
+      if inDualWield && ItemID.IsValid(selectedLeftWeaponId) {
+        this.AddAmmoForWeapon(selectedLeftWeaponId);
+        this.PutOnFakeItemFromCurrentPuppet(selectedLeftWeaponId, true);
+        this.currentWeaponInLeftSlot = selectedLeftWeaponId;
+        AnimationControllerComponent.SetInputFloatToReplicate(this.currentPuppet, n"has_left_weapon", 1.00);
+      } else {
+        if ItemID.IsValid(this.currentWeaponInLeftSlot) {
+          currSlot = t"AttachmentSlots.WeaponLeft";
+          this.TS.RemoveItemFromSlot(this.fakePuppet, currSlot);
+          this.currentWeaponInLeftSlot = ItemID.None();
+          AnimationControllerComponent.SetInputFloatToReplicate(this.currentPuppet, n"has_left_weapon", 0.00);
+          this.ReevaluateArmsVisibility();
+        };
+      };
+      return;
+    };
+    if ItemID.IsValid(this.currentWeaponInRightSlot) {
+      area = EquipmentSystem.GetEquipAreaType(this.currentWeaponInRightSlot);
+      if Equals(area, gamedataEquipmentArea.ArmsCW) {
+        this.holsteredArmsShouldBeVisible = true;
+        this.currentWeaponInRightSlot = ItemID.None();
+        this.ReevaluateArmsVisibility();
+        return;
+      };
+      currSlot = EquipmentSystem.GetPlacementSlot(this.currentWeaponInRightSlot);
+      this.TS.RemoveItemFromSlot(this.fakePuppet, currSlot);
+      this.currentWeaponInRightSlot = ItemID.None();
+    };
+    if ItemID.IsValid(selectedLeftWeaponId) {
+      this.AddAmmoForWeapon(selectedLeftWeaponId);
+      this.PutOnFakeItemFromCurrentPuppet(selectedLeftWeaponId, false);
+      this.currentWeaponInLeftSlot = selectedLeftWeaponId;
+      AnimationControllerComponent.SetInputFloatToReplicate(this.currentPuppet, n"has_left_weapon", 1.00);
+    } else {
+      if ItemID.IsValid(this.currentWeaponInLeftSlot) {
+        area = EquipmentSystem.GetEquipAreaType(this.currentWeaponInLeftSlot);
+        if Equals(area, gamedataEquipmentArea.ArmsCW) {
+          this.holsteredArmsShouldBeVisible = true;
+          this.currentWeaponInLeftSlot = ItemID.None();
+          this.ReevaluateArmsVisibility();
+          return;
+        };
+        currSlot = t"AttachmentSlots.WeaponLeft";
+        this.TS.RemoveItemFromSlot(this.fakePuppet, currSlot);
+        this.currentWeaponInLeftSlot = ItemID.None();
+        AnimationControllerComponent.SetInputFloatToReplicate(this.currentPuppet, n"has_left_weapon", 0.00);
+      };
+    };
+  }
+
+  private final func FindMatchingEquipmentInEquipArea(area: gamedataEquipmentArea, typesList: [gamedataItemType]) -> ItemID {
+    let emptyItem: ItemID;
+    let item: ItemID;
+    let equipmentData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.mainPuppet);
+    let i: Int32 = 0;
+    while i < equipmentData.GetNumberOfSlots(area) {
+      item = equipmentData.GetItemInEquipSlot(area, i);
+      if ItemID.IsValid(item) && this.IsItemOfThisType(item, typesList) {
+        return item;
+      };
+      i += 1;
+    };
+    return emptyItem;
+  }
+
+  private final func FindMatchingPairEquipmentInWeaponWheel(typesList: [gamedataItemType], out rightItem: ItemID, out leftItem: ItemID) -> Void {
+    let item: ItemID;
+    let oppositeSlotIndex: Int32;
+    let otherItem: ItemID;
+    let equipmentData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.mainPuppet);
+    let i: Int32 = 3;
+    while i <= 5 {
+      item = equipmentData.GetItemInEquipSlot(gamedataEquipmentArea.WeaponWheel, i);
+      if ItemID.IsValid(item) && this.IsItemOfThisType(item, typesList) {
+        oppositeSlotIndex = EquipmentSystemPlayerData.GetOppositeWeaponSlotIndex(i);
+        otherItem = equipmentData.GetItemInEquipSlot(gamedataEquipmentArea.WeaponWheel, oppositeSlotIndex);
+        if ItemID.IsValid(otherItem) && this.IsItemOfThisType(otherItem, typesList) {
+          rightItem = otherItem;
+          leftItem = item;
+          return;
+        };
+      };
+      i += 1;
+    };
+    i = 0;
+    while i <= 5 {
+      item = equipmentData.GetItemInEquipSlot(gamedataEquipmentArea.WeaponWheel, i);
+      if !ItemID.IsValid(item) || !this.IsItemOfThisType(item, typesList) || item == rightItem {
+      } else {
+        if !ItemID.IsValid(rightItem) {
+          rightItem = item;
+        } else {
+          leftItem = item;
+          return;
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func FindMatchingEquipmentInInventory(typesList: [gamedataItemType], opt excludedItem: ItemID) -> ItemID {
+    let allItems: array<wref<gameItemData>>;
+    let emptyItem: ItemID;
+    let i: Int32;
+    let item: ItemID;
+    let inventory: ref<TransactionSystem> = EquipmentSystem.GetData(this.mainPuppet).GetInventoryManager().GetTransactionSystem();
+    inventory.GetItemList(this.mainPuppet, allItems);
+    i = 0;
+    while i < ArraySize(allItems) {
+      item = allItems[i].GetID();
+      if ItemID.IsValid(excludedItem) && excludedItem == item {
+      } else {
+        if ItemID.IsValid(item) && this.IsItemOfThisType(item, typesList) {
+          return item;
+        };
+      };
+      i += 1;
+    };
+    return emptyItem;
+  }
+
+  private final func FindMatchingPairEquipmentInInventory(typesList: [gamedataItemType], out rightHandItem: ItemID, out leftHandItem: ItemID) -> Void {
+    let allItems: array<wref<gameItemData>>;
+    let i: Int32;
+    let item: ItemID;
+    let inventory: ref<TransactionSystem> = EquipmentSystem.GetData(this.mainPuppet).GetInventoryManager().GetTransactionSystem();
+    inventory.GetItemList(this.mainPuppet, allItems);
+    i = 0;
+    while i < ArraySize(allItems) {
+      item = allItems[i].GetID();
+      if ItemID.IsValid(item) && this.IsItemOfThisType(item, typesList) {
+        rightHandItem = item;
+        break;
+      };
+      i += 1;
+    };
+    i = i + 1;
+    while i < ArraySize(allItems) {
+      item = allItems[i].GetID();
+      if ItemID.IsValid(item) && this.IsItemOfThisType(item, typesList) {
+        leftHandItem = item;
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnItemAddedToSlot(evt: ref<ItemAddedToSlot>) -> Bool {
+    let area: gamedataEquipmentArea;
+    let data: ref<EquipmentSystemPlayerData>;
+    let obj: ref<ItemObject>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.loadingItems) {
+      if this.loadingItems[i] == evt.GetItemID() {
+        ArrayErase(this.loadingItems, i);
+        break;
+      };
+      i += 1;
+    };
+    data = EquipmentSystem.GetData(this.mainPuppet);
+    area = EquipmentSystem.GetEquipAreaType(evt.GetItemID());
+    if data.IsSlotHidden(area) {
+      this.TS.RemoveItem(this.fakePuppet, evt.GetItemID(), 1);
+    } else {
+      if Equals(area, gamedataEquipmentArea.OuterChest) && this.TS.MatchVisualTagByItemID(evt.GetItemID(), this.fakePuppet, n"hide_T1part") {
+        obj = this.TS.GetItemInSlot(this.fakePuppet, t"AttachmentSlots.Chest");
+        if IsDefined(obj) {
+          this.TS.ResetItemAppearance(this.fakePuppet, obj.GetItemID());
+        };
+      };
+    };
+  }
+
+  protected cb func OnItemVisualsAddedToSlot(evt: ref<ItemVisualsAddedToSlot>) -> Bool {
+    let area: gamedataEquipmentArea;
+    let currentWeaponInSlotItemType: gamedataItemType;
+    let evtItemType: gamedataItemType;
+    let i: Int32 = 0;
+    while i < ArraySize(this.loadingVisualItems) {
+      if this.loadingVisualItems[i] == evt.GetItemID() {
+        ArrayErase(this.loadingVisualItems, i);
+        break;
+      };
+      i += 1;
+    };
+    if evt.GetSlotID() == t"AttachmentSlots.WeaponLeft" {
+      if !EquipmentSystem.GetData(this.mainPuppet).IsSlotHidden(EquipmentSystem.GetEquipAreaType(evt.GetItemID())) && this.muzzleEffectEnabled && ItemID.IsValid(this.currentWeaponInLeftSlot) {
+        currentWeaponInSlotItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.currentWeaponInLeftSlot)).ItemType().Type();
+        evtItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(evt.GetItemID())).ItemType().Type();
+        if Equals(currentWeaponInSlotItemType, evtItemType) {
+          this.SetMuzzleEffectEnabled(true);
+        };
+      };
+    } else {
+      if !EquipmentSystem.GetData(this.mainPuppet).IsSlotHidden(EquipmentSystem.GetEquipAreaType(evt.GetItemID())) && this.muzzleEffectEnabled && ItemID.IsValid(this.currentWeaponInRightSlot) {
+        currentWeaponInSlotItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.currentWeaponInRightSlot)).ItemType().Type();
+        evtItemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(evt.GetItemID())).ItemType().Type();
+        if Equals(currentWeaponInSlotItemType, evtItemType) {
+          this.SetMuzzleEffectEnabled(true);
+        };
+      };
+    };
+    area = EquipmentSystem.GetEquipAreaType(evt.GetItemID());
+    if Equals(area, gamedataEquipmentArea.RightArm) {
+      this.holsteredArmsBeingSpawned = false;
+      this.holsteredArmsVisible = true;
+    } else {
+      if Equals(area, gamedataEquipmentArea.ArmsCW) {
+        this.cyberwareArmsBeingSpawned = false;
+        this.cyberwareArmsVisible = true;
+        AnimationControllerComponent.SetAnimWrapperWeight(this.fakePuppet, n"PhotoModePauseAnim", 1.00);
+      };
+    };
+    this.ReevaluateArmsVisibility();
+  }
+
+  public final func StopWeaponShootEffects() -> Void {
+    let weaponInHands: ref<WeaponObject> = GameObject.GetActiveWeapon(this.currentPuppet);
+    if IsDefined(weaponInHands) {
+      WeaponObject.StopWeaponEffects(this.currentPuppet, weaponInHands, gamedataFxAction.Shoot);
+    };
+  }
+
+  public final func SetMuzzleEffectEnabled(enabled: Bool) -> Void {
+    let i: Int32;
+    let weaponsInHands: array<wref<WeaponObject>> = ScriptedPuppet.GetActiveWeapons(this.fakePuppet);
+    this.muzzleEffectEnabled = enabled;
+    if enabled {
+      i = 0;
+      while i < ArraySize(weaponsInHands) {
+        GameObjectEffectHelper.StartEffectEvent(weaponsInHands[i], n"muzzle_flash_photo_mode", false, null);
+        i += 1;
+      };
+    } else {
+      i = 0;
+      while i < ArraySize(weaponsInHands) {
+        GameObjectEffectHelper.StopEffectEvent(weaponsInHands[i], n"muzzle_flash_photo_mode");
+        i += 1;
+      };
+    };
+  }
+
+  public final func IsMuzzleFireSupported() -> Bool {
+    let itemType: gamedataItemType;
+    if !ItemID.IsValid(this.currentWeaponInRightSlot) {
+      return false;
+    };
+    itemType = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(this.currentWeaponInRightSlot)).ItemType().Type();
+    return Equals(itemType, gamedataItemType.Wea_AssaultRifle) || Equals(itemType, gamedataItemType.Wea_Handgun) || Equals(itemType, gamedataItemType.Wea_HeavyMachineGun) || Equals(itemType, gamedataItemType.Wea_LightMachineGun) || Equals(itemType, gamedataItemType.Wea_PrecisionRifle) || Equals(itemType, gamedataItemType.Wea_Revolver) || Equals(itemType, gamedataItemType.Wea_Rifle) || Equals(itemType, gamedataItemType.Wea_Shotgun) || Equals(itemType, gamedataItemType.Wea_ShotgunDual) || Equals(itemType, gamedataItemType.Wea_SniperRifle) || Equals(itemType, gamedataItemType.Wea_SubmachineGun);
+  }
+
+  private final func ClearInventory() -> Void {
+    let equipmentData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.fakePuppet);
+    let visualAreas: array<SEquipArea> = this.GetPhotoModeVisualEquipAreas(equipmentData, true);
+    let activeAreas: array<SEquipArea> = this.GetPhotoModeActiveEquipAreas(equipmentData);
+    this.RemoveAllItems(visualAreas);
+    this.RemoveAllItems(activeAreas);
+  }
+
+  private final func SetupUnderwear() -> Void;
+
+  private final func SetupInventory(isCurrentPlayerObjectCustomizable: Bool) -> Void {
+    let activeAreas: array<SEquipArea>;
+    let currentPlayerItem: ItemID;
+    let equipmentData: ref<EquipmentSystemPlayerData>;
+    let head: ItemID;
+    let i: Int32;
+    let visualAreas: array<SEquipArea>;
+    this.muzzleEffectEnabled = false;
+    this.customizable = isCurrentPlayerObjectCustomizable;
+    this.fakePuppet = this.GetEntity() as gamePuppet;
+    this.mainPuppet = GameInstance.GetPlayerSystem(this.fakePuppet.GetGame()).GetLocalPlayerMainGameObject() as PlayerPuppet;
+    this.currentPuppet = GameInstance.GetPlayerSystem(this.fakePuppet.GetGame()).GetLocalPlayerControlledGameObject() as PlayerPuppet;
+    let gender: CName = this.fakePuppet.GetResolvedGenderName();
+    this.TS = GameInstance.GetTransactionSystem(this.fakePuppet.GetGame());
+    let weaponInHands: ref<WeaponObject> = GameObject.GetRightActiveWeapon(this.currentPuppet);
+    if IsDefined(weaponInHands) {
+      this.usedRightWeaponItemId = weaponInHands.GetItemID();
+    };
+    weaponInHands = GameObject.GetLeftActiveWeapon(this.currentPuppet);
+    if IsDefined(weaponInHands) {
+      this.usedLeftWeaponItemId = weaponInHands.GetItemID();
+    };
+    if !this.customizable {
+      return;
+    };
+    equipmentData = EquipmentSystem.GetData(this.mainPuppet);
+    this.holsteredArmsShouldBeVisible = false;
+    activeAreas = this.GetPhotoModeActiveEquipAreas(equipmentData);
+    i = 0;
+    while i < ArraySize(activeAreas) {
+      currentPlayerItem = equipmentData.GetActiveItem(activeAreas[i].areaType);
+      if ItemID.IsValid(currentPlayerItem) {
+        this.PutOnFakeItemFromMainPuppet(currentPlayerItem, false);
+        if Equals(activeAreas[i].areaType, gamedataEquipmentArea.WeaponWheel) {
+          currentPlayerItem = equipmentData.GetActiveItem(activeAreas[i].areaType, true);
+          if ItemID.IsValid(currentPlayerItem) {
+            this.PutOnFakeItemFromMainPuppet(currentPlayerItem, true);
+          };
+        };
+      };
+      i += 1;
+    };
+    visualAreas = this.GetPhotoModeVisualEquipAreas(equipmentData, this.customizable);
+    i = 0;
+    while i < ArraySize(visualAreas) {
+      currentPlayerItem = equipmentData.GetVisualItemInSlot(visualAreas[i].areaType);
+      if Equals(visualAreas[i].areaType, gamedataEquipmentArea.RightArm) {
+        if ItemID.IsValid(currentPlayerItem) {
+          this.holsteredArmsItem = currentPlayerItem;
+        } else {
+          this.holsteredArmsItem = ItemID.CreateQuery(TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(EquipmentSystem.GetData(this.mainPuppet).GetActiveMeleeWare())).HolsteredItem().GetID());
+        };
+        if !ItemID.IsValid(this.holsteredArmsItem) {
+          this.holsteredArmsItem = ItemID.CreateQuery(TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(EquipmentSystem.GetData(this.mainPuppet).GetItemInEquipSlot(gamedataEquipmentArea.ArmsCW, 0))).HolsteredItem().GetID());
+        };
+        this.holsteredArmsShouldBeVisible = true;
+        this.EquipHolsteredArms();
+      } else {
+        if !ItemID.IsValid(currentPlayerItem) {
+        } else {
+          if Equals(visualAreas[i].areaType, gamedataEquipmentArea.HandsCW) {
+            if !equipmentData.ShouldShowHandsCW() {
+            } else {
+              this.PutOnFakeItemFromMainPuppet(currentPlayerItem, false);
+            };
+          };
+          this.PutOnFakeItemFromMainPuppet(currentPlayerItem, false);
+        };
+      };
+      i += 1;
+    };
+    if Equals(gender, n"Male") {
+      head = ItemID.FromTDBID(t"Items.PlayerMaPhotomodeHead");
+    } else {
+      if Equals(gender, n"Female") {
+        head = ItemID.FromTDBID(t"Items.PlayerWaPhotomodeHead");
+      };
+    };
+    ArrayPush(this.loadingItems, head);
+    this.TS.GiveItem(this.fakePuppet, head, 1);
+    this.TS.AddItemToSlot(this.fakePuppet, EquipmentSystem.GetPlacementSlot(head), head, true);
+    this.itemsLoadingTime = EngineTime.ToFloat(this.GetEngineTime());
+  }
+
+  public final const func GetPhotoModeEquipAreas(equipmentData: ref<EquipmentSystemPlayerData>, isVisual: Bool, withUnderwear: Bool) -> [SEquipArea] {
+    let areas: array<SEquipArea>;
+    let slots: array<gamedataEquipmentArea> = isVisual ? this.GetPhotoModeVisualSlots(withUnderwear) : this.GetPhotoModeActiveSlots();
+    let i: Int32 = 0;
+    while i < ArraySize(slots) {
+      ArrayPush(areas, this.GetEquipArea(equipmentData, slots[i]));
+      i += 1;
+    };
+    return areas;
+  }
+
+  public final const func GetPhotoModeVisualEquipAreas(equipmentData: ref<EquipmentSystemPlayerData>, withUnderwear: Bool) -> [SEquipArea] {
+    return this.GetPhotoModeEquipAreas(equipmentData, true, withUnderwear);
+  }
+
+  public final const func GetPhotoModeActiveEquipAreas(equipmentData: ref<EquipmentSystemPlayerData>) -> [SEquipArea] {
+    return this.GetPhotoModeEquipAreas(equipmentData, false, false);
+  }
+
+  public final const func GetPhotoModeVisualSlots(withUnderwear: Bool) -> [gamedataEquipmentArea] {
+    let slots: array<gamedataEquipmentArea>;
+    if withUnderwear {
+      ArrayPush(slots, gamedataEquipmentArea.UnderwearTop);
+      ArrayPush(slots, gamedataEquipmentArea.UnderwearBottom);
+    };
+    ArrayPush(slots, gamedataEquipmentArea.Face);
+    ArrayPush(slots, gamedataEquipmentArea.Feet);
+    ArrayPush(slots, gamedataEquipmentArea.Head);
+    ArrayPush(slots, gamedataEquipmentArea.InnerChest);
+    ArrayPush(slots, gamedataEquipmentArea.Legs);
+    ArrayPush(slots, gamedataEquipmentArea.OuterChest);
+    ArrayPush(slots, gamedataEquipmentArea.Outfit);
+    ArrayPush(slots, gamedataEquipmentArea.HandsCW);
+    ArrayPush(slots, gamedataEquipmentArea.LeftArm);
+    ArrayPush(slots, gamedataEquipmentArea.RightArm);
+    return slots;
+  }
+
+  public final const func GetPhotoModeActiveSlots() -> [gamedataEquipmentArea] {
+    let slots: array<gamedataEquipmentArea>;
+    return slots;
+  }
+
+  private final const func GetEquipArea(equipmentData: ref<EquipmentSystemPlayerData>, areaType: gamedataEquipmentArea) -> SEquipArea {
+    let emptyArea: SEquipArea;
+    let equipment: SLoadout = equipmentData.GetEquipment();
+    let i: Int32 = 0;
+    while i < ArraySize(equipment.equipAreas) {
+      if Equals(equipment.equipAreas[i].areaType, areaType) {
+        return equipment.equipAreas[i];
+      };
+      i += 1;
+    };
+    return emptyArea;
+  }
+
+  public final func SwitchWardrobeSet(wardrobeSet: Int32) -> Void {
+    let playerData: ref<EquipmentSystemPlayerData> = EquipmentSystem.GetData(this.mainPuppet);
+    if wardrobeSet == 8 {
+      playerData.UnequipWardrobeSet();
+    } else {
+      playerData.EquipWardrobeSet(IntEnum<gameWardrobeClothingSetIndex>(wardrobeSet));
+    };
+  }
+}

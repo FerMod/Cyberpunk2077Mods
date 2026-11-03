@@ -1,0 +1,118 @@
+
+public class InteractiveMasterDevice extends InteractiveDevice {
+
+  public const func GetDevicePS() -> ref<MasterControllerPS> {
+    return this.GetController().GetPS();
+  }
+
+  protected const func GetController() -> ref<MasterController> {
+    return this.m_controller as MasterController;
+  }
+
+  protected func CreateBlackboard() -> Void {
+    this.m_blackboard = IBlackboard.Create(GetAllBlackboardDefs().MasterDeviceBaseBlackboard);
+  }
+
+  public const func GetBlackboardDef() -> ref<MasterDeviceBaseBlackboardDef> {
+    return this.GetDevicePS().GetBlackboardDef();
+  }
+
+  protected cb func OnSlaveStateChanged(evt: ref<PSDeviceChangedEvent>) -> Bool {
+    this.m_isUIdirty = true;
+    super.OnSlaveStateChanged(evt);
+  }
+
+  protected cb func OnRequestSlaveThumbnailWidgetsUpdate(evt: ref<RequestThumbnailWidgetsUpdateEvent>) -> Bool {
+    this.RequestThumbnailWidgetsUpdate(this.GetBlackboard());
+  }
+
+  public const func GetDefaultGlitchVideoPath() -> ResRef {
+    return r"base\\gameplay\\gui\\widgets\\tutorial\\vr_quickhacks_tutorial.inkwidget";
+  }
+
+  public const func GetBroadcastGlitchVideoPath() -> ResRef {
+    return r"base\\gameplay\\gui\\widgets\\tutorial\\vr_quickhacks_tutorial.inkwidget";
+  }
+
+  protected cb func OnDeviceWidgetUpdate(evt: ref<RequestDeviceWidgetUpdateEvent>) -> Bool {
+    if PersistentID.IsDefined(evt.requester) {
+      this.RequestDeviceWidgetsUpdate(this.GetBlackboard(), evt.requester);
+    } else {
+      this.RequestDeviceWidgetsUpdate(this.GetBlackboard());
+    };
+  }
+
+  protected cb func OnRequestSlaveDevicesWidgetsUpdate(evt: ref<RequestDeviceWidgetsUpdateEvent>) -> Bool {
+    this.RequestDeviceWidgetsUpdate(this.GetBlackboard(), evt.requesters);
+  }
+
+  protected func RequestThumbnailWidgetsUpdate(blackboard: ref<IBlackboard>) -> Void {
+    this.GetDevicePS().RequestThumbnailWidgetsUpdate(blackboard);
+  }
+
+  protected final func RequestDeviceWidgetsUpdate(blackboard: ref<IBlackboard>, const devices: script_ref<[PersistentID]>) -> Void {
+    this.GetDevicePS().RequestDeviceWidgetsUpdate(blackboard, devices);
+  }
+
+  protected final func RequestDeviceWidgetsUpdate(blackboard: ref<IBlackboard>, deviceID: PersistentID) -> Void {
+    this.GetDevicePS().RequestDeviceWidgetsUpdate(blackboard, deviceID);
+  }
+
+  public const func ShouldShowTerminalTitle() -> Bool {
+    return false;
+  }
+
+  protected func NotifyConnectionHighlightSystem(IsHighlightON: Bool, IsHighlightedByMasterDevice: Bool) -> Bool {
+    let highlightEvent: ref<NotifyHighlightedDevice>;
+    let i: Int32;
+    let slaveDevices: array<ref<DeviceComponentPS>>;
+    if !super.NotifyConnectionHighlightSystem(IsHighlightON, IsHighlightedByMasterDevice) {
+      return false;
+    };
+    slaveDevices = this.GetDevicePS().GetImmediateSlaves();
+    highlightEvent = new NotifyHighlightedDevice();
+    highlightEvent.IsDeviceHighlighted = IsHighlightON;
+    highlightEvent.IsNotifiedByMasterDevice = true;
+    i = 0;
+    while i < ArraySize(slaveDevices) {
+      GameInstance.GetPersistencySystem(this.GetGame()).QueuePSEvent(slaveDevices[i].GetID(), slaveDevices[i].GetClassName(), highlightEvent);
+      i += 1;
+    };
+    return true;
+  }
+
+  protected cb func OnSetAsQuestImportantEvent(evt: ref<SetAsQuestImportantEvent>) -> Bool {
+    super.OnSetAsQuestImportantEvent(evt);
+    if evt.PropagateToSlaves() {
+      this.GetDevicePS().SetSlavesAsQuestImportant(evt.IsImportant());
+    };
+  }
+
+  protected cb func OnPerformedAction(evt: ref<PerformedAction>) -> Bool {
+    let authOffAction: ref<SetAuthorizationModuleOFF>;
+    let skillcheckAction: ref<ActionSkillCheck>;
+    super.OnPerformedAction(evt);
+    skillcheckAction = evt.m_action as ActionSkillCheck;
+    authOffAction = evt.m_action as SetAuthorizationModuleOFF;
+    if IsDefined(authOffAction) {
+      this.SucceedGameplayObjective(this.GetDevicePS().GetControlPanelObjectiveData());
+    };
+    if IsDefined(skillcheckAction) {
+      if skillcheckAction.IsCompleted() {
+        this.SucceedGameplayObjective(this.GetDevicePS().GetControlPanelObjectiveData());
+      };
+    };
+  }
+
+  public func ShouldAlwaysUpdateDeviceWidgets() -> Bool {
+    return false;
+  }
+
+  protected cb func OnCleanPasswordEvent(evt: ref<CleanPasswordEvent>) -> Bool {
+    if IsDefined(this.GetBlackboard()) {
+      this.GetBlackboard().SetBool(this.GetBlackboardDef().CleanPassword, true);
+      this.GetBlackboard().SignalBool(this.GetBlackboardDef().CleanPassword);
+      this.GetBlackboard().FireCallbacks();
+    };
+  }
+}

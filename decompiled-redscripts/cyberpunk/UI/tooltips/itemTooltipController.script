@@ -1,0 +1,3105 @@
+
+public class ItemTooltipCommonController extends AGenericTooltipControllerWithDebug {
+
+  protected edit let m_backgroundContainer: inkWidgetRef;
+
+  protected edit let m_itemEquippedContainer: inkWidgetRef;
+
+  protected edit let m_itemRecipeContainer: inkWidgetRef;
+
+  protected edit let m_itemHeaderContainer: inkWidgetRef;
+
+  protected edit let m_itemIconContainer: inkWidgetRef;
+
+  protected edit let m_itemWeaponInfoContainer: inkWidgetRef;
+
+  protected edit let m_itemClothingInfoContainer: inkWidgetRef;
+
+  protected edit let m_itemGrenadeInfoContainer: inkWidgetRef;
+
+  protected edit let m_itemCyberwareContainer: inkWidgetRef;
+
+  protected edit let m_itemRequirementsContainer: inkWidgetRef;
+
+  protected edit let m_itemDetailsContainer: inkWidgetRef;
+
+  protected edit let m_itemRecipeDataContainer: inkWidgetRef;
+
+  protected edit let m_itemEvolutionContainer: inkWidgetRef;
+
+  protected edit let m_itemCraftedContainer: inkWidgetRef;
+
+  protected edit let m_itemActionContainer: inkWidgetRef;
+
+  protected edit let m_itemBottomContainer: inkWidgetRef;
+
+  protected edit let m_itemCWUpgradeContainer: inkWidgetRef;
+
+  protected edit let m_itemCWQuickHackMenuLinkContainer: inkWidgetRef;
+
+  protected edit let m_contentWrapper: inkWidgetRef;
+
+  protected edit let m_cornerContainer: inkWidgetRef;
+
+  protected edit let m_root: inkWidgetRef;
+
+  protected edit let m_iconicBG: inkWidgetRef;
+
+  protected edit let m_recipeBG: inkWidgetRef;
+
+  protected edit let m_illegalBG: inkWidgetRef;
+
+  protected edit let m_descriptionWrapper: inkWidgetRef;
+
+  protected edit let m_descriptionText: inkTextRef;
+
+  @default(ItemTooltipCommonController, itemCyberwareUpgrade)
+  protected edit let m_cyberwareUpgradeModuleName: CName;
+
+  @default(ItemTooltipCommonController, itemCyberwareQuickHacKMenuLink)
+  protected edit let m_cyberwareQuickHackMenuLinkName: CName;
+
+  @default(ItemTooltipCommonController, base\gameplay\gui\common\tooltip\cyberware_tooltip_modules.inkwidget)
+  protected edit let m_cyberwareModulesLibraryRes: ResRef;
+
+  protected edit let m_categoriesWrapper: inkCompoundRef;
+
+  protected edit let DEBUG_iconErrorWrapper: inkWidgetRef;
+
+  protected edit let DEBUG_iconErrorText: inkTextRef;
+
+  protected let m_spawnedModules: [wref<ItemTooltipModuleController>];
+
+  protected let m_itemEquippedController: wref<ItemTooltipEquippedModule>;
+
+  protected let m_itemRecipeController: wref<ItemTooltipRepiceModule>;
+
+  protected let m_itemHeaderController: wref<ItemTooltipHeaderController>;
+
+  protected let m_itemIconController: wref<ItemTooltipIconModule>;
+
+  protected let m_itemWeaponInfoController: wref<ItemTooltipWeaponInfoModule>;
+
+  protected let m_itemClothingInfoController: wref<ItemTooltipClothingInfoModule>;
+
+  protected let m_itemGrenadeInfoController: wref<ItemTooltipGrenadeInfoModule>;
+
+  protected let m_itemCyberwareController: wref<ItemTooltipCyberwareWeaponModule>;
+
+  protected let m_itemRequirementsController: wref<ItemTooltipRequirementsModule>;
+
+  protected let m_itemDetailsController: wref<ItemTooltipDetailsModule>;
+
+  protected let m_itemRecipeDataController: wref<ItemTooltipRecipeDataModule>;
+
+  protected let m_itemEvolutionController: wref<ItemTooltipEvolutionModule>;
+
+  protected let m_itemCraftedController: wref<ItemTooltipCraftedModule>;
+
+  protected let m_itemCWUpgradeController: wref<ItemTooltipCyberwareUpgradeController>;
+
+  protected let m_itemBottomController: wref<ItemTooltipBottomModule>;
+
+  protected let DEBUG_showAdditionalInfo: Bool;
+
+  protected let m_data: ref<MinimalItemTooltipData>;
+
+  protected let m_inventoryTooltipData: ref<InventoryTooltipData>;
+
+  protected let m_itemData: ref<UIInventoryItem>;
+
+  protected let m_comparisonData: ref<UIInventoryItemComparisonManager>;
+
+  public let m_player: wref<PlayerPuppet>;
+
+  protected let m_requestedModules: [CName];
+
+  protected let m_pendingModules: [CName];
+
+  protected let m_displayContext: ref<ItemDisplayContextData>;
+
+  protected let m_tooltipDisplayContext: InventoryTooltipDisplayContext;
+
+  protected let m_itemDisplayContext: ItemDisplayContext;
+
+  protected let m_priceOverride: Int32;
+
+  protected let m_settings: ref<UserSettings>;
+
+  protected let m_settingsListener: ref<ItemTooltipSettingsListener>;
+
+  @default(ItemTooltipCommonController, /accessibility/interface)
+  protected let m_groupPath: CName;
+
+  protected edit let m_minWidth: inkWidgetRef;
+
+  protected let m_bigFontEnabled: Bool;
+
+  protected let m_inCrafting: Bool;
+
+  protected let m_isCyberwareStyle: Bool;
+
+  protected let m_descriptionWrapperIndex: Int32;
+
+  public final func SetData(const data: script_ref<ItemViewData>) -> Void {
+    this.SetData(InventoryTooltipData.FromItemViewData(data));
+  }
+
+  public func SetData(tooltipData: ref<ATooltipData>) -> Void {
+    let tooltipWrapper: ref<UIInventoryItemTooltipWrapper>;
+    if IsDefined(tooltipData as InventoryTooltipData) {
+      this.UpdateData(tooltipData as InventoryTooltipData);
+    } else {
+      if IsDefined(tooltipData as UIInventoryItemTooltipWrapper) {
+        tooltipWrapper = tooltipData as UIInventoryItemTooltipWrapper;
+        this.m_itemData = tooltipWrapper.m_data;
+        this.m_comparisonData = tooltipWrapper.m_comparisonData;
+        this.m_displayContext = tooltipWrapper.m_displayContext;
+        this.m_player = tooltipWrapper.m_displayContext.GetPlayerAsPuppet();
+        this.m_itemDisplayContext = tooltipWrapper.m_displayContext.GetDisplayContext();
+        this.m_tooltipDisplayContext = tooltipWrapper.m_displayContext.GetTooltipDisplayContext();
+        this.m_inCrafting = Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading);
+        this.m_priceOverride = tooltipWrapper.m_overridePrice;
+        this.m_isCyberwareStyle = Equals(this.m_itemData.GetItemType(), gamedataItemType.CyberwareStyle);
+        this.InvalidateSpawnedModules();
+        this.RegisterUserSettingsListener();
+        this.UpdateTooltipSize();
+        this.GetDescriptionWrapperIndex();
+        this.NEW_UpdateLayout();
+      } else {
+        this.m_data = tooltipData as MinimalItemTooltipData;
+        this.m_displayContext = this.m_data.displayContextData;
+        this.m_inCrafting = Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Upgrading);
+        this.RegisterUserSettingsListener();
+        this.UpdateTooltipSize();
+        this.UpdateLayout();
+      };
+    };
+    this.DEBUG_UpdateDebugInfo();
+  }
+
+  public final func UpdateData(tooltipData: ref<InventoryTooltipData>) -> Void {
+    this.m_inventoryTooltipData = tooltipData;
+    this.m_data = MinimalItemTooltipData.FromInventoryTooltipData(tooltipData);
+    this.m_inCrafting = Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Upgrading);
+    if IsDefined(this.m_data) {
+      this.RegisterUserSettingsListener();
+      this.UpdateTooltipSize();
+      this.UpdateLayout();
+    };
+  }
+
+  public final func ForceNoEquipped() -> Void {
+    this.m_data.isEquipped = false;
+    this.UpdateLayout();
+  }
+
+  public func PrespawnLazyModules() -> Void {
+    this.RequestModule(this.m_itemEquippedContainer, n"itemEquipped", n"OnNEW_EquippedModuleSpawned");
+    this.RequestModule(this.m_itemRecipeContainer, n"itemRecipe", n"OnNEW_RecipeModuleSpawned");
+    this.RequestModule(this.m_itemHeaderContainer, n"itemHeader", n"OnNEW_HeaderModuleSpawned");
+    this.RequestModule(this.m_itemIconContainer, n"itemIcon", n"OnNEW_IconModuleSpawned");
+    this.RequestModule(this.m_itemWeaponInfoContainer, n"itemWeaponInfo", n"OnNEW_WeaponInfoModuleSpawned");
+    this.RequestModule(this.m_itemClothingInfoContainer, n"itemClothingInfo", n"OnNEW_ClothingInfoModuleSpawned");
+    this.RequestModule(this.m_itemCyberwareContainer, n"itemWeaponBars", n"OnNEW_UpdateStatBarsModuleSpawned");
+    this.RequestModule(this.m_itemGrenadeInfoContainer, n"itemGrenadeInfo", n"OnNEW_GrenadeInfoModuleSpawned");
+    this.RequestModule(this.m_itemRequirementsContainer, n"itemRequirements", n"OnNEW_RequirementsModuleSpawned");
+    this.RequestModule(this.m_itemDetailsContainer, n"itemDetails", n"OnNEW_DetailsModuleSpawned");
+    this.RequestModule(this.m_itemRecipeDataContainer, n"itemRecipeData", n"OnNEW_RecipeDataModuleSpawned");
+    this.RequestModule(this.m_itemEvolutionContainer, n"itemEvolution", n"OnNEW_EvolutionModuleSpawned");
+    this.RequestModule(this.m_itemCraftedContainer, n"itemCrafted", n"OnNEW_CraftedModuleSpawned");
+    this.RequestModule(this.m_itemBottomContainer, n"itemBottom", n"OnNEW_BottomModuleSpawned");
+  }
+
+  protected final func RequestModule(container: inkWidgetRef, moduleName: CName, callback: CName, opt data: ref<ItemTooltipModuleSpawnedCallbackData>) -> Bool {
+    let spawnedCallbackData: ref<ItemTooltipModuleSpawnedCallbackData>;
+    if ArrayContains(this.m_requestedModules, moduleName) {
+      return false;
+    };
+    if IsDefined(data) {
+      spawnedCallbackData = data;
+    } else {
+      spawnedCallbackData = new ItemTooltipModuleSpawnedCallbackData();
+      spawnedCallbackData.moduleName = moduleName;
+    };
+    ArrayPush(this.m_requestedModules, moduleName);
+    ArrayPush(this.m_pendingModules, moduleName);
+    this.AsyncSpawnFromLocal(inkWidgetRef.Get(container), moduleName, this, callback, spawnedCallbackData);
+    return true;
+  }
+
+  protected final func RequestExternalModule(container: inkWidgetRef, moduleName: CName, modulesLibraryRes: ResRef, callback: CName, opt data: ref<ItemTooltipModuleSpawnedCallbackData>) -> Bool {
+    if ArrayContains(this.m_requestedModules, moduleName) {
+      return false;
+    };
+    ArrayPush(this.m_requestedModules, moduleName);
+    this.AsyncSpawnFromExternal(inkWidgetRef.Get(container), modulesLibraryRes, moduleName, this, callback, data);
+    return true;
+  }
+
+  protected final func HandleModuleSpawned(widget: wref<inkWidget>, data: ref<ItemTooltipModuleSpawnedCallbackData>) -> Void {
+    let controller: wref<ItemTooltipModuleController>;
+    ArrayRemove(this.m_pendingModules, data.moduleName);
+    widget.SetVAlign(inkEVerticalAlign.Top);
+    controller = widget.GetController() as ItemTooltipModuleController;
+    ArrayPush(this.m_spawnedModules, controller);
+    controller.SetDisplayContext(this.m_itemDisplayContext, this.m_tooltipDisplayContext, this.m_displayContext);
+  }
+
+  protected final func InvalidateSpawnedModules() -> Void {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_spawnedModules);
+    while i < limit {
+      this.m_spawnedModules[i].SetDisplayContext(this.m_itemDisplayContext, this.m_tooltipDisplayContext, this.m_displayContext);
+      i += 1;
+    };
+  }
+
+  private final func ShouldHideDescription(itemType: gamedataItemType) -> Bool {
+    return this.m_data.itemTweakID == t"Items.money" || Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Upgrading) || Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading) || Equals(this.m_itemDisplayContext, ItemDisplayContext.Crafting) || Equals(itemType, gamedataItemType.Gad_Grenade) || Equals(itemType, gamedataItemType.Con_Inhaler) || Equals(itemType, gamedataItemType.Con_Injector) || UIInventoryItemsManager.IsItemTypeCyberware(itemType) || Equals(itemType, gamedataItemType.Gen_CraftingMaterial) || Equals(itemType, gamedataItemType.Con_Skillbook);
+  }
+
+  protected final func MoveRequirementModuleForCyberwareStyle() -> Void {
+    let newIndex: Int32;
+    if this.m_isCyberwareStyle {
+      newIndex = this.m_descriptionWrapperIndex + 1 < inkCompoundRef.GetNumChildren(this.m_categoriesWrapper) ? this.m_descriptionWrapperIndex + 1 : this.m_descriptionWrapperIndex;
+      inkCompoundRef.ReorderChild(this.m_categoriesWrapper, inkWidgetRef.Get(this.m_itemRequirementsContainer), newIndex);
+    };
+  }
+
+  protected final func GetDescriptionWrapperIndex() -> Void {
+    this.m_descriptionWrapperIndex = 0;
+    let index: Int32 = 0;
+    while index < inkCompoundRef.GetNumChildren(this.m_categoriesWrapper) {
+      if inkCompoundRef.GetWidgetByIndex(this.m_categoriesWrapper, index) == inkWidgetRef.Get(this.m_descriptionWrapper) {
+        this.m_descriptionWrapperIndex = index;
+        return;
+      };
+      index += 1;
+    };
+  }
+
+  protected func UpdateLayout() -> Void {
+    let margin: inkMargin;
+    let shouldHideBottomModule: Bool;
+    this.UpdateEquippedModule();
+    this.UpdateRecipeModule();
+    this.UpdateHeaderModule();
+    this.UpdateIconModule();
+    this.UpdateWeaponInfoModule();
+    this.UpdateClothingInfoModule();
+    this.UpdateGrenadeInfoModule();
+    this.UpdateStatBarsModule();
+    this.UpdateRequirementsModule();
+    this.UpdateDetailsModule();
+    this.UpdateEvolutionModule();
+    this.UpdateTransmogModule();
+    this.UpdateBottomModule();
+    this.UpdateIconicBG();
+    this.UpdateRecipeBG();
+    this.UpdateIllegalBG();
+    this.UpdateCyberwareUpgradeModule();
+    this.UpdateCyberwareQuickHackMenuLinkModule();
+    if this.m_data.itemData.HasTag(n"Recipe") || this.ShouldHideDescription(this.m_data.itemType) {
+      inkWidgetRef.SetVisible(this.m_descriptionWrapper, false);
+    } else {
+      if IsStringValid(this.m_data.description) {
+        shouldHideBottomModule = ItemTooltipBottomModule.ShouldHideBottomModule(this.m_data, this.m_tooltipDisplayContext, this.m_itemDisplayContext);
+        inkTextRef.SetText(this.m_descriptionText, GetLocalizedText(this.m_data.description));
+        inkWidgetRef.SetVisible(this.m_descriptionWrapper, true);
+        margin = inkWidgetRef.GetMargin(this.m_descriptionText);
+        margin.bottom = AbsF(margin.bottom) * shouldHideBottomModule || this.m_displayContext.HasTag(n"Wardrobe") ? 1.00 : -1.00;
+        inkWidgetRef.SetMargin(this.m_descriptionText, margin);
+      } else {
+        inkWidgetRef.SetVisible(this.m_descriptionWrapper, false);
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_backgroundContainer, NotEquals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting));
+    if this.m_data.requirements.isAnyStatRequirementNotMet {
+      inkWidgetRef.SetState(this.m_contentWrapper, n"ReqNotMet");
+    } else {
+      inkWidgetRef.SetState(this.m_contentWrapper, n"Default");
+    };
+  }
+
+  protected func UpdateIconicBG() -> Void {
+    if Equals(this.m_data.isIconic, true) {
+      inkWidgetRef.SetVisible(this.m_iconicBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_iconicBG, false);
+    };
+  }
+
+  protected func UpdateRecipeBG() -> Void {
+    if Equals(this.m_data.itemData.HasTag(n"Recipe"), true) {
+      inkWidgetRef.SetVisible(this.m_recipeBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_recipeBG, false);
+    };
+  }
+
+  protected func UpdateIllegalBG() -> Void {
+    if Equals(this.m_data.itemData.HasTag(n"IllegalItem"), true) {
+      inkWidgetRef.SetVisible(this.m_illegalBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_illegalBG, false);
+    };
+  }
+
+  protected func UpdateEquippedModule() -> Void {
+    if this.m_data.isEquipped && NotEquals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_data.displayContext, InventoryTooltipDisplayContext.Upgrading) {
+      if !IsDefined(this.m_itemEquippedController) {
+        this.RequestModule(this.m_itemEquippedContainer, n"itemEquipped", n"OnEquippedModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemEquippedContainer, true);
+      inkWidgetRef.SetVisible(this.m_cornerContainer, true);
+      inkWidgetRef.SetState(this.m_root, n"Equipped");
+      this.m_itemEquippedController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEquippedContainer, false);
+      inkWidgetRef.SetVisible(this.m_cornerContainer, false);
+      inkWidgetRef.SetState(this.m_root, n"Default");
+    };
+  }
+
+  protected cb func OnEquippedModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemEquippedController = widget.GetController() as ItemTooltipEquippedModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateEquippedModule();
+  }
+
+  protected func UpdateRecipeModule() -> Void {
+    if Equals(this.m_data.itemData.HasTag(n"Recipe"), true) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading) {
+      if !IsDefined(this.m_itemRecipeController) {
+        this.RequestModule(this.m_itemRecipeContainer, n"itemRecipe", n"OnRecipeModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemRecipeContainer, true);
+      this.m_itemRecipeController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemRecipeContainer, false);
+    };
+  }
+
+  protected cb func OnRecipeModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRecipeController = widget.GetController() as ItemTooltipRepiceModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateRecipeModule();
+  }
+
+  protected func UpdateHeaderModule() -> Void {
+    if !IsDefined(this.m_itemHeaderController) {
+      this.RequestModule(this.m_itemHeaderContainer, n"itemHeader", n"OnHeaderModuleSpawned");
+      return;
+    };
+    this.m_itemHeaderController.Update(this.m_data);
+    if !this.m_inCrafting {
+      this.m_itemHeaderController.UpdateWrapping(this.m_bigFontEnabled);
+    };
+  }
+
+  protected cb func OnHeaderModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemHeaderController = widget.GetController() as ItemTooltipHeaderController;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateHeaderModule();
+  }
+
+  protected func UpdateIconModule() -> Void {
+    if Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.HUD) && UIInventoryItemsManager.IsItemTypeCloting(this.m_data.itemType) {
+      if !IsDefined(this.m_itemIconController) {
+        this.RequestModule(this.m_itemIconContainer, n"itemIcon", n"OnIconModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemIconContainer, true);
+      this.m_itemIconController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemIconContainer, false);
+    };
+  }
+
+  protected cb func OnIconModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemIconController = widget.GetController() as ItemTooltipIconModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateIconModule();
+  }
+
+  protected cb func OnHideIconModuleEvent(evt: ref<HideIconModuleEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_itemIconContainer, false);
+  }
+
+  protected func UpdateWeaponInfoModule() -> Void {
+    if Equals(this.m_data.equipmentArea, gamedataEquipmentArea.Weapon) || Equals(this.m_data.equipmentArea, gamedataEquipmentArea.WeaponHeavy) {
+      if !IsDefined(this.m_itemWeaponInfoController) {
+        this.RequestModule(this.m_itemWeaponInfoContainer, n"itemWeaponInfo", n"OnWeaponInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemWeaponInfoContainer, true);
+      this.m_itemWeaponInfoController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemWeaponInfoContainer, false);
+    };
+  }
+
+  protected cb func OnWeaponInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemWeaponInfoController = widget.GetController() as ItemTooltipWeaponInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateWeaponInfoModule();
+  }
+
+  protected func UpdateClothingInfoModule() -> Void {
+    let isCyberware: Bool;
+    if Equals(this.m_data.itemType, gamedataItemType.Cyberware) || Equals(this.m_data.itemType, gamedataItemType.Cyb_Ability) || Equals(this.m_data.itemType, gamedataItemType.Cyb_HealingAbility) || Equals(this.m_data.itemType, gamedataItemType.Cyb_Launcher) || Equals(this.m_data.itemType, gamedataItemType.Cyb_MantisBlades) || Equals(this.m_data.itemType, gamedataItemType.Cyb_NanoWires) || Equals(this.m_data.itemType, gamedataItemType.Cyb_StrongArms) || Equals(this.m_data.itemCategory, gamedataItemCategory.Cyberware) {
+      isCyberware = true;
+    };
+    if isCyberware || Equals(this.m_data.itemCategory, gamedataItemCategory.Weapon) && Equals(this.m_data.equipmentArea, gamedataEquipmentArea.ArmsCW) && this.m_data.armorValue >= 0.00 {
+      if !IsDefined(this.m_itemClothingInfoController) {
+        this.RequestModule(this.m_itemClothingInfoContainer, n"itemClothingInfo", n"OnClothingInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemClothingInfoContainer, true);
+      this.m_itemClothingInfoController.Update(this.m_data);
+    } else {
+      if Equals(this.m_data.itemCategory, gamedataItemCategory.Clothing) && this.m_data.armorValue >= 0.00 {
+        inkWidgetRef.SetVisible(this.m_itemClothingInfoContainer, false);
+      } else {
+        inkWidgetRef.SetVisible(this.m_itemClothingInfoContainer, false);
+      };
+    };
+  }
+
+  protected cb func OnClothingInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemClothingInfoController = widget.GetController() as ItemTooltipClothingInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateClothingInfoModule();
+  }
+
+  protected func UpdateStatBarsModule() -> Void {
+    let isCyberware: Bool;
+    let isHealingItem: Bool;
+    if Equals(this.m_data.itemType, gamedataItemType.Cyb_Launcher) || Equals(this.m_data.itemType, gamedataItemType.Cyb_MantisBlades) || Equals(this.m_data.itemType, gamedataItemType.Cyb_NanoWires) || Equals(this.m_data.itemType, gamedataItemType.Cyb_StrongArms) {
+      isCyberware = true;
+    };
+    if Equals(this.m_data.itemType, gamedataItemType.Con_Inhaler) || Equals(this.m_data.itemType, gamedataItemType.Con_Injector) {
+      isHealingItem = true;
+    };
+    if isCyberware || isHealingItem || Equals(this.m_data.itemCategory, gamedataItemCategory.Weapon) && Equals(this.m_data.equipmentArea, gamedataEquipmentArea.ArmsCW) {
+      if !IsDefined(this.m_itemCyberwareController) {
+        this.RequestModule(this.m_itemCyberwareContainer, n"itemWeaponBars", n"OnUpdateStatBarsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemCyberwareContainer, true);
+      this.m_itemCyberwareController.Update(this.m_data);
+      if !this.m_inCrafting {
+        this.m_itemCyberwareController.NEW_UpdateWrapping(this.m_bigFontEnabled);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCyberwareContainer, false);
+    };
+  }
+
+  protected cb func OnUpdateStatBarsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCyberwareController = widget.GetController() as ItemTooltipCyberwareWeaponModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateStatBarsModule();
+  }
+
+  protected func UpdateGrenadeInfoModule() -> Void {
+    if Equals(this.m_data.itemType, gamedataItemType.Gad_Grenade) {
+      if !IsDefined(this.m_itemGrenadeInfoController) {
+        this.RequestModule(this.m_itemGrenadeInfoContainer, n"itemGrenadeInfo", n"OnGrenadeInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemGrenadeInfoContainer, true);
+      this.m_itemGrenadeInfoController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemGrenadeInfoContainer, false);
+    };
+  }
+
+  protected cb func OnGrenadeInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemGrenadeInfoController = widget.GetController() as ItemTooltipGrenadeInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateGrenadeInfoModule();
+  }
+
+  protected func UpdateRequirementsModule() -> Void {
+    let anyRequirementNotMet: Bool = this.m_data.requirements.isLevelRequirementNotMet || this.m_data.requirements.isSmartlinkRequirementNotMet || this.m_data.requirements.isStrengthRequirementNotMet || this.m_data.requirements.isReflexRequirementNotMet || this.m_data.requirements.isAnyStatRequirementNotMet || this.m_data.requirements.isPerkRequirementNotMet || this.m_data.requirements.isRarityRequirementNotMet;
+    if anyRequirementNotMet || ArraySize(this.m_data.attributeAllocationStats) > 0 {
+      if !IsDefined(this.m_itemRequirementsController) {
+        this.RequestModule(this.m_itemRequirementsContainer, n"itemRequirements", n"OnRequirementsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemRequirementsContainer, true);
+      this.m_itemRequirementsController.Update(this.m_data);
+      if !this.m_inCrafting {
+        this.m_itemRequirementsController.UpdateWrapping(this.m_bigFontEnabled);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemRequirementsContainer, false);
+    };
+  }
+
+  protected cb func OnRequirementsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRequirementsController = widget.GetController() as ItemTooltipRequirementsModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateRequirementsModule();
+  }
+
+  protected func UpdateDetailsModule() -> Void {
+    let hasStats: Bool = ArraySize(this.m_data.stats) > 0;
+    let hasDedicatedMods: Bool = ArraySize(this.m_data.dedicatedMods) > 0;
+    let hasMods: Bool = ArraySize(this.m_data.mods) > 0;
+    let isWeaponOnHud: Bool = Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.HUD) && Equals(this.m_data.equipmentArea, gamedataEquipmentArea.Weapon);
+    let isWeaponInCrafting: Bool = Equals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) && Equals(this.m_data.equipmentArea, gamedataEquipmentArea.Weapon);
+    let showInCrafting: Bool = isWeaponInCrafting && (hasDedicatedMods || hasMods);
+    let showOutsideCraftingAndHud: Bool = !isWeaponInCrafting && !isWeaponOnHud && (hasStats || hasDedicatedMods || hasMods);
+    let showInHud: Bool = isWeaponOnHud && (hasDedicatedMods || hasMods);
+    if showOutsideCraftingAndHud || showInCrafting || showInHud {
+      if !IsDefined(this.m_itemDetailsController) {
+        this.RequestModule(this.m_itemDetailsContainer, n"itemDetails", n"OnDetailsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemDetailsContainer, true);
+      this.m_itemDetailsController.GetContext(this.m_inCrafting);
+      this.m_itemDetailsController.Update(this.m_data, hasStats, hasDedicatedMods, hasMods);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemDetailsContainer, false);
+    };
+  }
+
+  protected cb func OnDetailsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemDetailsController = widget.GetController() as ItemTooltipDetailsModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateDetailsModule();
+  }
+
+  protected func UpdateRecipeDataModule() -> Void {
+    if this.m_data.recipeData != null {
+      if !IsDefined(this.m_itemRecipeDataController) {
+        this.RequestModule(this.m_itemRecipeDataContainer, n"itemRecipeData", n"OnRecipeDataModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemRecipeDataContainer, true);
+      this.m_itemRecipeDataController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemRecipeDataContainer, false);
+    };
+  }
+
+  protected cb func OnRecipeDataModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRecipeDataController = widget.GetController() as ItemTooltipRecipeDataModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateRecipeDataModule();
+  }
+
+  protected func UpdateEvolutionModule() -> Void {
+    if NotEquals(this.m_data.itemEvolution, gamedataWeaponEvolution.Invalid) {
+      if !IsDefined(this.m_itemEvolutionController) {
+        this.RequestModule(this.m_itemEvolutionContainer, n"itemEvolution", n"OnEvolutionModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemEvolutionContainer, true);
+      this.m_itemEvolutionController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEvolutionContainer, false);
+    };
+  }
+
+  protected cb func OnEvolutionModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemEvolutionController = widget.GetController() as ItemTooltipEvolutionModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateEvolutionModule();
+  }
+
+  protected func UpdateCraftedModule() -> Void {
+    if NotEquals(this.m_data.displayContext, InventoryTooltipDisplayContext.Crafting) && this.m_data.isCrafted {
+      if !IsDefined(this.m_itemCraftedController) {
+        this.RequestModule(this.m_itemCraftedContainer, n"itemCrafted", n"OnCraftedModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemCraftedContainer, true);
+      this.m_itemCraftedController.Update(this.m_data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCraftedContainer, false);
+    };
+  }
+
+  protected cb func OnCraftedModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCraftedController = widget.GetController() as ItemTooltipCraftedModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateCraftedModule();
+  }
+
+  protected func UpdateTransmogModule() -> Void {
+    inkWidgetRef.SetVisible(this.m_itemActionContainer, false);
+  }
+
+  private final func UpdateCyberwareUpgradeModule() -> Void {
+    if UIInventoryItemsManager.IsItemTypeCyberware(this.m_data.itemType) && IsDefined(this.m_data.cyberwareUpgradeData) && this.m_data.cyberwareUpgradeData.IsValid() {
+      if !IsDefined(this.m_itemCWUpgradeController) {
+        this.RequestExternalModule(this.m_itemCWUpgradeContainer, this.m_cyberwareUpgradeModuleName, this.m_cyberwareModulesLibraryRes, n"OnCyberwareUpgradeModuleSpawned");
+        return;
+      };
+      this.m_itemCWUpgradeController.Update(this.m_data);
+      inkWidgetRef.SetVisible(this.m_itemCWUpgradeContainer, this.m_itemCWUpgradeController.IsVisible());
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCWUpgradeContainer, false);
+    };
+  }
+
+  private final func UpdateCyberwareQuickHackMenuLinkModule() -> Void {
+    if Equals(this.m_data.itemType, gamedataItemType.Cyb_NanoWires) && this.m_data.isEquipped {
+      if Cast<Bool>(InventoryItemData.GetAttachmentsSize(this.m_inventoryTooltipData.inventoryItemData)) {
+        this.RequestExternalModule(this.m_itemCWQuickHackMenuLinkContainer, this.m_cyberwareQuickHackMenuLinkName, this.m_cyberwareModulesLibraryRes, n"OnCyberwareQuickHackMenuLinkModuleSpawned");
+        inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, false);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, false);
+    };
+  }
+
+  protected cb func OnCyberwareUpgradeModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCWUpgradeController = widget.GetController() as ItemTooltipCyberwareUpgradeController;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateCyberwareUpgradeModule();
+  }
+
+  protected func UpdateBottomModule() -> Void {
+    let shouldHideBottom: Bool = ItemTooltipBottomModule.ShouldHideBottomModule(this.m_data, this.m_tooltipDisplayContext, this.m_itemDisplayContext);
+    if this.m_displayContext.HasTag(n"Wardrobe") || shouldHideBottom {
+      inkWidgetRef.SetVisible(this.m_itemBottomContainer, false);
+    } else {
+      if !IsDefined(this.m_itemBottomController) {
+        this.RequestModule(this.m_itemBottomContainer, n"itemBottom", n"OnBottomModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemBottomContainer, true);
+      this.m_itemBottomController.Update(this.m_data);
+    };
+  }
+
+  protected cb func OnBottomModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemBottomController = widget.GetController() as ItemTooltipBottomModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.UpdateBottomModule();
+  }
+
+  private final func NEW_UpdateLayout() -> Void {
+    let margin: inkMargin;
+    let shouldHideBottomModule: Bool;
+    this.NEW_UpdateEquippedModule();
+    this.NEW_UpdateRecipeModule();
+    this.NEW_UpdateHeaderModule();
+    this.NEW_UpdateIconModule();
+    this.NEW_UpdateWeaponInfoModule();
+    this.NEW_UpdateClothingInfoModule();
+    this.NEW_UpdateStatBarsModule();
+    this.NEW_UpdateGrenadeInfoModule();
+    this.NEW_UpdateRequirementsModule();
+    this.NEW_UpdateDetailsModule();
+    this.NEW_UpdateEvolutionModule();
+    this.NEW_UpdateTransmogModule();
+    this.NEW_UpdateCyberwareUpgradeModule();
+    this.NEW_UpdateCyberwareQuickHackMenuLinkModule();
+    this.NEW_UpdateBottomModule();
+    this.NEW_UpdateIconicBG();
+    this.NEW_UpdateRecipeBG();
+    this.NEW_UpdateIllegalBG();
+    if this.ShouldHideDescription(this.m_itemData.GetItemType()) {
+      inkWidgetRef.SetVisible(this.m_descriptionWrapper, false);
+    } else {
+      if IsStringValid(this.m_itemData.GetDescription()) {
+        shouldHideBottomModule = ItemTooltipBottomModule.ShouldHideBottomModule(this.m_tooltipDisplayContext, this.m_itemData, this.m_itemDisplayContext);
+        inkWidgetRef.SetVisible(this.m_descriptionWrapper, true);
+        inkTextRef.SetText(this.m_descriptionText, this.m_itemData.GetDescription());
+        margin = inkWidgetRef.GetMargin(this.m_descriptionText);
+        margin.bottom = AbsF(margin.bottom) * shouldHideBottomModule || this.m_displayContext.HasTag(n"Wardrobe") || this.m_isCyberwareStyle ? 1.00 : -1.00;
+        inkWidgetRef.SetMargin(this.m_descriptionText, margin);
+      } else {
+        inkWidgetRef.SetVisible(this.m_descriptionWrapper, false);
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_backgroundContainer, NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting));
+  }
+
+  protected func NEW_UpdateIconicBG() -> Void {
+    if Equals(this.m_itemData.IsIconic(), true) {
+      inkWidgetRef.SetVisible(this.m_iconicBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_iconicBG, false);
+    };
+  }
+
+  protected func NEW_UpdateRecipeBG() -> Void {
+    if this.m_itemData.IsRecipe() {
+      inkWidgetRef.SetVisible(this.m_recipeBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_recipeBG, false);
+    };
+  }
+
+  protected func NEW_UpdateIllegalBG() -> Void {
+    if this.m_itemData.IsIllegal() {
+      inkWidgetRef.SetVisible(this.m_illegalBG, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_illegalBG, false);
+    };
+  }
+
+  protected func NEW_UpdateEquippedModule() -> Void {
+    let shouldDisplay: Bool = NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading);
+    if IsDefined(this.m_displayContext) {
+      shouldDisplay = shouldDisplay && !this.m_displayContext.HasTag(n"CyberwareUpgrade");
+    };
+    if this.m_itemData.IsEquipped() && shouldDisplay {
+      if !IsDefined(this.m_itemEquippedController) {
+        this.RequestModule(this.m_itemEquippedContainer, n"itemEquipped", n"OnNEW_EquippedModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemEquippedContainer, true);
+      inkWidgetRef.SetVisible(this.m_cornerContainer, true);
+      inkWidgetRef.SetState(this.m_root, n"Equipped");
+      this.m_itemEquippedController.NEW_Update(this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEquippedContainer, false);
+      inkWidgetRef.SetVisible(this.m_cornerContainer, false);
+      inkWidgetRef.SetState(this.m_root, n"Default");
+    };
+  }
+
+  protected cb func OnNEW_EquippedModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemEquippedController = widget.GetController() as ItemTooltipEquippedModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateEquippedModule();
+  }
+
+  protected func NEW_UpdateRecipeModule() -> Void {
+    if this.m_itemData.IsRecipe() && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading) {
+      if !IsDefined(this.m_itemRecipeController) {
+        this.RequestModule(this.m_itemRecipeContainer, n"itemRecipe", n"OnNEW_RecipeModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemRecipeContainer, true);
+      this.m_itemRecipeController.NEW_Update(this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemRecipeContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_RecipeModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRecipeController = widget.GetController() as ItemTooltipRepiceModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateRecipeModule();
+  }
+
+  protected func NEW_UpdateHeaderModule() -> Void {
+    if !IsDefined(this.m_itemHeaderController) {
+      this.RequestModule(this.m_itemHeaderContainer, n"itemHeader", n"OnNEW_HeaderModuleSpawned");
+      return;
+    };
+    this.m_itemHeaderController.NEW_Update(this.m_itemData);
+    if !this.m_inCrafting {
+      this.m_itemHeaderController.UpdateWrapping(this.m_bigFontEnabled);
+    };
+  }
+
+  protected cb func OnNEW_HeaderModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemHeaderController = widget.GetController() as ItemTooltipHeaderController;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateHeaderModule();
+  }
+
+  protected func NEW_UpdateIconModule() -> Void {
+    let isInMatchingContext: Bool = Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.HUD) || this.m_displayContext.HasTag(n"Looting");
+    if isInMatchingContext && this.m_itemData.IsClothing() {
+      if !IsDefined(this.m_itemIconController) {
+        this.RequestModule(this.m_itemIconContainer, n"itemIcon", n"OnNEW_IconModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemIconContainer, true);
+      this.m_itemIconController.NEW_Update(this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemIconContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_IconModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemIconController = widget.GetController() as ItemTooltipIconModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateIconModule();
+  }
+
+  protected cb func OnNEW_HideIconModuleEvent(evt: ref<HideIconModuleEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_itemIconContainer, false);
+  }
+
+  protected func NEW_UpdateWeaponInfoModule() -> Void {
+    if this.m_itemData.IsWeapon() {
+      if !IsDefined(this.m_itemWeaponInfoController) {
+        this.RequestModule(this.m_itemWeaponInfoContainer, n"itemWeaponInfo", n"OnNEW_WeaponInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemWeaponInfoContainer, true);
+      this.m_itemWeaponInfoController.NEW_Update(this.m_itemData, this.m_comparisonData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemWeaponInfoContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_WeaponInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemWeaponInfoController = widget.GetController() as ItemTooltipWeaponInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateWeaponInfoModule();
+  }
+
+  protected func NEW_UpdateClothingInfoModule() -> Void {
+    if (this.m_itemData.IsCyberware() || this.m_itemData.IsCyberwareWeapon()) && !this.m_itemData.IsRecipe() {
+      if !IsDefined(this.m_itemClothingInfoController) {
+        this.RequestModule(this.m_itemClothingInfoContainer, n"itemClothingInfo", n"OnNEW_ClothingInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemClothingInfoContainer, true);
+      this.m_itemClothingInfoController.NEW_Update(this.m_itemData, this.m_player);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemClothingInfoContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_ClothingInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemClothingInfoController = widget.GetController() as ItemTooltipClothingInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateClothingInfoModule();
+  }
+
+  protected func NEW_UpdateStatBarsModule() -> Void {
+    if this.m_itemData.IsUsingBars() {
+      if !IsDefined(this.m_itemCyberwareController) {
+        this.RequestModule(this.m_itemCyberwareContainer, n"itemWeaponBars", n"OnNEW_UpdateStatBarsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemCyberwareContainer, true);
+      this.m_itemCyberwareController.NEW_Update(this.m_itemData, this.m_comparisonData);
+      if !this.m_inCrafting {
+        this.m_itemCyberwareController.NEW_UpdateWrapping(this.m_bigFontEnabled);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCyberwareContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_UpdateStatBarsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCyberwareController = widget.GetController() as ItemTooltipCyberwareWeaponModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateStatBarsModule();
+  }
+
+  protected func NEW_UpdateGrenadeInfoModule() -> Void {
+    if Equals(this.m_itemData.GetItemType(), gamedataItemType.Gad_Grenade) {
+      if !IsDefined(this.m_itemGrenadeInfoController) {
+        this.RequestModule(this.m_itemGrenadeInfoContainer, n"itemGrenadeInfo", n"OnNEW_GrenadeInfoModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemGrenadeInfoContainer, true);
+      this.m_itemGrenadeInfoController.NEW_Update(this.m_player, this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemGrenadeInfoContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_GrenadeInfoModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemGrenadeInfoController = widget.GetController() as ItemTooltipGrenadeInfoModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateGrenadeInfoModule();
+  }
+
+  protected func NEW_UpdateRequirementsModule() -> Void {
+    if this.m_itemData.GetRequirementsManager(this.m_player).IsAnyRequirementNotMet() {
+      if !IsDefined(this.m_itemRequirementsController) {
+        this.RequestModule(this.m_itemRequirementsContainer, n"itemRequirements", n"OnNEW_RequirementsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemRequirementsContainer, true);
+      this.m_itemRequirementsController.NEW_Update(this.m_itemData, this.m_player);
+      if !this.m_inCrafting {
+        this.m_itemRequirementsController.UpdateWrapping(this.m_bigFontEnabled);
+      };
+      this.MoveRequirementModuleForCyberwareStyle();
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemRequirementsContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_RequirementsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRequirementsController = widget.GetController() as ItemTooltipRequirementsModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateRequirementsModule();
+  }
+
+  protected func NEW_UpdateDetailsModule() -> Void {
+    let hasMods: Bool;
+    let isWeapon: Bool;
+    let isWeaponInCrafting: Bool;
+    let isWeaponOnHud: Bool;
+    let showInCrafting: Bool;
+    let showInHud: Bool;
+    let showOutsideCraftingAndHud: Bool;
+    let modsManager: wref<UIInventoryItemModsManager> = this.m_itemData.GetModsManager();
+    let hasStats: Bool = Cast<Bool>(this.m_itemData.GetStatsManager().Size());
+    let hasDedicatedMods: Bool = modsManager.GetDedicatedMod() != null;
+    let modsSize: Int32 = modsManager.GetModsSize();
+    if this.m_displayContext.HasTag(n"CyberwareUpgrade") {
+      modsSize -= modsManager.GetAttachmentsSize();
+    };
+    hasMods = modsSize > 0;
+    isWeapon = this.m_itemData.IsWeapon();
+    isWeaponOnHud = Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.HUD) && isWeapon;
+    isWeaponInCrafting = Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && isWeapon;
+    showInCrafting = isWeaponInCrafting && (hasDedicatedMods || hasMods);
+    showOutsideCraftingAndHud = !isWeaponInCrafting && !isWeaponOnHud && (hasStats || hasDedicatedMods || hasMods);
+    showInHud = isWeaponOnHud && (hasDedicatedMods || hasMods);
+    if showOutsideCraftingAndHud || showInCrafting || showInHud {
+      if !IsDefined(this.m_itemDetailsController) {
+        this.RequestModule(this.m_itemDetailsContainer, n"itemDetails", n"OnNEW_DetailsModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemDetailsContainer, true);
+      this.m_itemDetailsController.GetContext(this.m_inCrafting);
+      this.m_itemDetailsController.NEW_Update(this.m_itemData, this.m_comparisonData, hasStats, hasDedicatedMods, hasMods);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_itemDetailsContainer, false);
+  }
+
+  protected cb func OnNEW_DetailsModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemDetailsController = widget.GetController() as ItemTooltipDetailsModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateDetailsModule();
+  }
+
+  protected func NEW_UpdateRecipeDataModule() -> Void {
+    inkWidgetRef.SetVisible(this.m_itemRecipeDataContainer, false);
+  }
+
+  protected cb func OnNEW_RecipeDataModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemRecipeDataController = widget.GetController() as ItemTooltipRecipeDataModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateRecipeDataModule();
+  }
+
+  protected func NEW_UpdateEvolutionModule() -> Void {
+    if NotEquals(this.m_itemData.GetWeaponEvolution(), gamedataWeaponEvolution.Invalid) {
+      if !IsDefined(this.m_itemEvolutionController) {
+        this.RequestModule(this.m_itemEvolutionContainer, n"itemEvolution", n"OnNEW_EvolutionModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemEvolutionContainer, true);
+      this.m_itemEvolutionController.NEW_Update(this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEvolutionContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_EvolutionModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemEvolutionController = widget.GetController() as ItemTooltipEvolutionModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateEvolutionModule();
+  }
+
+  protected func NEW_UpdateCraftedModule() -> Void {
+    if NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && this.m_itemData.IsCrafted() && !this.m_itemData.IsRecipe() {
+      if !IsDefined(this.m_itemCraftedController) {
+        this.RequestModule(this.m_itemCraftedContainer, n"itemCrafted", n"OnNEW_CraftedModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemCraftedContainer, true);
+      this.m_itemCraftedController.NEW_Update(this.m_itemData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCraftedContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_CraftedModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCraftedController = widget.GetController() as ItemTooltipCraftedModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateCraftedModule();
+  }
+
+  protected func NEW_UpdateTransmogModule() -> Void {
+    inkWidgetRef.SetVisible(this.m_itemActionContainer, false);
+  }
+
+  protected cb func OnNEW_TransmogModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+  }
+
+  private final func NEW_UpdateCyberwareUpgradeModule() -> Void {
+    if !this.m_displayContext.HasTag(n"CyberwareUpgrade") && this.m_itemData.IsEquipped() && this.m_itemData.GetCyberwareUpgradeData(this.m_player).IsValid() {
+      if !IsDefined(this.m_itemCWUpgradeController) {
+        this.RequestExternalModule(this.m_itemCWUpgradeContainer, this.m_cyberwareUpgradeModuleName, this.m_cyberwareModulesLibraryRes, n"OnNEW_CyberwareUpgradeModuleSpawned");
+        return;
+      };
+      this.m_itemCWUpgradeController.NEW_Update(this.m_itemData, this.m_player);
+      inkWidgetRef.SetVisible(this.m_itemCWUpgradeContainer, this.m_itemCWUpgradeController.IsVisible());
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCWUpgradeContainer, false);
+    };
+  }
+
+  protected cb func OnNEW_CyberwareUpgradeModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemCWUpgradeController = widget.GetController() as ItemTooltipCyberwareUpgradeController;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateCyberwareUpgradeModule();
+  }
+
+  private final func NEW_UpdateCyberwareQuickHackMenuLinkModule() -> Void {
+    if Equals(this.m_itemData.GetItemType(), gamedataItemType.Cyb_NanoWires) && this.m_itemData.IsEquipped() && !this.m_displayContext.HasTag(n"CyberwareUpgrade") && this.m_displayContext.HasTag(n"AllowProgramLink") {
+      if this.m_itemData.GetModsManager().GetAllSlotsSize() > 0 {
+        this.RequestExternalModule(this.m_itemCWQuickHackMenuLinkContainer, this.m_cyberwareQuickHackMenuLinkName, this.m_cyberwareModulesLibraryRes, n"OnCyberwareQuickHackMenuLinkModuleSpawned");
+        inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, false);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemCWQuickHackMenuLinkContainer, false);
+    };
+  }
+
+  protected func NEW_UpdateBottomModule() -> Void {
+    let isVendor: Bool;
+    let shouldHideBottom: Bool;
+    if ItemTooltipBottomModule.ShouldHideBottomModule(this.m_tooltipDisplayContext, this.m_itemData, this.m_itemDisplayContext) {
+      shouldHideBottom = true;
+    };
+    if Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Vendor) || Equals(this.m_itemDisplayContext, ItemDisplayContext.Vendor) {
+      isVendor = true;
+    };
+    if shouldHideBottom && (!isVendor || this.m_isCyberwareStyle) {
+      inkWidgetRef.SetVisible(this.m_itemBottomContainer, false);
+    } else {
+      if !IsDefined(this.m_itemBottomController) {
+        this.RequestModule(this.m_itemBottomContainer, n"itemBottom", n"OnNEW_BottomModuleSpawned");
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_itemBottomContainer, true);
+      this.m_itemBottomController.NEW_Update(this.m_itemData, this.m_player, this.m_priceOverride);
+    };
+  }
+
+  protected cb func OnNEW_BottomModuleSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_itemBottomController = widget.GetController() as ItemTooltipBottomModule;
+    this.HandleModuleSpawned(widget, userData as ItemTooltipModuleSpawnedCallbackData);
+    this.NEW_UpdateBottomModule();
+  }
+
+  protected func DEBUG_UpdateDebugInfo() -> Void {
+    let craftableItems: array<wref<Item_Record>>;
+    let errorData: ref<DEBUG_IconErrorInfo>;
+    let iconsNameResolver: ref<IconsNameResolver>;
+    let recipeRecord: ref<RecipeItem_Record>;
+    let resultText: String;
+    if this.m_itemData != null {
+      this.DEBUG_NewUpdateIconErrorInfo();
+      return;
+    };
+    iconsNameResolver = IconsNameResolver.GetIconsNameResolver();
+    if !iconsNameResolver.IsInDebugMode() {
+      inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, false);
+      return;
+    };
+    errorData = this.m_data.DEBUG_iconErrorInfo;
+    inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, errorData != null || this.DEBUG_showDebug);
+    if this.DEBUG_showDebug {
+      resultText += " - itemID:\\n";
+      resultText += TDBID.ToStringDEBUG(this.m_data.itemTweakID);
+      this.OpenTweakDBRecordInVSCodeIfRequested(this.m_data.itemTweakID);
+      if this.m_data.itemData.HasTag(n"Recipe") {
+        recipeRecord = TweakDBInterface.GetRecipeItemRecord(this.m_data.itemTweakID);
+        if IsDefined(recipeRecord) {
+          recipeRecord.CraftableItems(craftableItems);
+          if ArraySize(craftableItems) > 0 {
+            resultText += "\\n - inner itemID:\\n";
+            resultText += TDBID.ToStringDEBUG(craftableItems[0].GetID());
+          };
+        };
+      };
+      inkTextRef.SetText(this.DEBUG_iconErrorText, resultText);
+    } else {
+      if errorData != null {
+        resultText += "   ErrorType: " + EnumValueToString("inkIconResult", Cast<Int64>(EnumInt(errorData.errorType))) + "\\n\\n";
+        resultText += " - itemID:\\n";
+        resultText += errorData.itemName;
+        if IsStringValid(errorData.innerItemName) {
+          resultText += "\\n - inner itemID:\\n";
+          resultText += errorData.innerItemName;
+        };
+        if errorData.isManuallySet {
+          resultText += "\\n - resolved icon name (manually set):\\n";
+        } else {
+          resultText += "\\n - resolved icon name (auto generated):\\n";
+        };
+        resultText += errorData.resolvedIconName;
+        resultText += "\\n - error message:\\n";
+        resultText += errorData.errorMessage;
+        inkTextRef.SetText(this.DEBUG_iconErrorText, resultText);
+      };
+    };
+  }
+
+  private final func DEBUG_NewUpdateIconErrorInfo() -> Void {
+    let craftableItems: array<wref<Item_Record>>;
+    let errorData: ref<DEBUG_IconErrorInfo>;
+    let recipeRecord: ref<RecipeItem_Record>;
+    let resultText: String;
+    let iconsNameResolver: ref<IconsNameResolver> = IconsNameResolver.GetIconsNameResolver();
+    if !iconsNameResolver.IsInDebugMode() {
+      inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, false);
+      return;
+    };
+    errorData = this.m_itemData.DEBUG_iconErrorInfo;
+    inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, errorData != null || this.DEBUG_showDebug);
+    if this.DEBUG_showDebug {
+      resultText += " - itemID:\\n";
+      resultText += TDBID.ToStringDEBUG(this.m_itemData.GetRealTweakDBID());
+      this.OpenTweakDBRecordInVSCodeIfRequested(this.m_itemData.GetRealTweakDBID());
+      if this.m_itemData.IsRecipe() {
+        recipeRecord = TweakDBInterface.GetRecipeItemRecord(this.m_itemData.GetRealTweakDBID());
+        if IsDefined(recipeRecord) {
+          recipeRecord.CraftableItems(craftableItems);
+          if ArraySize(craftableItems) > 0 {
+            resultText += "\\n - inner itemID:\\n";
+            resultText += TDBID.ToStringDEBUG(craftableItems[0].GetID());
+          };
+        };
+      };
+      inkTextRef.SetText(this.DEBUG_iconErrorText, resultText);
+    } else {
+      if errorData != null {
+        resultText += "   ErrorType: " + EnumValueToString("inkIconResult", Cast<Int64>(EnumInt(errorData.errorType))) + "\\n\\n";
+        resultText += " - itemID:\\n";
+        resultText += errorData.itemName;
+        if IsStringValid(errorData.innerItemName) {
+          resultText += "\\n - inner itemID:\\n";
+          resultText += errorData.innerItemName;
+        };
+        if errorData.isManuallySet {
+          resultText += "\\n - resolved icon name (manually set):\\n";
+        } else {
+          resultText += "\\n - resolved icon name (auto generated):\\n";
+        };
+        resultText += errorData.resolvedIconName;
+        resultText += "\\n - error message:\\n";
+        resultText += errorData.errorMessage;
+        inkTextRef.SetText(this.DEBUG_iconErrorText, resultText);
+      };
+    };
+  }
+
+  public final func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    switch varName {
+      case n"BigFont":
+        this.UpdateTooltipSize();
+        break;
+      default:
+    };
+  }
+
+  private final func UpdateTooltipSize() -> Void {
+    let configVar: ref<ConfigVarBool> = this.m_settings.GetVar(this.m_groupPath, n"BigFont") as ConfigVarBool;
+    this.SetTooltipSize(configVar.GetValue());
+  }
+
+  protected func SetTooltipSize(value: Bool) -> Void {
+    if Equals(value, true) && !this.m_inCrafting {
+      inkWidgetRef.SetSize(this.m_minWidth, 810.00, 0.00);
+      this.m_bigFontEnabled = true;
+    } else {
+      inkWidgetRef.SetSize(this.m_minWidth, 710.00, 0.00);
+      this.m_bigFontEnabled = false;
+    };
+  }
+
+  private final func RegisterUserSettingsListener() -> Void {
+    this.m_settings = new UserSettings();
+    this.m_settingsListener = new ItemTooltipSettingsListener();
+    this.m_settingsListener.RegisterController(this);
+    this.m_settingsListener.Register(this.m_groupPath);
+  }
+}
+
+public class ItemTooltipModuleController extends inkLogicController {
+
+  protected edit let m_lineWidget: inkWidgetRef;
+
+  protected let m_displayContext: ref<ItemDisplayContextData>;
+
+  protected let m_tooltipDisplayContext: InventoryTooltipDisplayContext;
+
+  protected let m_itemDisplayContext: ItemDisplayContext;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void;
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void;
+
+  public final func SetDisplayContext(itemDisplayContext: ItemDisplayContext, tooltipDisplayContext: InventoryTooltipDisplayContext, displayContext: ref<ItemDisplayContextData>) -> Void {
+    this.m_displayContext = displayContext;
+    this.m_itemDisplayContext = itemDisplayContext;
+    this.m_tooltipDisplayContext = tooltipDisplayContext;
+  }
+
+  protected final func UseCraftingLayout() -> Bool {
+    return Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) || Equals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading);
+  }
+
+  protected final func UseCraftingLayout(data: ref<MinimalItemTooltipData>) -> Bool {
+    return Equals(data.displayContext, InventoryTooltipDisplayContext.Crafting) || Equals(data.displayContext, InventoryTooltipDisplayContext.Upgrading);
+  }
+
+  protected final func GetArrowWrapperState(diffValue: Float) -> CName {
+    if diffValue < 0.00 {
+      return n"Worse";
+    };
+    if diffValue > 0.00 {
+      return n"Better";
+    };
+    return n"Default";
+  }
+}
+
+public class ItemTooltipRepiceModule extends ItemTooltipModuleController {
+
+  private edit let m_itemNameText: inkTextRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    if this.UseCraftingLayout(data) {
+      inkWidgetRef.SetVisible(this.m_itemNameText, false);
+    } else {
+      this.UpdateName(data);
+    };
+  }
+
+  private final func UpdateName(data: ref<MinimalItemTooltipData>) -> Void {
+    let finalItemName: String;
+    inkWidgetRef.SetVisible(this.m_itemNameText, true);
+    finalItemName = UIItemsHelper.GetTooltipItemName(data.itemTweakID, data.itemData, data.itemName);
+    if data.quantity > 1 {
+      finalItemName += " [" + IntToString(data.quantity) + "]";
+    };
+    inkTextRef.SetText(this.m_itemNameText, finalItemName);
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void {
+    if this.UseCraftingLayout() {
+      inkWidgetRef.SetVisible(this.m_itemNameText, false);
+    } else {
+      this.NEW_UpdateName(data.GetName(), data.GetQuantity());
+    };
+  }
+
+  private final func NEW_UpdateName(itemName: String, quantity: Int32) -> Void {
+    inkWidgetRef.SetVisible(this.m_itemNameText, true);
+    if quantity > 1 {
+      itemName += " [" + IntToString(quantity) + "]";
+    };
+    inkTextRef.SetText(this.m_itemNameText, itemName);
+  }
+}
+
+public class ItemTooltipHeaderController extends ItemTooltipModuleController {
+
+  private edit let m_itemNameText: inkTextRef;
+
+  private edit let m_itemRarityText: inkTextRef;
+
+  private edit let m_itemTypeText: inkTextRef;
+
+  private edit let m_itemEvolutionIcon: inkImageRef;
+
+  private let m_localizedIconicText: String;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_localizedIconicText = GetLocalizedText(UIItemsHelper.QualityToDefaultString(gamedataQuality.Iconic));
+  }
+
+  public final func UpdateWrapping(bigFontEnabled: Bool) -> Void {
+    if Equals(bigFontEnabled, true) {
+      inkTextRef.SetWrappingAtPosition(this.m_itemNameText, 750.00);
+      inkTextRef.SetWrappingAtPosition(this.m_itemRarityText, 750.00);
+      inkTextRef.SetWrappingAtPosition(this.m_itemTypeText, 685.00);
+    } else {
+      inkTextRef.SetWrappingAtPosition(this.m_itemNameText, 650.00);
+      inkTextRef.SetWrappingAtPosition(this.m_itemRarityText, 650.00);
+      inkTextRef.SetWrappingAtPosition(this.m_itemTypeText, 585.00);
+    };
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    this.UpdateItemType(this.m_itemTypeText, data);
+    if this.UseCraftingLayout(data) || Equals(data.itemData.HasTag(n"Recipe"), true) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading) {
+      inkWidgetRef.SetVisible(this.m_itemNameText, false);
+      inkWidgetRef.SetVisible(this.m_itemRarityText, false);
+    } else {
+      this.UpdateName(data);
+      if UIItemsHelper.ShouldDisplayTier(data.itemType) {
+        this.UpdateRarity(data);
+      } else {
+        inkWidgetRef.SetVisible(this.m_itemRarityText, false);
+      };
+    };
+  }
+
+  private final func UpdateItemType(itemTypeText: inkTextRef, data: ref<MinimalItemTooltipData>) -> Void {
+    let newItemTypeKey: String;
+    let itemData: wref<gameItemData> = data.itemData;
+    let isRecipe: Bool = itemData.HasTag(n"Recipe");
+    let equipmentArea: gamedataEquipmentArea = data.equipmentArea;
+    let tweakID: TweakDBID = data.itemTweakID;
+    let itemType: gamedataItemType = data.itemType;
+    let itemEvolution: gamedataWeaponEvolution = data.itemEvolution;
+    let itemTypeKey: String = UIItemsHelper.GetItemTypeKey(itemData, equipmentArea, tweakID, itemType, itemEvolution);
+    if NotEquals(itemTypeKey, "") && !isRecipe {
+      if Equals(itemType, gamedataItemType.Cyb_Launcher) || Equals(itemType, gamedataItemType.Cyb_MantisBlades) || Equals(itemType, gamedataItemType.Cyb_NanoWires) {
+        newItemTypeKey = GetLocalizedText(itemTypeKey) + " - " + GetLocalizedText(UIItemsHelper.GetMellewareSecondaryTypeText(itemType));
+        inkTextRef.SetText(itemTypeText, newItemTypeKey);
+      } else {
+        if Equals(itemType, gamedataItemType.Cyb_StrongArms) {
+          newItemTypeKey = GetLocalizedText(itemTypeKey) + " - " + GetLocalizedText(UIItemsHelper.GetMellewareSecondaryTypeText(itemType)) + " - " + GetLocalizedText("LocKey#77968");
+          inkTextRef.SetText(itemTypeText, newItemTypeKey);
+        } else {
+          inkTextRef.SetText(itemTypeText, itemTypeKey);
+        };
+      };
+      inkWidgetRef.SetVisible(itemTypeText, true);
+    } else {
+      inkWidgetRef.SetVisible(itemTypeText, false);
+    };
+    if Equals(itemType, gamedataItemType.Cyb_Launcher) || Equals(itemType, gamedataItemType.Cyb_MantisBlades) || Equals(itemType, gamedataItemType.Cyb_NanoWires) || Equals(itemType, gamedataItemType.Cyb_StrongArms) {
+      inkImageRef.SetTexturePart(this.m_itemEvolutionIcon, UIItemsHelper.GetMellewareEvolutionTexturePartByType(itemType));
+      inkWidgetRef.SetVisible(this.m_itemEvolutionIcon, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEvolutionIcon, false);
+    };
+  }
+
+  private final func UpdateName(data: ref<MinimalItemTooltipData>) -> Void {
+    let finalItemName: String;
+    inkWidgetRef.SetVisible(this.m_itemNameText, true);
+    finalItemName = UIItemsHelper.GetTooltipItemName(data.itemTweakID, data.itemData, data.itemName);
+    if data.quantity > 1 {
+      finalItemName += " [" + IntToString(data.quantity) + "]";
+    };
+    inkTextRef.SetText(this.m_itemNameText, finalItemName);
+  }
+
+  private final func UpdateRarity(data: ref<MinimalItemTooltipData>) -> Void {
+    let iconicLabel: String;
+    let isChimera: Bool;
+    let itemRecord: wref<Item_Record>;
+    let plusLabel: String;
+    let qualityName: CName;
+    let rarityLabel: String;
+    if !data.hasRarity {
+      inkWidgetRef.SetVisible(this.m_itemRarityText, data.hasRarity);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.m_itemRarityText, true);
+    iconicLabel = GetLocalizedText(UIItemsHelper.QualityToDefaultString(gamedataQuality.Iconic));
+    isChimera = data.itemData.HasTag(n"ChimeraMod");
+    if !isChimera {
+      itemRecord = TweakDBInterface.GetItemRecord(data.itemTweakID);
+      if itemRecord != null && itemRecord.TagsContains(n"ChimeraMod") {
+        isChimera = true;
+      };
+    };
+    if isChimera {
+      qualityName = UIItemsHelper.QualityEnumToName(gamedataQuality.Iconic);
+      rarityLabel = iconicLabel;
+    } else {
+      qualityName = UIItemsHelper.QualityEnumToName(data.quality);
+      rarityLabel = GetLocalizedText(UIItemsHelper.QualityToDefaultString(data.quality));
+    };
+    plusLabel = rarityLabel;
+    if !isChimera {
+      if data.isPlus >= 2.00 {
+        plusLabel += "++";
+      } else {
+        if data.isPlus >= 1.00 {
+          plusLabel += "+";
+        };
+      };
+      if data.isIconic {
+        plusLabel += " / " + iconicLabel;
+      };
+    };
+    inkWidgetRef.SetState(this.m_itemNameText, qualityName);
+    inkWidgetRef.SetState(this.m_itemRarityText, qualityName);
+    inkTextRef.SetText(this.m_itemRarityText, plusLabel);
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void {
+    let newItemTypeKey: String;
+    let itemType: gamedataItemType = data.GetItemType();
+    let itemTypeKey: String = UIItemsHelper.GetItemTypeKey(data.GetItemData(), data.GetEquipmentArea(), data.GetTweakDBID(), data.GetItemType(), data.GetWeaponEvolution());
+    if Equals(itemType, gamedataItemType.Cyb_Launcher) || Equals(itemType, gamedataItemType.Cyb_MantisBlades) || Equals(itemType, gamedataItemType.Cyb_NanoWires) {
+      newItemTypeKey = GetLocalizedText(itemTypeKey) + " - " + GetLocalizedText(UIItemsHelper.GetMellewareSecondaryTypeText(itemType));
+      inkTextRef.SetText(this.m_itemTypeText, newItemTypeKey);
+    } else {
+      if Equals(itemType, gamedataItemType.Cyb_StrongArms) {
+        newItemTypeKey = GetLocalizedText(itemTypeKey) + " - " + GetLocalizedText(UIItemsHelper.GetMellewareSecondaryTypeText(itemType)) + " - " + GetLocalizedText("LocKey#77968");
+        inkTextRef.SetText(this.m_itemTypeText, newItemTypeKey);
+      } else {
+        if Equals(itemType, gamedataItemType.Gen_Readable) && IsDefined(data.GetOwner()) && UIItemsHelper.IsShardRead(data.GetTweakDBID(), data.GetOwner().GetGame()) {
+          newItemTypeKey = GetLocalizedText(itemTypeKey) + " (" + GetLocalizedText("LocKey#96017") + ")";
+          inkTextRef.SetText(this.m_itemTypeText, newItemTypeKey);
+        } else {
+          inkTextRef.SetText(this.m_itemTypeText, itemTypeKey);
+        };
+      };
+    };
+    if this.UseCraftingLayout() || data.IsRecipe() && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) && NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Upgrading) {
+      inkWidgetRef.SetVisible(this.m_itemNameText, false);
+      inkWidgetRef.SetVisible(this.m_itemRarityText, false);
+    } else {
+      if Equals(data.GetItemType(), gamedataItemType.Con_Inhaler) || Equals(data.GetItemType(), gamedataItemType.Con_Injector) || Equals(data.GetItemType(), gamedataItemType.Gad_Grenade) || Equals(data.GetItemType(), gamedataItemType.Cyb_Ability) {
+        this.NEW_UpdateName(data.GetName(), 0);
+      } else {
+        this.NEW_UpdateName(data.GetName(), data.GetQuantity());
+      };
+      if UIItemsHelper.ShouldDisplayTier(data.GetItemType()) {
+        this.NEW_UpdateRarity(data);
+      } else {
+        inkWidgetRef.SetVisible(this.m_itemRarityText, false);
+      };
+    };
+    if Equals(itemType, gamedataItemType.Cyb_Launcher) || Equals(itemType, gamedataItemType.Cyb_MantisBlades) || Equals(itemType, gamedataItemType.Cyb_NanoWires) || Equals(itemType, gamedataItemType.Cyb_StrongArms) {
+      inkImageRef.SetTexturePart(this.m_itemEvolutionIcon, UIItemsHelper.GetMellewareEvolutionTexturePartByType(itemType));
+      inkWidgetRef.SetVisible(this.m_itemEvolutionIcon, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_itemEvolutionIcon, false);
+    };
+  }
+
+  private final func NEW_UpdateName(itemName: String, quantity: Int32) -> Void {
+    inkWidgetRef.SetVisible(this.m_itemNameText, true);
+    if quantity > 1 {
+      itemName += " [" + IntToString(quantity) + "]";
+    };
+    inkTextRef.SetText(this.m_itemNameText, itemName);
+  }
+
+  private final func NEW_UpdateRarity(data: wref<UIInventoryItem>) -> Void {
+    let qualityName: CName;
+    inkWidgetRef.SetVisible(this.m_itemRarityText, true);
+    if data.GetItemData().HasTag(n"ChimeraMod") {
+      qualityName = UIItemsHelper.QualityEnumToName(gamedataQuality.Iconic);
+    } else {
+      qualityName = UIItemsHelper.QualityEnumToName(data.GetQuality());
+    };
+    inkWidgetRef.SetState(this.m_itemNameText, qualityName);
+    inkWidgetRef.SetState(this.m_itemRarityText, qualityName);
+    inkTextRef.SetText(this.m_itemRarityText, data.GetQualityText());
+  }
+}
+
+public class ItemTooltipIconModule extends ItemTooltipModuleController {
+
+  private edit let m_container: inkImageRef;
+
+  private edit let m_icon: inkImageRef;
+
+  private edit let m_iconicLines: inkImageRef;
+
+  private edit let m_transmogged: inkImageRef;
+
+  private let iconsNameResolver: ref<IconsNameResolver>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.iconsNameResolver = IconsNameResolver.GetIconsNameResolver();
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let craftingResult: wref<CraftingResult_Record>;
+    let itemRecord: wref<Item_Record>;
+    let recipeRecord: wref<ItemRecipe_Record>;
+    inkWidgetRef.SetVisible(this.m_iconicLines, data.isIconic);
+    if IsDefined(data.itemData) && data.itemData.HasTag(n"Recipe") {
+      recipeRecord = TweakDBInterface.GetItemRecipeRecord(data.itemTweakID);
+      craftingResult = recipeRecord.CraftingResult();
+      if IsDefined(craftingResult) {
+        itemRecord = craftingResult.Item();
+      };
+    };
+    inkWidgetRef.SetScale(this.m_icon, this.GetIconScale(data, itemRecord.EquipArea().Type()));
+    inkWidgetRef.SetOpacity(this.m_icon, 0.00);
+    InkImageUtils.RequestSetImage(this, this.m_icon, this.GetIconPath(data, itemRecord), n"OnIconCallback");
+    if inkWidgetRef.IsValid(this.m_transmogged) {
+      inkWidgetRef.SetVisible(this.m_transmogged, ItemID.IsValid(data.transmogItem));
+    };
+  }
+
+  protected cb func OnIconCallback(e: ref<iconAtlasCallbackData>) -> Bool {
+    if Equals(e.loadResult, inkIconResult.Success) {
+      inkWidgetRef.SetOpacity(this.m_icon, 1.00);
+    } else {
+      this.QueueEvent(new HideIconModuleEvent());
+    };
+  }
+
+  private final func GetIconPath(data: ref<MinimalItemTooltipData>, opt itemRecord: wref<Item_Record>) -> CName {
+    let craftingIconName: String;
+    let resolvedIcon: CName;
+    if IsDefined(itemRecord) {
+      craftingIconName = itemRecord.IconPath();
+      if IsStringValid(craftingIconName) {
+        return StringToName("UIIcon." + craftingIconName);
+      };
+      resolvedIcon = this.iconsNameResolver.TranslateItemToIconName(itemRecord.GetID(), data.useMaleIcon);
+    } else {
+      if IsDefined(data) && IsStringValid(data.iconPath) {
+        return StringToName("UIIcon." + data.iconPath);
+      };
+      if ItemID.IsValid(data.transmogItem) {
+        resolvedIcon = this.iconsNameResolver.TranslateItemToIconName(ItemID.GetTDBID(data.transmogItem), data.useMaleIcon);
+      } else {
+        resolvedIcon = this.iconsNameResolver.TranslateItemToIconName(data.itemTweakID, data.useMaleIcon);
+      };
+    };
+    if IsNameValid(resolvedIcon) {
+      return StringToName("UIIcon." + NameToString(resolvedIcon));
+    };
+    return UIItemsHelper.GetSlotShadowIcon(TDBID.None(), data.itemType, data.equipmentArea);
+  }
+
+  private final func GetIconScale(data: ref<MinimalItemTooltipData>, equipmentArea: gamedataEquipmentArea) -> Vector2 {
+    let areaToCheck: gamedataEquipmentArea = Equals(equipmentArea, gamedataEquipmentArea.AbilityCW) ? data.equipmentArea : equipmentArea;
+    return Equals(areaToCheck, gamedataEquipmentArea.Outfit) ? new Vector2(0.50, 0.50) : new Vector2(1.00, 1.00);
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void {
+    inkWidgetRef.SetVisible(this.m_iconicLines, data.IsIconic());
+    inkWidgetRef.SetScale(this.m_icon, this.NEW_GetIconScale(data.GetEquipmentArea()));
+    inkWidgetRef.SetOpacity(this.m_icon, 0.00);
+    InkImageUtils.RequestSetImage(this, this.m_icon, data.GetIconPath(), n"OnNEW_IconCallback");
+    inkWidgetRef.SetVisible(this.m_transmogged, false);
+  }
+
+  protected cb func OnNEW_IconCallback(e: ref<iconAtlasCallbackData>) -> Bool {
+    if Equals(e.loadResult, inkIconResult.Success) {
+      inkWidgetRef.SetOpacity(this.m_icon, 1.00);
+    } else {
+      this.QueueEvent(new HideIconModuleEvent());
+    };
+  }
+
+  private final func NEW_GetIconScale(equipmentArea: gamedataEquipmentArea) -> Vector2 {
+    return Equals(equipmentArea, gamedataEquipmentArea.Outfit) ? new Vector2(0.50, 0.50) : new Vector2(1.00, 1.00);
+  }
+}
+
+public class ItemTooltipWeaponInfoModule extends ItemTooltipModuleController {
+
+  private edit let m_wrapper: inkWidgetRef;
+
+  private edit let m_arrow: inkImageRef;
+
+  private edit let m_dpsText: inkTextRef;
+
+  private edit let m_perHitText: inkTextRef;
+
+  private edit let m_attacksPerSecondText: inkTextRef;
+
+  private edit let m_nonLethal: inkTextRef;
+
+  private edit let m_scopeIndicator: inkWidgetRef;
+
+  private edit let m_silencerIndicator: inkWidgetRef;
+
+  private edit let m_ammoText: inkTextRef;
+
+  private edit let m_ammoWrapper: inkWidgetRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let attacksPerSecond: Float;
+    let damagePerHit: Float;
+    let damagePerHitMax: Float;
+    let damagePerHitMin: Float;
+    let divideAttacksByPellets: Bool;
+    let projectilesPerShot: Float;
+    let dpsParams: ref<inkTextParams> = new inkTextParams();
+    let attackPerSecondParams: ref<inkTextParams> = new inkTextParams();
+    let damageParams: ref<inkTextParams> = new inkTextParams();
+    let qualityDiff: Float = data.qualityF - data.comparisonQualityF;
+    inkWidgetRef.SetState(this.m_wrapper, this.GetArrowWrapperState(qualityDiff));
+    inkWidgetRef.SetVisible(this.m_wrapper, qualityDiff >= 0.00);
+    inkWidgetRef.SetVisible(this.m_arrow, data.comparisonQualityF >= 0.00 || !FloatIsEqual(data.qualityF, data.comparisonQualityF));
+    inkWidgetRef.SetVisible(this.m_nonLethal, Equals(data.itemEvolution, gamedataWeaponEvolution.Blunt));
+    if !data.itemData.HasTag(n"MeleeWeapon") {
+      inkWidgetRef.SetVisible(this.m_ammoWrapper, true);
+      inkTextRef.SetText(this.m_ammoText, IntToString(data.ammoCount));
+    } else {
+      inkWidgetRef.SetVisible(this.m_ammoWrapper, false);
+    };
+    if data.hasScope {
+      inkWidgetRef.SetVisible(this.m_scopeIndicator, true);
+      inkWidgetRef.SetState(this.m_scopeIndicator, data.isScopeInstalled ? n"Default" : n"Empty");
+    } else {
+      inkWidgetRef.SetVisible(this.m_scopeIndicator, false);
+    };
+    if data.hasSilencer {
+      inkWidgetRef.SetVisible(this.m_silencerIndicator, true);
+      inkWidgetRef.SetState(this.m_silencerIndicator, data.isSilencerInstalled ? n"Default" : n"Empty");
+    } else {
+      inkWidgetRef.SetVisible(this.m_silencerIndicator, false);
+    };
+    if qualityDiff > 0.00 {
+      inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.NoMirror);
+    } else {
+      if qualityDiff < 0.00 {
+        inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.Vertical);
+      };
+    };
+    dpsParams.AddNumber("value", FloorF(data.dpsValue));
+    dpsParams.AddNumber("valueDecimalPart", RoundF((data.dpsValue - Cast<Float>(RoundF(data.dpsValue))) * 10.00) % 10);
+    if Equals(data.displayContext, InventoryTooltipDisplayContext.Upgrading) {
+      projectilesPerShot = data.projectilesPerShot;
+      attacksPerSecond = data.attackSpeed;
+    } else {
+      projectilesPerShot = data.itemData.GetStatValueByType(gamedataStatType.ProjectilesPerShot);
+      attacksPerSecond = data.itemData.GetStatValueByType(gamedataStatType.AttacksPerSecond);
+    };
+    divideAttacksByPellets = TweakDBInterface.GetBool(data.itemTweakID + t".divideAttacksByPelletsOnUI", false) && projectilesPerShot > 0.00;
+    attackPerSecondParams.AddString("value", FloatToStringPrec(divideAttacksByPellets ? attacksPerSecond / projectilesPerShot : attacksPerSecond, 2));
+    inkTextRef.SetLocalizedTextScript(this.m_attacksPerSecondText, "UI-Tooltips-AttacksPerSecond", attackPerSecondParams);
+    inkTextRef.SetTextParameters(this.m_dpsText, dpsParams);
+    if data.itemData.HasTag(n"Melee") {
+      damagePerHit = data.itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHit);
+      inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitMeleeTemplate");
+      damageParams.AddString("value", IntToString(RoundF(damagePerHit)));
+      inkTextRef.SetTextParameters(this.m_perHitText, damageParams);
+    } else {
+      if Equals(data.displayContext, InventoryTooltipDisplayContext.Upgrading) {
+        damagePerHitMin = data.dpsValue / data.attackSpeed * 0.90;
+        damagePerHitMax = data.dpsValue / data.attackSpeed * 1.10;
+      } else {
+        damagePerHitMin = data.itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHitMin);
+        damagePerHitMax = data.itemData.GetStatValueByType(gamedataStatType.EffectiveDamagePerHitMax);
+      };
+      damageParams.AddString("value", IntToString(RoundF(damagePerHitMin)));
+      damageParams.AddString("valueMax", IntToString(RoundF(damagePerHitMax)));
+      if (Equals(data.itemType, gamedataItemType.Wea_Shotgun) || Equals(data.itemType, gamedataItemType.Wea_ShotgunDual)) && projectilesPerShot > 0.00 {
+        inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitWithMultiplierTemplate");
+        damageParams.AddString("multiplier", IntToString(RoundF(projectilesPerShot)));
+      } else {
+        inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitTemplate");
+      };
+      inkTextRef.SetTextParameters(this.m_perHitText, damageParams);
+    };
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, comparisonData: wref<UIInventoryItemComparisonManager>) -> Void {
+    let projectilesPerShot: Int32;
+    let qualityDiff: Float = 0.00;
+    let dpsParams: ref<inkTextParams> = new inkTextParams();
+    let attackPerSecondParams: ref<inkTextParams> = new inkTextParams();
+    let damageParams: ref<inkTextParams> = new inkTextParams();
+    qualityDiff = data.GetComparisonQualityF() - comparisonData.GetComparisonQualityF();
+    let dpsValue: Float = data.GetPrimaryStat().Value;
+    inkWidgetRef.SetState(this.m_wrapper, this.GetArrowWrapperState(qualityDiff));
+    inkWidgetRef.SetVisible(this.m_wrapper, dpsValue >= 0.00);
+    inkWidgetRef.SetVisible(this.m_arrow, data.GetComparisonQualityF() >= 0.00 || !FloatIsEqual(data.GetComparisonQualityF(), comparisonData.GetComparisonQualityF()));
+    inkWidgetRef.SetVisible(this.m_nonLethal, Equals(data.GetWeaponEvolution(), gamedataWeaponEvolution.Blunt));
+    if Equals(data.GetWeaponType(), WeaponType.Ranged) {
+      inkWidgetRef.SetVisible(this.m_ammoWrapper, true);
+      inkTextRef.SetText(this.m_ammoText, IntToString(data.GetAmmo()));
+    } else {
+      inkWidgetRef.SetVisible(this.m_ammoWrapper, false);
+    };
+    if data.HasScopeSlot() {
+      inkWidgetRef.SetVisible(this.m_scopeIndicator, true);
+      inkWidgetRef.SetState(this.m_scopeIndicator, data.HasScopeInstalled() ? n"Default" : n"Empty");
+    } else {
+      inkWidgetRef.SetVisible(this.m_scopeIndicator, false);
+    };
+    if data.HasSilencerSlot() {
+      inkWidgetRef.SetVisible(this.m_silencerIndicator, true);
+      inkWidgetRef.SetState(this.m_silencerIndicator, data.HasSilencerInstalled() ? n"Default" : n"Empty");
+    } else {
+      inkWidgetRef.SetVisible(this.m_silencerIndicator, false);
+    };
+    if qualityDiff > 0.00 {
+      inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.NoMirror);
+    } else {
+      if qualityDiff < 0.00 {
+        inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.Vertical);
+      };
+    };
+    dpsParams.AddNumber("value", FloorF(dpsValue));
+    dpsParams.AddNumber("valueDecimalPart", RoundF((dpsValue - Cast<Float>(RoundF(dpsValue))) * 10.00) % 10);
+    projectilesPerShot = data.GetNumberOfPellets();
+    attackPerSecondParams.AddString("value", FloatToStringPrec(data.GetAttackSpeed(), 2));
+    inkTextRef.SetLocalizedTextScript(this.m_attacksPerSecondText, "UI-Tooltips-AttacksPerSecond", attackPerSecondParams);
+    inkTextRef.SetTextParameters(this.m_dpsText, dpsParams);
+    if Equals(data.GetWeaponType(), WeaponType.Melee) {
+      inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitMeleeTemplate");
+      damageParams.AddString("value", IntToString(RoundF(data.GetDamageMin())));
+      inkTextRef.SetTextParameters(this.m_perHitText, damageParams);
+    } else {
+      damageParams.AddString("value", IntToString(RoundF(data.GetDamageMin())));
+      damageParams.AddString("valueMax", IntToString(RoundF(data.GetDamageMax())));
+      if (Equals(data.GetItemType(), gamedataItemType.Wea_Shotgun) || Equals(data.GetItemType(), gamedataItemType.Wea_ShotgunDual)) && projectilesPerShot > 0 {
+        inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitWithMultiplierTemplate");
+        damageParams.AddString("multiplier", IntToString(projectilesPerShot));
+      } else {
+        inkTextRef.SetText(this.m_perHitText, "UI-Tooltips-DamagePerHitTemplate");
+      };
+      inkTextRef.SetTextParameters(this.m_perHitText, damageParams);
+    };
+  }
+}
+
+public class ItemTooltipClothingInfoModule extends ItemTooltipModuleController {
+
+  private edit let m_allocationCostsWrapper: inkCompoundRef;
+
+  private edit let m_armorContainer: inkWidgetRef;
+
+  private edit let m_value: inkTextRef;
+
+  private edit let m_arrow: inkImageRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    inkWidgetRef.SetVisible(this.m_allocationCostsWrapper, false);
+    if data.armorDiff > 0.00 {
+      inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.NoMirror);
+    } else {
+      if data.armorDiff < 0.00 {
+        inkImageRef.SetBrushMirrorType(this.m_arrow, inkBrushMirrorType.Vertical);
+      };
+    };
+    inkWidgetRef.SetState(this.m_arrow, this.GetArrowWrapperState(data.armorDiff));
+    inkWidgetRef.SetVisible(this.m_arrow, data.armorDiff != 0.00);
+    inkTextRef.SetText(this.m_value, IntToString(Cast<Int32>(data.armorValue)));
+    inkWidgetRef.SetVisible(this.m_armorContainer, data.armorValue != 0.00);
+    this.UpdateAttributeAllocationStats(data);
+  }
+
+  private final func UpdateAttributeAllocationStats(data: ref<MinimalItemTooltipData>) -> Void {
+    let allocationCostsSize: Int32;
+    let controller: ref<ItemTooltipStatController>;
+    let i: Int32;
+    let isCW: Bool;
+    let itemTooltipStatData: ref<MinimalItemTooltipStatData>;
+    let isHumanityStatRequirementNotMet: Bool = false;
+    isHumanityStatRequirementNotMet = data.requirements.isHumanityStatRequirementNotMet;
+    if isHumanityStatRequirementNotMet && !this.m_displayContext.HasTag(n"Looting") {
+      inkWidgetRef.SetState(this.m_allocationCostsWrapper, n"lowCapacity");
+    } else {
+      inkWidgetRef.SetState(this.m_allocationCostsWrapper, n"Default");
+    };
+    inkWidgetRef.SetVisible(this.m_allocationCostsWrapper, true);
+    allocationCostsSize = ArraySize(data.attributeAllocationStats);
+    while inkCompoundRef.GetNumChildren(this.m_allocationCostsWrapper) > allocationCostsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_allocationCostsWrapper, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_allocationCostsWrapper) < allocationCostsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+    };
+    i = 0;
+    while i < allocationCostsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+      controller.SetData(data.attributeAllocationStats[i]);
+      i += 1;
+    };
+    isCW = Equals(data.itemType, gamedataItemType.Cyb_Ability) || Equals(data.itemType, gamedataItemType.Cyb_HealingAbility) || Equals(data.itemType, gamedataItemType.Cyb_Launcher) || Equals(data.itemType, gamedataItemType.Cyb_MantisBlades) || Equals(data.itemType, gamedataItemType.Cyb_NanoWires) || Equals(data.itemType, gamedataItemType.Cyb_StrongArms) || Equals(data.itemCategory, gamedataItemCategory.Cyberware);
+    if allocationCostsSize == 0 {
+      if allocationCostsSize == 0 && Equals(data.itemCategory, gamedataItemCategory.Cyberware) && isCW {
+        if Cast<Bool>(data.itemData.GetStatValueByType(gamedataStatType.HumanityAllocated)) {
+          this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+          controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+          itemTooltipStatData = new MinimalItemTooltipStatData();
+          itemTooltipStatData.value = data.itemData.GetStatValueByType(gamedataStatType.HumanityAllocated);
+          itemTooltipStatData.statName = UILocalizationHelper.GetStatNameLockey(RPGManager.GetStatRecord(gamedataStatType.HumanityAllocated));
+          itemTooltipStatData.type = gamedataStatType.HumanityAllocated;
+          controller.SetData(itemTooltipStatData);
+        } else {
+          this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+          controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+          controller.SetZeroData();
+        };
+      } else {
+        this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+        controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+        controller.SetZeroData();
+      };
+    };
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, player: wref<PlayerPuppet>) -> Void {
+    let armorValue: Float = data.GetPrimaryStat().Value;
+    inkWidgetRef.SetVisible(this.m_allocationCostsWrapper, false);
+    inkWidgetRef.SetVisible(this.m_arrow, false);
+    inkTextRef.SetText(this.m_value, IntToString(Cast<Int32>(armorValue)));
+    inkWidgetRef.SetVisible(this.m_armorContainer, armorValue != 0.00);
+    this.NEW_UpdateAttributeAllocationStats(data, player);
+  }
+
+  private final func NEW_UpdateAttributeAllocationStats(data: wref<UIInventoryItem>, player: wref<PlayerPuppet>) -> Void {
+    let allocationCostsSize: Int32;
+    let controller: ref<ItemTooltipStatController>;
+    let i: Int32;
+    let requirementsManager: wref<UIInventoryItemRequirementsManager> = data.GetRequirementsManager(player);
+    let statsManger: wref<UIInventoryItemStatsManager> = data.GetStatsManager();
+    if !requirementsManager.IsHumanityRequirementMet() && !this.m_displayContext.HasTag(n"Looting") {
+      inkWidgetRef.SetState(this.m_allocationCostsWrapper, n"lowCapacity");
+    } else {
+      inkWidgetRef.SetState(this.m_allocationCostsWrapper, n"Default");
+    };
+    inkWidgetRef.SetVisible(this.m_allocationCostsWrapper, true);
+    allocationCostsSize = statsManger.SizeAttributeAllocationStats();
+    while inkCompoundRef.GetNumChildren(this.m_allocationCostsWrapper) > allocationCostsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_allocationCostsWrapper, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_allocationCostsWrapper) < allocationCostsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+    };
+    i = 0;
+    while i < allocationCostsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+      controller.SetData(statsManger.GetAttributeAllocationStats(i));
+      i += 1;
+    };
+    if allocationCostsSize == 0 {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_allocationCostsWrapper), n"itemCapacityStat");
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_allocationCostsWrapper, i).GetController() as ItemTooltipStatController;
+      controller.SetZeroData();
+    };
+  }
+}
+
+public class ItemTooltipGrenadeInfoModule extends ItemTooltipModuleController {
+
+  private edit let m_headerText: inkTextRef;
+
+  private edit let m_totalDamageText: inkTextRef;
+
+  private edit let m_lineDamage: inkWidgetRef;
+
+  private edit let m_damageWrapper: inkWidgetRef;
+
+  private edit let m_damageTypeText: inkTextRef;
+
+  private edit let m_damageValue: inkTextRef;
+
+  private edit let m_damageSec: inkWidgetRef;
+
+  private edit let m_durationText: inkTextRef;
+
+  private edit let m_rangeText: inkTextRef;
+
+  private edit let m_deliveryIcon: inkImageRef;
+
+  private edit let m_deliveryText: inkTextRef;
+
+  public final func SetDamageTypeColor(damage: gamedataStatType) -> CName {
+    if Equals(damage, gamedataStatType.PhysicalDamage) {
+      return n"Physical";
+    };
+    if Equals(damage, gamedataStatType.ElectricDamage) {
+      return n"EMP";
+    };
+    if Equals(damage, gamedataStatType.ChemicalDamage) {
+      return n"Chemical";
+    };
+    if Equals(damage, gamedataStatType.ThermalDamage) {
+      return n"Thermal";
+    };
+    return n"Default";
+  }
+
+  public final func GetDamageByGrenadeType(grenageType: EGrenadeType) -> gamedataStatType {
+    if Equals(grenageType, EGrenadeType.Frag) {
+      return gamedataStatType.PhysicalDamage;
+    };
+    if Equals(grenageType, EGrenadeType.EMP) {
+      return gamedataStatType.ElectricDamage;
+    };
+    if Equals(grenageType, EGrenadeType.Biohazard) {
+      return gamedataStatType.ChemicalDamage;
+    };
+    if Equals(grenageType, EGrenadeType.Incendiary) {
+      return gamedataStatType.ThermalDamage;
+    };
+    if Equals(grenageType, EGrenadeType.Cutting) {
+      return gamedataStatType.ThermalDamage;
+    };
+    return gamedataStatType.Invalid;
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let damageTypeLocKey: String;
+    let damageTypeRecord: ref<Stat_Record>;
+    let dpsValue: Int32;
+    let durationParams: ref<inkTextParams>;
+    let localizedMeters: String;
+    let localizedSeconds: String;
+    let measurementUnit: EMeasurementUnit;
+    let rangeParams: ref<inkTextParams>;
+    let totalDamageValue: Float;
+    let grenageType: EGrenadeType = data.grenadeData.grenadeType;
+    let damageByGrenadeType: gamedataStatType = this.GetDamageByGrenadeType(grenageType);
+    let hasDamage: Bool = data.grenadeData.totalDamage > 0.00;
+    inkWidgetRef.SetVisible(this.m_headerText, false);
+    inkWidgetRef.SetVisible(this.m_totalDamageText, false);
+    damageTypeRecord = RPGManager.GetStatRecord(damageByGrenadeType);
+    damageTypeLocKey = UILocalizationHelper.GetStatNameLockey(damageTypeRecord);
+    inkTextRef.SetText(this.m_damageTypeText, damageTypeLocKey);
+    inkWidgetRef.SetState(this.m_damageTypeText, this.SetDamageTypeColor(damageByGrenadeType));
+    if hasDamage {
+      dpsValue = RoundMath(data.grenadeData.damagePerTick * 1.00 / data.grenadeData.delay);
+      totalDamageValue = data.grenadeData.totalDamage;
+      if Equals(grenageType, EGrenadeType.Frag) || Equals(grenageType, EGrenadeType.EMP) {
+        inkWidgetRef.SetVisible(this.m_damageWrapper, true);
+        inkWidgetRef.SetVisible(this.m_lineDamage, true);
+        inkWidgetRef.SetVisible(this.m_damageTypeText, true);
+        inkWidgetRef.SetVisible(this.m_damageValue, true);
+        inkTextRef.SetText(this.m_damageValue, IntToString(Cast<Int32>(totalDamageValue)));
+        inkWidgetRef.SetVisible(this.m_damageSec, false);
+      };
+      if Equals(grenageType, EGrenadeType.Incendiary) || Equals(grenageType, EGrenadeType.Biohazard) || Equals(grenageType, EGrenadeType.Cutting) {
+        inkWidgetRef.SetVisible(this.m_damageWrapper, true);
+        inkWidgetRef.SetVisible(this.m_lineDamage, true);
+        inkWidgetRef.SetVisible(this.m_damageTypeText, true);
+        inkWidgetRef.SetVisible(this.m_damageValue, true);
+        inkTextRef.SetText(this.m_damageValue, IntToString(dpsValue));
+        inkWidgetRef.SetVisible(this.m_damageSec, true);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_damageWrapper, false);
+      inkWidgetRef.SetVisible(this.m_lineDamage, false);
+      inkWidgetRef.SetVisible(this.m_damageTypeText, false);
+      inkWidgetRef.SetVisible(this.m_damageValue, false);
+      inkWidgetRef.SetVisible(this.m_damageSec, false);
+    };
+    durationParams = new inkTextParams();
+    localizedSeconds = GetLocalizedText("UI-Quickhacks-Seconds");
+    localizedMeters = GetLocalizedText("UI-Labels-Units-Meters");
+    if data.grenadeData.duration > 0.00 {
+      durationParams.AddString("value", FloatToStringPrec(data.grenadeData.duration, 2));
+      durationParams.AddString("unit", localizedSeconds);
+      inkTextRef.SetTextParameters(this.m_durationText, durationParams);
+      inkWidgetRef.SetVisible(this.m_durationText, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_durationText, false);
+    };
+    rangeParams = new inkTextParams();
+    measurementUnit = UILocalizationHelper.GetSystemBaseUnit();
+    rangeParams.AddNumber("value", RoundTo(MeasurementUtils.ValueUnitToUnit(data.grenadeData.range, EMeasurementUnit.Meter, measurementUnit), 1));
+    rangeParams.AddString("unit", localizedMeters);
+    inkTextRef.SetTextParameters(this.m_rangeText, rangeParams);
+  }
+
+  public final func NEW_Update(player: wref<PlayerPuppet>, data: wref<UIInventoryItem>) -> Void {
+    let damageTypeLocKey: String;
+    let damageTypeRecord: ref<Stat_Record>;
+    let dpsValue: Int32;
+    let durationParams: ref<inkTextParams>;
+    let localizedMeters: String;
+    let localizedSeconds: String;
+    let measurementUnit: EMeasurementUnit;
+    let rangeParams: ref<inkTextParams>;
+    let totalDamageValue: Float;
+    let grenadeData: wref<UIInventoryItemGrenadeData> = data.GetGrenadeData(player, true);
+    let grenageType: EGrenadeType = grenadeData.GrenadeType;
+    let damageByGrenadeType: gamedataStatType = this.GetDamageByGrenadeType(grenageType);
+    let hasDamage: Bool = grenadeData.TotalDamage > 0.00;
+    inkWidgetRef.SetVisible(this.m_headerText, false);
+    inkWidgetRef.SetVisible(this.m_totalDamageText, false);
+    damageTypeRecord = RPGManager.GetStatRecord(damageByGrenadeType);
+    damageTypeLocKey = UILocalizationHelper.GetStatNameLockey(damageTypeRecord);
+    inkTextRef.SetText(this.m_damageTypeText, damageTypeLocKey);
+    inkWidgetRef.SetState(this.m_damageTypeText, this.SetDamageTypeColor(damageByGrenadeType));
+    if hasDamage {
+      dpsValue = RoundMath(grenadeData.DamagePerTick * 1.00 / grenadeData.Delay);
+      totalDamageValue = grenadeData.TotalDamage;
+      if Equals(grenageType, EGrenadeType.Frag) || Equals(grenageType, EGrenadeType.EMP) {
+        inkWidgetRef.SetVisible(this.m_damageWrapper, true);
+        inkWidgetRef.SetVisible(this.m_lineDamage, true);
+        inkWidgetRef.SetVisible(this.m_damageTypeText, true);
+        inkWidgetRef.SetVisible(this.m_damageValue, true);
+        inkTextRef.SetText(this.m_damageValue, IntToString(Cast<Int32>(totalDamageValue)));
+        inkWidgetRef.SetVisible(this.m_damageSec, false);
+      };
+      if Equals(grenageType, EGrenadeType.Incendiary) || Equals(grenageType, EGrenadeType.Biohazard) || Equals(grenageType, EGrenadeType.Cutting) {
+        inkWidgetRef.SetVisible(this.m_damageWrapper, true);
+        inkWidgetRef.SetVisible(this.m_lineDamage, true);
+        inkWidgetRef.SetVisible(this.m_damageTypeText, true);
+        inkWidgetRef.SetVisible(this.m_damageValue, true);
+        inkTextRef.SetText(this.m_damageValue, IntToString(dpsValue));
+        inkWidgetRef.SetVisible(this.m_damageSec, true);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_damageWrapper, false);
+      inkWidgetRef.SetVisible(this.m_lineDamage, false);
+      inkWidgetRef.SetVisible(this.m_damageTypeText, false);
+      inkWidgetRef.SetVisible(this.m_damageValue, false);
+      inkWidgetRef.SetVisible(this.m_damageSec, false);
+    };
+    durationParams = new inkTextParams();
+    localizedSeconds = GetLocalizedText("UI-Quickhacks-Seconds");
+    localizedMeters = GetLocalizedText("UI-Labels-Units-Meters");
+    if grenadeData.Duration > 0.00 {
+      durationParams.AddString("value", FloatToStringPrec(grenadeData.Duration, 2));
+      durationParams.AddString("unit", localizedSeconds);
+      inkTextRef.SetTextParameters(this.m_durationText, durationParams);
+      inkWidgetRef.SetVisible(this.m_durationText, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_durationText, false);
+    };
+    rangeParams = new inkTextParams();
+    measurementUnit = UILocalizationHelper.GetSystemBaseUnit();
+    rangeParams.AddNumber("value", FloorF(MeasurementUtils.ValueUnitToUnit(grenadeData.Range, EMeasurementUnit.Meter, measurementUnit)));
+    rangeParams.AddString("unit", localizedMeters);
+    inkTextRef.SetTextParameters(this.m_rangeText, rangeParams);
+  }
+
+  private final func UpdateGrenadeDeliveryMethod(deliveryMethod: gamedataGrenadeDeliveryMethodType) -> Void {
+    switch deliveryMethod {
+      case gamedataGrenadeDeliveryMethodType.Regular:
+        inkTextRef.SetText(this.m_deliveryText, GetLocalizedText("Gameplay-Items-Stats-Delivery-Regular"));
+        break;
+      case gamedataGrenadeDeliveryMethodType.Sticky:
+        inkTextRef.SetText(this.m_deliveryText, GetLocalizedText("Gameplay-Items-Stats-Delivery-Sticky"));
+        break;
+      case gamedataGrenadeDeliveryMethodType.Homing:
+        inkTextRef.SetText(this.m_deliveryText, GetLocalizedText("Gameplay-Items-Stats-Delivery-Homing"));
+    };
+  }
+}
+
+public class ItemTooltipCyberwareWeaponModule extends ItemTooltipModuleController {
+
+  public edit let m_wrapper: inkWidgetRef;
+
+  public edit const let m_bars: [inkWidgetRef];
+
+  public edit const let m_diffBars: [inkWidgetRef];
+
+  public edit let m_betterColorDummyHolder: inkWidgetRef;
+
+  public edit let m_worseColorDummyHolder: inkWidgetRef;
+
+  private let m_statsToDisplay: [WeaponBarType];
+
+  private let m_disableSeparators: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    let betterColor: HDRColor = inkWidgetRef.GetTintColor(this.m_betterColorDummyHolder);
+    let worseColor: HDRColor = inkWidgetRef.GetTintColor(this.m_worseColorDummyHolder);
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_bars);
+    while i < limit {
+      inkWidgetRef.GetController(this.m_bars[i]) as NewItemTooltipStatBarController.SetupColors(betterColor, worseColor);
+      i += 1;
+    };
+  }
+
+  public final func NEW_UpdateWrapping(bigFontEnabled: Bool) -> Void {
+    if bigFontEnabled {
+      inkWidgetRef.SetMargin(this.m_wrapper, 60.00, 0.00, 0.00, 0.00);
+    } else {
+      inkWidgetRef.SetMargin(this.m_wrapper, 0.00, 0.00, 0.00, 0.00);
+    };
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let statsManager: wref<UIInventoryItemStatsManager> = data.GetStatsManager();
+    let weaponBars: wref<UIInventoryItemWeaponBars> = statsManager.GetWeaponBars();
+    let itemType: gamedataItemType = data.itemType;
+    this.m_disableSeparators = !statsManager.IsSeparatorBarsEnabled();
+    if data.isEquipped {
+      this.CommonUpdate(itemType, weaponBars);
+    } else {
+      this.CommonUpdate(itemType, weaponBars, true);
+    };
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, comparisonData: wref<UIInventoryItemComparisonManager>) -> Void {
+    this.m_disableSeparators = !data.GetStatsManager().IsSeparatorBarsEnabled();
+    if data.IsEquipped() {
+      this.CommonUpdate(data.GetItemType(), data.GetStatsManager().GetWeaponBars());
+    } else {
+      this.CommonUpdate(data.GetItemType(), data.GetStatsManager().GetWeaponBars(), true);
+    };
+  }
+
+  public final func CommonUpdate(itemType: gamedataItemType, bars: wref<UIInventoryItemWeaponBars>, opt shouldCompare: Bool) -> Void {
+    let comparedBars: wref<UIInventoryItemWeaponBars>;
+    let controller: wref<NewItemTooltipStatBarController>;
+    let i: Int32;
+    let limit: Int32;
+    this.m_statsToDisplay = UIInventoryItemWeaponBars.GetDisplayedStats(bars.GetType());
+    let statsToDisplaySize: Int32 = ArraySize(this.m_statsToDisplay);
+    if shouldCompare {
+      comparedBars = bars.GetComparedBars();
+    };
+    i = 0;
+    limit = ArraySize(this.m_bars);
+    while i < limit {
+      controller = inkWidgetRef.GetController(this.m_bars[i]) as NewItemTooltipStatBarController;
+      controller.SetSeparatorsVisibility(!this.m_disableSeparators);
+      if i < statsToDisplaySize {
+        inkWidgetRef.SetVisible(this.m_bars[i], true);
+        controller.Setup(itemType, bars.Values[i], comparedBars.GetComparableBar(bars.Values[i].Type));
+      } else {
+        inkWidgetRef.SetVisible(this.m_bars[i], false);
+        controller.ResetPercentage();
+      };
+      i += 1;
+    };
+  }
+}
+
+public class ItemTooltipRequirementsModule extends ItemTooltipModuleController {
+
+  private edit let m_levelRequirementsWrapper: inkWidgetRef;
+
+  private edit let m_strenghtOrReflexWrapper: inkWidgetRef;
+
+  private edit let m_smartlinkGunWrapper: inkWidgetRef;
+
+  private edit let m_anyAttributeWrapper: inkCompoundRef;
+
+  private edit let m_armCyberwareStyleWrapper: inkWidgetRef;
+
+  private edit let m_line: inkWidgetRef;
+
+  private edit let m_levelRequirementsText: inkTextRef;
+
+  private edit let m_strenghtOrReflexText: inkTextRef;
+
+  private edit let m_perkText: inkTextRef;
+
+  private edit let m_perkDot: inkImageRef;
+
+  public final func UpdateWrapping(bigFontEnabled: Bool) -> Void {
+    if Equals(bigFontEnabled, true) {
+      inkTextRef.SetWrappingAtPosition(this.m_levelRequirementsText, 711.00);
+      inkTextRef.SetWrappingAtPosition(this.m_strenghtOrReflexText, 711.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkText, 711.00);
+    } else {
+      inkTextRef.SetWrappingAtPosition(this.m_levelRequirementsText, 611.00);
+      inkTextRef.SetWrappingAtPosition(this.m_strenghtOrReflexText, 611.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkText, 611.00);
+    };
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let textParams: ref<inkTextParams>;
+    inkWidgetRef.SetVisible(this.m_levelRequirementsWrapper, false);
+    inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, false);
+    inkWidgetRef.SetVisible(this.m_smartlinkGunWrapper, false);
+    inkWidgetRef.SetVisible(this.m_anyAttributeWrapper, false);
+    inkWidgetRef.SetVisible(this.m_armCyberwareStyleWrapper, false);
+    inkWidgetRef.SetVisible(this.m_line, false);
+    if data.requirements.isSmartlinkRequirementNotMet {
+      inkWidgetRef.SetVisible(this.m_smartlinkGunWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+    };
+    if data.requirements.isLevelRequirementNotMet {
+      inkWidgetRef.SetVisible(this.m_levelRequirementsWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      inkTextRef.SetText(this.m_levelRequirementsText, IntToString(data.requirements.requiredLevel));
+    };
+    if data.requirements.isStrengthRequirementNotMet || data.requirements.isReflexRequirementNotMet {
+      inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      textParams = new inkTextParams();
+      textParams.AddString("statName", GetLocalizedText(data.requirements.strengthOrReflexStatName));
+      textParams.AddNumber("statValue", data.requirements.strengthOrReflexValue);
+      inkTextRef.SetText(this.m_strenghtOrReflexText, GetLocalizedText("LocKey#78420"));
+      inkTextRef.SetTextParameters(this.m_strenghtOrReflexText, textParams);
+    } else {
+      if data.requirements.isRarityRequirementNotMet {
+        inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, true);
+        inkWidgetRef.SetVisible(this.m_strenghtOrReflexText, true);
+        inkWidgetRef.SetVisible(this.m_line, true);
+        inkTextRef.SetLocalizedText(this.m_strenghtOrReflexText, n"UI-Tooltips-ModQualityRestriction");
+      };
+    };
+    if data.requirements.isAnyStatRequirementNotMet {
+      this.UpdateStatRequirements(data.requirements.anyStatRequirements);
+      inkWidgetRef.SetVisible(this.m_line, true);
+    } else {
+      if ArraySize(data.attributeAllocationStats) > 0 {
+      };
+    };
+    if data.requirements.isPerkRequirementNotMet {
+      textParams = new inkTextParams();
+      textParams.AddLocalizedString("perkName", data.requirements.perkLocKey);
+      inkWidgetRef.SetVisible(this.m_perkText, true);
+      inkWidgetRef.SetVisible(this.m_perkDot, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      inkTextRef.SetLocalizedTextScript(this.m_perkText, "LocKey#42796", textParams);
+    } else {
+      inkWidgetRef.SetVisible(this.m_perkText, false);
+      inkWidgetRef.SetVisible(this.m_perkDot, false);
+    };
+  }
+
+  private final func UpdateStatRequirements(const statRequirements: script_ref<[ref<MinimalItemTooltipDataStatRequirement>]>) -> Void {
+    let controller: ref<ItemTooltipAttributeRequirement>;
+    let i: Int32;
+    let requirementsSize: Int32;
+    inkWidgetRef.SetVisible(this.m_anyAttributeWrapper, true);
+    requirementsSize = ArraySize(Deref(statRequirements));
+    while inkCompoundRef.GetNumChildren(this.m_anyAttributeWrapper) > requirementsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_anyAttributeWrapper, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_anyAttributeWrapper) < requirementsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_anyAttributeWrapper), n"itemAttrbuteRequirement");
+    };
+    i = 0;
+    while i < requirementsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_anyAttributeWrapper, i).GetController() as ItemTooltipAttributeRequirement;
+      controller.SetData(Deref(statRequirements)[i]);
+      i += 1;
+    };
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, player: wref<PlayerPuppet>) -> Void {
+    let requirementsManager: wref<UIInventoryItemRequirementsManager>;
+    let statName: String;
+    let textParams: ref<inkTextParams>;
+    inkWidgetRef.SetVisible(this.m_levelRequirementsWrapper, false);
+    inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, false);
+    inkWidgetRef.SetVisible(this.m_smartlinkGunWrapper, false);
+    inkWidgetRef.SetVisible(this.m_anyAttributeWrapper, false);
+    inkWidgetRef.SetVisible(this.m_armCyberwareStyleWrapper, false);
+    inkWidgetRef.SetVisible(this.m_line, false);
+    requirementsManager = data.GetRequirementsManager(player);
+    if !requirementsManager.IsSmartlinkRequirementMet() {
+      inkWidgetRef.SetVisible(this.m_smartlinkGunWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+    };
+    if !requirementsManager.IsLevelRequirementMet() {
+      inkWidgetRef.SetVisible(this.m_levelRequirementsWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      inkTextRef.SetText(this.m_levelRequirementsText, IntToString(requirementsManager.GetLevelRequirementValue()));
+    };
+    if !requirementsManager.IsStrengthRequirementMet() {
+      inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      textParams = new inkTextParams();
+      statName = UILocalizationHelper.GetStatNameLockey(RPGManager.GetStatRecord(gamedataStatType.Strength));
+      textParams.AddString("statName", GetLocalizedText(statName));
+      textParams.AddNumber("statValue", requirementsManager.GetStrengthRequirementValue());
+      inkTextRef.SetText(this.m_strenghtOrReflexText, GetLocalizedText("LocKey#78420"));
+      inkTextRef.SetTextParameters(this.m_strenghtOrReflexText, textParams);
+    } else {
+      if !requirementsManager.IsReflexRequirementMet() {
+        inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, true);
+        inkWidgetRef.SetVisible(this.m_line, true);
+        textParams = new inkTextParams();
+        statName = UILocalizationHelper.GetStatNameLockey(RPGManager.GetStatRecord(gamedataStatType.Reflexes));
+        textParams.AddString("statName", GetLocalizedText(statName));
+        textParams.AddNumber("statValue", requirementsManager.GetReflexRequirementValue());
+        inkTextRef.SetText(this.m_strenghtOrReflexText, GetLocalizedText("LocKey#78420"));
+        inkTextRef.SetTextParameters(this.m_strenghtOrReflexText, textParams);
+      } else {
+        if !requirementsManager.IsRarityRequirementMet(null) {
+          inkWidgetRef.SetVisible(this.m_strenghtOrReflexWrapper, true);
+          inkWidgetRef.SetVisible(this.m_strenghtOrReflexText, true);
+          inkWidgetRef.SetVisible(this.m_line, true);
+          inkTextRef.SetLocalizedText(this.m_strenghtOrReflexText, n"UI-Tooltips-ModQualityRestriction");
+        };
+      };
+    };
+    if !requirementsManager.IsPerkRequirementMet() {
+      textParams = new inkTextParams();
+      textParams.AddLocalizedString("perkName", requirementsManager.GetPerkRequirementValue());
+      inkWidgetRef.SetVisible(this.m_perkText, true);
+      inkWidgetRef.SetVisible(this.m_perkDot, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+      inkTextRef.SetLocalizedTextScript(this.m_perkText, "LocKey#42796", textParams);
+    } else {
+      inkWidgetRef.SetVisible(this.m_perkText, false);
+      inkWidgetRef.SetVisible(this.m_perkDot, false);
+    };
+    if !requirementsManager.IsArmCyberwareStyleRequirementMet() {
+      inkWidgetRef.SetVisible(this.m_armCyberwareStyleWrapper, true);
+      inkWidgetRef.SetVisible(this.m_line, true);
+    };
+  }
+}
+
+public class ItemTooltipDetailsModule extends ItemTooltipModuleController {
+
+  private edit let m_statsLine: inkWidgetRef;
+
+  private edit let m_statsWrapper: inkWidgetRef;
+
+  private edit let m_statsContainer: inkCompoundRef;
+
+  private edit let m_dedicatedModsLine: inkWidgetRef;
+
+  private edit let m_dedicatedModsWrapper: inkWidgetRef;
+
+  private edit let m_dedicatedModsContainer: inkCompoundRef;
+
+  private edit let m_modsLine: inkWidgetRef;
+
+  private edit let m_modsWrapper: inkWidgetRef;
+
+  private edit let m_modsContainer: inkCompoundRef;
+
+  private edit let m_modifierPowerLine: inkWidgetRef;
+
+  private edit let m_modifierPowerLabel: inkTextRef;
+
+  private edit let m_modifierPowerWrapper: inkCompoundRef;
+
+  private edit let m_isCrafting: Bool;
+
+  public final func Update(data: ref<MinimalItemTooltipData>, hasStats: Bool, hasDedicatedMods: Bool, hasMods: Bool) -> Void {
+    if hasStats && (NotEquals(data.displayContext, InventoryTooltipDisplayContext.Crafting) || data.isIconic) {
+      inkWidgetRef.SetVisible(this.m_statsLine, true);
+      inkWidgetRef.SetVisible(this.m_statsWrapper, true);
+      this.UpdateStats(data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_statsLine, false);
+      inkWidgetRef.SetVisible(this.m_statsWrapper, false);
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, false);
+    };
+    if hasDedicatedMods {
+      inkWidgetRef.SetVisible(this.m_dedicatedModsLine, true);
+      inkWidgetRef.SetVisible(this.m_dedicatedModsWrapper, true);
+      this.UpdateDedicatedMods(data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_dedicatedModsLine, false);
+      inkWidgetRef.SetVisible(this.m_dedicatedModsWrapper, false);
+    };
+    if hasMods {
+      inkWidgetRef.SetVisible(this.m_modsLine, true);
+      inkWidgetRef.SetVisible(this.m_modsWrapper, true);
+      this.UpdateMods(data);
+    } else {
+      inkWidgetRef.SetVisible(this.m_modsLine, false);
+      inkWidgetRef.SetVisible(this.m_modsWrapper, false);
+    };
+  }
+
+  private final func UpdateStats(data: ref<MinimalItemTooltipData>) -> Void {
+    let controller: ref<ItemTooltipStatController>;
+    let i: Int32;
+    let modifierPower: Float;
+    let widget: wref<inkWidget>;
+    inkCompoundRef.RemoveAllChildren(this.m_statsContainer);
+    modifierPower = 0.00;
+    i = 0;
+    while i < ArraySize(data.stats) {
+      if Equals(data.stats[i].type, gamedataStatType.ModifierPower) {
+        modifierPower = data.stats[i].value;
+      } else {
+        widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_statsContainer), n"itemDetailsStat");
+        controller = widget.GetController() as ItemTooltipStatController;
+        controller.SetData(data.stats[i]);
+      };
+      i += 1;
+    };
+    this.UpdateModifierPower(modifierPower);
+  }
+
+  private final func UpdateModifierPower(modifierPower: Float) -> Void {
+    let modifierPowerParams: ref<inkTextParams>;
+    if modifierPower > 0.00 {
+      modifierPowerParams = new inkTextParams();
+      modifierPowerParams.AddNumber("value", FloorF(modifierPower));
+      modifierPowerParams.AddNumber("valueDecimalPart", RoundF((modifierPower - Cast<Float>(FloorF(modifierPower))) * 10.00) % 10);
+      inkTextRef.SetTextParameters(this.m_modifierPowerLabel, modifierPowerParams);
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, false);
+    };
+  }
+
+  private final func UpdateMods(data: ref<MinimalItemTooltipData>) -> Void {
+    let controller: ref<ItemTooltipModController>;
+    let i: Int32;
+    let modsSize: Int32 = ArraySize(data.mods);
+    while inkCompoundRef.GetNumChildren(this.m_modsContainer) > modsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_modsContainer, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_modsContainer) < modsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_modsContainer), n"itemTooltipMod");
+    };
+    i = 0;
+    while i < modsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_modsContainer, i).GetController() as ItemTooltipModController;
+      controller.GetContext(this.m_isCrafting);
+      controller.SetData(data.mods[i]);
+      i += 1;
+    };
+  }
+
+  private final func UpdateDedicatedMods(data: ref<MinimalItemTooltipData>) -> Void {
+    let controller: ref<ItemTooltipModController>;
+    let i: Int32;
+    let dedicatedModsSize: Int32 = ArraySize(data.dedicatedMods);
+    while inkCompoundRef.GetNumChildren(this.m_dedicatedModsContainer) > dedicatedModsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_dedicatedModsContainer, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_dedicatedModsContainer) < dedicatedModsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_dedicatedModsContainer), n"itemTooltipMod");
+    };
+    i = 0;
+    while i < dedicatedModsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_dedicatedModsContainer, i).GetController() as ItemTooltipModController;
+      controller.GetContext(this.m_isCrafting);
+      controller.SetData(data.dedicatedMods[i]);
+      controller.HideDotIndicator();
+      i += 1;
+    };
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, m_comparisonData: wref<UIInventoryItemComparisonManager>, hasStats: Bool, hasDedicatedMods: Bool, hasMods: Bool) -> Void {
+    let modsManager: wref<UIInventoryItemModsManager> = data.GetModsManager();
+    if hasStats && (NotEquals(this.m_tooltipDisplayContext, InventoryTooltipDisplayContext.Crafting) || data.IsIconic()) {
+      inkWidgetRef.SetVisible(this.m_statsLine, true);
+      inkWidgetRef.SetVisible(this.m_statsWrapper, true);
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, false);
+      this.NEW_UpdateStats(data, m_comparisonData);
+    } else {
+      inkWidgetRef.SetVisible(this.m_statsLine, false);
+      inkWidgetRef.SetVisible(this.m_statsWrapper, false);
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, false);
+    };
+    if hasDedicatedMods {
+      inkWidgetRef.SetVisible(this.m_dedicatedModsLine, true);
+      inkWidgetRef.SetVisible(this.m_dedicatedModsWrapper, true);
+      this.NEW_UpdateDedicatedMods(modsManager);
+    } else {
+      inkWidgetRef.SetVisible(this.m_dedicatedModsLine, false);
+      inkWidgetRef.SetVisible(this.m_dedicatedModsWrapper, false);
+    };
+    if hasMods {
+      inkWidgetRef.SetVisible(this.m_modsLine, true);
+      inkWidgetRef.SetVisible(this.m_modsWrapper, true);
+      this.NEW_UpdateMods(data, modsManager);
+    } else {
+      inkWidgetRef.SetVisible(this.m_modsLine, false);
+      inkWidgetRef.SetVisible(this.m_modsWrapper, false);
+    };
+  }
+
+  private final func NEW_UpdateStats(data: wref<UIInventoryItem>, m_comparisonData: wref<UIInventoryItemComparisonManager>) -> Void {
+    let controller: ref<ItemTooltipStatController>;
+    let i: Int32;
+    let limit: Int32;
+    let modifierPower: Float;
+    let stat: wref<UIInventoryItemStat>;
+    let statsManager: wref<UIInventoryItemStatsManager>;
+    let widget: wref<inkWidget>;
+    inkCompoundRef.RemoveAllChildren(this.m_statsContainer);
+    statsManager = data.GetStatsManager();
+    i = 0;
+    limit = statsManager.Size();
+    while i < limit {
+      stat = statsManager.Get(i);
+      if Equals(stat.Type, gamedataStatType.ModifierPower) {
+        modifierPower = stat.Value;
+      } else {
+        widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_statsContainer), n"itemDetailsStat");
+        controller = widget.GetController() as ItemTooltipStatController;
+        controller.SetData(stat, m_comparisonData.GetByType(stat.Type));
+      };
+      i += 1;
+    };
+    this.NEW_UpdateModifierPower(modifierPower);
+  }
+
+  private final func NEW_UpdateModifierPower(modifierPower: Float) -> Void {
+    let modifierPowerParams: ref<inkTextParams>;
+    if modifierPower > 0.00 {
+      modifierPowerParams = new inkTextParams();
+      modifierPowerParams.AddNumber("value", FloorF(modifierPower));
+      modifierPowerParams.AddNumber("valueDecimalPart", RoundF((modifierPower - Cast<Float>(FloorF(modifierPower))) * 10.00) % 10);
+      inkTextRef.SetTextParameters(this.m_modifierPowerLabel, modifierPowerParams);
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_modifierPowerWrapper, false);
+    };
+  }
+
+  private final func NEW_UpdateMods(data: wref<UIInventoryItem>, modsManager: wref<UIInventoryItemModsManager>) -> Void {
+    let attachmentsCounter: Int32;
+    let controller: ref<ItemTooltipModController>;
+    let i: Int32;
+    let mod: ref<UIInventoryItemMod>;
+    let allModsSize: Int32 = modsManager.GetModsSize();
+    let modsSize: Int32 = allModsSize;
+    let skipAttachments: Bool = this.m_displayContext.HasTag(n"CyberwareUpgrade");
+    if skipAttachments {
+      modsSize -= modsManager.GetAttachmentsSize();
+    };
+    while inkCompoundRef.GetNumChildren(this.m_modsContainer) > modsSize {
+      inkCompoundRef.RemoveChildByIndex(this.m_modsContainer, 0);
+    };
+    while inkCompoundRef.GetNumChildren(this.m_modsContainer) < modsSize {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_modsContainer), n"itemTooltipMod");
+    };
+    i = 0;
+    while i < allModsSize {
+      controller = inkCompoundRef.GetWidgetByIndex(this.m_modsContainer, i - attachmentsCounter).GetController() as ItemTooltipModController;
+      mod = modsManager.GetMod(i);
+      if skipAttachments && (mod as UIInventoryItemModAttachment) != null {
+        attachmentsCounter += 1;
+      } else {
+        controller.GetContext(this.m_isCrafting);
+        controller.SetData(mod);
+      };
+      i += 1;
+    };
+  }
+
+  private final func NEW_UpdateDedicatedMods(modsManager: wref<UIInventoryItemModsManager>) -> Void {
+    let controller: ref<ItemTooltipModController>;
+    if inkCompoundRef.GetNumChildren(this.m_dedicatedModsContainer) == 0 {
+      this.SpawnFromLocal(inkWidgetRef.Get(this.m_dedicatedModsContainer), n"itemTooltipMod");
+    };
+    controller = inkCompoundRef.GetWidgetByIndex(this.m_dedicatedModsContainer, 0).GetController() as ItemTooltipModController;
+    controller.GetContext(this.m_isCrafting);
+    controller.SetData(modsManager.GetDedicatedMod());
+    controller.HideDotIndicator();
+  }
+
+  public final func GetContext(isCrafting: Bool) -> Void {
+    this.m_isCrafting = isCrafting;
+  }
+}
+
+public class ItemTooltipRecipeDataModule extends ItemTooltipModuleController {
+
+  private edit let m_randomQualityLabel: inkTextRef;
+
+  private edit let m_randomQualityWrapper: inkWidgetRef;
+
+  private edit let m_statsLabel: inkTextRef;
+
+  private edit let m_statsWrapper: inkWidgetRef;
+
+  private edit let m_statsContainer: inkCompoundRef;
+
+  private edit let m_damageTypesLabel: inkTextRef;
+
+  private edit let m_damageTypesWrapper: inkWidgetRef;
+
+  private edit let m_damageTypesContainer: inkCompoundRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    this.UpdateRandomQuality(data);
+    this.UpdatemRecipeDamageTypes(data);
+    this.UpdatemRecipeProperties(data);
+  }
+
+  private final func UpdateRandomQuality(data: ref<MinimalItemTooltipData>) -> Void {
+    let nextCraftingLevel: Int32;
+    let nextQuality: gamedataQuality;
+    let qualityParams: ref<inkTextParams>;
+    let itemRecord: ref<Item_Record> = TweakDBInterface.GetItemRecord(data.itemTweakID);
+    if Equals(itemRecord.Quality().Type(), gamedataQuality.Random) && NotEquals(data.quality, gamedataQuality.Legendary) {
+      qualityParams = new inkTextParams();
+      nextQuality = RPGManager.GetNextItemQuality(data.itemData);
+      nextCraftingLevel = RPGManager.GetPlayerNextLevelBasedOnRandomQuality(nextQuality);
+      qualityParams.AddString("quality", GetLocalizedText(UIItemsHelper.QualityToDefaultString(nextQuality)));
+      qualityParams.AddNumber("level", nextCraftingLevel);
+      inkTextRef.SetLocalizedText(this.m_randomQualityLabel, n"UI-Tooltips-RandomQualityDesc", qualityParams);
+      inkWidgetRef.SetVisible(this.m_randomQualityWrapper, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_randomQualityWrapper, false);
+    };
+  }
+
+  private final func UpdatemRecipeDamageTypes(data: ref<MinimalItemTooltipData>) -> Void {
+    let controller: ref<ItemTooltipStatController>;
+    let i: Int32;
+    let stat: InventoryTooltipData_StatData;
+    let damagesTypesSize: Int32 = ArraySize(data.recipeData.damageTypes);
+    if damagesTypesSize > 0 {
+      while inkCompoundRef.GetNumChildren(this.m_damageTypesContainer) > damagesTypesSize {
+        inkCompoundRef.RemoveChildByIndex(this.m_damageTypesContainer, 0);
+      };
+      while inkCompoundRef.GetNumChildren(this.m_damageTypesContainer) < damagesTypesSize {
+        this.SpawnFromLocal(inkWidgetRef.Get(this.m_damageTypesContainer), n"itemDetailsStat");
+      };
+      i = 0;
+      while i < damagesTypesSize {
+        stat = data.recipeData.damageTypes[i];
+        controller = inkCompoundRef.GetWidgetByIndex(this.m_damageTypesContainer, i).GetController() as ItemTooltipStatController;
+        controller.SetData(stat);
+        i += 1;
+      };
+      inkWidgetRef.SetVisible(this.m_damageTypesWrapper, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_damageTypesWrapper, false);
+    };
+  }
+
+  private final func UpdatemRecipeProperties(data: ref<MinimalItemTooltipData>) -> Void {
+    let controller: ref<ItemRandomizedStatsController>;
+    let statsQuantityParams: ref<inkTextParams>;
+    let widget: wref<inkWidget>;
+    if ArraySize(data.recipeData.recipeStats) > 0 {
+      statsQuantityParams = new inkTextParams();
+      statsQuantityParams.AddString("value", IntToString(data.recipeData.statsNumber));
+      inkTextRef.SetLocalizedText(this.m_statsLabel, n"UI-Tooltips-RandomStatsNumber", statsQuantityParams);
+      if inkCompoundRef.GetNumChildren(this.m_statsContainer) == 0 {
+        widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_statsContainer), n"itemTooltipRecipeStat");
+      } else {
+        widget = inkCompoundRef.GetWidgetByIndex(this.m_statsContainer, 0);
+      };
+      controller = widget.GetController() as ItemRandomizedStatsController;
+      controller.SetData(data.recipeData.recipeStats);
+      inkWidgetRef.SetVisible(this.m_statsWrapper, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_statsWrapper, false);
+    };
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void;
+}
+
+public class ItemTooltipEvolutionModule extends ItemTooltipModuleController {
+
+  private edit let m_weaponEvolutionIcon: inkImageRef;
+
+  private edit let m_weaponEvolutionName: inkTextRef;
+
+  private edit let m_weaponEvolutionDescription: inkTextRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    switch data.itemEvolution {
+      case gamedataWeaponEvolution.Power:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_power");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54118");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54117");
+        break;
+      case gamedataWeaponEvolution.Smart:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_smart");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54119");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54120");
+        break;
+      case gamedataWeaponEvolution.Tech:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_tech");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54121");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54122");
+        break;
+      case gamedataWeaponEvolution.Blunt:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blunt");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#77968");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#77969 ");
+        break;
+      case gamedataWeaponEvolution.Blade:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blades");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#77957");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#77960");
+        break;
+      case gamedataWeaponEvolution.Throwable:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blades");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#91802");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#91803");
+    };
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void {
+    switch data.GetWeaponEvolution() {
+      case gamedataWeaponEvolution.Power:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_power");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54118");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54117");
+        break;
+      case gamedataWeaponEvolution.Smart:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_smart");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54119");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54120");
+        break;
+      case gamedataWeaponEvolution.Tech:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_tech");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#54121");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#54122");
+        break;
+      case gamedataWeaponEvolution.Blunt:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blunt");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#77968");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#77969 ");
+        break;
+      case gamedataWeaponEvolution.Blade:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blades");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#77957");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#77960");
+        break;
+      case gamedataWeaponEvolution.Throwable:
+        inkImageRef.SetTexturePart(this.m_weaponEvolutionIcon, n"ico_blades");
+        inkTextRef.SetText(this.m_weaponEvolutionName, "LocKey#91802");
+        inkTextRef.SetText(this.m_weaponEvolutionDescription, "LocKey#91803");
+    };
+  }
+}
+
+public class ItemTooltipCraftedModule extends ItemTooltipModuleController {
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    this.GetRootWidget().SetState(UIItemsHelper.QualityEnumToName(data.quality));
+  }
+
+  public func NEW_Update(data: wref<UIInventoryItem>) -> Void {
+    this.GetRootWidget().SetState(UIItemsHelper.QualityEnumToName(data.GetQuality()));
+  }
+}
+
+public class ItemTooltipCyberwareUpgradeController extends ItemTooltipModuleController {
+
+  @runtimeProperty("category", "Cost")
+  private edit let m_componentsContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Cost")
+  private edit let m_moneyContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Cost")
+  private edit let m_moneyCostLabel: inkTextRef;
+
+  @runtimeProperty("category", "ProgressBar")
+  private edit let m_upgradeProgressBarRef: inkWidgetRef;
+
+  @runtimeProperty("category", "ProgressBar")
+  @default(ItemTooltipCyberwareUpgradeController, upgrade_cyberware)
+  private edit let m_upgradeCWInputName: CName;
+
+  @runtimeProperty("category", "ProgressBar")
+  @default(ItemTooltipCyberwareUpgradeController, progress)
+  private edit let m_progressEffectName: CName;
+
+  @runtimeProperty("category", "ProgressBar")
+  @default(ItemTooltipCyberwareUpgradeController, upgradeLoop)
+  private edit let m_progressBarAnimName: CName;
+
+  @runtimeProperty("category", "Content")
+  private edit let m_ripperdocContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Content")
+  private edit let m_inventoryContainer: inkCompoundRef;
+
+  @runtimeProperty("category", "Content")
+  private edit let m_inputHint: inkWidgetRef;
+
+  @runtimeProperty("category", "Content")
+  private edit let m_rarityLabel: inkTextRef;
+
+  @runtimeProperty("category", "Content")
+  private edit let m_upgradeIconAnimName: CName;
+
+  @runtimeProperty("category", "Content")
+  @default(ItemTooltipCyberwareUpgradeController, reqNotMet)
+  private edit let m_reqNotMetAnimName: CName;
+
+  private let m_root: wref<inkWidget>;
+
+  private let m_componentsController: wref<CrafringMaterialItemController>;
+
+  private let m_craftingMaterial: ref<CachedCraftingMaterial>;
+
+  private let m_isUpgradable: Bool;
+
+  private let m_isUpgradeScreen: Bool;
+
+  private let m_isRipperdoc: Bool;
+
+  private let m_upgradeIconAnimProxy: ref<inkAnimProxy>;
+
+  private let m_upgradeIconAnimOptions: inkAnimOptions;
+
+  private let m_upgradeProgressBar: wref<inkWidget>;
+
+  private let m_progressStarted: Bool;
+
+  private let m_progressBarAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_root = this.GetRootWidget();
+    this.m_upgradeIconAnimOptions.loopType = inkanimLoopType.Cycle;
+    this.m_upgradeIconAnimOptions.loopInfinite = true;
+    this.m_upgradeProgressBar = inkWidgetRef.Get(this.m_upgradeProgressBarRef);
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnUpgradePress");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnUpgradeHold");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnUpgradeRelease");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnUpgradePress");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnUpgradeHold");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnUpgradeRelease");
+  }
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    this.UpdateData(data.cyberwareUpgradeData);
+  }
+
+  public final func Update(data: ref<InventoryTooltipData>) -> Void {
+    this.UpdateData(data.cyberwareUpgradeData);
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, player: wref<PlayerPuppet>) -> Void {
+    let upgradeData: ref<InventoryTooltiData_CyberwareUpgradeData> = data.GetCyberwareUpgradeData(player, true);
+    upgradeData.isRipperdoc = this.m_displayContext.HasTag(n"Ripperdoc");
+    upgradeData.isUpgradeScreen = upgradeData.isUpgradeScreen;
+    this.UpdateData(upgradeData);
+  }
+
+  public final func UpdateData(data: ref<InventoryTooltiData_CyberwareUpgradeData>) -> Void {
+    if IsDefined(this.m_upgradeIconAnimProxy) {
+      this.m_upgradeIconAnimProxy.GotoStartAndStop();
+    };
+    this.m_isUpgradable = data.isUpgradable;
+    this.m_isUpgradeScreen = data.isUpgradeScreen;
+    this.m_isRipperdoc = data.isRipperdoc;
+    if data.isRipperdoc {
+      inkWidgetRef.SetVisible(this.m_ripperdocContainer, true);
+      inkWidgetRef.SetVisible(this.m_inventoryContainer, false);
+      this.ResetProgress();
+      if this.m_isUpgradable {
+        this.m_root.SetState(n"Default");
+        inkWidgetRef.SetVisible(this.m_inputHint, true);
+        this.m_upgradeIconAnimProxy = this.PlayLibraryAnimation(this.m_upgradeIconAnimName, this.m_upgradeIconAnimOptions);
+      } else {
+        this.m_root.SetState(n"Locked");
+        inkWidgetRef.SetVisible(this.m_inputHint, false);
+      };
+      this.m_craftingMaterial = CachedCraftingMaterial.Make(data.upgradeCost.materialRecordID);
+      this.m_componentsController = inkWidgetRef.Get(this.m_componentsContainer).GetController() as CrafringMaterialItemController;
+      this.m_componentsController.SetUseSimpleFromat(true);
+      this.m_craftingMaterial.UpdateQuantity(data.playerComponents);
+      this.m_componentsController.Setup(this.m_craftingMaterial);
+      this.m_componentsController.SetHighlighted(CrafringMaterialItemHighlight.Remove, data.upgradeCost.materialCount, this.m_isUpgradable);
+      inkWidgetRef.SetVisible(this.m_moneyContainer, data.upgradeCost.moneyRequired > 0);
+      inkTextRef.SetText(this.m_moneyCostLabel, "-" + IntToString(data.upgradeCost.moneyRequired));
+      inkTextRef.SetText(this.m_rarityLabel, this.GetUpdateLevelString(data.upgradeQuality));
+    } else {
+      if this.m_isUpgradable {
+        this.m_root.SetVisible(true);
+        inkWidgetRef.SetVisible(this.m_ripperdocContainer, false);
+        inkWidgetRef.SetVisible(this.m_inventoryContainer, true);
+        this.m_root.SetState(n"Locked");
+      } else {
+        this.m_root.SetVisible(false);
+      };
+    };
+  }
+
+  public final func IsVisible() -> Bool {
+    return this.m_root.IsVisible();
+  }
+
+  public final func ReplaceLabelText(text: String) -> Void {
+    inkTextRef.SetText(this.m_rarityLabel, text);
+  }
+
+  protected cb func OnUpgradePress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(this.m_upgradeCWInputName) || evt.IsAction(n"click_hold") && this.m_isUpgradeScreen {
+      if this.m_isUpgradable && this.m_isRipperdoc {
+        if IsDefined(this.m_upgradeProgressBar) {
+          inkWidgetRef.SetVisible(this.m_upgradeProgressBarRef, true);
+          this.m_upgradeProgressBar.SetEffectEnabled(inkEffectType.LinearWipe, this.m_progressEffectName, true);
+        };
+        if IsDefined(this.m_progressBarAnimProxy) {
+          this.m_progressBarAnimProxy.GotoStartAndStop();
+        };
+        this.m_progressBarAnimProxy = this.PlayLibraryAnimation(this.m_progressBarAnimName);
+        this.m_progressStarted = true;
+      } else {
+        this.PlayLibraryAnimation(this.m_reqNotMetAnimName);
+      };
+    };
+  }
+
+  protected cb func OnUpgradeHold(evt: ref<inkPointerEvent>) -> Bool {
+    let progress: Float;
+    if (evt.IsAction(this.m_upgradeCWInputName) || evt.IsAction(n"click_hold")) && this.m_progressStarted && this.m_isUpgradable && this.m_isUpgradeScreen {
+      progress = MinF(evt.GetHoldProgress(), 1.00);
+      if IsDefined(this.m_upgradeProgressBar) {
+        this.m_upgradeProgressBar.SetEffectParamValue(inkEffectType.LinearWipe, this.m_progressEffectName, n"transition", AbsF(progress));
+      };
+      if progress >= 1.00 {
+        this.ResetProgress();
+      };
+    };
+  }
+
+  protected cb func OnUpgradeRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if (evt.IsAction(this.m_upgradeCWInputName) || evt.IsAction(n"click_hold")) && this.m_isUpgradeScreen {
+      this.ResetProgress();
+    };
+  }
+
+  public final func ResetProgress() -> Void {
+    this.m_progressStarted = false;
+    if IsDefined(this.m_upgradeProgressBar) && this.m_isUpgradeScreen {
+      this.m_upgradeProgressBar.SetEffectParamValue(inkEffectType.LinearWipe, this.m_progressEffectName, n"transition", 0.00);
+      this.m_upgradeProgressBar.SetEffectEnabled(inkEffectType.LinearWipe, this.m_progressEffectName, false);
+      inkWidgetRef.SetVisible(this.m_upgradeProgressBarRef, false);
+    };
+    if IsDefined(this.m_progressBarAnimProxy) {
+      this.m_progressBarAnimProxy.GotoStartAndStop();
+    };
+  }
+
+  private final func GetUpdateLevelString(quality: gamedataQuality) -> String {
+    switch quality {
+      case gamedataQuality.Common:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier1";
+      case gamedataQuality.CommonPlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier1plus";
+      case gamedataQuality.Uncommon:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier2";
+      case gamedataQuality.UncommonPlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier2plus";
+      case gamedataQuality.Rare:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier3";
+      case gamedataQuality.RarePlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier3plus";
+      case gamedataQuality.Epic:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier4";
+      case gamedataQuality.EpicPlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier4plus";
+      case gamedataQuality.Legendary:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier5";
+      case gamedataQuality.LegendaryPlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier5plus";
+      case gamedataQuality.LegendaryPlusPlus:
+        return "UI-Ripperdoc-CyberwareUpgrade-Tier5plusplus";
+    };
+    return "UI-ResourceExports-Upgrade";
+  }
+}
+
+public class ItemTooltipBottomModule extends ItemTooltipModuleController {
+
+  private edit let m_weightWrapper: inkWidgetRef;
+
+  private edit let m_priceWrapper: inkWidgetRef;
+
+  private edit let m_weightText: inkTextRef;
+
+  private edit let m_priceText: inkTextRef;
+
+  public func Update(data: ref<MinimalItemTooltipData>) -> Void {
+    let price: Int32;
+    let isSellable: Bool = UIInventoryItemsManager.IsSellableStatic(data.itemData);
+    inkTextRef.SetText(this.m_weightText, FloatToStringPrec(data.weight, 1));
+    inkWidgetRef.SetVisible(this.m_weightWrapper, data.weight != 0.00);
+    if !ItemTooltipBottomModule.ShouldDisplayPrice(data.displayContext, isSellable, data.itemData, data.itemType, data.lootItemType) {
+      inkWidgetRef.SetVisible(this.m_priceWrapper, false);
+      return;
+    };
+    price = RoundF(data.price);
+    if data.itemData.HasTag(n"ShowStackPrice") {
+      price *= data.itemData.GetQuantity();
+    };
+    inkTextRef.SetText(this.m_priceText, IntToString(price));
+    inkWidgetRef.SetVisible(this.m_priceWrapper, data.price > 0.00);
+  }
+
+  public final static func ShouldHideBottomModule(data: ref<MinimalItemTooltipData>, tooltipDisplayContext: InventoryTooltipDisplayContext, itemDisplayContext: ItemDisplayContext) -> Bool {
+    let shouldHideBottom: Bool;
+    if Equals(tooltipDisplayContext, InventoryTooltipDisplayContext.Vendor) || Equals(itemDisplayContext, ItemDisplayContext.Vendor) {
+      return false;
+    };
+    if data.itemTweakID == t"Items.money" || data.itemData.HasTag(n"Recipe") || Equals(data.itemType, gamedataItemType.Con_Inhaler) || Equals(data.itemType, gamedataItemType.Con_Injector) || Equals(data.itemType, gamedataItemType.Gad_Grenade) || Equals(data.itemType, gamedataItemType.Gen_CraftingMaterial) {
+      return true;
+    };
+    if !shouldHideBottom && data.weight == 0.00 {
+      return !ItemTooltipBottomModule.ShouldDisplayPrice(data.displayContext, UIInventoryItemsManager.IsSellableStatic(data.itemData), data.itemData, data.itemType, data.lootItemType);
+    };
+    return false;
+  }
+
+  public final static func ShouldHideBottomModule(displayContext: InventoryTooltipDisplayContext, itemData: wref<UIInventoryItem>, itemDisplayContext: ItemDisplayContext) -> Bool {
+    if itemData.GetTweakDBID() == t"Items.money" || Equals(itemData.GetItemType(), gamedataItemType.Gad_Grenade) || Equals(itemData.GetItemType(), gamedataItemType.Con_Inhaler) || Equals(itemData.GetItemType(), gamedataItemType.Con_Injector) || itemData.IsRecipe() && !itemData.IsWeapon() {
+      return true;
+    };
+    if Equals(itemData.GetItemType(), gamedataItemType.CyberwareStyle) && Equals(itemDisplayContext, ItemDisplayContext.VendorPlayer) {
+      return true;
+    };
+    if itemData.GetWeight() <= 0.00 {
+      return !ItemTooltipBottomModule.ShouldDisplayPrice(displayContext, itemData.IsSellable(), itemData.GetItemData(), itemData.GetItemType());
+    };
+    return false;
+  }
+
+  public final func NEW_Update(data: wref<UIInventoryItem>, player: wref<PlayerPuppet>, overridePrice: Int32) -> Void {
+    this.UpdatePriceVisibility(data, overridePrice);
+    this.UpdateWeightVisibility(data);
+  }
+
+  private final func UpdatePriceVisibility(data: wref<UIInventoryItem>, overridePrice: Int32) -> Void {
+    let price: Float;
+    let roundPrice: Int32;
+    if !ItemTooltipBottomModule.ShouldDisplayPrice(this.m_tooltipDisplayContext, data.IsSellable(), data.GetItemData(), data.GetItemType()) {
+      inkWidgetRef.SetVisible(this.m_priceWrapper, false);
+      return;
+    };
+    if overridePrice >= 0 {
+      roundPrice = overridePrice;
+    } else {
+      price = Equals(this.m_itemDisplayContext, ItemDisplayContext.Vendor) ? data.GetBuyPrice() : data.GetSellPrice();
+      if data.GetItemData().HasTag(n"ShowStackPrice") {
+        price *= Cast<Float>(data.GetQuantity());
+      };
+      roundPrice = RoundF(price);
+    };
+    inkTextRef.SetText(this.m_priceText, IntToString(roundPrice));
+    inkWidgetRef.SetVisible(this.m_priceWrapper, roundPrice > 0);
+  }
+
+  private final func UpdateWeightVisibility(data: wref<UIInventoryItem>) -> Void {
+    let weight: Float = data.GetWeight();
+    let weightString: String = FloatToStringPrec(weight, 1);
+    inkTextRef.SetText(this.m_weightText, weightString);
+    inkWidgetRef.SetVisible(this.m_weightWrapper, data.GetWeight() != 0.00);
+  }
+
+  public final static func ShouldDisplayPrice(displayContext: InventoryTooltipDisplayContext, isSellable: Bool, itemData: ref<gameItemData>, itemType: gamedataItemType, opt lootItemType: LootItemType) -> Bool {
+    if NotEquals(displayContext, InventoryTooltipDisplayContext.Vendor) {
+      if !isSellable || Equals(itemType, gamedataItemType.Con_Ammo) || Equals(itemType, gamedataItemType.Wea_Fists) || itemData.HasTag(n"Shard") || itemData.HasTag(n"Recipe") || Equals(lootItemType, LootItemType.Quest) {
+        return false;
+      };
+    };
+    return true;
+  }
+}
+
+public class ItemTooltipAttributeRequirement extends inkLogicController {
+
+  private edit let m_labelRef: inkTextRef;
+
+  public final func SetData(data: ref<MinimalItemTooltipDataStatRequirement>) -> Void {
+    let textParams: ref<inkTextParams> = new inkTextParams();
+    textParams.AddNumber("value", data.statValue);
+    textParams.AddString("statName", data.statName);
+    textParams.AddString("statColor", data.statColor);
+    inkTextRef.SetLocalizedTextScript(this.m_labelRef, data.statLocKey, textParams);
+  }
+}
+
+public class ItemTooltipSettingsListener extends ConfigVarListener {
+
+  private let m_ctrl: wref<ItemTooltipCommonController>;
+
+  public final func RegisterController(ctrl: ref<ItemTooltipCommonController>) -> Void {
+    this.m_ctrl = ctrl;
+  }
+
+  public func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    this.m_ctrl.OnVarModified(groupPath, varName, varType, reason);
+  }
+}

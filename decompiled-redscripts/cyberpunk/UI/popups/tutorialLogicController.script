@@ -1,0 +1,128 @@
+
+public class TutorialPopupDisplayController extends inkLogicController {
+
+  protected edit let m_title: inkTextRef;
+
+  protected edit let m_message: inkTextRef;
+
+  protected edit let m_image: inkImageRef;
+
+  protected edit let m_video_1360x768: inkVideoRef;
+
+  protected edit let m_video_1024x576: inkVideoRef;
+
+  protected edit let m_video_1280x720: inkVideoRef;
+
+  protected edit let m_video_720x405: inkVideoRef;
+
+  protected edit let m_video_1500x847: inkVideoRef;
+
+  protected edit let m_inputHint: inkWidgetRef;
+
+  private let m_data: ref<TutorialPopupData>;
+
+  public final func SetData(data: ref<TutorialPopupData>, inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    let backgroundWrapper: wref<inkFlex>;
+    this.m_data = data;
+    inkTextRef.SetText(this.m_title, this.m_data.title);
+    this.UpdateMessage(inputDevice, inputScheme);
+    this.SetVideoData(this.m_data.videoType, this.m_data.video);
+    if TDBID.IsValid(this.m_data.imageId) {
+      inkWidgetRef.SetVisible(this.m_image, true);
+      InkImageUtils.RequestSetImage(this, this.m_image, this.m_data.imageId);
+    } else {
+      inkWidgetRef.SetVisible(this.m_image, false);
+    };
+    inkWidgetRef.SetVisible(this.m_inputHint, this.m_data.closeAtInput);
+    if Cast<Bool>(data.gyroTutorialProgress) && !this.m_data.pauseGame {
+      backgroundWrapper = this.GetWidget(inkWidgetPath.Build(n"container", n"background_wrapper")) as inkFlex;
+      if IsDefined(backgroundWrapper) {
+        backgroundWrapper.SetOpacity(0.90);
+      };
+    };
+  }
+
+  public final func Refresh(inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    this.UpdateMessage(inputDevice, inputScheme);
+  }
+
+  private final func UpdateMessage(inputDevice: InputDevice, inputScheme: InputScheme) -> Void {
+    let gyroTextParams: ref<inkTextParams>;
+    let i: Int32;
+    let isEntryDescriptionOverridden: Bool;
+    let message: String;
+    let tmp: String;
+    if inkWidgetRef.IsValid(this.m_message) {
+      i = 0;
+      while i < ArraySize(this.m_data.messageOverrideDataList) {
+        if Equals(this.m_data.messageOverrideDataList[i].inputDevice, inputDevice) && (Equals(this.m_data.messageOverrideDataList[i].inputDevice, InputDevice.KBM) || Equals(this.m_data.messageOverrideDataList[i].inputScheme, inputScheme)) {
+          if Cast<Bool>(this.m_data.gyroTutorialProgress) && StrContains(this.m_data.messageOverrideDataList[i].GetOverriddenLocalizedText(), this.m_data.gyroCounterStr) {
+            if this.m_data.hasGyroTutorialCounter {
+              gyroTextParams = new inkTextParams();
+              gyroTextParams.AddNumber(this.m_data.gyroCounterParamStr, this.m_data.gyroTutorialProgress - 1);
+              inkTextRef.SetText(this.m_message, this.m_data.messageOverrideDataList[i].GetOverriddenLocalizedText(), gyroTextParams);
+            } else {
+              StrSplitFirst(this.m_data.messageOverrideDataList[i].GetOverriddenLocalizedText(), this.m_data.gyroCounterStr, message, tmp);
+              inkTextRef.SetText(this.m_message, message);
+            };
+          } else {
+            inkTextRef.SetText(this.m_message, this.m_data.messageOverrideDataList[i].GetOverriddenLocalizedText());
+          };
+          isEntryDescriptionOverridden = true;
+          break;
+        };
+        i += 1;
+      };
+      if !isEntryDescriptionOverridden {
+        if Cast<Bool>(this.m_data.gyroTutorialProgress) && StrContains(this.m_data.message, this.m_data.gyroCounterStr) {
+          if this.m_data.hasGyroTutorialCounter {
+            gyroTextParams = new inkTextParams();
+            gyroTextParams.AddNumber(this.m_data.gyroCounterParamStr, this.m_data.gyroTutorialProgress - 1);
+            inkTextRef.SetText(this.m_message, this.m_data.message, gyroTextParams);
+          } else {
+            StrSplitFirst(this.m_data.message, this.m_data.gyroCounterStr, message, tmp);
+            inkTextRef.SetText(this.m_message, message);
+          };
+        } else {
+          inkTextRef.SetText(this.m_message, this.m_data.message);
+        };
+      };
+    };
+  }
+
+  private final func SetVideoData(videoType: VideoType, video: ResRef) -> Void {
+    inkWidgetRef.SetVisible(this.m_video_1360x768, false);
+    inkWidgetRef.SetVisible(this.m_video_1024x576, false);
+    inkWidgetRef.SetVisible(this.m_video_1280x720, false);
+    inkWidgetRef.SetVisible(this.m_video_720x405, false);
+    inkWidgetRef.SetVisible(this.m_video_1500x847, false);
+    switch videoType {
+      case VideoType.Tutorial_720x405:
+        this.PlayVideo(this.m_video_720x405, video);
+        break;
+      case VideoType.Tutorial_1024x576:
+        this.PlayVideo(this.m_video_1024x576, video);
+        break;
+      case VideoType.Tutorial_1280x720:
+        this.PlayVideo(this.m_video_1280x720, video);
+        break;
+      case VideoType.Tutorial_1360x768:
+        this.PlayVideo(this.m_video_1360x768, video);
+        break;
+      case VideoType.Tutorial_1500x847:
+        this.PlayVideo(this.m_video_1500x847, video);
+        break;
+      default:
+    };
+  }
+
+  private final func PlayVideo(videoWidget: inkVideoRef, video: ResRef) -> Void {
+    if ResRef.IsValid(video) {
+      inkVideoRef.Stop(videoWidget);
+      inkVideoRef.SetVideoPath(videoWidget, video);
+      inkVideoRef.SetLoop(videoWidget, true);
+      inkVideoRef.Play(videoWidget);
+      inkWidgetRef.SetVisible(videoWidget, true);
+    };
+  }
+}

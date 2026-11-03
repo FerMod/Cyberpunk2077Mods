@@ -1,0 +1,426 @@
+
+public class WardrobeUIGameController extends gameuiMenuGameController {
+
+  private edit let m_tooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_setEditorWidget: inkWidgetRef;
+
+  private edit let m_setGridWidget: inkCompoundRef;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  private let m_setEditorController: wref<WardrobeSetEditorUIController>;
+
+  private let m_isMainScreen: Bool;
+
+  private let m_tooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_sets: [ref<ClothingSet>];
+
+  private let m_currentSetController: wref<ClothingSetController>;
+
+  @default(WardrobeUIGameController, 6)
+  private let m_maxSetsAmount: Int32;
+
+  private let m_setControllers: [wref<ClothingSetController>];
+
+  private let m_confirmationRequestToken: ref<inkGameNotificationToken>;
+
+  private let m_deletedSetController: wref<ClothingSetController>;
+
+  private let m_introAnimProxy: ref<inkAnimProxy>;
+
+  private let m_outroAnimProxy: ref<inkAnimProxy>;
+
+  private let m_introFinished: Bool;
+
+  private let m_finalEquippedSet: gameWardrobeClothingSetIndex;
+
+  private let m_equipmentBlackboard: wref<IBlackboard>;
+
+  private let m_equipmentInProgressCallback: ref<CallbackHandle>;
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    this.m_player = GameInstance.GetPlayerSystem(this.GetPlayerControlledObject().GetGame()).GetLocalPlayerMainGameObject() as PlayerPuppet;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    let currentEquipped: gameWardrobeClothingSetIndex;
+    let selectedSetIndex: Int32;
+    this.m_equipmentBlackboard = GameInstance.GetBlackboardSystem(this.m_player.GetGame()).Get(GetAllBlackboardDefs().UI_Equipment);
+    if IsDefined(this.m_equipmentBlackboard) {
+      this.m_equipmentInProgressCallback = this.m_equipmentBlackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_Equipment.EquipmentInProgress, this, n"OnEquipmentInProgress");
+    };
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_tooltipsManager = inkWidgetRef.GetControllerByType(this.m_tooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_tooltipsManager.Setup(ETooltipsStyle.Menus);
+    this.m_setEditorController = inkWidgetRef.GetController(this.m_setEditorWidget) as WardrobeSetEditorUIController;
+    this.m_setEditorController.Initialize(this.m_player, this.m_tooltipsManager, this.m_buttonHintsController, this);
+    this.m_equipmentSystem = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    this.InitSetPanel();
+    currentEquipped = EquipmentSystem.GetActiveWardrobeSetID(this.m_player);
+    selectedSetIndex = Equals(currentEquipped, gameWardrobeClothingSetIndex.INVALID) ? 0 : WardrobeSystem.WardrobeClothingSetIndexToNumber(currentEquipped);
+    this.SelectSlot(this.m_setControllers[selectedSetIndex]);
+    this.PlayIntroAnimation();
+    this.SetTimeDilatation(true);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let i: Int32;
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    i = 0;
+    while i < ArraySize(this.m_setControllers) {
+      this.m_setControllers[i].UnregisterFromCallback(n"OnRelease", this, n"OnSetClick");
+      this.m_setControllers[i].UnregisterFromCallback(n"OnHoverOver", this, n"OnSetHoverOver");
+      this.m_setControllers[i].UnregisterFromCallback(n"OnHoverOut", this, n"OnSetHoverOut");
+      i += 1;
+    };
+    if IsDefined(this.m_equipmentBlackboard) {
+      this.m_equipmentBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_Equipment.EquipmentInProgress, this.m_equipmentInProgressCallback);
+    };
+    this.SetTimeDilatation(false);
+    super.OnUninitialize();
+  }
+
+  protected cb func OnEquipmentInProgress(inProgress: Bool) -> Bool {
+    let controller: wref<ClothingSetController>;
+    let hovered: wref<ClothingSetController>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_setControllers) {
+      controller = this.m_setControllers[i];
+      controller.SetDisabled(inProgress);
+      if controller.IsHovered() {
+        hovered = controller;
+      };
+      i += 1;
+    };
+    if inProgress {
+      this.RemoveButtonHints();
+    } else {
+      if IsDefined(hovered) {
+        this.AddButtonHints(hovered);
+      };
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    super.OnSetMenuEventDispatcher(menuEventDispatcher);
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    if this.m_outroAnimProxy.IsPlaying() {
+      return true;
+    };
+    this.CloseWardrobe();
+  }
+
+  protected cb func OnSetClick(e: ref<inkPointerEvent>) -> Bool {
+    let actionName: ref<inkActionName>;
+    let setController: wref<ClothingSetController>;
+    if this.m_outroAnimProxy.IsPlaying() {
+      return true;
+    };
+    setController = e.GetCurrentTarget().GetController() as ClothingSetController;
+    if setController.IsDisabled() {
+      return true;
+    };
+    actionName = e.GetActionName();
+    if actionName.IsAction(n"select") || actionName.IsAction(n"tap") {
+      this.PlayWardrobeSound(n"Button", n"OnPress");
+      if this.m_currentSetController.GetClothingSetChanged() {
+        this.m_setEditorController.SaveSet();
+      };
+      this.SelectSlot(setController);
+    } else {
+      if setController.GetDefined() && actionName.IsAction(n"delete_wardrobe_set") {
+        this.m_deletedSetController = setController;
+        this.m_confirmationRequestToken = GenericMessageNotification.Show(this, GetLocalizedText("UI-Wardrobe-LabelWarning"), GetLocalizedText("UI-Wardrobe-NotificationDeleteSet"), GenericMessageNotificationType.ConfirmCancel);
+        this.m_confirmationRequestToken.RegisterListener(this, n"OnDeleteSetConfirmationResults");
+      };
+    };
+  }
+
+  private final func SetTimeDilatation(enable: Bool) -> Void {
+    let timeDilationReason: CName = n"VendorStash";
+    let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(this.m_player.GetGame());
+    if enable {
+      timeSystem.SetTimeDilation(timeDilationReason, 0.00, n"Linear", n"Linear");
+      timeSystem.SetTimeDilationOnLocalPlayerZero(timeDilationReason, 0.00, n"Linear", n"Linear");
+    } else {
+      timeSystem.UnsetTimeDilation(timeDilationReason);
+      timeSystem.UnsetTimeDilationOnLocalPlayerZero(timeDilationReason);
+    };
+  }
+
+  private final func PlayIntroAnimation() -> Void {
+    this.m_introAnimProxy = this.PlayLibraryAnimation(n"intro");
+    if IsDefined(this.m_introAnimProxy) {
+      GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Play(n"ui_main_menu_cc_loading");
+      this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroAnimationFinished");
+    } else {
+      this.PlayIdleLoopAnimation();
+    };
+  }
+
+  protected cb func OnIntroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_introFinished = true;
+    if this.m_outroAnimProxy.IsPlaying() {
+      return true;
+    };
+    this.PlayIdleLoopAnimation();
+  }
+
+  private final func PlayIdleLoopAnimation() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if this.m_outroAnimProxy.IsPlaying() {
+      return;
+    };
+    playbackOptions.loopType = inkanimLoopType.Cycle;
+    playbackOptions.loopInfinite = true;
+    this.PlayLibraryAnimation(n"idle_loop", playbackOptions);
+  }
+
+  private func ReadUICondition(condition: gamedataUICondition) -> Bool {
+    let value: Bool = Equals(condition, gamedataUICondition.IsIntroFinished) && this.m_introFinished;
+    return value;
+  }
+
+  private final func CloseWardrobe() -> Void {
+    if this.m_introAnimProxy.IsPlaying() {
+      GameInstance.GetAudioSystem(this.GetPlayerControlledObject().GetGame()).Stop(n"ui_main_menu_cc_loading");
+      this.FinalizeTransmog();
+      this.m_menuEventDispatcher.SpawnEvent(n"OnWardrobeClose");
+      return;
+    };
+    if this.m_outroAnimProxy.IsPlaying() {
+      return;
+    };
+    this.m_outroAnimProxy = this.PlayLibraryAnimation(n"outro");
+    if IsDefined(this.m_outroAnimProxy) {
+      this.m_outroAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAnimationFinished");
+    } else {
+      this.FinalizeTransmog();
+      this.m_menuEventDispatcher.SpawnEvent(n"OnWardrobeClose");
+    };
+  }
+
+  protected cb func OnCloseAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.FinalizeTransmog();
+    this.m_menuEventDispatcher.SpawnEvent(n"OnWardrobeClose");
+  }
+
+  public final func EquipSet(setID: gameWardrobeClothingSetIndex) -> Void {
+    let req: ref<EquipWardrobeSetRequest> = new EquipWardrobeSetRequest();
+    req.setID = setID;
+    req.owner = this.m_player;
+    this.m_equipmentSystem.QueueRequest(req);
+  }
+
+  public final func UnequipSet() -> Void {
+    let req: ref<UnequipWardrobeSetRequest> = new UnequipWardrobeSetRequest();
+    req.owner = this.m_player;
+    this.m_equipmentSystem.QueueRequest(req);
+  }
+
+  public final func DeleteSet(setID: gameWardrobeClothingSetIndex) -> Void {
+    let req: ref<DeleteWardrobeSetRequest> = new DeleteWardrobeSetRequest();
+    req.setID = setID;
+    req.owner = this.m_player;
+    this.m_equipmentSystem.QueueRequest(req);
+  }
+
+  public final func SetEquippedState(currentSet: gameWardrobeClothingSetIndex) -> Void {
+    let set: ref<ClothingSet>;
+    this.m_finalEquippedSet = currentSet;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_setControllers) {
+      set = this.m_setControllers[i].GetClothingSet();
+      this.m_setControllers[i].SetEquipped(Equals(set.setID, currentSet));
+      i += 1;
+    };
+  }
+
+  private final func FinalizeTransmog() -> Void {
+    let slots: array<ref<ClothingSet>>;
+    let slotsUsed: Int32 = 0;
+    if this.m_currentSetController.GetClothingSetChanged() {
+      this.m_setEditorController.SaveSet();
+    };
+    this.m_setEditorController.GetPreviewController().ClearPuppet();
+    this.m_setEditorController.GetPreviewController().RestorePuppetWeapons();
+    this.SendDeleteRequests();
+    if Equals(this.m_finalEquippedSet, gameWardrobeClothingSetIndex.INVALID) {
+      if Equals(EquipmentSystem.GetActiveWardrobeSetID(this.m_player), gameWardrobeClothingSetIndex.INVALID) {
+        this.m_setEditorController.GetPreviewController().RestorePuppetEquipment();
+      } else {
+        this.m_setEditorController.GetPreviewController().SyncUnderwearToEquipmentSystem();
+        this.UnequipSet();
+      };
+    } else {
+      this.m_setEditorController.GetPreviewController().SyncUnderwearToEquipmentSystem();
+      this.EquipSet(this.m_finalEquippedSet);
+    };
+    this.m_setEditorController.GetPreviewController().DelayedResetItemAppearanceInSlot(t"AttachmentSlots.Chest");
+    slots = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetClothingSets();
+    slotsUsed = ArraySize(slots);
+    GameInstance.GetTelemetrySystem(this.m_player.GetGame()).LogWardrobeUsed(slotsUsed);
+  }
+
+  private final func SendDeleteRequests() -> Void {
+    let setSumber: Int32;
+    let savedSets: array<ref<ClothingSet>> = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetClothingSets();
+    let i: Int32 = 0;
+    while i < ArraySize(savedSets) {
+      setSumber = WardrobeSystem.WardrobeClothingSetIndexToNumber(savedSets[i].setID);
+      if !this.m_setControllers[setSumber].GetDefined() {
+        this.DeleteSet(savedSets[i].setID);
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnSetHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.AddButtonHints(e.GetCurrentTarget().GetController() as ClothingSetController);
+  }
+
+  protected final func AddButtonHints(setController: wref<ClothingSetController>) -> Void {
+    if IsDefined(setController) && !setController.IsDisabled() {
+      this.m_buttonHintsController.AddButtonHint(n"select", GetLocalizedText("UI-Settings-ButtonMappings-Actions-Select"));
+      if setController.GetDefined() {
+        this.m_buttonHintsController.AddButtonHint(n"delete_wardrobe_set", GetLocalizedText("UI-Wardrobe-Deleteset"));
+      };
+    };
+  }
+
+  protected cb func OnSetHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.RemoveButtonHints();
+  }
+
+  protected final func RemoveButtonHints() -> Void {
+    this.m_buttonHintsController.RemoveButtonHint(n"select");
+    this.m_buttonHintsController.RemoveButtonHint(n"delete_wardrobe_set");
+  }
+
+  private final func InitSetPanel() -> Void {
+    let controller: wref<ClothingSetController>;
+    let controllerIndex: Int32;
+    let currentEquipped: gameWardrobeClothingSetIndex;
+    let i: Int32;
+    let widget: wref<inkWidget>;
+    this.m_sets = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetClothingSets();
+    let setAmount: Int32 = ArraySize(this.m_sets);
+    ArrayClear(this.m_setControllers);
+    inkCompoundRef.RemoveAllChildren(this.m_setGridWidget);
+    currentEquipped = EquipmentSystem.GetActiveWardrobeSetID(this.m_player);
+    this.m_finalEquippedSet = currentEquipped;
+    i = 0;
+    while i < this.m_maxSetsAmount {
+      widget = this.SpawnFromLocal(inkWidgetRef.Get(this.m_setGridWidget), n"wardrobeOutfitSlot");
+      controller = widget.GetController() as ClothingSetController;
+      controller.RegisterToCallback(n"OnRelease", this, n"OnSetClick");
+      controller.RegisterToCallback(n"OnHoverOver", this, n"OnSetHoverOver");
+      controller.RegisterToCallback(n"OnHoverOut", this, n"OnSetHoverOut");
+      controller.UpdateNumbering(i);
+      controller.SetEquipped(Equals(controller.GetClothingSet().setID, currentEquipped));
+      ArrayPush(this.m_setControllers, controller);
+      i += 1;
+    };
+    i = 0;
+    while i < setAmount {
+      controllerIndex = WardrobeSystem.WardrobeClothingSetIndexToNumber(this.m_sets[i].setID);
+      this.m_setControllers[controllerIndex].SetClothingSet(this.m_sets[i], true);
+      i += 1;
+    };
+  }
+
+  public final func ResetSet(setID: gameWardrobeClothingSetIndex) -> Void {
+    let clothingSet: ref<ClothingSet>;
+    let i: Int32;
+    let setAmount: Int32;
+    let controllerIndex: Int32 = WardrobeSystem.WardrobeClothingSetIndexToNumber(setID);
+    let setController: wref<ClothingSetController> = this.m_setControllers[controllerIndex];
+    if setController == null {
+      return;
+    };
+    if setController.GetDefined() {
+      this.m_sets = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetClothingSets();
+      setAmount = ArraySize(this.m_sets);
+      i = 0;
+      while i < setAmount {
+        if Equals(this.m_sets[i].setID, setID) {
+          setController.SetClothingSet(this.m_sets[i], true);
+          break;
+        };
+        i += 1;
+      };
+    } else {
+      clothingSet = setController.GetClothingSet();
+      i = 0;
+      while i < ArraySize(clothingSet.clothingList) {
+        clothingSet.clothingList[i].visualItem = ItemID.None();
+        i += 1;
+      };
+    };
+    setController.SetClothingSetChanged(false);
+  }
+
+  private final func SelectSlot(setController: wref<ClothingSetController>) -> Void {
+    if this.m_currentSetController != null {
+      this.m_currentSetController.SetSelected(false);
+    };
+    setController.SetSelected(true);
+    this.m_currentSetController = setController;
+    this.m_setEditorController.OpenSet(setController);
+  }
+
+  protected cb func OnDeleteSetConfirmationResults(data: ref<inkGameNotificationData>) -> Bool {
+    let clothingSet: ref<ClothingSet>;
+    let i: Int32;
+    let resultData: ref<GenericMessageNotificationCloseData>;
+    this.PlayWardrobeSound(n"Item", n"OnDisassemble");
+    resultData = data as GenericMessageNotificationCloseData;
+    if Equals(resultData.result, GenericMessageNotificationResult.Confirm) {
+      this.m_deletedSetController.SetDefined(false);
+      if this.m_deletedSetController.GetEquipped() {
+        this.m_finalEquippedSet = gameWardrobeClothingSetIndex.INVALID;
+        this.m_deletedSetController.SetEquipped(false);
+      };
+      clothingSet = this.m_deletedSetController.GetClothingSet();
+      i = 0;
+      while i < ArraySize(clothingSet.clothingList) {
+        clothingSet.clothingList[i].visualItem = ItemID.None();
+        i += 1;
+      };
+      if this.m_currentSetController == this.m_deletedSetController {
+        this.SelectSlot(this.m_deletedSetController);
+      };
+    };
+    this.m_confirmationRequestToken = null;
+    this.m_deletedSetController = null;
+  }
+
+  protected cb func OnExitConfirmationResults(data: ref<inkGameNotificationData>) -> Bool {
+    let resultData: ref<GenericMessageNotificationCloseData> = data as GenericMessageNotificationCloseData;
+    if Equals(resultData.result, GenericMessageNotificationResult.Confirm) {
+      this.CloseWardrobe();
+    };
+    this.m_confirmationRequestToken = null;
+  }
+
+  public final func PlayWardrobeSound(widgetName: CName, eventName: CName, opt actionKey: CName) -> Void {
+    if (!IsDefined(this.m_introAnimProxy) || !this.m_introAnimProxy.IsPlaying()) && (!IsDefined(this.m_outroAnimProxy) || !this.m_outroAnimProxy.IsPlaying()) {
+      this.PlaySound(widgetName, eventName, actionKey);
+    };
+  }
+}

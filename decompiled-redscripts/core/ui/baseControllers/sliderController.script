@@ -1,0 +1,123 @@
+
+public native class inkSliderController extends inkLogicController {
+
+  private let m_handleWidgetRef: wref<inkWidget>;
+
+  private let m_slidingAreaWidgetRef: wref<inkWidget>;
+
+  private let m_isDragging: Bool;
+
+  private let m_defaultScale: Vector2;
+
+  private let m_pressedScale: Vector2;
+
+  private let m_defaultOpacity: Float;
+
+  @default(inkSliderController, MainColors.Red)
+  private edit let m_defaultColor: CName;
+
+  @default(inkSliderController, MainColors.Blue)
+  private edit let m_hoveredColor: CName;
+
+  @default(inkSliderController, MainColors.ActiveBlue)
+  private edit let m_pressedColor: CName;
+
+  @default(inkSliderController, 0.7f)
+  private edit let m_pressedOpacity: Float;
+
+  private let m_HACK_isDisabledForHDRCalibrationScreen: Bool;
+
+  public final native func Setup(minimumValue: Float, maximumValue: Float, defaultValue: Float, opt step: Float) -> Void;
+
+  public final native func GetProgress() -> Float;
+
+  public final native func GetCurrentValue() -> Float;
+
+  public final native func GetMaxValue() -> Float;
+
+  public final native func GetMinValue() -> Float;
+
+  public final native func GetStep() -> Float;
+
+  public final native func GetPercentageHandleSize() -> Float;
+
+  public final native func SetPercentageHandleSize(newSize: Float) -> Void;
+
+  public final native func SetInputDisabled(disabled: Bool) -> Void;
+
+  public final native func ChangeValue(newValue: Float) -> Void;
+
+  public final native func ChangeProgress(newValue: Float) -> Void;
+
+  public final native func Next() -> Void;
+
+  public final native func Prior() -> Void;
+
+  public final native func GetSlidingAreaRef() -> inkWidgetRef;
+
+  public final native func GetHandleRef() -> inkWidgetRef;
+
+  public final func HACK_SetDisabledForHDRCalibrationScreen() -> Void {
+    this.m_HACK_isDisabledForHDRCalibrationScreen = true;
+    this.m_handleWidgetRef.BindProperty(n"tintColor", n"MainColors.Grey");
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_HACK_isDisabledForHDRCalibrationScreen = false;
+    this.m_pressedScale = new Vector2(1.05, 1.05);
+    this.m_handleWidgetRef = inkWidgetRef.Get(this.GetHandleRef());
+    this.m_slidingAreaWidgetRef = inkWidgetRef.Get(this.GetSlidingAreaRef());
+    this.m_defaultOpacity = this.m_handleWidgetRef.GetOpacity();
+    this.m_defaultScale = this.m_handleWidgetRef.GetScale();
+    this.m_slidingAreaWidgetRef.RegisterToCallback(n"OnPress", this, n"OnPress");
+    this.RegisterToCallback(n"OnSliderHandleReleased", this, n"OnRelease");
+    this.m_slidingAreaWidgetRef.RegisterToCallback(n"OnEnter", this, n"OnHoverOver");
+    this.m_slidingAreaWidgetRef.RegisterToCallback(n"OnLeave", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.PlaySound(n"Scrolling", n"OnStop");
+    this.m_slidingAreaWidgetRef.UnregisterFromCallback(n"OnPress", this, n"OnPress");
+    this.UnregisterFromCallback(n"OnSliderHandleReleased", this, n"OnRelease");
+    this.m_slidingAreaWidgetRef.UnregisterFromCallback(n"OnEnter", this, n"OnHoverOver");
+    this.m_slidingAreaWidgetRef.UnregisterFromCallback(n"OnLeave", this, n"OnHoverOut");
+  }
+
+  protected cb func OnPress(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_HACK_isDisabledForHDRCalibrationScreen {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        this.m_handleWidgetRef.SetScale(this.m_pressedScale);
+        this.m_handleWidgetRef.BindProperty(n"tintColor", this.m_pressedColor);
+        this.m_handleWidgetRef.SetOpacity(this.m_pressedOpacity);
+        this.m_isDragging = true;
+        this.PlaySound(n"Scrolling", n"OnStart");
+      };
+    };
+  }
+
+  protected cb func OnRelease() -> Bool {
+    if !this.m_HACK_isDisabledForHDRCalibrationScreen {
+      this.m_handleWidgetRef.SetScale(this.m_defaultScale);
+      this.m_handleWidgetRef.BindProperty(n"tintColor", this.m_defaultColor);
+      this.m_handleWidgetRef.SetOpacity(this.m_defaultOpacity);
+      this.m_isDragging = false;
+      this.PlaySound(n"Scrolling", n"OnStop");
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_HACK_isDisabledForHDRCalibrationScreen {
+      if !this.m_isDragging {
+        this.m_handleWidgetRef.BindProperty(n"tintColor", this.m_hoveredColor);
+      };
+    };
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_HACK_isDisabledForHDRCalibrationScreen {
+      if !this.m_isDragging {
+        this.m_handleWidgetRef.BindProperty(n"tintColor", this.m_defaultColor);
+      };
+    };
+  }
+}

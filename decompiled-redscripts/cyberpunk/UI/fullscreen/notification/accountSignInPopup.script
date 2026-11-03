@@ -1,0 +1,100 @@
+
+public class SignInPopupController extends BaseGOGProfileController {
+
+  private edit let m_qrCodeContainerRef: inkWidgetRef;
+
+  private edit let m_qrImageWidgetRef: inkImageRef;
+
+  private edit let m_hyperlinkButtonRef: inkWidgetRef;
+
+  private edit let m_closeButtonRef: inkWidgetRef;
+
+  private edit let m_introAnimationName: CName;
+
+  private let m_data: ref<SignInPopupData>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_introAnimProxy: ref<inkAnimProxy>;
+
+  private let m_signinUrl: String;
+
+  private let m_signInQrCodeController: wref<SignInQrCodeController>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_data = this.GetRootWidget().GetUserData(n"SignInPopupData") as SignInPopupData;
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.m_signInQrCodeController = inkWidgetRef.GetController(this.m_qrCodeContainerRef) as SignInQrCodeController;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    if Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "mac") {
+      inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef, true);
+      inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+    } else {
+      inkWidgetRef.SetVisible(this.m_hyperlinkButtonRef, false);
+    };
+    inkWidgetRef.RegisterToCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+    this.m_introAnimProxy = this.PlayLibraryAnimation(this.m_introAnimationName);
+    this.PlaySound(n"GameMenu", n"OnOpen");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnRelease");
+    if Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "mac") {
+      inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+    };
+    inkWidgetRef.UnregisterFromCallback(this.m_closeButtonRef, n"OnPress", this, n"OnPressClose");
+  }
+
+  private final func Close() -> Void {
+    let playbackOptions: inkAnimOptions;
+    this.PlaySound(n"Button", n"OnPress");
+    playbackOptions.playReversed = true;
+    this.m_introAnimProxy = this.PlayLibraryAnimation(this.m_introAnimationName, playbackOptions);
+    this.m_introAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+  }
+
+  protected cb func OnRefreshGOGState(evt: ref<RefreshGOGState>) -> Bool {
+    if Equals(evt.status, GOGRewardsSystemStatus.RegistrationPending) {
+      this.m_signinUrl = evt.registerURL;
+      this.m_signInQrCodeController.UpdateQrCode(evt.qrCodePNGBlob);
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"close_popup") && !this.m_introAnimProxy.IsPlaying() {
+      this.Close();
+    };
+  }
+
+  protected cb func OnPressHyperlink(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") && !this.m_introAnimProxy.IsPlaying() && NotEquals(this.m_signinUrl, "") {
+      this.OpenProfileUrl(this.m_signinUrl);
+    };
+  }
+
+  protected cb func OnPressClose(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") && !this.m_introAnimProxy.IsPlaying() {
+      this.Close();
+    };
+  }
+
+  protected cb func OnOutroAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_introAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOutroAnimationFinished");
+    this.m_data.token.TriggerCallback(this.m_data);
+  }
+}
+
+public class SignInQrCodeController extends BaseGOGRegisterController {
+
+  private edit let m_qrImageWidgetRef: inkImageRef;
+
+  private let m_qrImageWidget: wref<inkImage>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_qrImageWidget = inkWidgetRef.Get(this.m_qrImageWidgetRef) as inkImage;
+  }
+
+  public final func UpdateQrCode(qrCodePNGBlob: [Uint8]) -> Void {
+    this.SetupQRCodeWidget(this.m_qrImageWidget, qrCodePNGBlob);
+  }
+}

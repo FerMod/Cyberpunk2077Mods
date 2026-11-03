@@ -1,0 +1,132 @@
+
+public class WeaponShootPrereqState extends PrereqState {
+
+  public let m_listenerRightWeaponInt: ref<CallbackHandle>;
+
+  public let m_listenerActiveRightWeaponVariant: ref<CallbackHandle>;
+
+  public let m_rightWeaponObj: wref<WeaponObject>;
+
+  public let m_listenerLeftWeaponInt: ref<CallbackHandle>;
+
+  public let m_listenerActiveLeftWeaponVariant: ref<CallbackHandle>;
+
+  public let m_leftWeaponObj: wref<WeaponObject>;
+
+  public let m_listenerOnShootVariant: ref<CallbackHandle>;
+
+  public let m_owner: wref<GameObject>;
+
+  public let m_howManyAttacks: Int32;
+
+  public let m_remainingAttacks: Int32;
+
+  public final func CheckIfPlayerWeaponChanged() -> Void {
+    let weaponObj: ref<WeaponObject> = ScriptedPuppet.GetWeaponRight(this.m_owner);
+    if weaponObj != this.m_rightWeaponObj {
+      this.m_rightWeaponObj = weaponObj;
+      this.m_remainingAttacks = this.m_howManyAttacks;
+    };
+    weaponObj = ScriptedPuppet.GetWeaponLeft(this.m_owner);
+    if weaponObj != this.m_leftWeaponObj {
+      this.m_leftWeaponObj = weaponObj;
+      this.m_remainingAttacks = this.m_howManyAttacks;
+    };
+  }
+
+  protected cb func OnWeaponStateUpdate(value: Int32) -> Bool {
+    let checkPassed: Bool;
+    let prereq: ref<WeaponShootPrereq> = this.GetPrereq() as WeaponShootPrereq;
+    this.CheckIfPlayerWeaponChanged();
+    if Equals(IntEnum<gamePSMRangedWeaponStates>(value), gamePSMRangedWeaponStates.Reload) {
+      this.m_remainingAttacks = this.m_howManyAttacks;
+    };
+    checkPassed = prereq.Evaluate(this.m_owner, this.m_remainingAttacks);
+    this.OnChanged(checkPassed);
+  }
+
+  protected cb func OnInventoryChangeStateUpdate(value: Variant) -> Bool {
+    let checkPassed: Bool;
+    let prereq: ref<WeaponShootPrereq> = this.GetPrereq() as WeaponShootPrereq;
+    this.CheckIfPlayerWeaponChanged();
+    checkPassed = prereq.Evaluate(this.m_owner, this.m_remainingAttacks);
+    this.OnChanged(checkPassed);
+  }
+
+  protected cb func OnShoot(value: Variant) -> Bool {
+    let checkPassed: Bool;
+    let prereq: ref<WeaponShootPrereq> = this.GetPrereq() as WeaponShootPrereq;
+    this.CheckIfPlayerWeaponChanged();
+    this.m_remainingAttacks -= 1;
+    checkPassed = prereq.Evaluate(this.m_owner, this.m_remainingAttacks);
+    this.OnChanged(checkPassed);
+  }
+}
+
+public class WeaponShootPrereq extends IScriptablePrereq {
+
+  public let m_howManyAttacks: Int32;
+
+  protected func Initialize(recordID: TweakDBID) -> Void {
+    this.m_howManyAttacks = TweakDBInterface.GetInt(recordID + t".howManyShots", 0);
+  }
+
+  public final const func Evaluate(owner: ref<GameObject>, remainingAttacks: Int32) -> Bool {
+    if remainingAttacks < 0 {
+      return false;
+    };
+    return true;
+  }
+
+  protected const func OnRegister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Bool {
+    let bb: ref<IBlackboard>;
+    let castedState: ref<WeaponShootPrereqState> = state as WeaponShootPrereqState;
+    castedState.m_howManyAttacks = this.m_howManyAttacks;
+    castedState.m_owner = context as GameObject;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      bb = player.GetPlayerStateMachineBlackboard();
+      castedState.m_listenerRightWeaponInt = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState, n"OnWeaponStateUpdate");
+      castedState.m_listenerLeftWeaponInt = bb.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, castedState, n"OnWeaponStateUpdate");
+      bb = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+      castedState.m_listenerActiveRightWeaponVariant = bb.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.RightWeaponRecordID, castedState, n"OnInventoryChangeStateUpdate");
+      castedState.m_listenerActiveLeftWeaponVariant = bb.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.LeftWeaponRecordID, castedState, n"OnInventoryChangeStateUpdate");
+      castedState.m_listenerOnShootVariant = bb.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.ShootEvent, castedState, n"OnShoot");
+    };
+    return false;
+  }
+
+  protected const func OnUnregister(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let bb: ref<IBlackboard>;
+    let castedState: ref<WeaponShootPrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState = state as WeaponShootPrereqState;
+      bb = player.GetPlayerStateMachineBlackboard();
+      if IsDefined(castedState.m_listenerRightWeaponInt) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, castedState.m_listenerRightWeaponInt);
+      };
+      if IsDefined(castedState.m_listenerLeftWeaponInt) {
+        bb.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.LeftWeapon, castedState.m_listenerLeftWeaponInt);
+      };
+      bb = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+      if IsDefined(castedState.m_listenerActiveRightWeaponVariant) {
+        bb.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.RightWeaponRecordID, castedState.m_listenerActiveRightWeaponVariant);
+      };
+      if IsDefined(castedState.m_listenerActiveLeftWeaponVariant) {
+        bb.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.LeftWeaponRecordID, castedState.m_listenerActiveLeftWeaponVariant);
+      };
+      if IsDefined(castedState.m_listenerOnShootVariant) {
+        bb.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.ShootEvent, castedState.m_listenerOnShootVariant);
+      };
+    };
+  }
+
+  protected const func OnApplied(state: ref<PrereqState>, game: GameInstance, context: ref<IScriptable>) -> Void {
+    let castedState: ref<WeaponShootPrereqState>;
+    let player: ref<PlayerPuppet> = context as PlayerPuppet;
+    if IsDefined(player) {
+      castedState.OnChanged(true);
+    };
+  }
+}

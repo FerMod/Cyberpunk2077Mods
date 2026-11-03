@@ -1,0 +1,666 @@
+
+public class CyberwareInventoryMiniGrid extends inkLogicController {
+
+  private edit let m_isLeftAligned: Bool;
+
+  private edit let m_gridContainer: inkUniformGridRef;
+
+  private edit let m_label: inkTextRef;
+
+  private edit let m_isNew: inkWidgetRef;
+
+  private let m_selectedSlotIndex: Int32;
+
+  public let m_equipArea: gamedataEquipmentArea;
+
+  private let m_parentObject: ref<IScriptable>;
+
+  private let m_onRealeaseCallbackName: CName;
+
+  private let m_opacityAnimation: ref<inkAnimProxy>;
+
+  private let m_marginAnimation: ref<inkAnimProxy>;
+
+  private let m_labelAnimation: ref<inkAnimProxy>;
+
+  private let m_labelPulse: ref<PulseAnimation>;
+
+  private let m_margin: inkMargin;
+
+  private let m_targetMargin: inkMargin;
+
+  private let m_parent: inkCompoundRef;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let minigridAnimation: ref<inkAnimProxy>;
+
+  private let m_screen: CyberwareScreenType;
+
+  private let m_displayContext: ref<ItemDisplayContextData>;
+
+  private let m_gridData: [wref<InventoryItemDisplayController>];
+
+  private let m_root: wref<inkWidget>;
+
+  private let m_iconData: ref<UIInventoryItem>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_root = this.GetRootWidget();
+    this.RegisterToCallback(n"OnStateChanged", this, n"OnStateChanged");
+    inkWidgetRef.SetVisible(this.m_label, true);
+    this.m_root.RegisterToCallback(n"OnEnter", this, n"OnHoverOverCategory");
+    this.m_root.RegisterToCallback(n"OnLeave", this, n"OnHoverOutCategory");
+    inkWidgetRef.RegisterToCallback(this.m_label, n"OnHoverOver", this, n"OnHoverOverCategoryLabel");
+    inkWidgetRef.RegisterToCallback(this.m_label, n"OnHoverOut", this, n"OnHoverOutCategoryLabel");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.RemoveElements(0);
+    this.m_root.UnregisterFromCallback(n"OnEnter", this, n"OnHoverOverCategory");
+    this.m_root.UnregisterFromCallback(n"OnLeave", this, n"OnHoverOutCategory");
+    inkWidgetRef.UnregisterFromCallback(this.m_label, n"OnHoverOver", this, n"OnHoverOverCategoryLabel");
+    inkWidgetRef.UnregisterFromCallback(this.m_label, n"OnHoverOut", this, n"OnHoverOutCategoryLabel");
+  }
+
+  protected cb func OnHoverOverCategory(e: ref<inkPointerEvent>) -> Bool {
+    if Equals(inkWidgetRef.GetState(this.m_label), n"New") {
+      return false;
+    };
+    inkWidgetRef.SetState(this.m_label, n"Hover");
+  }
+
+  protected cb func OnHoverOutCategory(e: ref<inkPointerEvent>) -> Bool {
+    if Equals(inkWidgetRef.GetState(this.m_label), n"New") {
+      return false;
+    };
+    inkWidgetRef.SetState(this.m_label, n"Default");
+  }
+
+  protected cb func OnHoverOverCategoryLabel(e: ref<inkPointerEvent>) -> Bool {
+    let hoverOverEvent: ref<CategoryHoverOverEvent> = new CategoryHoverOverEvent();
+    hoverOverEvent.equipArea = this.m_equipArea;
+    this.QueueEvent(hoverOverEvent);
+  }
+
+  protected cb func OnHoverOutCategoryLabel(e: ref<inkPointerEvent>) -> Bool {
+    let hoverOutEvent: ref<CategoryHoverOutEvent> = new CategoryHoverOutEvent();
+    this.QueueEvent(hoverOutEvent);
+  }
+
+  public final func HoveredAttribute(player: ref<PlayerPuppet>, attribute: gamedataStatType) -> Void {
+    let armorStat: StatViewData;
+    let armorStats: array<StatViewData>;
+    let hasItem: Bool;
+    let item: wref<InventoryItemDisplayController>;
+    let j: Int32;
+    let stat: SItemStackRequirementData;
+    let stats: array<SItemStackRequirementData>;
+    this.m_player = player;
+    let i: Int32 = ArraySize(this.m_gridData) - 1;
+    while i >= 0 {
+      item = this.m_gridData[i];
+      if Equals(attribute, gamedataStatType.Armor) {
+        armorStats = InventoryItemData.GetPrimaryStats(item.GetItemData());
+        j = 0;
+        while j < ArraySize(armorStats) {
+          armorStat = armorStats[j];
+          if Equals(armorStat.type, gamedataStatType.Armor) && armorStat.valueF > 0.00 {
+            this.HighlightSlot(i);
+            hasItem = true;
+            break;
+          };
+          j += 1;
+        };
+      } else {
+        stats = RPGManager.GetEquipRequirements(player, InventoryItemData.GetGameItemData(item.GetItemData()));
+        j = 0;
+        while j < ArraySize(stats) {
+          stat = stats[j];
+          if Equals(stat.statType, attribute) && stat.requiredValue > 0.00 {
+            this.HighlightSlot(i);
+            hasItem = true;
+            break;
+          };
+          j += 1;
+        };
+      };
+      i -= 1;
+    };
+    if hasItem {
+      this.OpacityShow();
+    } else {
+      this.OpacityHide(true);
+    };
+  }
+
+  private final func SetOpacityDumb(hide: Bool, shouldDim: Bool, duration: Float, delay: Float) -> Void {
+    let animation: ref<inkAnimDef>;
+    let endOpacity: Float;
+    let opacityInterpolator: ref<inkAnimTransparency>;
+    let options: inkAnimOptions;
+    let time: Float;
+    if this.m_opacityAnimation != null {
+      this.m_opacityAnimation.Stop();
+    };
+    if shouldDim {
+      time = (this.m_root.GetOpacity() - 0.10) / 0.90;
+      time = hide ? time : 1.00 - time * 0.50;
+      endOpacity = hide ? 0.10 : 1.00;
+    } else {
+      time = this.m_root.GetOpacity();
+      time = hide ? time : 1.00 - time * duration;
+      endOpacity = hide ? 0.00 : 1.00;
+    };
+    opacityInterpolator = new inkAnimTransparency();
+    opacityInterpolator.SetDuration(time);
+    opacityInterpolator.SetStartTransparency(this.m_root.GetOpacity());
+    opacityInterpolator.SetEndTransparency(endOpacity);
+    opacityInterpolator.SetType(inkanimInterpolationType.Quintic);
+    opacityInterpolator.SetMode(hide ? inkanimInterpolationMode.EasyOut : inkanimInterpolationMode.EasyInOut);
+    animation = new inkAnimDef();
+    animation.AddInterpolator(opacityInterpolator);
+    options.executionDelay = delay;
+    this.m_opacityAnimation = this.m_root.PlayAnimationWithOptions(animation, options);
+  }
+
+  public final func OpacityHide(opt shouldDim: Bool) -> Void {
+    this.SetOpacityDumb(true, shouldDim, 0.50, 0.00);
+  }
+
+  public final func OpacityFullHide() -> Void {
+    this.m_root.SetVisible(false);
+  }
+
+  public final func OpacityFullShow() -> Void {
+    this.m_root.SetVisible(true);
+  }
+
+  public final func OpacityShow(opt delay: Float) -> Void {
+    this.SetOpacityDumb(false, false, 0.50, delay);
+  }
+
+  public final func SetOrientation(orientation: inkEOrientation) -> Void {
+    inkUniformGridRef.SetOrientation(this.m_gridContainer, orientation);
+  }
+
+  public final func SetTargetMargin(margin: inkMargin, parent: inkCompoundRef) -> Void {
+    this.m_margin = inkWidgetRef.GetMargin(parent);
+    this.m_targetMargin = margin;
+    this.m_parent = parent;
+    this.m_root.SetOpacity(0.00);
+  }
+
+  public final func SetupData(equipArea: gamedataEquipmentArea, const playerEquipAreaInventory: script_ref<[wref<UIInventoryItem>]>, parent: ref<IScriptable>, onRealeaseCallbackName: CName, screen: CyberwareScreenType, hasMods: Bool, displayContext: ref<ItemDisplayContextData>, opt inventoryManager: ref<InventoryDataManagerV2>, opt player: ref<PlayerPuppet>, opt overrideCanUpgrade: Bool, opt canUpgrade: Bool) -> Void {
+    let costData: CyberwareUpgradeCostData;
+    let gridListItem: wref<InventoryItemDisplayController>;
+    let i: Int32;
+    let itemUpgrade: ref<Item_Record>;
+    let itemUpgradeQuality: gamedataQuality;
+    let slotUserData: ref<SlotUserData>;
+    let visibleWhenLocked: Bool;
+    this.m_player = player;
+    this.m_parentObject = parent;
+    this.m_equipArea = equipArea;
+    this.m_onRealeaseCallbackName = onRealeaseCallbackName;
+    this.m_displayContext = displayContext;
+    let limit: Int32 = ArraySize(Deref(playerEquipAreaInventory));
+    inkUniformGridRef.SetWrappingWidgetCount(this.m_gridContainer, Cast<Uint32>(limit));
+    while ArraySize(this.m_gridData) > 0 {
+      gridListItem = ArrayPop(this.m_gridData);
+      inkCompoundRef.RemoveChild(this.m_gridContainer, gridListItem.GetRootWidget());
+    };
+    i = 0;
+    while i < limit {
+      slotUserData = new SlotUserData();
+      slotUserData.item = Deref(playerEquipAreaInventory)[i];
+      slotUserData.index = i;
+      slotUserData.area = equipArea;
+      slotUserData.isLocked = inventoryManager.IsSlotLocked(equipArea, i, visibleWhenLocked);
+      slotUserData.visibleWhenLocked = visibleWhenLocked;
+      slotUserData.screen = screen;
+      slotUserData.isPerkRequired = this.IsEquipmentAreaRequiringPerk(equipArea) && i == limit - 1;
+      slotUserData.canUpgrade = RPGManager.CanUpgradeCyberware(player, slotUserData.item.GetID(), slotUserData.item.IsEquipped(), gamedataQuality.Invalid, itemUpgradeQuality, itemUpgrade, costData);
+      if overrideCanUpgrade {
+        slotUserData.canUpgrade = canUpgrade;
+      };
+      slotUserData.upgradeItem = itemUpgrade;
+      slotUserData.upgradeItemQuality = itemUpgradeQuality;
+      ItemDisplayUtils.SpawnCommonSlotAsync(this, this.m_gridContainer, n"itemDisplay", n"OnSlotSpawned", slotUserData);
+      i += 1;
+    };
+    this.UnselectSlot();
+    this.UpdateTitle(this.GetAreaHeader(equipArea));
+  }
+
+  public final func RefreshisNewPreview(hasNew: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_isNew, hasNew);
+  }
+
+  protected cb func OnStateChanged(widget: wref<inkWidget>, oldState: CName, newState: CName) -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gridData) {
+      this.m_gridData[i].GetRootWidget().SetState(newState);
+      i += 1;
+    };
+  }
+
+  public final func HighlightSlot(index: Int32, opt animatedHighlight: Bool) -> Void {
+    this.m_gridData[index].SetHighlighted(true);
+    if (Equals(this.m_screen, CyberwareScreenType.Ripperdoc) || Equals(this.m_screen, CyberwareScreenType.Glamdoc)) && animatedHighlight {
+      this.m_gridData[index].SetHighlightedCyberwareSlot(true);
+    };
+  }
+
+  public final func UnhighlightSlot(index: Int32) -> Void {
+    this.m_gridData[index].SetHighlighted(false);
+    if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) || Equals(this.m_screen, CyberwareScreenType.Glamdoc) {
+      this.m_gridData[index].SetHighlightedCyberwareSlot(false);
+    };
+  }
+
+  public final func HighlightSelectedSlot() -> Void {
+    if this.m_selectedSlotIndex >= 0 && this.m_selectedSlotIndex < ArraySize(this.m_gridData) {
+      this.m_gridData[this.m_selectedSlotIndex].SetHighlighted(true);
+      if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) || Equals(this.m_screen, CyberwareScreenType.Glamdoc) {
+        this.m_gridData[this.m_selectedSlotIndex].SetHighlightedCyberwareSlot(true);
+      };
+    };
+  }
+
+  public final func UnhighlightSelectedSlot() -> Void {
+    if this.m_selectedSlotIndex >= 0 && this.m_selectedSlotIndex < ArraySize(this.m_gridData) {
+      this.m_gridData[this.m_selectedSlotIndex].SetHighlighted(false);
+      if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) || Equals(this.m_screen, CyberwareScreenType.Glamdoc) {
+        this.m_gridData[this.m_selectedSlotIndex].SetHighlightedCyberwareSlot(false);
+      };
+    };
+  }
+
+  public final func UnhighlightAllSlots() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gridData) {
+      if i != this.m_selectedSlotIndex {
+        this.m_gridData[i].SetHighlighted(false);
+        if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) || Equals(this.m_screen, CyberwareScreenType.Glamdoc) {
+          this.m_gridData[i].SetHighlightedCyberwareSlot(false);
+        };
+      };
+      i += 1;
+    };
+  }
+
+  public final func GetSlotIndex(slot: wref<InventoryItemDisplayController>) -> Int32 {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gridData) {
+      if this.m_gridData[i] == slot {
+        return i;
+      };
+      i += 1;
+    };
+    return -1;
+  }
+
+  public final func PlayEquipAnimation(index: Int32) -> Void {
+    if index >= 0 && index < ArraySize(this.m_gridData) {
+      this.m_gridData[index].PlayEquipFeedback();
+    };
+  }
+
+  public final func SelectSlot(index: Int32) -> Void {
+    this.UnselectSlot();
+    if index >= 0 && index < ArraySize(this.m_gridData) {
+      this.m_selectedSlotIndex = index;
+      this.m_gridData[this.m_selectedSlotIndex].SetHighlighted(true);
+      if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) {
+        this.m_gridData[this.m_selectedSlotIndex].SetHighlightedCyberwareSlot(true);
+      };
+    };
+  }
+
+  public final func UnselectSlot() -> Void {
+    if this.m_selectedSlotIndex >= 0 && this.m_selectedSlotIndex < ArraySize(this.m_gridData) {
+      this.m_gridData[this.m_selectedSlotIndex].SetHighlighted(false);
+      if Equals(this.m_screen, CyberwareScreenType.Ripperdoc) {
+        this.m_gridData[this.m_selectedSlotIndex].SetHighlightedCyberwareSlot(false);
+      };
+    };
+    this.m_selectedSlotIndex = -1;
+  }
+
+  public final func GetSelectedSlotIndex() -> Int32 {
+    return this.m_selectedSlotIndex;
+  }
+
+  public final func GetSelectedSlotData() -> wref<UIInventoryItem> {
+    return this.GetSlotData(this.m_selectedSlotIndex);
+  }
+
+  public final func GetEquippedData(itemID: ItemID) -> wref<UIInventoryItem> {
+    return this.GetSlotData(this.GetSlotToEquipe(itemID));
+  }
+
+  public final func GetSlotData(slotIndex: Int32) -> wref<UIInventoryItem> {
+    let result: wref<UIInventoryItem>;
+    if slotIndex >= 0 && slotIndex < ArraySize(this.m_gridData) {
+      result = this.m_gridData[slotIndex].GetUIInventoryItem();
+    };
+    return result;
+  }
+
+  public final func GetSlotToEquipe(itemID: ItemID) -> Int32 {
+    let emptySlot: Int32 = -1;
+    let cyberwareType: CName = TweakDBInterface.GetCName(ItemID.GetTDBID(itemID) + t".cyberwareType", n"None");
+    let i: Int32 = ArraySize(this.m_gridData) - 1;
+    while i >= 0 {
+      if this.m_gridData[i].GetUIInventoryItem() == null && !this.m_gridData[i].IsPerkRequiredCyberware() {
+        emptySlot = this.m_gridData[i].GetSlotIndex();
+      } else {
+        if Equals(cyberwareType, TweakDBInterface.GetCName(this.m_gridData[i].GetUIInventoryItem().GetTweakDBID() + t".cyberwareType", n"None")) && !this.m_gridData[i].IsPerkRequiredCyberware() {
+          return this.m_gridData[i].GetSlotIndex();
+        };
+      };
+      i -= 1;
+    };
+    return emptySlot != -1 ? emptySlot : this.m_selectedSlotIndex != -1 ? this.m_selectedSlotIndex : 0;
+  }
+
+  public final func GetEquipmentArea() -> gamedataEquipmentArea {
+    return this.m_equipArea;
+  }
+
+  public final func IsLeftSide() -> Bool {
+    return this.m_isLeftAligned;
+  }
+
+  public final func GetLastSlot() -> wref<inkWidget> {
+    return ArrayLast(this.m_gridData).GetRootWidget();
+  }
+
+  public final func GetFirstSlot() -> wref<inkWidget> {
+    return this.m_gridData[0].GetRootWidget();
+  }
+
+  public final func UpdateData(equipArea: gamedataEquipmentArea, playerEquipAreaInventory: script_ref<[wref<UIInventoryItem>]>, opt screen: CyberwareScreenType) -> Void {
+    let costData: CyberwareUpgradeCostData;
+    let gridListItem: ref<InventoryItemDisplayController>;
+    let i: Int32;
+    let itemUpgrade: ref<Item_Record>;
+    let itemUpgradeQuality: gamedataQuality;
+    let limit: Int32 = ArraySize(Deref(playerEquipAreaInventory));
+    this.m_equipArea = equipArea;
+    inkUniformGridRef.SetWrappingWidgetCount(this.m_gridContainer, Cast<Uint32>(limit));
+    this.RemoveElements(limit);
+    while ArraySize(this.m_gridData) < limit {
+      gridListItem = ItemDisplayUtils.SpawnCommonSlotController(this, inkWidgetRef.Get(this.m_gridContainer), n"itemDisplay") as InventoryItemDisplayController;
+      gridListItem.RegisterToCallback(n"OnRelease", this.m_parentObject, this.m_onRealeaseCallbackName);
+      ArrayPush(this.m_gridData, gridListItem);
+    };
+    i = 0;
+    while i < limit {
+      gridListItem = this.m_gridData[i];
+      gridListItem.Setup(Deref(playerEquipAreaInventory)[i], this.m_equipArea, "", i, this.m_displayContext);
+      gridListItem.SetUpgradableCyberware(RPGManager.CanUpgradeCyberware(this.m_player, Deref(playerEquipAreaInventory)[i].GetID(), Deref(playerEquipAreaInventory)[i].IsEquipped(), gamedataQuality.Invalid, itemUpgradeQuality, itemUpgrade, costData));
+      i += 1;
+    };
+    this.UnselectSlot();
+  }
+
+  protected cb func OnSlotSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let slotUserData: ref<SlotUserData> = userData as SlotUserData;
+    let gridListItem: ref<InventoryItemDisplayController> = widget.GetController() as InventoryItemDisplayController;
+    gridListItem.SetUpgradableCyberware(slotUserData.canUpgrade);
+    gridListItem.Setup(slotUserData.item, slotUserData.area, "", slotUserData.index, this.m_displayContext);
+    gridListItem.RegisterToCallback(n"OnRelease", this.m_parentObject, this.m_onRealeaseCallbackName);
+    if slotUserData.isPerkRequired && slotUserData.isLocked && slotUserData.item == null {
+      gridListItem.SetPerkRequiredCyberware(slotUserData.area);
+    } else {
+      gridListItem.SetLocked(slotUserData.isLocked, slotUserData.visibleWhenLocked);
+    };
+    this.m_screen = slotUserData.screen;
+    if Equals(this.m_screen, CyberwareScreenType.Inventory) {
+      if slotUserData.item == null {
+        gridListItem.SetCyberwareEmptyInInventroy();
+        widget.SetState(n"ReadOnly");
+      } else {
+        gridListItem.SetCyberwarePrieviewInInventroy();
+      };
+    };
+    if this.m_iconData != null {
+      gridListItem.NewUpdateIcon(this.m_iconData);
+      this.m_iconData = null;
+    };
+    ArrayPush(this.m_gridData, gridListItem);
+  }
+
+  private final func UpdateTitle(const label: script_ref<String>) -> Void {
+    inkTextRef.SetText(this.m_label, Deref(label));
+  }
+
+  public final func GetInventoryItemDisplays() -> [wref<InventoryItemDisplayController>] {
+    return this.m_gridData;
+  }
+
+  private final func RemoveElements(limit: Int32) -> Void {
+    let gridListItem: wref<InventoryItemDisplayController>;
+    while ArraySize(this.m_gridData) > limit {
+      gridListItem = ArrayPop(this.m_gridData);
+      gridListItem.UnregisterFromCallback(n"OnRelease", this.m_parentObject, this.m_onRealeaseCallbackName);
+      inkCompoundRef.RemoveChild(this.m_gridContainer, gridListItem.GetRootWidget());
+    };
+  }
+
+  private final func GetAreaHeader(area: gamedataEquipmentArea) -> String {
+    let record: ref<EquipmentArea_Record> = TweakDBInterface.GetEquipmentAreaRecord(TDBID.Create("EquipmentArea." + EnumValueToString("gamedataEquipmentArea", Cast<Int64>(EnumInt(area)))));
+    let label: String = record.LocalizedName();
+    if Equals(label, "") {
+      label = EnumValueToString("gamedataEquipmentArea", Cast<Int64>(EnumInt(area)));
+    };
+    return label;
+  }
+
+  public final func ResetPosition(opt immediate: Bool, opt duration: Float) -> Void {
+    if this.m_marginAnimation != null {
+      this.m_marginAnimation.Stop();
+    };
+    if NotEquals(inkWidgetRef.GetMargin(this.m_parent), this.m_margin) {
+      if immediate {
+        this.SetPositionImmediate(this.m_margin);
+      } else {
+        if duration != 0.00 {
+          this.SetPosition_Animation(this.m_margin, duration, true);
+        } else {
+          this.SetPosition_Animation(this.m_margin, 0.30, true);
+        };
+      };
+      this.AnimateLabel(false);
+    };
+  }
+
+  public final func SetPosition(margin: inkMargin, duration: Float) -> Void {
+    let animation: ref<inkAnimDef>;
+    let marginInterpolator: ref<inkAnimMargin>;
+    if this.m_marginAnimation != null {
+      this.m_marginAnimation.Stop();
+    };
+    if this.m_isLeftAligned {
+      margin.left = margin.left - 290.00 + Cast<Float>((ArraySize(this.m_gridData) - 1) * 225);
+    };
+    marginInterpolator = new inkAnimMargin();
+    marginInterpolator.SetDuration(duration);
+    marginInterpolator.SetStartMargin(inkWidgetRef.GetMargin(this.m_parent));
+    marginInterpolator.SetEndMargin(margin);
+    marginInterpolator.SetType(inkanimInterpolationType.Quintic);
+    marginInterpolator.SetMode(inkanimInterpolationMode.EasyInOut);
+    animation = new inkAnimDef();
+    animation.AddInterpolator(marginInterpolator);
+    this.m_marginAnimation = inkWidgetRef.PlayAnimation(this.m_parent, animation);
+    this.AnimateLabel(true);
+  }
+
+  public final func SetPosition_Animation(margin: inkMargin, duration: Float, opt isReversed: Bool, opt customOffset: Float, opt interpolationMode: inkanimInterpolationMode, opt interpolationType: inkanimInterpolationType) -> Void {
+    let animation: ref<inkAnimDef>;
+    let marginInterpolator: ref<inkAnimMargin>;
+    let targetMargin: inkMargin;
+    let translationInterpolator: ref<inkAnimTranslation>;
+    let transparencyInterpolator: ref<inkAnimTransparency>;
+    let offset: Float = customOffset != 0.00 ? customOffset : 200.00;
+    offset *= isReversed ? -1.00 : 1.00;
+    if this.m_marginAnimation != null {
+      this.m_marginAnimation.IsPlaying() ? this.m_marginAnimation.GotoEndAndStop() : this.m_marginAnimation.Stop();
+    };
+    if this.m_isLeftAligned && !isReversed {
+      margin.left = margin.left - 290.00 + Cast<Float>((ArraySize(this.m_gridData) - 1) * 225);
+    };
+    if isReversed {
+      targetMargin = this.m_margin;
+    } else {
+      targetMargin = margin;
+    };
+    if Equals(targetMargin, inkWidgetRef.GetMargin(this.m_parent)) {
+      return;
+    };
+    animation = new inkAnimDef();
+    transparencyInterpolator = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(duration / 2.00);
+    transparencyInterpolator.SetStartTransparency(1.00);
+    transparencyInterpolator.SetEndTransparency(0.00);
+    transparencyInterpolator.SetMode(interpolationMode);
+    transparencyInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(transparencyInterpolator);
+    translationInterpolator = new inkAnimTranslation();
+    translationInterpolator.SetDuration(duration / 2.00);
+    translationInterpolator.SetStartTranslation(new Vector2(0.00, 0.00));
+    translationInterpolator.SetEndTranslation(new Vector2(offset, 0.00));
+    translationInterpolator.SetMode(interpolationMode);
+    translationInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(translationInterpolator);
+    marginInterpolator = new inkAnimMargin();
+    marginInterpolator.SetDuration(0.00);
+    marginInterpolator.SetStartDelay(duration / 2.00);
+    marginInterpolator.SetStartMargin(inkWidgetRef.GetMargin(this.m_parent));
+    marginInterpolator.SetEndMargin(targetMargin);
+    animation.AddInterpolator(marginInterpolator);
+    transparencyInterpolator = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(duration / 2.00);
+    transparencyInterpolator.SetStartDelay(duration / 2.00);
+    transparencyInterpolator.SetStartTransparency(0.00);
+    transparencyInterpolator.SetEndTransparency(1.00);
+    transparencyInterpolator.SetMode(interpolationMode);
+    transparencyInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(transparencyInterpolator);
+    translationInterpolator = new inkAnimTranslation();
+    translationInterpolator.SetDuration(duration / 2.00);
+    translationInterpolator.SetStartDelay(duration / 2.00);
+    translationInterpolator.SetStartTranslation(new Vector2(offset, 0.00));
+    translationInterpolator.SetEndTranslation(new Vector2(0.00, 0.00));
+    translationInterpolator.SetMode(interpolationMode);
+    translationInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(translationInterpolator);
+    this.m_marginAnimation = inkWidgetRef.PlayAnimation(this.m_parent, animation);
+    this.AnimateLabel(true);
+  }
+
+  public final func PlayIntroAnimation(duration: Float, interpolationMode: inkanimInterpolationMode, interpolationType: inkanimInterpolationType) -> Void {
+    let animation: ref<inkAnimDef>;
+    let offset: Float;
+    let translationInterpolator: ref<inkAnimTranslation>;
+    let transparencyInterpolator: ref<inkAnimTransparency>;
+    if this.m_marginAnimation != null {
+      this.m_marginAnimation.Stop();
+    };
+    offset = this.m_isLeftAligned ? -200.00 : 200.00;
+    animation = new inkAnimDef();
+    transparencyInterpolator = new inkAnimTransparency();
+    transparencyInterpolator.SetDuration(duration);
+    transparencyInterpolator.SetStartTransparency(0.00);
+    transparencyInterpolator.SetEndTransparency(1.00);
+    transparencyInterpolator.SetMode(interpolationMode);
+    transparencyInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(transparencyInterpolator);
+    translationInterpolator = new inkAnimTranslation();
+    translationInterpolator.SetDuration(duration);
+    translationInterpolator.SetStartTranslation(new Vector2(offset, 0.00));
+    translationInterpolator.SetEndTranslation(new Vector2(0.00, 0.00));
+    translationInterpolator.SetMode(interpolationMode);
+    translationInterpolator.SetType(interpolationType);
+    animation.AddInterpolator(translationInterpolator);
+    this.m_marginAnimation = this.m_root.PlayAnimation(animation);
+  }
+
+  public final func PlayMinigridAnim(playReverse: Bool) -> Void {
+    let options: inkAnimOptions;
+    if this.minigridAnimation != null {
+      this.minigridAnimation.Stop();
+    };
+    options.executionDelay = 0.40;
+    options.playReversed = playReverse;
+    this.minigridAnimation = this.PlayLibraryAnimation(n"test", options);
+  }
+
+  public final func SetPositionImmediate(margin: inkMargin) -> Void {
+    if this.m_marginAnimation != null {
+      this.m_marginAnimation.Stop();
+      this.m_marginAnimation = null;
+    };
+    inkWidgetRef.SetMargin(this.m_parent, margin);
+  }
+
+  public final func SetLabelImmediate(show: Bool) -> Void {
+    if this.m_labelAnimation != null {
+      this.m_labelAnimation.Stop();
+      this.m_labelAnimation = null;
+    };
+    inkWidgetRef.SetOpacity(this.m_label, show ? 1.00 : 0.00);
+  }
+
+  private final func AnimateLabel(hide: Bool) -> Void {
+    let animation: ref<inkAnimDef>;
+    let opacityInterpolator: ref<inkAnimTransparency>;
+    let time: Float;
+    if this.m_labelAnimation != null {
+      this.m_labelAnimation.Stop();
+    };
+    time = inkWidgetRef.GetOpacity(this.m_label);
+    time = hide ? time : 1.00 - time * 0.75;
+    opacityInterpolator = new inkAnimTransparency();
+    opacityInterpolator.SetDuration(time);
+    opacityInterpolator.SetStartTransparency(inkWidgetRef.GetOpacity(this.m_label));
+    opacityInterpolator.SetEndTransparency(hide ? 0.00 : 1.00);
+    opacityInterpolator.SetType(inkanimInterpolationType.Quintic);
+    opacityInterpolator.SetMode(inkanimInterpolationMode.EasyInOut);
+    animation = new inkAnimDef();
+    animation.AddInterpolator(opacityInterpolator);
+    this.m_labelAnimation = inkWidgetRef.PlayAnimation(this.m_label, animation);
+    inkWidgetRef.PlayAnimation(this.m_isNew, animation);
+  }
+
+  public final func SetInteractive(interactive: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gridData) {
+      this.m_gridData[i].SetInteractive(interactive);
+      i += 1;
+    };
+  }
+
+  public final func SetNavigable(navigable: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_gridData) {
+      this.m_gridData[i].SetNavigable(navigable);
+      i += 1;
+    };
+  }
+
+  private final func IsEquipmentAreaRequiringPerk(equipmentArea: gamedataEquipmentArea) -> Bool {
+    return Equals(equipmentArea, gamedataEquipmentArea.HandsCW) || Equals(equipmentArea, gamedataEquipmentArea.MusculoskeletalSystemCW);
+  }
+
+  public final func UpdateIcon(itemData: ref<UIInventoryItem>, opt index: Int32) -> Void {
+    let gridData: wref<InventoryItemDisplayController> = this.m_gridData[index];
+    if IsDefined(gridData) {
+      gridData.NewUpdateIcon(itemData);
+    } else {
+      this.m_iconData = itemData;
+    };
+  }
+}

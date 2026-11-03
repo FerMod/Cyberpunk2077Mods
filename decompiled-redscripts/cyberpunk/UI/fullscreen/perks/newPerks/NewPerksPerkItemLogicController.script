@@ -1,0 +1,357 @@
+
+public class NewPerksPerkItemLogicController extends inkLogicController {
+
+  private edit let m_icon: inkImageRef;
+
+  private edit let m_iconGhost: inkImageRef;
+
+  private edit let m_lockIcon: inkWidgetRef;
+
+  private edit let m_requiredPointsText: inkTextRef;
+
+  private edit let m_levelText: inkTextRef;
+
+  private edit let m_DEV_notYetImplemented: inkWidgetRef;
+
+  private let m_container: wref<NewPerksPerkContainerLogicController>;
+
+  private let m_initData: ref<NewPerksPerkItemInitData>;
+
+  private let m_isUnlocked: Bool;
+
+  private let m_currentLevel: Int32;
+
+  private let m_hovered: Bool;
+
+  private let m_maxedAnimProxy: ref<inkAnimProxy>;
+
+  private let m_animProxies: [ref<inkAnimProxy>];
+
+  private let m_isRelic: Bool;
+
+  private let m_tapCount: Int32;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    ArrayResize(this.m_animProxies, 10);
+  }
+
+  public final func Initialize(container: wref<NewPerksPerkContainerLogicController>, initData: ref<NewPerksPerkItemInitData>) -> Void {
+    this.m_container = container;
+    this.m_initData = initData;
+    inkWidgetRef.SetVisible(this.m_DEV_notYetImplemented, this.m_initData.maxPerkLevel == 0);
+    inkTextRef.SetText(this.m_requiredPointsText, IntToString(this.m_initData.requiredAttributePoints));
+    inkWidgetRef.SetVisible(this.m_requiredPointsText, !this.m_initData.isAttributeRequirementMet);
+    if TDBID.IsValid(this.m_initData.icon) {
+      InkImageUtils.RequestSetImage(this, this.m_icon, this.m_initData.icon);
+      InkImageUtils.RequestSetImage(this, this.m_iconGhost, this.m_initData.icon);
+    };
+    this.m_isRelic = Equals(this.m_initData.perkRecord.Attribute().Type(), gamedataAttributeDataType.EspionageAttributeData);
+    this.m_tapCount = 0;
+    this.UpdateState();
+  }
+
+  public final func GetContainer() -> wref<NewPerksPerkContainerLogicController> {
+    return this.m_container;
+  }
+
+  public final func GetSlotIdentifier() -> gamedataNewPerkSlotType {
+    return this.m_container.GetSlotIdentifier();
+  }
+
+  public final func GetPerkRecord() -> wref<NewPerk_Record> {
+    return this.m_initData.perkRecord;
+  }
+
+  public final func GetPerkType() -> gamedataNewPerkType {
+    return this.m_initData.perkType;
+  }
+
+  public final func GetMaxLevel() -> Int32 {
+    return this.m_initData.maxPerkLevel;
+  }
+
+  public final func IsUnlocked() -> Bool {
+    return this.m_isUnlocked;
+  }
+
+  public final func IsMaxed() -> Bool {
+    return this.m_currentLevel == this.m_initData.maxPerkLevel;
+  }
+
+  public final func IsAttributeRequirementMet() -> Bool {
+    return this.m_initData.isAttributeRequirementMet;
+  }
+
+  public final func SetLevel(level: Int32) -> Void {
+    inkTextRef.SetText(this.m_levelText, IntToString(level) + "/" + IntToString(this.m_initData.maxPerkLevel));
+    this.m_currentLevel = level;
+    this.UpdateState();
+  }
+
+  public final func GetLevel() -> Int32 {
+    return this.m_currentLevel;
+  }
+
+  public final func SetUnlocked(value: Bool) -> Void {
+    this.m_isUnlocked = value;
+    inkWidgetRef.SetVisible(this.m_lockIcon, !value);
+    this.UpdateState();
+  }
+
+  public final func SetAttributeRequirementMet(value: Bool) -> Void {
+    this.m_initData.isAttributeRequirementMet = value;
+    this.UpdateState();
+  }
+
+  public final func UpdateState() -> Void {
+    if !this.m_initData.isAttributeRequirementMet {
+      if this.m_hovered {
+        this.GetRootWidget().SetState(n"RequirementNotMetHover");
+      } else {
+        this.GetRootWidget().SetState(n"RequirementNotMet");
+      };
+    } else {
+      if !this.m_isUnlocked {
+        if this.m_hovered {
+          this.GetRootWidget().SetState(n"LockedHover");
+        } else {
+          this.GetRootWidget().SetState(n"Locked");
+        };
+      } else {
+        if this.m_currentLevel > 0 {
+          if Equals(this.m_initData.stat, gamedataStatType.Espionage) || Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+            if this.m_hovered {
+              this.GetRootWidget().SetState(n"BoughtHover");
+            } else {
+              this.GetRootWidget().SetState(n"Bought");
+            };
+          } else {
+            if this.m_currentLevel < this.m_initData.maxPerkLevel {
+              if this.m_hovered {
+                this.GetRootWidget().SetState(n"PartiallyInvestedHover");
+              } else {
+                this.GetRootWidget().SetState(n"PartiallyInvested");
+              };
+            } else {
+              if this.m_hovered {
+                this.GetRootWidget().SetState(n"FullyInvestedHover");
+              } else {
+                this.GetRootWidget().SetState(n"FullyInvested");
+              };
+            };
+          };
+        } else {
+          if this.m_hovered {
+            this.GetRootWidget().SetState(n"Hover");
+          } else {
+            this.GetRootWidget().SetState(n"Default");
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let action: CName;
+    let perkEvt: ref<NewPerkClickEvent>;
+    if evt.IsAction(n"buy_perk") {
+      action = n"buy_perk";
+    } else {
+      if evt.IsAction(n"sell_perk") {
+        action = n"sell_perk";
+      } else {
+        if evt.IsAction(n"buy_perk_touch") && this.m_tapCount >= 2 {
+          action = n"buy_perk";
+        } else {
+          if evt.IsAction(n"tap") {
+            this.m_tapCount = this.m_tapCount + 1;
+          } else {
+            return true;
+          };
+        };
+      };
+    };
+    perkEvt = new NewPerkClickEvent();
+    perkEvt.controller = this;
+    perkEvt.action = action;
+    this.QueueEvent(perkEvt);
+  }
+
+  private final func GetAnimationPrefix() -> String {
+    if Equals(this.m_initData.stat, gamedataStatType.Espionage) {
+      if Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+        return "spy_cell_";
+      };
+      return "spy_cell_master_";
+    };
+    if Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+      return "perk_cell_";
+    };
+    if Equals(this.m_initData.category, gamedataNewPerkCategoryType.MilestoneNewPerkCategory) {
+      return "milestone_cell_";
+    };
+    return "master_cell_";
+  }
+
+  private final func GetAnimationSuffix(type: NewPerkCellAnimationType) -> String {
+    switch type {
+      case NewPerkCellAnimationType.Bought:
+        return "buy";
+      case NewPerkCellAnimationType.Maxed:
+        return "maxed";
+      case NewPerkCellAnimationType.Locked:
+        return "locked";
+      case NewPerkCellAnimationType.HoverOver:
+        return "hoverover";
+      case NewPerkCellAnimationType.HoverOut:
+        return "hoverout";
+      case NewPerkCellAnimationType.Sold:
+        return "sell";
+      case NewPerkCellAnimationType.Reminder:
+        return "remind";
+      case NewPerkCellAnimationType.SellLocked:
+        return "sell_locked";
+      case NewPerkCellAnimationType.InsufficientPoints:
+        return "insufficient_points";
+      case NewPerkCellAnimationType.MaxedLocked:
+        return "maxed_locked";
+    };
+    return "";
+  }
+
+  private final func GetAnimationSound(type: NewPerkCellAnimationType) -> CName {
+    switch type {
+      case NewPerkCellAnimationType.Bought:
+        if this.m_isRelic {
+          return n"ui_menu_perk_buy_relic";
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+          return n"ui_menu_perk_buy_minor";
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.MasterNewPerkCategory) {
+          return n"ui_menu_perk_buy_master";
+        };
+        return n"ui_menu_perk_buy_major_tier";
+      case NewPerkCellAnimationType.Maxed:
+        if this.m_isRelic {
+          return n"ui_menu_perk_buy_relic";
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+          return n"ui_menu_perk_buy_minor";
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.MasterNewPerkCategory) {
+          return n"ui_menu_perk_buy_master";
+        };
+        return n"ui_menu_perk_buy_major_max";
+      case NewPerkCellAnimationType.Locked:
+        return n"ui_menu_perk_buy_fail";
+      case NewPerkCellAnimationType.HoverOver:
+        return n"None";
+      case NewPerkCellAnimationType.HoverOut:
+        return n"None";
+      case NewPerkCellAnimationType.Sold:
+        return n"ui_menu_perk_buy";
+      case NewPerkCellAnimationType.Reminder:
+        return n"None";
+      case NewPerkCellAnimationType.SellLocked:
+        return n"ui_menu_perk_buy_fail";
+    };
+    return n"None";
+  }
+
+  private final func GetRumbleStrength(type: NewPerkCellAnimationType) -> RumbleStrength {
+    switch type {
+      case NewPerkCellAnimationType.Bought:
+        if this.m_isRelic {
+          return RumbleStrength.Heavy;
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.SimpleNewPerkCategory) {
+          return RumbleStrength.Light;
+        };
+        if Equals(this.m_initData.category, gamedataNewPerkCategoryType.MasterNewPerkCategory) {
+          return RumbleStrength.Heavy;
+        };
+        return RumbleStrength.Heavy;
+      case NewPerkCellAnimationType.Maxed:
+        return RumbleStrength.Heavy;
+      case NewPerkCellAnimationType.Sold:
+        return RumbleStrength.SuperLight;
+    };
+    return RumbleStrength.SuperLight;
+  }
+
+  private final func GetTargetAnimation(type: NewPerkCellAnimationType) -> CName {
+    let animationName: String;
+    animationName += this.GetAnimationPrefix();
+    animationName += this.GetAnimationSuffix(type);
+    return StringToName(animationName);
+  }
+
+  public final func PlayAnimation(type: NewPerkCellAnimationType) -> Void {
+    let i: Int32 = EnumInt(type);
+    if this.m_animProxies[i].IsPlaying() {
+      this.m_animProxies[i].GotoEndAndStop();
+    };
+    this.m_animProxies[i] = this.PlayLibraryAnimation(this.GetTargetAnimation(type));
+    this.PlaySoundForAnim(type);
+  }
+
+  public final func StopAllAnimations() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_animProxies) {
+      if this.m_animProxies[i].IsPlaying() {
+        this.m_animProxies[i].GotoEndAndStop();
+      };
+      i += 1;
+    };
+  }
+
+  private final func PlaySoundForAnim(type: NewPerkCellAnimationType) -> Void {
+    let evt: ref<PlayNewPerksSoundEvent>;
+    let soundName: CName = this.GetAnimationSound(type);
+    let rumbleStrength: RumbleStrength = this.GetRumbleStrength(type);
+    if Equals(soundName, n"None") {
+      return;
+    };
+    evt = new PlayNewPerksSoundEvent();
+    evt.soundName = soundName;
+    evt.rumbleStrength = rumbleStrength;
+    this.QueueEvent(evt);
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    let e: ref<NewPerkHoverOverEvent> = new NewPerkHoverOverEvent();
+    e.controller = this;
+    e.evt = evt;
+    e.perkData = this.GetNewPerkDisplayData();
+    this.QueueEvent(e);
+    this.m_hovered = true;
+    this.UpdateState();
+    this.PlayAnimation(NewPerkCellAnimationType.HoverOver);
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    let e: ref<NewPerkHoverOutEvent> = new NewPerkHoverOutEvent();
+    e.controller = this;
+    e.evt = evt;
+    this.QueueEvent(e);
+    this.m_hovered = false;
+    this.UpdateState();
+    this.PlayAnimation(NewPerkCellAnimationType.HoverOut);
+    this.m_tapCount = 0;
+  }
+
+  public final func GetNewPerkDisplayData() -> ref<NewPerkDisplayData> {
+    let perkData: ref<NewPerkDisplayData> = new NewPerkDisplayData();
+    perkData.m_type = this.m_initData.perkType;
+    perkData.m_area = this.m_container.GetSlotIdentifier();
+    perkData.m_binkRef = this.m_initData.binkRef;
+    perkData.m_level = this.m_currentLevel;
+    perkData.m_maxLevel = this.m_initData.maxPerkLevel;
+    perkData.m_locked = !this.m_isUnlocked;
+    return perkData;
+  }
+}

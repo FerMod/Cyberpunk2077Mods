@@ -1,0 +1,452 @@
+
+public abstract class ShootTransition extends DefaultTransition {
+
+  public final static func GetRightWeapon(const scriptInterface: ref<StateGameScriptInterface>) -> ref<WeaponObject> {
+    return scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponRight") as WeaponObject;
+  }
+
+  public final static func GetLeftWeapon(const scriptInterface: ref<StateGameScriptInterface>) -> ref<WeaponObject> {
+    return scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponLeft") as WeaponObject;
+  }
+
+  public final static func GetRightWeaponBlackboard(const scriptInterface: ref<StateGameScriptInterface>) -> ref<IBlackboard> {
+    return ShootTransition.GetRightWeapon(scriptInterface).GetSharedData();
+  }
+
+  public final static func GetLeftWeaponBlackboard(const scriptInterface: ref<StateGameScriptInterface>) -> ref<IBlackboard> {
+    return ShootTransition.GetLeftWeapon(scriptInterface).GetSharedData();
+  }
+
+  public final static func GetRightWeaponCycleTime(const scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    return GameInstance.GetStatsSystem(scriptInterface.GetGame()).GetStatValue(Cast<StatsObjectID>(ShootTransition.GetRightWeapon(scriptInterface).GetEntityID()), gamedataStatType.CycleTime);
+  }
+
+  public final static func GetLeftWeaponCycleTime(const scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    return GameInstance.GetStatsSystem(scriptInterface.GetGame()).GetStatValue(Cast<StatsObjectID>(ShootTransition.GetLeftWeapon(scriptInterface).GetEntityID()), gamedataStatType.CycleTime);
+  }
+
+  public final static func IsRightWeaponReady(const stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let state: gamePSMRangedWeaponStates = DefaultTransition.GetRightWeaponState(scriptInterface);
+    return DefaultTransition.HasRightWeaponEquipped(scriptInterface) && !DefaultTransition.IsRightHandChangingEquipState(stateContext) && (Equals(state, gamePSMRangedWeaponStates.Ready) || Equals(state, gamePSMRangedWeaponStates.Shoot) || Equals(state, gamePSMRangedWeaponStates.Charging) || Equals(state, gamePSMRangedWeaponStates.Reload) && !ShootTransition.IsReloadUninterruptible(stateContext, scriptInterface));
+  }
+
+  public final static func IsLeftWeaponReady(const stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let state: gamePSMRangedWeaponStates = DefaultTransition.GetLeftWeaponState(scriptInterface);
+    return DefaultTransition.HasLeftWeaponEquipped(scriptInterface) && !DefaultTransition.IsLeftHandChangingEquipState(stateContext) && (Equals(state, gamePSMRangedWeaponStates.Ready) || Equals(state, gamePSMRangedWeaponStates.Shoot) || Equals(state, gamePSMRangedWeaponStates.Charging));
+  }
+
+  public final static func GetRightWeaponTriggerMode(scriptInterface: ref<StateGameScriptInterface>) -> gamedataTriggerMode {
+    let triggerMode: gamedataTriggerMode = FromVariant<ref<TriggerMode_Record>>(ShootTransition.GetRightWeaponBlackboard(scriptInterface).GetVariant(GetAllBlackboardDefs().Weapon.TriggerMode)).Type();
+    return triggerMode;
+  }
+
+  public final static func GetLeftWeaponTriggerMode(scriptInterface: ref<StateGameScriptInterface>) -> gamedataTriggerMode {
+    let triggerMode: gamedataTriggerMode = FromVariant<ref<TriggerMode_Record>>(ShootTransition.GetLeftWeaponBlackboard(scriptInterface).GetVariant(GetAllBlackboardDefs().Weapon.TriggerMode)).Type();
+    return triggerMode;
+  }
+
+  protected final static func IsReloadUninterruptible(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"RightUninteruptibleReload", true);
+  }
+}
+
+public abstract class ExitToNextShootDecisionsBase extends ShootTransition {
+
+  @default(BothWeaponsDecisions, EnteredBothWeaponsWithState)
+  @default(ExitToNextShootDecisionsBase, EnteredWithState)
+  @default(ValentinosFrenzyDecisions, LastShotInValentinosFrenzy)
+  protected let m_enteredStateVarName: CName;
+
+  protected final const func ShouldExitTo(toShootState: Int32, const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let enteredShootState: StateResultInt = stateContext.GetPermanentIntParameter(this.m_enteredStateVarName);
+    if !enteredShootState.valid {
+      return false;
+    };
+    return enteredShootState.value == toShootState;
+  }
+
+  protected const func SmartExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+
+  protected const func ToLeftWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let diff: Double;
+    if !this.SmartExitCondition(stateContext, scriptInterface) {
+      return false;
+    };
+    if !ShootTransition.IsLeftWeaponReady(stateContext, scriptInterface) {
+      return false;
+    };
+    diff = stateContext.GetDoubleParameter(n"LastShotTime", true) - stateContext.GetDoubleParameter(n"LastSecondaryShotTime", true);
+    if AbsF(Cast<Float>(diff)) < 0.01 {
+      return this.ShouldExitTo(scriptInterface.IsActionJustReleased(n"RangedAttack") ? 1 : 2, stateContext, scriptInterface);
+    };
+    return diff > 0.00d;
+  }
+
+  protected const func ToRightWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let diff: Double;
+    if !this.SmartExitCondition(stateContext, scriptInterface) {
+      return false;
+    };
+    if !ShootTransition.IsRightWeaponReady(stateContext, scriptInterface) {
+      return false;
+    };
+    diff = stateContext.GetDoubleParameter(n"LastShotTime", true) - stateContext.GetDoubleParameter(n"LastSecondaryShotTime", true);
+    if AbsF(Cast<Float>(diff)) < 0.01 {
+      return this.ShouldExitTo(scriptInterface.IsActionJustReleased(n"RangedAttack") ? 2 : 1, stateContext, scriptInterface);
+    };
+    return diff < 0.00d;
+  }
+
+  protected const func ToBothWeapons(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.SmartExitCondition(stateContext, scriptInterface) && this.ShouldExitTo(3, stateContext, scriptInterface);
+  }
+
+  protected const func ToIdleShoot(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.SmartExitCondition(stateContext, scriptInterface) {
+      return false;
+    };
+    if !DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    if !DefaultTransition.HasLeftWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    return !this.ToRightWeapon(stateContext, scriptInterface) && !this.ToLeftWeapon(stateContext, scriptInterface) && !this.ToBothWeapons(stateContext, scriptInterface);
+  }
+}
+
+public class IdleShootDecisions extends ShootTransition {
+
+  protected cb func OnInventoryChangeStateUpdate(value: Variant) -> Bool {
+    this.EnableOnEnterCondition(true);
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !ShootTransition.IsRightWeaponReady(stateContext, scriptInterface) && !ShootTransition.IsLeftWeaponReady(stateContext, scriptInterface);
+  }
+
+  protected final const func ToRightWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return ShootTransition.IsRightWeaponReady(stateContext, scriptInterface);
+  }
+
+  protected final const func ToLeftWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return ShootTransition.IsLeftWeaponReady(stateContext, scriptInterface);
+  }
+}
+
+public class IdleShootEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 0);
+  }
+}
+
+public class RightWeaponDecisions extends ShootTransition {
+
+  protected final const func ToLeftWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !DefaultTransition.HasLeftWeaponEquipped(scriptInterface) {
+      return false;
+    };
+    if !DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    if DefaultTransition.LeftWeaponHasNoAmmoOrIsReloading(scriptInterface) {
+      return false;
+    };
+    if DefaultTransition.RightWeaponHasNoAmmoOrIsReloading(scriptInterface) {
+      return scriptInterface.GetActionValue(n"RangedAttack") < 0.10 || scriptInterface.GetActionStateTime(n"RangedAttack") > ShootTransition.GetLeftWeaponCycleTime(scriptInterface) / 2.00;
+    };
+    if !scriptInterface.IsActionJustReleased(n"RangedAttack") {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class RightWeaponEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 1);
+  }
+}
+
+public class LeftWeaponDecisions extends ShootTransition {
+
+  protected final const func ToRightWeapon(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return false;
+    };
+    if !DefaultTransition.HasLeftWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    if DefaultTransition.RightWeaponHasNoAmmoOrIsReloading(scriptInterface) {
+      return false;
+    };
+    if DefaultTransition.LeftWeaponHasNoAmmoOrIsReloading(scriptInterface) {
+      return scriptInterface.GetActionValue(n"RangedAttack") < 0.10 || scriptInterface.GetActionStateTime(n"RangedAttack") > ShootTransition.GetRightWeaponCycleTime(scriptInterface) / 2.00;
+    };
+    return scriptInterface.IsActionJustReleased(n"RangedAttack");
+  }
+}
+
+public class LeftWeaponEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 2);
+  }
+}
+
+public class BothWeaponsDecisions extends ExitToNextShootDecisionsBase {
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let halfCycleTime: Float;
+    let lastReadyTime: StateResultFloat;
+    let leftCycleTime: Float;
+    let pressTime: Float;
+    let rightCycleTime: Float;
+    if !DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return false;
+    };
+    if !DefaultTransition.HasLeftWeaponEquipped(scriptInterface) {
+      return false;
+    };
+    if !ShootTransition.IsRightWeaponReady(stateContext, scriptInterface) {
+      return false;
+    };
+    if !ShootTransition.IsLeftWeaponReady(stateContext, scriptInterface) {
+      return false;
+    };
+    if stateContext.IsStateActive(n"UpperBody", n"aimingState") {
+      return true;
+    };
+    if Equals(ShootTransition.GetRightWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) && Equals(ShootTransition.GetLeftWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+      return true;
+    };
+    if Equals(ShootTransition.GetRightWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) || Equals(ShootTransition.GetLeftWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+      return scriptInterface.GetActionValue(n"RangedAttack") > 0.10 && scriptInterface.GetActionStateTime(n"RangedAttack") > 0.20;
+    };
+    if scriptInterface.GetActionValue(n"RangedAttack") > 0.00 {
+      if stateContext.IsStateActive(n"ShootState", n"IdleShoot") {
+        return false;
+      };
+      rightCycleTime = ShootTransition.GetRightWeaponCycleTime(scriptInterface);
+      leftCycleTime = ShootTransition.GetLeftWeaponCycleTime(scriptInterface);
+      halfCycleTime = MinF(rightCycleTime, leftCycleTime) / 2.00;
+      if stateContext.IsStateActive(n"ShootState", n"RightWeapon") {
+        if NotEquals(ShootTransition.GetLeftWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+          if Equals(DefaultTransition.GetLeftWeaponState(scriptInterface), gamePSMRangedWeaponStates.Ready) {
+            lastReadyTime = stateContext.GetPermanentFloatParameter(n"LeftReadyTime");
+          } else {
+            if Equals(DefaultTransition.GetLeftWeaponState(scriptInterface), gamePSMRangedWeaponStates.Shoot) {
+              lastReadyTime = stateContext.GetPermanentFloatParameter(n"LastShotTime");
+            };
+          };
+        };
+      } else {
+        if stateContext.IsStateActive(n"ShootState", n"LeftWeapon") {
+          if NotEquals(ShootTransition.GetRightWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+            if Equals(DefaultTransition.GetRightWeaponState(scriptInterface), gamePSMRangedWeaponStates.Ready) {
+              lastReadyTime = stateContext.GetPermanentFloatParameter(n"RightReadyTime");
+            } else {
+              if Equals(DefaultTransition.GetRightWeaponState(scriptInterface), gamePSMRangedWeaponStates.Shoot) {
+                lastReadyTime = stateContext.GetPermanentFloatParameter(n"LastSecondaryShotTime");
+              };
+            };
+          };
+        };
+      };
+      pressTime = scriptInterface.GetActionStateTime(n"RangedAttack");
+      if lastReadyTime.valid {
+        pressTime = MinF(pressTime, EngineTime.ToFloat(GameInstance.GetSimTime(scriptInterface.GetGame())) - lastReadyTime.value);
+      };
+      if pressTime > halfCycleTime {
+        return true;
+      };
+    };
+    return false;
+  }
+
+  protected const func SmartExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    if !DefaultTransition.HasLeftWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    if Equals(ShootTransition.GetRightWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) && Equals(ShootTransition.GetLeftWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+      return false;
+    };
+    if stateContext.IsStateActive(n"UpperBody", n"aimingState") {
+      return false;
+    };
+    return scriptInterface.GetActionValue(n"RangedAttack") <= 0.00;
+  }
+}
+
+public class BothWeaponsEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let shootState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.ShootState);
+    stateContext.SetPermanentIntParameter(n"EnteredBothWeaponsWithState", shootState, true);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 3);
+  }
+
+  protected final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    stateContext.SetPermanentIntParameter(n"EnteredBothWeaponsWithState", 0);
+  }
+}
+
+public class ValentinosFrenzyInitDecisions extends ShootTransition {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"QuickMelee");
+    this.EnableOnEnterCondition(false);
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(true);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    this.EnableOnEnterCondition(false);
+    return scriptInterface.IsActionJustTapped(n"QuickMelee") && this.CanStartValentinosFrenzy(stateContext, scriptInterface);
+  }
+
+  protected final const func ToValentinosFrenzyRightOnly(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.CanBeInValentinosFrenzy(stateContext, scriptInterface) || this.GetInStateTime() >= this.GetStaticFloatParameterDefault("timeInState", 0.20);
+  }
+}
+
+public class ValentinosFrenzyInitEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let statusEffectSystem: ref<StatusEffectSystem> = GameInstance.GetStatusEffectSystem(scriptInterface.GetGame());
+    let tripleTequila: ref<StatusEffect> = this.GetTripleTequilaStatusEffect(scriptInterface);
+    let stackCount: Uint32 = tripleTequila.GetStackCount();
+    let shootState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.ShootState);
+    stateContext.SetPermanentIntParameter(n"TripleTequilaStackCount", Cast<Int32>(stackCount), true);
+    stateContext.SetPermanentIntParameter(n"LastShotInValentinosFrenzy", shootState, true);
+    AnimationControllerComponent.SetInputFloat(scriptInterface.executionOwner, n"valentinos_frenzy", 1.00);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.ValentinosFrenzySE");
+    statusEffectSystem.ApplyStatusEffect(scriptInterface.executionOwner.GetEntityID(), t"BaseStatusEffect.ValentinosFrenzyTripleTequilaStackSE", stackCount);
+    if tripleTequila != null && stackCount >= tripleTequila.GetMaxStacks() {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.ValentinosFrenzyMaxStacksSE");
+    };
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.Triple_Tequila_Stack");
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 4);
+  }
+
+  private final const func GetTripleTequilaStatusEffect(scriptInterface: ref<StateGameScriptInterface>) -> ref<StatusEffect> {
+    let statusEffects: array<ref<StatusEffect>>;
+    GameInstance.GetStatusEffectSystem(scriptInterface.GetGame()).GetAppliedEffectsWithID(scriptInterface.executionOwner.GetEntityID(), t"BaseStatusEffect.Triple_Tequila_Stack", statusEffects);
+    if Cast<Bool>(ArraySize(statusEffects)) {
+      return statusEffects[0];
+    };
+    return null;
+  }
+}
+
+public class ValentinosFrenzyRightOnlyDecisions extends ShootTransition {
+
+  protected final const func ToValentinosFrenzy(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let timeRemaining: StateResultFloat = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining");
+    let cycleTimeRemaining: StateResultFloat = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyCycleTimeRemaining");
+    if !this.CanBeInValentinosFrenzy(stateContext, scriptInterface) {
+      return true;
+    };
+    if Equals(ShootTransition.GetRightWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) || Equals(ShootTransition.GetLeftWeaponTriggerMode(scriptInterface), gamedataTriggerMode.FullAuto) {
+      return true;
+    };
+    return timeRemaining.value <= 0.00 || cycleTimeRemaining.valid && cycleTimeRemaining.value <= 0.00;
+  }
+}
+
+public class ValentinosFrenzyRightOnlyEvents extends ShootTransition {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let halfCycleTime: Float;
+    let duration: Float = scriptInterface.GetStatsSystem().GetStatValue(Cast<StatsObjectID>(scriptInterface.executionOwner.GetEntityID()), gamedataStatType.ValentinosFrenzy_Duration);
+    stateContext.SetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining", duration, true);
+    halfCycleTime = ShootTransition.GetLeftWeaponCycleTime(scriptInterface) * 0.50;
+    stateContext.SetPermanentFloatParameter(n"ValentinosFrenzyCycleTimeRemaining", halfCycleTime, true);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 5);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let cycleTimeRemaining: StateResultFloat;
+    let elapsedTime: Float;
+    let timeRemaining: StateResultFloat;
+    let globalTimeDilation: Float = GameInstance.GetTimeSystem(scriptInterface.GetGame()).GetActiveTimeDilation();
+    let rightCycleTime: Float = ShootTransition.GetRightWeaponCycleTime(scriptInterface);
+    let leftCycleTime: Float = ShootTransition.GetLeftWeaponCycleTime(scriptInterface);
+    timeDelta *= globalTimeDilation;
+    elapsedTime = timeDelta;
+    if globalTimeDilation > 0.00 && globalTimeDilation < 1.00 {
+      elapsedTime *= this.CalcCycleTimeDeltaFactor(MinF(rightCycleTime, leftCycleTime), scriptInterface);
+    };
+    timeRemaining = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining");
+    timeRemaining.value -= elapsedTime;
+    stateContext.SetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining", timeRemaining.value);
+    elapsedTime = timeDelta;
+    if globalTimeDilation > 0.00 && globalTimeDilation < 1.00 {
+      elapsedTime *= this.CalcCycleTimeDeltaFactor(ShootTransition.GetLeftWeaponCycleTime(scriptInterface), scriptInterface);
+    };
+    cycleTimeRemaining = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyCycleTimeRemaining");
+    cycleTimeRemaining.value -= elapsedTime;
+    stateContext.SetPermanentFloatParameter(n"ValentinosFrenzyCycleTimeRemaining", cycleTimeRemaining.value);
+  }
+
+  protected final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    stateContext.RemovePermanentFloatParameter(n"ValentinosFrenzyCycleTimeRemaining");
+  }
+}
+
+public class ValentinosFrenzyDecisions extends ExitToNextShootDecisionsBase {
+
+  protected const func SmartExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let timeRemaining: StateResultFloat = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining");
+    if !this.CanBeInValentinosFrenzy(stateContext, scriptInterface) {
+      return true;
+    };
+    return timeRemaining.value <= 0.00;
+  }
+}
+
+public class ValentinosFrenzyEvents extends ShootTransition {
+
+  public let m_statMod: ref<gameStatModifierData>;
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.ShootState, 6);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let timeRemaining: StateResultFloat;
+    let globalTimeDilation: Float = GameInstance.GetTimeSystem(scriptInterface.GetGame()).GetActiveTimeDilation();
+    let rightCycleTime: Float = ShootTransition.GetRightWeaponCycleTime(scriptInterface);
+    let leftCycleTime: Float = ShootTransition.GetLeftWeaponCycleTime(scriptInterface);
+    timeDelta *= globalTimeDilation;
+    if globalTimeDilation > 0.00 && globalTimeDilation < 1.00 {
+      timeDelta *= this.CalcCycleTimeDeltaFactor(MinF(rightCycleTime, leftCycleTime), scriptInterface);
+    };
+    timeRemaining = stateContext.GetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining");
+    timeRemaining.value -= timeDelta;
+    stateContext.SetPermanentFloatParameter(n"ValentinosFrenzyTimeRemaining", timeRemaining.value);
+  }
+
+  protected final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    stateContext.RemovePermanentIntParameter(n"LastShotInValentinosFrenzy");
+    AnimationControllerComponent.SetInputFloat(scriptInterface.executionOwner, n"valentinos_frenzy", 0.00);
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.ValentinosFrenzySE");
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.ValentinosFrenzyTripleTequilaStackSE");
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.ValentinosFrenzyMaxStacksSE");
+  }
+}

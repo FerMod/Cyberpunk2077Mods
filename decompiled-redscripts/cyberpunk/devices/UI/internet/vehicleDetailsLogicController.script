@@ -1,0 +1,159 @@
+
+public class VehicleDetailsLogicController extends inkLogicController {
+
+  private edit let m_backButton: inkWidgetRef;
+
+  private edit let m_purchaseButton: inkWidgetRef;
+
+  private edit let m_ownedWidget: inkWidgetRef;
+
+  private edit let m_insufficientMoneyWidget: inkWidgetRef;
+
+  private edit let m_detailsImage: inkImageRef;
+
+  private edit let m_vehicleNameText: inkTextRef;
+
+  private edit let m_detailsText: inkTextRef;
+
+  private edit let m_scrollControllerWidget: inkWidgetRef;
+
+  private edit let m_gunImage: inkImageRef;
+
+  private edit let m_rocketImage: inkImageRef;
+
+  private edit let m_custoImage: inkImageRef;
+
+  private edit let m_priceWrapper: inkWidgetRef;
+
+  private edit let m_priceText: inkTextRef;
+
+  private edit let m_discountWrapper: inkWidgetRef;
+
+  private edit let m_discountText: inkTextRef;
+
+  private edit let m_originalPriceWrapper: inkWidgetRef;
+
+  private edit let m_originalPriceText: inkTextRef;
+
+  private edit let m_discountImageWrapper: inkWidgetRef;
+
+  private edit let m_howToUnlockWrapper: inkWidgetRef;
+
+  private edit let m_howToUnlockText: inkTextRef;
+
+  private let m_offerRecord: wref<VehicleOffer_Record>;
+
+  private let m_price: Int32;
+
+  private let m_discount: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    this.SetUpButtons();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterButtons();
+  }
+
+  public final func SetUp(offerRecord: wref<VehicleOffer_Record>, state: EVehicleOfferState, playerMoney: Int32, opt discount: Float) -> Void {
+    let owned: Bool = Equals(state, EVehicleOfferState.Owned);
+    this.m_offerRecord = offerRecord;
+    let discountApplicable: Bool = this.m_offerRecord.DiscountApplicable();
+    this.m_discount = discountApplicable ? discount : 0.00;
+    let originalPrice: Int32 = this.m_offerRecord.Price().OverrideValue();
+    this.m_price = owned || !discountApplicable ? originalPrice : VehicleShopUtils.GetDiscountedPrice(originalPrice, discount);
+    inkTextRef.SetText(this.m_vehicleNameText, this.m_offerRecord.Name());
+    inkTextRef.SetText(this.m_detailsText, this.m_offerRecord.Description());
+    inkImageRef.SetAtlasResource(this.m_detailsImage, this.m_offerRecord.PreviewImage().AtlasResourcePath());
+    inkImageRef.SetTexturePart(this.m_detailsImage, this.m_offerRecord.PreviewImage().AtlasPartName());
+    inkWidgetRef.SetVisible(this.m_gunImage, this.m_offerRecord.HasMachineGun());
+    inkWidgetRef.SetVisible(this.m_rocketImage, this.m_offerRecord.HasRocketLauncher());
+    inkWidgetRef.SetVisible(this.m_custoImage, this.m_offerRecord.HasCustomization());
+    inkTextRef.SetText(this.m_discountText, FloatToStringPrec(this.m_discount * 100.00, 0));
+    inkTextRef.SetText(this.m_originalPriceText, IntToString(originalPrice));
+    inkTextRef.SetText(this.m_priceText, IntToString(this.m_price));
+    this.SetUpHowToUnlockText(this.m_offerRecord.UnlockType().Type());
+    (inkWidgetRef.GetController(this.m_scrollControllerWidget) as inkScrollController).SetScrollPosition(0.00);
+    this.UpdateState(state, playerMoney);
+  }
+
+  public final func UpdateState(state: EVehicleOfferState, playerMoney: Int32) -> Void {
+    inkWidgetRef.SetVisible(this.m_priceWrapper, NotEquals(state, EVehicleOfferState.Owned) && NotEquals(state, EVehicleOfferState.Locked));
+    inkWidgetRef.SetVisible(this.m_ownedWidget, Equals(state, EVehicleOfferState.Owned));
+    inkWidgetRef.SetVisible(this.m_purchaseButton, NotEquals(state, EVehicleOfferState.Owned) && NotEquals(state, EVehicleOfferState.Locked) && playerMoney >= this.m_price);
+    inkWidgetRef.SetVisible(this.m_insufficientMoneyWidget, NotEquals(state, EVehicleOfferState.Owned) && NotEquals(state, EVehicleOfferState.Locked) && playerMoney < this.m_price);
+    inkWidgetRef.SetVisible(this.m_howToUnlockWrapper, Equals(state, EVehicleOfferState.Locked));
+    inkWidgetRef.Get(this.m_detailsImage).SetEffectEnabled(inkEffectType.ColorCorrection, n"ColorCorrection_0", Equals(state, EVehicleOfferState.Locked));
+    this.UpdateDiscountVisibility(state);
+  }
+
+  private final func UpdateDiscountVisibility(state: EVehicleOfferState) -> Void {
+    let discountVisible: Bool = NotEquals(state, EVehicleOfferState.Owned) && NotEquals(state, EVehicleOfferState.Locked) && this.m_discount > 0.00;
+    inkWidgetRef.SetVisible(this.m_discountWrapper, discountVisible);
+    inkWidgetRef.SetVisible(this.m_originalPriceWrapper, discountVisible);
+    inkWidgetRef.SetVisible(this.m_discountImageWrapper, discountVisible);
+  }
+
+  private final func SetUpHowToUnlockText(unlockType: gamedataVehicleUnlockType) -> Void {
+    if Equals(unlockType, gamedataVehicleUnlockType.StreetCred) {
+      inkTextRef.SetText(this.m_howToUnlockText, GetLocalizedText("LocKey#94412"));
+    } else {
+      if Equals(unlockType, gamedataVehicleUnlockType.CourierMissions) {
+        inkTextRef.SetText(this.m_howToUnlockText, GetLocalizedText("LocKey#94411"));
+      } else {
+        inkTextRef.SetText(this.m_howToUnlockText, "");
+      };
+    };
+  }
+
+  private final func SetUpButtons() -> Void {
+    inkWidgetRef.RegisterToCallback(this.m_backButton, n"OnRelease", this, n"OnBackClicked");
+    inkWidgetRef.RegisterToCallback(this.m_backButton, n"OnHoverOver", this, n"OnBackHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_backButton, n"OnHoverOut", this, n"OnBackHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_purchaseButton, n"OnRelease", this, n"OnPurchaseClicked");
+    inkWidgetRef.RegisterToCallback(this.m_purchaseButton, n"OnHoverOver", this, n"OnPurchaseHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_purchaseButton, n"OnHoverOut", this, n"OnPurchaseHoverOut");
+  }
+
+  private final func UnregisterButtons() -> Void {
+    inkWidgetRef.UnregisterFromCallback(this.m_backButton, n"OnRelease", this, n"OnBackClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_backButton, n"OnHoverOver", this, n"OnBackHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_backButton, n"OnHoverOut", this, n"OnBackHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_purchaseButton, n"OnRelease", this, n"OnPurchaseClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_purchaseButton, n"OnHoverOver", this, n"OnPurchaseHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_purchaseButton, n"OnHoverOut", this, n"OnPurchaseHoverOut");
+  }
+
+  protected cb func OnBackClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let backEvt: ref<VehicleShopBackEvent>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      backEvt = new VehicleShopBackEvent();
+      this.QueueEvent(backEvt);
+    };
+  }
+
+  protected cb func OnBackHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_backButton, n"Hover");
+  }
+
+  protected cb func OnBackHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_backButton, n"Default");
+  }
+
+  protected cb func OnPurchaseClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let purchaseEvt: ref<VehicleShopPurchaseEvent>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      purchaseEvt = new VehicleShopPurchaseEvent();
+      purchaseEvt.m_offerRecord = this.m_offerRecord;
+      this.QueueEvent(purchaseEvt);
+    };
+  }
+
+  protected cb func OnPurchaseHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_purchaseButton, n"Hover");
+  }
+
+  protected cb func OnPurchaseHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_purchaseButton, n"Default");
+  }
+}

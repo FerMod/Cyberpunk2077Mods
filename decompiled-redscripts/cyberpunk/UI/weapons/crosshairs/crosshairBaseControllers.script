@@ -1,0 +1,477 @@
+
+public native class gameuiCrosshairBaseGameController extends inkGameController {
+
+  protected let m_rootWidget: wref<inkWidget>;
+
+  protected let m_psmBlackboard: wref<IBlackboard>;
+
+  protected let m_targetBB: wref<IBlackboard>;
+
+  protected let m_weaponBB: wref<IBlackboard>;
+
+  protected let m_targetEntity: wref<Entity>;
+
+  protected let m_raycastTargetEntity: wref<Entity>;
+
+  protected let m_playerPuppet: wref<GameObject>;
+
+  private let m_crosshairState: gamePSMCrosshairStates;
+
+  private let m_visionState: gamePSMVision;
+
+  private let m_crosshairStateBlackboardId: ref<CallbackHandle>;
+
+  private let m_bulletSpreedBlackboardId: ref<CallbackHandle>;
+
+  private let m_isTargetDead: Bool;
+
+  private let m_lastGUIStateUpdateFrame: Uint64;
+
+  private let m_currentAimTargetBBID: ref<CallbackHandle>;
+
+  private let m_currentRaycastTargetBBID: ref<CallbackHandle>;
+
+  private let m_targetDistanceBBID: ref<CallbackHandle>;
+
+  private let m_targetAttitudeBBID: ref<CallbackHandle>;
+
+  private let m_healthListener: ref<CrosshairHealthChangeListener>;
+
+  private native let isActive: Bool;
+
+  protected edit let m_deadEyeWidget: inkWidgetRef;
+
+  protected let m_deadEyeAnimProxy: ref<inkAnimProxy>;
+
+  @default(gameuiCrosshairBaseGameController, false)
+  protected let m_hasDeadEye: Bool;
+
+  @default(gameuiCrosshairBaseGameController, false)
+  protected let m_isCamoActiveOnPlayer: Bool;
+
+  private let m_staminaChangedCallback: ref<CallbackHandle>;
+
+  private let m_staminaListener: ref<CrosshairStaminaListener>;
+
+  private let m_opticalCamoListener: ref<OpticalCamoListener>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    if !this.IsActive() {
+      this.m_rootWidget.SetOpacity(0.00);
+    };
+    this.m_crosshairState = gamePSMCrosshairStates.Default;
+    this.m_healthListener = CrosshairHealthChangeListener.Create(this);
+    inkWidgetRef.SetVisible(this.m_deadEyeWidget, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if IsDefined(this.m_targetEntity) {
+      GameInstance.GetStatPoolsSystem(this.GetGame()).RequestUnregisteringListener(Cast<StatsObjectID>(this.m_targetEntity.GetEntityID()), gamedataStatPoolType.Health, this.m_healthListener);
+    };
+    this.m_healthListener = null;
+    this.isActive = false;
+  }
+
+  protected final func IsActive() -> Bool {
+    return this.isActive;
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_psmBlackboard = this.GetPSMBlackboard(playerPuppet);
+    this.m_crosshairStateBlackboardId = this.m_psmBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Crosshair, this, n"OnPSMCrosshairStateChanged");
+    this.OnPSMCrosshairStateChanged(this.m_psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Crosshair));
+    this.m_playerPuppet = playerPuppet;
+    if inkWidgetRef.IsValid(this.m_deadEyeWidget) {
+      this.m_staminaListener = CrosshairStaminaListener.Create(this);
+      GameInstance.GetStatPoolsSystem(this.GetGame()).RequestRegisteringListener(Cast<StatsObjectID>(playerPuppet.GetEntityID()), gamedataStatPoolType.Stamina, this.m_staminaListener);
+    };
+    this.m_opticalCamoListener = OpticalCamoListener.Create(this);
+    GameInstance.GetStatusEffectSystem(this.GetGame()).RegisterListener(playerPuppet.GetEntityID(), this.m_opticalCamoListener);
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    if IsDefined(this.m_crosshairStateBlackboardId) {
+      this.m_psmBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().PlayerStateMachine.Crosshair, this.m_crosshairStateBlackboardId);
+    };
+    if IsDefined(this.m_staminaListener) {
+      GameInstance.GetStatPoolsSystem(this.GetGame()).RequestUnregisteringListener(Cast<StatsObjectID>(playerPuppet.GetEntityID()), gamedataStatPoolType.Stamina, this.m_staminaListener);
+    };
+    if IsDefined(this.m_opticalCamoListener) {
+      this.m_opticalCamoListener = null;
+    };
+  }
+
+  protected cb func OnPreIntro() -> Bool {
+    this.m_targetBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_TargetingInfo);
+    if IsDefined(this.m_targetBB) {
+      this.m_currentAimTargetBBID = this.m_targetBB.RegisterDelayedListenerEntityID(GetAllBlackboardDefs().UI_TargetingInfo.CurrentVisibleTarget, this, n"OnCurrentAimTarget");
+      this.m_currentRaycastTargetBBID = this.m_targetBB.RegisterDelayedListenerEntityID(GetAllBlackboardDefs().UI_TargetingInfo.CrosshairRaycastTarget, this, n"OnCurrentRaycastTarget", true);
+      this.m_targetDistanceBBID = this.m_targetBB.RegisterDelayedListenerFloat(GetAllBlackboardDefs().UI_TargetingInfo.VisibleTargetDistance, this, n"OnTargetDistanceChanged");
+      this.m_targetAttitudeBBID = this.m_targetBB.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_TargetingInfo.VisibleTargetAttitude, this, n"OnTargetAttitudeChanged");
+      this.OnCurrentAimTarget(this.m_targetBB.GetEntityID(GetAllBlackboardDefs().UI_TargetingInfo.CurrentVisibleTarget));
+    };
+    this.m_weaponBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+    if IsDefined(this.m_weaponBB) {
+      this.m_bulletSpreedBlackboardId = this.m_weaponBB.RegisterDelayedListenerVector2(GetAllBlackboardDefs().UI_ActiveWeaponData.BulletSpread, this, n"OnBulletSpreadChanged");
+      this.OnBulletSpreadChanged(this.m_weaponBB.GetVector2(GetAllBlackboardDefs().UI_ActiveWeaponData.BulletSpread));
+    };
+    this.isActive = true;
+    this.UpdateCrosshairState();
+    this.m_hasDeadEye = StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_playerPuppet, n"DeadeyeSE");
+    this.HandleDeadEye();
+  }
+
+  protected cb func OnPreOutro() -> Bool {
+    if IsDefined(this.m_targetBB) {
+      this.m_targetBB.UnregisterDelayedListener(GetAllBlackboardDefs().UI_TargetingInfo.CurrentVisibleTarget, this.m_currentAimTargetBBID);
+      this.m_targetBB.UnregisterDelayedListener(GetAllBlackboardDefs().UI_TargetingInfo.VisibleTargetDistance, this.m_targetDistanceBBID);
+      this.m_targetBB.UnregisterDelayedListener(GetAllBlackboardDefs().UI_TargetingInfo.VisibleTargetAttitude, this.m_targetAttitudeBBID);
+    };
+    if IsDefined(this.m_weaponBB) {
+      this.m_weaponBB.UnregisterDelayedListener(GetAllBlackboardDefs().UI_ActiveWeaponData.BulletSpread, this.m_bulletSpreedBlackboardId);
+    };
+    this.m_targetBB = null;
+    this.m_weaponBB = null;
+    this.m_targetEntity = null;
+    this.isActive = false;
+  }
+
+  protected final func IsDualWielding() -> Bool {
+    return GameObject.IsDualWielding(this.m_playerPuppet);
+  }
+
+  protected final native func GetWeaponRecordID() -> ItemID;
+
+  protected final native func GetWeaponLocalBlackboard() -> ref<IBlackboard>;
+
+  protected final native func GetWeaponItemObject() -> ref<ItemObject>;
+
+  protected final func GetUIActiveWeaponBlackboard() -> ref<IBlackboard> {
+    return this.m_weaponBB;
+  }
+
+  protected final native func IsTargetWithinWeaponEffectiveRange(distanceToTarget: Float) -> Bool;
+
+  public func GetIntroAnimation(firstEquip: Bool) -> ref<inkAnimProxy> {
+    return null;
+  }
+
+  public func GetOutroAnimation() -> ref<inkAnimProxy> {
+    return null;
+  }
+
+  protected func GetCrosshairState() -> gamePSMCrosshairStates {
+    return this.m_crosshairState;
+  }
+
+  protected final func GetVisionState() -> gamePSMVision {
+    return this.m_visionState;
+  }
+
+  protected cb func OnNPCStatsChanged(value: Variant) -> Bool {
+    let incomingData: NPCNextToTheCrosshair = FromVariant<NPCNextToTheCrosshair>(value);
+    this.m_isTargetDead = incomingData.currentHealth < 1;
+  }
+
+  protected cb func OnPSMCrosshairStateChanged(value: Int32) -> Bool {
+    let oldState: gamePSMCrosshairStates = this.m_crosshairState;
+    let newState: gamePSMCrosshairStates = IntEnum<gamePSMCrosshairStates>(value);
+    if NotEquals(oldState, newState) {
+      this.m_crosshairState = newState;
+      this.OnCrosshairStateChange(oldState, newState);
+    };
+  }
+
+  protected func OnCrosshairStateChange(oldState: gamePSMCrosshairStates, newState: gamePSMCrosshairStates) -> Void {
+    this.UpdateCrosshairState();
+  }
+
+  protected final func UpdateCrosshairState() -> Void {
+    if this.IsActive() {
+      switch this.m_crosshairState {
+        case gamePSMCrosshairStates.Safe:
+          this.OnState_Safe();
+          break;
+        case gamePSMCrosshairStates.Scanning:
+          this.OnState_Scanning();
+          break;
+        case gamePSMCrosshairStates.GrenadeCharging:
+          this.OnState_GrenadeCharging();
+          break;
+        case gamePSMCrosshairStates.HipFire:
+          this.OnState_HipFire();
+          break;
+        case gamePSMCrosshairStates.Aim:
+          if !this.m_isCamoActiveOnPlayer && !this.m_psmBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP) && !this.IsDualWielding() {
+            this.OnState_Aim();
+          };
+          break;
+        case gamePSMCrosshairStates.Reload:
+          this.OnState_Reload();
+          break;
+        case gamePSMCrosshairStates.ReloadDriverCombatMountedWeapons:
+          this.OnState_ReloadDriverCombatMountedWeapons();
+          break;
+        case gamePSMCrosshairStates.Sprint:
+          this.OnState_Sprint();
+          break;
+        case gamePSMCrosshairStates.LeftHandCyberware:
+          this.OnState_LeftHandCyberware();
+      };
+    };
+  }
+
+  protected cb func OnBulletSpreadChanged(spread: Vector2) -> Bool {
+    this.HandleDeadEye();
+  }
+
+  protected func OnState_Aim() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_HipFire() -> Void {
+    this.m_rootWidget.SetVisible(true);
+  }
+
+  protected func OnState_GrenadeCharging() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_Reload() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_ReloadDriverCombatMountedWeapons() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_Safe() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_Sprint() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_Scanning() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  protected func OnState_LeftHandCyberware() -> Void {
+    this.m_rootWidget.SetVisible(false);
+  }
+
+  public final func UpdateTPPDriverCombatCrosshair(value: Bool) -> Void {
+    if Equals(this.m_crosshairState, gamePSMCrosshairStates.Aim) {
+      if value {
+        this.OnState_HipFire();
+      } else {
+        this.OnState_Aim();
+      };
+    };
+  }
+
+  protected func ApplyCrosshairGUIState(state: CName, aimedAtEntity: ref<Entity>) -> Void;
+
+  protected final func GetGame() -> GameInstance {
+    return (this.GetOwnerEntity() as GameObject).GetGame();
+  }
+
+  protected final func UpdateCrosshairGUIState(force: Bool) -> Void {
+    let currentFrameNumber: Uint64 = GameInstance.GetFrameNumber(this.GetGame());
+    if !force && this.m_lastGUIStateUpdateFrame == currentFrameNumber {
+      return;
+    };
+    this.ApplyCrosshairGUIState(this.GetCurrentCrosshairGUIState(), this.m_targetEntity);
+    this.m_lastGUIStateUpdateFrame = currentFrameNumber;
+  }
+
+  protected final func GetCurrentCrosshairGUIState() -> CName {
+    let attitudeTowardsPlayer: EAIAttitude;
+    let device: ref<Device>;
+    let distanceToTarget: Float;
+    let puppet: ref<ScriptedPuppet>;
+    let targetGameObject: ref<GameObject> = this.m_targetEntity as GameObject;
+    if !IsDefined(targetGameObject) {
+      return n"Civilian";
+    };
+    puppet = targetGameObject as ScriptedPuppet;
+    device = targetGameObject as Device;
+    attitudeTowardsPlayer = GameObject.GetAttitudeTowards(targetGameObject, this.GetOwnerEntity() as GameObject);
+    if IsDefined(puppet) && puppet.IsDead() || IsDefined(device) && device.GetDevicePS().IsBroken() {
+      return n"Dead";
+    };
+    if IsDefined(device) && !device.GetDevicePS().IsON() {
+      return n"Civilian";
+    };
+    if Equals(attitudeTowardsPlayer, EAIAttitude.AIA_Friendly) {
+      return n"Friendly";
+    };
+    if Equals(attitudeTowardsPlayer, EAIAttitude.AIA_Hostile) || IsDefined(puppet) && puppet.IsAggressive() || IsDefined(device) && Equals(device.DeterminGameplayRole(), EGameplayRole.ExplodeLethal) {
+      if this.m_targetEntity == this.m_raycastTargetEntity {
+        distanceToTarget = this.GetDistanceToTarget();
+        if this.IsTargetWithinWeaponEffectiveRange(distanceToTarget) {
+          return n"Hostile";
+        };
+      };
+    };
+    return n"Civilian";
+  }
+
+  protected final func RegisterTargetCallbacks(register: Bool) -> Void {
+    if !IsDefined(this.m_targetEntity) || !IsDefined(this.m_healthListener) {
+      return;
+    };
+    if register {
+      GameInstance.GetStatPoolsSystem(this.GetGame()).RequestRegisteringListener(Cast<StatsObjectID>(this.m_targetEntity.GetEntityID()), gamedataStatPoolType.Health, this.m_healthListener);
+    } else {
+      GameInstance.GetStatPoolsSystem(this.GetGame()).RequestUnregisteringListener(Cast<StatsObjectID>(this.m_targetEntity.GetEntityID()), gamedataStatPoolType.Health, this.m_healthListener);
+    };
+  }
+
+  protected cb func OnCurrentAimTarget(entId: EntityID) -> Bool {
+    this.RegisterTargetCallbacks(false);
+    this.m_targetEntity = GameInstance.FindEntityByID(this.GetGame(), entId);
+    this.RegisterTargetCallbacks(true);
+    this.UpdateCrosshairGUIState(true);
+  }
+
+  protected cb func OnCurrentRaycastTarget(id: EntityID) -> Bool {
+    this.m_raycastTargetEntity = GameInstance.FindEntityByID(this.GetGame(), id);
+    this.UpdateCrosshairGUIState(true);
+  }
+
+  protected cb func OnTargetDistanceChanged(distance: Float) -> Bool {
+    this.UpdateCrosshairGUIState(false);
+  }
+
+  protected cb func OnTargetAttitudeChanged(attitude: Int32) -> Bool {
+    this.UpdateCrosshairGUIState(false);
+  }
+
+  protected cb func OnRefreshCrosshairEvent(evt: ref<RefreshCrosshairEvent>) -> Bool {
+    this.UpdateCrosshairGUIState(evt.force);
+  }
+
+  public final func QueueCrosshairRefresh() -> Void {
+    let evt: ref<RefreshCrosshairEvent> = new RefreshCrosshairEvent();
+    evt.force = false;
+    this.QueueEvent(evt);
+  }
+
+  protected func GetDistanceToTarget() -> Float {
+    let distance: Float = 0.00;
+    let targetID: EntityID = this.m_targetBB.GetEntityID(GetAllBlackboardDefs().UI_TargetingInfo.CurrentVisibleTarget);
+    if EntityID.IsDefined(targetID) {
+      distance = this.m_targetBB.GetFloat(GetAllBlackboardDefs().UI_TargetingInfo.VisibleTargetDistance);
+    };
+    return distance;
+  }
+
+  public func HandleDeadEye() -> Void {
+    let animOptions: inkAnimOptions;
+    let newHasDeadEye: Bool = StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_playerPuppet, n"DeadeyeSE");
+    if Equals(this.m_hasDeadEye, newHasDeadEye) || !inkWidgetRef.IsValid(this.m_deadEyeWidget) {
+      return;
+    };
+    this.m_hasDeadEye = newHasDeadEye;
+    if this.m_deadEyeAnimProxy.IsPlaying() {
+      this.m_deadEyeAnimProxy.Stop();
+    };
+    if !this.m_hasDeadEye {
+      animOptions.customTimeDilation = 2.00;
+      animOptions.applyCustomTimeDilation = true;
+      animOptions.playReversed = true;
+      this.m_deadEyeAnimProxy = this.PlayLibraryAnimation(n"intro_deadeye", animOptions);
+      if IsDefined(this.m_deadEyeAnimProxy) && this.m_deadEyeAnimProxy.IsValid() && this.m_deadEyeAnimProxy.IsPlaying() {
+        this.m_deadEyeAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnDeadEyeAnimFinished");
+      } else {
+        inkWidgetRef.SetVisible(this.m_deadEyeWidget, false);
+      };
+    } else {
+      animOptions.customTimeDilation = 1.50;
+      animOptions.applyCustomTimeDilation = true;
+      animOptions.playReversed = false;
+      inkWidgetRef.SetVisible(this.m_deadEyeWidget, true);
+      this.m_deadEyeAnimProxy = this.PlayLibraryAnimation(n"intro_deadeye", animOptions);
+    };
+  }
+
+  protected cb func OnDeadEyeAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_deadEyeWidget, false);
+  }
+
+  public final func SetCamoActiveOnPlayer(value: Bool) -> Void {
+    this.m_isCamoActiveOnPlayer = value;
+    if this.IsActive() && Equals(this.m_crosshairState, gamePSMCrosshairStates.Aim) {
+      if this.m_isCamoActiveOnPlayer {
+        this.OnState_HipFire();
+      } else {
+        if !this.IsDualWielding() {
+          this.OnState_Aim();
+        };
+      };
+    };
+  }
+}
+
+public class gameuiCrosshairBaseMelee extends gameuiCrosshairBaseGameController {
+
+  private let m_meleeStateBlackboardId: ref<CallbackHandle>;
+
+  protected cb func OnPreIntro() -> Bool {
+    this.m_meleeStateBlackboardId = this.m_psmBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().PlayerStateMachine.MeleeWeapon, this, n"OnGamePSMMeleeWeapon");
+    super.OnPreIntro();
+  }
+
+  protected cb func OnPreOutro() -> Bool {
+    this.m_psmBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().PlayerStateMachine.MeleeWeapon, this.m_meleeStateBlackboardId);
+    super.OnPreOutro();
+  }
+
+  protected cb func OnGamePSMMeleeWeapon(value: Int32) -> Bool {
+    let newState: gamePSMMeleeWeapon = IntEnum<gamePSMMeleeWeapon>(value);
+    this.OnMeleeState_Update(newState);
+  }
+
+  protected func OnMeleeState_Update(value: gamePSMMeleeWeapon) -> Void;
+}
+
+public class CrosshairStaminaListener extends CustomValueStatPoolsListener {
+
+  private let m_controller: wref<gameuiCrosshairBaseGameController>;
+
+  public final static func Create(controlller: wref<gameuiCrosshairBaseGameController>) -> ref<CrosshairStaminaListener> {
+    let instance: ref<CrosshairStaminaListener> = new CrosshairStaminaListener();
+    instance.m_controller = controlller;
+    return instance;
+  }
+
+  public func OnStatPoolValueChanged(oldValue: Float, newValue: Float, percToPoints: Float) -> Void {
+    this.m_controller.HandleDeadEye();
+  }
+}
+
+public class OpticalCamoListener extends ScriptStatusEffectListener {
+
+  private let m_controller: wref<gameuiCrosshairBaseGameController>;
+
+  public final static func Create(controlller: wref<gameuiCrosshairBaseGameController>) -> ref<OpticalCamoListener> {
+    let instance: ref<OpticalCamoListener> = new OpticalCamoListener();
+    instance.m_controller = controlller;
+    return instance;
+  }
+
+  public func OnStatusEffectApplied(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if statusEffect.GameplayTagsContains(n"CamoActiveOnPlayer") {
+      this.m_controller.SetCamoActiveOnPlayer(true);
+    };
+  }
+
+  public func OnStatusEffectRemoved(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if statusEffect.GameplayTagsContains(n"CamoActiveOnPlayer") {
+      this.m_controller.SetCamoActiveOnPlayer(false);
+    };
+  }
+}

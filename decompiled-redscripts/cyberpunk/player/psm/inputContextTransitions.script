@@ -1,0 +1,2493 @@
+
+public static func SetValue_DodgeStatRestriction(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.DodgeStatRestriction, value);
+}
+
+public static func SetValue_MeleeWeaponRestrictedForPatterns(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.MeleeWeaponRestrictedForPatterns, value);
+}
+
+public static func SetValue_ActivateGyroAimingForRangedWeapons(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForRangedWeapons, value);
+}
+
+public static func SetValue_ActivateGyroAimingForAiming(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ActivateGyroAimingForAiming, value);
+}
+
+public static func SetValue_NonThrowableWeaponRestriction(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.NonThrowableWeaponRestriction, value);
+}
+
+public static func SetValue_ThrowableWeaponRestriction(value: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  let gyroBlackboard: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+  gyroBlackboard.SetBool(GetAllBlackboardDefs().GyroRestrictions.ThrowableWeaponRestriction, value);
+}
+
+public static func ResetGyroAndPatternRestrictions(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+  SetValue_DodgeStatRestriction(true, scriptInterface);
+  SetValue_MeleeWeaponRestrictedForPatterns(true, scriptInterface);
+  SetValue_ActivateGyroAimingForRangedWeapons(false, scriptInterface);
+  SetValue_ActivateGyroAimingForAiming(false, scriptInterface);
+}
+
+public abstract class InputContextTransition extends DefaultTransition {
+
+  private final const func GetVehicle(const scriptInterface: ref<StateGameScriptInterface>, out vehicle: wref<VehicleObject>) -> Bool {
+    let player: wref<GameObject> = scriptInterface.owner;
+    let vehicleID: EntityID = scriptInterface.localBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    if VehicleComponent.GetVehicleFromID(player.GetGame(), vehicleID, vehicle) {
+      return true;
+    };
+    if VehicleComponent.GetVehicle(player.GetGame(), player.GetEntityID(), vehicle) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func IsVehicleRemoteControlled(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicle: wref<VehicleObject>;
+    if this.GetVehicle(scriptInterface, vehicle) {
+      return vehicle.IsVehicleRemoteControlled();
+    };
+    return false;
+  }
+
+  protected final const func ToggleVehicleRemoteControlCamera(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicle: wref<VehicleObject>;
+    if this.GetVehicle(scriptInterface, vehicle) && vehicle.IsVehicleRemoteControlled() {
+      vehicle.ToggleVehicleRemoteControlCamera();
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func SetVehicleRemoteControlled(const scriptInterface: ref<StateGameScriptInterface>, enable: Bool) -> Bool {
+    let vehicle: wref<VehicleObject>;
+    if this.GetVehicle(scriptInterface, vehicle) && (!enable || vehicle.IsHackable()) {
+      vehicle.SetVehicleRemoteControlled(enable, false, true);
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func GetDriverCombatType(const stateContext: ref<StateContext>) -> gamedataDriverCombatType {
+    let driverCombatType: StateResultInt = stateContext.GetPermanentIntParameter(n"driverCombatType");
+    if driverCombatType.valid {
+      return IntEnum<gamedataDriverCombatType>(driverCombatType.value);
+    };
+    return gamedataDriverCombatType.Invalid;
+  }
+
+  protected final const func GetUIBlackboard(scriptInterface: ref<StateGameScriptInterface>) -> ref<IBlackboard> {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    return blackboard;
+  }
+}
+
+public abstract class InputContextTransitionDecisions extends InputContextTransition {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+
+  protected const func ToGameplayContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsOnEnterConditionEnabled() || !this.EnterCondition(stateContext, scriptInterface);
+  }
+
+  protected const func ToBaseContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsOnEnterConditionEnabled() || !this.EnterCondition(stateContext, scriptInterface);
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.IsOnEnterConditionEnabled() || !this.EnterCondition(stateContext, scriptInterface);
+  }
+}
+
+public abstract class InputContextTransitionEvents extends InputContextTransition {
+
+  public let m_gameplaySettings: wref<GameplaySettingsSystem>;
+
+  public let m_onInputSchemeUpdatedCallback: ref<CallbackHandle>;
+
+  public let m_OnInputHintManagerInitializedChangedCallback: ref<CallbackHandle>;
+
+  public let m_onInputSchemeChanged: Bool;
+
+  protected let m_hasControllerChanged: Bool;
+
+  protected let m_hasControllerSchemeChanged: Bool;
+
+  public let m_isGameplayInputHintManagerInitialized: Bool;
+
+  public let m_isGameplayInputHintRefreshRequired: Bool;
+
+  protected func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let inputSchemesBB: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().InputSchemes);
+    if IsDefined(inputSchemesBB) {
+      this.m_onInputSchemeUpdatedCallback = inputSchemesBB.RegisterListenerUint(GetAllBlackboardDefs().InputSchemes.Scheme, this, n"OnInputSchemeUpdated");
+      this.m_OnInputHintManagerInitializedChangedCallback = inputSchemesBB.RegisterListenerVariant(GetAllBlackboardDefs().InputSchemes.InitializedInputHintManagerList, this, n"OnInputHintManagerInitializedChanged");
+    };
+    this.m_gameplaySettings = GameplaySettingsSystem.GetGameplaySettingsSystemInstance(scriptInterface.executionOwner);
+  }
+
+  protected func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let inputSchemesBB: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().InputSchemes);
+    if IsDefined(this.m_onInputSchemeUpdatedCallback) {
+      inputSchemesBB.UnregisterListenerUint(GetAllBlackboardDefs().InputSchemes.Scheme, this.m_onInputSchemeUpdatedCallback);
+    };
+    if IsDefined(this.m_OnInputHintManagerInitializedChangedCallback) {
+      inputSchemesBB.UnregisterListenerVariant(GetAllBlackboardDefs().InputSchemes.InitializedInputHintManagerList, this.m_OnInputHintManagerInitializedChangedCallback);
+    };
+  }
+
+  protected cb func OnInputSchemeUpdated(value: Uint32) -> Bool {
+    this.m_onInputSchemeChanged = true;
+  }
+
+  protected final func OnInputHintManagerInitializedChanged(value: Variant) -> Void {
+    let isGameplayInputHintManagerInitialized: Bool;
+    let currentInitializedInputHintManagerList: array<CName> = FromVariant<array<CName>>(value);
+    let i: Int32 = 0;
+    while i < ArraySize(currentInitializedInputHintManagerList) {
+      if Equals(currentInitializedInputHintManagerList[i], n"GameplayInputHelper") {
+        isGameplayInputHintManagerInitialized = true;
+        break;
+      };
+      i += 1;
+    };
+    this.m_isGameplayInputHintRefreshRequired = NotEquals(this.m_isGameplayInputHintManagerInitialized, isGameplayInputHintManagerInitialized) && !this.m_isGameplayInputHintManagerInitialized;
+    this.m_isGameplayInputHintManagerInitialized = isGameplayInputHintManagerInitialized;
+  }
+
+  protected final func UpdateGyroAimingContexts(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isExaminingDevice: Bool = this.IsExaminingDevice(scriptInterface) || DefaultTransition.IsInteractingWithTerminal(scriptInterface);
+    let isDeviceControlled: Bool = scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled();
+    let inEquipState: Bool = this.IsRightHandInEquippedState(stateContext) || DefaultTransition.IsRightHandInEquippingState(stateContext) || this.IsInFirstEquip(stateContext);
+    let rightHandWeapon: wref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let isRangedWeaponEquipped: Bool = inEquipState && rightHandWeapon.IsRanged();
+    let isMeleeWeaponEquipped: Bool = inEquipState && !isRangedWeaponEquipped && rightHandWeapon.IsMelee();
+    let isAiming: Bool = stateContext.IsStateActive(n"UpperBody", n"aimingState");
+    let isChargingGrenade: Bool = Equals(stateContext.GetStateMachineCurrentState(n"CombatGadget"), n"combatGadgetCharge");
+    let isThrowableWeapon: Bool = rightHandWeapon.IsThrowable();
+    let isVehicleDriverCombat: Bool = Equals(IntEnum<gamePSMVehicle>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle)), gamePSMVehicle.DriverCombat);
+    let isVehicleMountedWeaponType: Bool = Equals(this.GetDriverCombatType(stateContext), gamedataDriverCombatType.MountedWeapons);
+    let leftHandCharge: Bool = Equals(IntEnum<gamePSMLeftHandCyberware>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.LeftHandCyberware)), gamePSMLeftHandCyberware.Charge);
+    let canThrowCarriedNPC: Bool = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.CanThrowCarriedNPC);
+    let gyroBB: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().GyroRestrictions);
+    let isSettingsPatternMatchingMeleeEnabled: Bool = gyroBB.GetBool(GetAllBlackboardDefs().GyroRestrictions.SettingsPatternMatchingMeleeEnabled);
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    if isExaminingDevice || isDeviceControlled {
+      return;
+    };
+    SetValue_DodgeStatRestriction(!scriptInterface.HasStatFlag(gamedataStatType.HasDodge), scriptInterface);
+    if isMeleeWeaponEquipped {
+      SetValue_MeleeWeaponRestrictedForPatterns(false, scriptInterface);
+    };
+    SetValue_NonThrowableWeaponRestriction(isThrowableWeapon, scriptInterface);
+    SetValue_ThrowableWeaponRestriction(!isThrowableWeapon, scriptInterface);
+    if isRangedWeaponEquipped {
+      SetValue_ActivateGyroAimingForRangedWeapons(true, scriptInterface);
+      if isAiming {
+        SetValue_ActivateGyroAimingForAiming(true, scriptInterface);
+      };
+    } else {
+      if !isSettingsPatternMatchingMeleeEnabled && isMeleeWeaponEquipped && isThrowableWeapon && isAiming {
+        SetValue_ActivateGyroAimingForRangedWeapons(true, scriptInterface);
+        SetValue_ActivateGyroAimingForAiming(true, scriptInterface);
+      } else {
+        if isVehicleDriverCombat && isVehicleMountedWeaponType {
+          SetValue_ActivateGyroAimingForRangedWeapons(true, scriptInterface);
+        };
+      };
+    };
+    if isChargingGrenade || leftHandCharge || canThrowCarriedNPC {
+      SetValue_ActivateGyroAimingForRangedWeapons(true, scriptInterface);
+      SetValue_ActivateGyroAimingForAiming(true, scriptInterface);
+    };
+  }
+
+  protected final const func ShouldForceRefreshInputHints(const stateContext: ref<StateContext>) -> Bool {
+    let shouldForceRefreshInputHints: StateResultBool = stateContext.GetTemporaryBoolParameter(n"ForceRefreshInputHints");
+    return this.m_isGameplayInputHintRefreshRequired || shouldForceRefreshInputHints.valid && shouldForceRefreshInputHints.value;
+  }
+
+  protected final const func ShowBodyCarryInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let psmBodyCarrying: gamePSMBodyCarrying = IntEnum<gamePSMBodyCarrying>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.BodyCarrying));
+    if scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.CanThrowCarriedNPC) {
+      this.ShowInputHint(scriptInterface, n"ThrowNPC", n"BodyCarry", "LocKey#17844", inkInputHintHoldIndicationType.Press);
+      stateContext.SetPermanentBoolParameter(n"isThrowCarriedNPCInputHintDisplayed", true, true);
+    };
+    if Equals(psmBodyCarrying, gamePSMBodyCarrying.Carry) {
+      if scriptInterface.executionOwner.PlayerLastUsedPad() {
+        if scriptInterface.HasStatFlag(gamedataStatType.CanShootWhileCarryingBody) {
+          this.ShowInputHint(scriptInterface, n"DropCarriedObject", n"BodyCarry", "LocKey#43673", inkInputHintHoldIndicationType.FromInputConfig, true);
+        } else {
+          this.ShowInputHint(scriptInterface, n"DropCarriedObject", n"BodyCarry", "LocKey#43673");
+        };
+      } else {
+        this.ShowInputHint(scriptInterface, n"DropCarriedObject", n"BodyCarry", "LocKey#43673", inkInputHintHoldIndicationType.Press);
+      };
+    };
+    stateContext.SetPermanentBoolParameter(n"isBodyCarryInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveBodyCarryInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"BodyCarry");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isThrowCarriedNPCInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isBodyCarryInputHintDisplayed");
+  }
+
+  protected final const func ShowLadderInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"ToggleSprint", n"Ladder", "LocKey#36200");
+    this.ShowInputHint(scriptInterface, n"Jump", n"Ladder", "LocKey#36201");
+    this.ShowInputHint(scriptInterface, n"ToggleCrouch", n"Ladder", "LocKey#36204");
+    stateContext.SetPermanentBoolParameter(n"isLadderInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveLadderInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Ladder");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isLadderInputHintDisplayed");
+  }
+
+  protected final const func ShowTerminalInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"Choice1", n"Terminal", "LocKey#49422");
+    stateContext.SetPermanentBoolParameter(n"isTerminalInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveTerminalInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Terminal");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isTerminalInputHintDisplayed");
+  }
+
+  protected final const func ShowGenericExplorationInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if Equals(stateContext.GetStateMachineCurrentState(n"CombatGadget"), n"combatGadgetCharge") {
+      this.ShowInputHint(scriptInterface, n"CancelChargingCG", n"Locomotion", "LocKey#49906");
+    } else {
+      if !this.IsEmptyHandsForced(stateContext, scriptInterface) {
+        this.ShowInputHint(scriptInterface, n"SwitchItem", n"Locomotion", "LocKey#45381");
+      };
+    };
+    this.ShowCrouchInputHint(stateContext, scriptInterface, n"Locomotion");
+    stateContext.SetPermanentBoolParameter(n"isLocomotionInputHintDisplayed", true, true);
+  }
+
+  protected final func RemoveGenericExplorationInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Locomotion");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isCrouchInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isLocomotionInputHintDisplayed");
+  }
+
+  protected final const func ShowMeleeInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let weapon: ref<WeaponObject> = GameObject.GetActiveWeapon(GameInstance.GetPlayerSystem(scriptInterface.GetGame()).GetLocalPlayerMainGameObject());
+    let isThrowable: Bool = weapon.IsThrowable();
+    let isAiming: Bool = stateContext.IsStateActive(n"UpperBody", n"aimingState");
+    this.ShowInputHint(scriptInterface, n"MeleeAttack", n"Melee", isThrowable && isAiming ? "LocKey#17844" : "LocKey#40351", inkInputHintHoldIndicationType.Press, false, 1);
+    this.ShowInputHint(scriptInterface, n"MeleeBlock", n"Melee", isThrowable ? "LocKey#45379" : "LocKey#36191", inkInputHintHoldIndicationType.Press, true, 2);
+    this.ShowDodgeInputHint(stateContext, scriptInterface, n"Melee");
+    if !stateContext.GetBoolParameter(n"isCrouchInputHintDisplayed", true) && NotEquals(IntEnum<gamePSMCombat>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat)), gamePSMCombat.InCombat) {
+      this.ShowCrouchInputHint(stateContext, scriptInterface, n"Melee");
+    };
+    stateContext.SetPermanentBoolParameter(n"isMeleeInputHintDisplayed", true, true);
+    stateContext.SetPermanentBoolParameter(n"isThrowInputHintDisplayed", isThrowable && isAiming, true);
+  }
+
+  protected final func RemoveMeleeInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Melee");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isMeleeInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isThrowInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isCrouchInputHintDisplayed");
+  }
+
+  protected final const func ShowRangedInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isChargeInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isChargeInputHintDisplayed", true);
+    let isChargeRangedWeapon: Bool = DefaultTransition.IsChargeRangedWeapon(scriptInterface);
+    if !isChargeInputHintDisplayed && isChargeRangedWeapon {
+      this.ShowInputHint(scriptInterface, n"RangedAttack", n"Ranged", "LocKey#47919", inkInputHintHoldIndicationType.FromInputConfig, true, 0);
+      stateContext.SetPermanentBoolParameter(n"isChargeInputHintDisplayed", true, true);
+    };
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoQuickMelee") {
+      if this.ShouldShowValentinosFrenzyInputHint(scriptInterface) {
+        if !stateContext.GetBoolParameter(n"isValentinosFrenzyInputHintDisplayed", true) {
+          this.ShowInputHint(scriptInterface, n"QuickMelee", n"Ranged", "LocKey#98233", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+          stateContext.SetPermanentBoolParameter(n"isValentinosFrenzyInputHintDisplayed", true, true);
+        };
+      } else {
+        if !stateContext.GetBoolParameter(n"isQuickMeleeInputHintDisplayed", true) {
+          this.ShowInputHint(scriptInterface, n"QuickMelee", n"Ranged", "LocKey#45380", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+          stateContext.SetPermanentBoolParameter(n"isQuickMeleeInputHintDisplayed", true, true);
+        };
+      };
+    };
+    if !stateContext.GetBoolParameter(n"isRangedInputHintDisplayed", true) {
+      this.ShowInputHint(scriptInterface, n"Reload", n"Ranged", "LocKey#36198", inkInputHintHoldIndicationType.FromInputConfig, true, 2);
+      stateContext.SetPermanentBoolParameter(n"isRangedInputHintDisplayed", true, true);
+    };
+    stateContext.SetPermanentBoolParameter(n"isDualWieldInputHintDisplayed", DefaultTransition.GetLeftActiveWeapon(scriptInterface).IsRanged(), true);
+    if !stateContext.GetBoolParameter(n"isRangedDodgeInputHintDisplayed", true) && scriptInterface.HasStatFlag(gamedataStatType.HasDodge) && !stateContext.IsStateActive(n"UpperBody", n"aimingState") || scriptInterface.HasStatFlag(gamedataStatType.CanAimWhileDodging) {
+      this.ShowDodgeInputHint(stateContext, scriptInterface, n"Ranged");
+      stateContext.SetPermanentBoolParameter(n"isRangedDodgeInputHintDisplayed", true, true);
+    };
+    if !stateContext.GetBoolParameter(n"isCrouchInputHintDisplayed", true) && NotEquals(IntEnum<gamePSMCombat>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat)), gamePSMCombat.InCombat) {
+      this.ShowCrouchInputHint(stateContext, scriptInterface, n"Ranged");
+    };
+  }
+
+  protected final func RemoveRangedInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Ranged");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isChargeInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isValentinosFrenzyInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isQuickMeleeInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isRangedInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isRangedDodgeInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isCrouchInputHintDisplayed");
+  }
+
+  protected final const func ShowDodgeInputHint(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, source: CName) -> Void {
+    let gamepadInputSchemeBB: ref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.GetGame()).Get(GetAllBlackboardDefs().InputSchemes);
+    let gamepadInputScheme: Uint32 = gamepadInputSchemeBB.GetUint(GetAllBlackboardDefs().InputSchemes.Scheme);
+    let inputSchemeActive: InputScheme = ConvertIntValueToInputScheme(gamepadInputScheme);
+    if scriptInterface.executionOwner.PlayerLastUsedKBM() {
+      this.ShowInputHint(scriptInterface, n"Dodge", source, "LocKey#87591", inkInputHintHoldIndicationType.FromInputConfig, true, 3);
+    } else {
+      if Equals(inputSchemeActive, InputScheme.LEGACY) {
+        this.ShowInputHint(scriptInterface, n"UI_FakeDodge", source, "LocKey#36192", inkInputHintHoldIndicationType.Press, false, 3, inkInputHintKeyCombinationType.And);
+      } else {
+        this.ShowInputHint(scriptInterface, n"UI_FakeDodge", source, "LocKey#87591", inkInputHintHoldIndicationType.Press, false, 3, inkInputHintKeyCombinationType.And);
+      };
+    };
+  }
+
+  protected final const func ShowCrouchInputHint(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, source: CName) -> Void {
+    if !stateContext.GetBoolParameter(n"isCrouchInputHintDisplayed", true) {
+      this.ShowInputHint(scriptInterface, n"ToggleCrouch", source, "LocKey#36202", inkInputHintHoldIndicationType.FromInputConfig, true, 2147483646);
+      stateContext.SetPermanentBoolParameter(n"isCrouchInputHintDisplayed", true, true);
+    };
+  }
+
+  protected final const func ShowVehicleDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDrawWeaponInputHint(stateContext, scriptInterface);
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", n"VehicleDriver", "LocKey#36194", inkInputHintHoldIndicationType.FromInputConfig, true, 2);
+    this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"VehicleDriver");
+    stateContext.SetPermanentBoolParameter(n"isDriverInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveVehicleDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHint(scriptInterface, n"VehicleInsideWheel", n"UI_DPad");
+      this.RemoveInputHintsBySource(scriptInterface, n"VehicleDriver");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isDriverInputHintDisplayed");
+  }
+
+  protected final const func ShowVehicleRestrictedInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", n"VehicleDriver", "LocKey#36194", inkInputHintHoldIndicationType.FromInputConfig, true);
+    this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"VehicleDriver");
+  }
+
+  protected final const func RemoveVehicleRestrictedInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"VehicleDriver");
+    };
+  }
+
+  protected final const func ShowVehiclePassengerInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"VehiclePassenger");
+    stateContext.SetPermanentBoolParameter(n"isPassengerInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveVehiclePassengerInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHint(scriptInterface, n"VehicleInsideWheel", n"UI_DPad");
+      this.RemoveInputHintsBySource(scriptInterface, n"VehiclePassenger");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isPassengerInputHintDisplayed");
+  }
+
+  protected final const func ShowVehicleRemoteControlDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", n"VehicleRemoteControlDrive", "LocKey#36194");
+    this.ShowInputHint(scriptInterface, n"Exit", n"VehicleRemoteControlDrive", "LocKey#36196", inkInputHintHoldIndicationType.FromInputConfig, true);
+  }
+
+  protected final const func RemoveVehicleRemoteControlDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"VehicleRemoteControlDrive");
+    };
+  }
+
+  protected final const func ShowVehicleDriverCombatInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatInputHintsInternal(n"VehicleDriverCombat", stateContext, scriptInterface);
+  }
+
+  protected final const func RemoveVehicleDriverCombatInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"VehicleDriverCombat");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isDriverCombatScannerInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isDriverCombatInputHintDisplayed");
+  }
+
+  protected final const func ShowVehicleDriverCombatTPPInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatInputHintsInternal(n"VehicleDriverCombatTPP", stateContext, scriptInterface);
+  }
+
+  protected final const func RemoveVehicleDriverCombatTPPInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"VehicleDriverCombatTPP");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isDriverCombatScannerInputHintDisplayed");
+    stateContext.RemovePermanentBoolParameter(n"isDriverCombatInputHintDisplayed");
+  }
+
+  private final const func ShowVehicleDriverCombatInputHintsInternal(source: CName, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isAiming: Bool;
+    let isThrowable: Bool;
+    let vehicle: wref<VehicleObject>;
+    let vehicleRecord: ref<Vehicle_Record>;
+    let weapon: ref<WeaponObject>;
+    VehicleComponent.GetVehicle(scriptInterface.executionOwner.GetGame(), scriptInterface.executionOwner, vehicle);
+    vehicleRecord = vehicle.GetRecord();
+    if stateContext.GetBoolParameter(n"inMeleeDriverCombat", true) {
+      this.RemoveInputHint(scriptInterface, n"UI_FakeRangedAttack", source);
+      this.RemoveInputHint(scriptInterface, n"UI_FakeCameraAim", source);
+      weapon = GameObject.GetActiveWeapon(GameInstance.GetPlayerSystem(scriptInterface.GetGame()).GetLocalPlayerMainGameObject());
+      isThrowable = weapon.IsThrowable();
+      isAiming = stateContext.IsStateActive(n"UpperBody", n"aimingState");
+      this.ShowInputHint(scriptInterface, n"MeleeAttack", source, isThrowable && isAiming ? "LocKey#17844" : "LocKey#40351", inkInputHintHoldIndicationType.Press, true, 1);
+      this.ShowInputHint(scriptInterface, n"MeleeBlock", source, isThrowable ? "LocKey#45379" : "LocKey#36191", inkInputHintHoldIndicationType.Press, true, 2);
+    } else {
+      this.RemoveInputHint(scriptInterface, n"MeleeAttack", source);
+      this.RemoveInputHint(scriptInterface, n"MeleeBlock", source);
+      this.ShowInputHint(scriptInterface, n"UI_FakeRangedAttack", source, "LocKey#36197", inkInputHintHoldIndicationType.Press, false, 1);
+      this.ShowInputHint(scriptInterface, n"UI_FakeCameraAim", source, "LocKey#45379", inkInputHintHoldIndicationType.FromInputConfig, true, 2);
+    };
+    if NotEquals(vehicleRecord.VehDataPackageHandle().DriverCombat().Type(), gamedataDriverCombatType.MountedWeapons) || vehicle.CanSwitchWeapons() {
+      this.ShowInputHint(scriptInterface, n"SwitchItem", source, "LocKey#77771", inkInputHintHoldIndicationType.FromInputConfig, false, 3);
+    };
+    this.ShowInputHint(scriptInterface, n"ExitCombatMode", source, "LocKey#87490", inkInputHintHoldIndicationType.FromInputConfig, true, 5);
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", source, "LocKey#36194", inkInputHintHoldIndicationType.FromInputConfig, true, 6);
+    stateContext.SetPermanentBoolParameter(n"isDriverCombatInputHintDisplayed", true, true);
+    if scriptInterface.executionOwner.PlayerLastUsedKBM() {
+      this.RemoveInputHint(scriptInterface, n"UI_FakeDriverCombatControllerVisionActivation", source);
+      stateContext.RemovePermanentBoolParameter(n"isDriverCombatScannerInputHintDisplayed");
+    } else {
+      if EquipmentSystem.IsCyberdeckEquipped(scriptInterface.executionOwner) && !QuickhackModule.IsQuickhackBlockedByScene(scriptInterface.executionOwner) {
+        this.ShowInputHint(scriptInterface, n"UI_FakeDriverCombatControllerVisionActivation", source, "LocKey#52040", inkInputHintHoldIndicationType.FromInputConfig, false, 4, inkInputHintKeyCombinationType.And);
+        stateContext.SetPermanentBoolParameter(n"isDriverCombatScannerInputHintDisplayed", true, true);
+      };
+    };
+  }
+
+  protected final const func ShowVehicleDrawWeaponInputHint(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isVehicleCombatModeBlocked: Bool = this.IsVehicleBlockingCombat(scriptInterface) || this.IsEmptyHandsForced(stateContext, scriptInterface);
+    if isVehicleCombatModeBlocked {
+      this.RemoveInputHint(scriptInterface, n"EnterCombatMode", n"VehicleDriver");
+      stateContext.SetPermanentBoolParameter(n"IsVehicleCombatModeBlocked", true, true);
+      return;
+    };
+    this.ShowInputHint(scriptInterface, n"EnterCombatMode", n"VehicleDriver", "LocKey#45381", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+    stateContext.SetPermanentBoolParameter(n"IsVehicleCombatModeBlocked", false, true);
+  }
+
+  protected final const func ShowVehicleExitInputHint(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, source: CName) -> Void {
+    let vehicle: wref<GameObject>;
+    if this.IsExitVehicleBlocked(scriptInterface) {
+      this.RemoveInputHint(scriptInterface, n"Exit", source);
+      stateContext.SetPermanentBoolParameter(n"IsExitVehicleBlocked", true, true);
+      return;
+    };
+    VehicleComponent.GetVehicle(scriptInterface.owner.GetGame(), scriptInterface.executionOwner, vehicle);
+    if IsDefined(vehicle = vehicle as BikeObject) {
+      this.ShowInputHint(scriptInterface, n"Exit", source, "LocKey#53066", inkInputHintHoldIndicationType.FromInputConfig, true, 127);
+    } else {
+      this.ShowInputHint(scriptInterface, n"Exit", source, "LocKey#36196", inkInputHintHoldIndicationType.FromInputConfig, true, 127);
+    };
+    stateContext.SetPermanentBoolParameter(n"IsExitVehicleBlocked", false, true);
+  }
+
+  protected final const func ShowVehiclePassengerCombatInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"RangedAttack", n"VehiclePassengerCombat", "LocKey#36197", inkInputHintHoldIndicationType.Press);
+    this.ShowInputHint(scriptInterface, n"Reload", n"VehiclePassengerCombat", "LocKey#36198");
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleScene") {
+      this.ShowInputHint(scriptInterface, n"WeaponWheel", n"VehiclePassengerCombat", "LocKey#36199");
+    };
+    stateContext.SetPermanentBoolParameter(n"isPassengerCombatInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveVehiclePassengerCombatInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"VehiclePassengerCombat");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isPassengerCombatInputHintDisplayed");
+  }
+
+  protected final const func ShowAutodriveInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDrawWeaponInputHint(stateContext, scriptInterface);
+    this.ShowInputHint(scriptInterface, n"HoldCinematicCamera", n"Autodrive", "LocKey#96518", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", n"Autodrive", "LocKey#36194", inkInputHintHoldIndicationType.FromInputConfig, true, 2);
+    this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"Autodrive");
+    stateContext.SetPermanentBoolParameter(n"isAutodriveInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveAutodriveInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Autodrive");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isAutodriveInputHintDisplayed");
+  }
+
+  protected final const func ShowCinematicCameraInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDrawWeaponInputHint(stateContext, scriptInterface);
+    this.ShowInputHint(scriptInterface, n"HoldCinematicCamera", n"CinematicCamera", "LocKey#96675", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+    stateContext.SetPermanentBoolParameter(n"isCinematicCameraInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveCinematicCameraInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"CinematicCamera");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isCinematicCameraInputHintDisplayed");
+  }
+
+  protected final const func ShowDelamainInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"HoldCinematicCamera", n"DelamainTaxi", "LocKey#96518", inkInputHintHoldIndicationType.FromInputConfig, true, 1);
+    this.ShowInputHint(scriptInterface, n"ToggleVehCamera", n"DelamainTaxi", "LocKey#36194", inkInputHintHoldIndicationType.FromInputConfig, true, 2);
+    this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"DelamainTaxi");
+    stateContext.SetPermanentBoolParameter(n"isDelamainInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveDelamainInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"DelamainTaxi");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isDelamainInputHintDisplayed");
+  }
+
+  protected final const func ShowSwimmingInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowInputHint(scriptInterface, n"ToggleSprint", n"Swimming", "LocKey#40155");
+    this.ShowInputHint(scriptInterface, n"Jump", n"Swimming", "LocKey#40158", inkInputHintHoldIndicationType.Press);
+    this.ShowInputHint(scriptInterface, n"Dive", n"Swimming", "LocKey#40157");
+    stateContext.SetPermanentBoolParameter(n"isSwimmingInputHintDisplayed", true, true);
+  }
+
+  protected final const func RemoveSwimmingInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_isGameplayInputHintManagerInitialized {
+      this.RemoveInputHintsBySource(scriptInterface, n"Swimming");
+    };
+    stateContext.RemovePermanentBoolParameter(n"isSwimmingInputHintDisplayed");
+  }
+
+  protected final func RemoveAllInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveGenericExplorationInputHints(stateContext, scriptInterface);
+    this.RemoveRangedInputHints(stateContext, scriptInterface);
+    this.RemoveMeleeInputHints(stateContext, scriptInterface);
+    this.RemoveBodyCarryInputHints(stateContext, scriptInterface);
+    this.RemoveLadderInputHints(stateContext, scriptInterface);
+    this.RemoveSwimmingInputHints(stateContext, scriptInterface);
+    this.RemoveVehicleDriverInputHints(stateContext, scriptInterface);
+    this.RemoveVehicleDriverCombatInputHints(stateContext, scriptInterface);
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    this.RemoveVehiclePassengerCombatInputHints(stateContext, scriptInterface);
+    this.RemoveAutodriveInputHints(stateContext, scriptInterface);
+    this.RemoveCinematicCameraInputHints(stateContext, scriptInterface);
+    this.RemoveDelamainInputHints(stateContext, scriptInterface);
+    this.RemoveVehiclePassengerInputHints(stateContext, scriptInterface);
+    this.RemoveVehicleRemoteControlDriverInputHints(stateContext, scriptInterface);
+    this.RemoveVehicleRestrictedInputHints(stateContext, scriptInterface);
+  }
+
+  protected final func SetBaseContextInputHints(context: ActiveBaseContext, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let blockAllInputHintKey: Bool = StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.BlockAllInputHintKey");
+    if Equals(context, ActiveBaseContext.None) || blockAllInputHintKey {
+      if blockAllInputHintKey {
+        this.RemoveAllInputHints(stateContext, scriptInterface);
+      };
+      return;
+    };
+    this.RemoveAllInputHints(stateContext, scriptInterface);
+    switch context {
+      case ActiveBaseContext.Locomotion:
+        this.ShowGenericExplorationInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.Ladder:
+        this.ShowLadderInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.Swimming:
+        this.ShowSwimmingInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.BodyCarring:
+        this.ShowBodyCarryInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.MeleeWeapon:
+        this.ShowMeleeInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.RangedWeapon:
+        this.ShowRangedInputHints(stateContext, scriptInterface);
+        break;
+      case ActiveBaseContext.BodyCarringWithRangedWeapon:
+        this.ShowBodyCarryInputHints(stateContext, scriptInterface);
+        this.ShowRangedInputHints(stateContext, scriptInterface);
+        break;
+      default:
+    };
+  }
+
+  protected final func UpdateWeaponInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> ActiveBaseContext {
+    let context: ActiveBaseContext;
+    let leftHandChargeResult: StateResultBool;
+    let isExploring: Bool = this.IsInHighLevelState(stateContext, n"exploration");
+    let isExaminingDevice: Bool = this.IsExaminingDevice(scriptInterface) || DefaultTransition.IsInteractingWithTerminal(scriptInterface);
+    let isDeviceControlled: Bool = scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled();
+    let inEquipState: Bool = this.IsRightHandInEquippedState(stateContext) || DefaultTransition.IsRightHandInEquippingState(stateContext) || this.IsInFirstEquip(stateContext);
+    let rightHandWeapon: wref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let leftHandWeapon: wref<WeaponObject> = DefaultTransition.GetLeftActiveWeapon(scriptInterface);
+    let isRangedWeaponEquipped: Bool = inEquipState && rightHandWeapon.IsRanged();
+    let isDualWieldEquipped: Bool = isRangedWeaponEquipped && leftHandWeapon.IsRanged();
+    let isMeleeWeaponEquipped: Bool = inEquipState && !isRangedWeaponEquipped && rightHandWeapon.IsMelee();
+    let isAiming: Bool = stateContext.IsStateActive(n"UpperBody", n"aimingState");
+    let canDisplayChargeInputHint: Bool = isRangedWeaponEquipped && DefaultTransition.IsChargeRangedWeapon(scriptInterface);
+    let canDisplayThrowInputHint: Bool = isMeleeWeaponEquipped && rightHandWeapon.IsThrowable() && isAiming;
+    let canDisplayRangedDodgeInputHint: Bool = !isRangedWeaponEquipped || !isAiming || scriptInterface.HasStatFlag(gamedataStatType.CanAimWhileDodging);
+    let canDisplayCrouchInputHint: Bool = NotEquals(IntEnum<gamePSMCombat>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat)), gamePSMCombat.InCombat);
+    let canDisplayThrowCarriedNPCInputHint: Bool = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.CanThrowCarriedNPC);
+    let isMeleeInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isMeleeInputHintDisplayed", true);
+    let isThrowInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isThrowInputHintDisplayed", true);
+    let isRangedInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isRangedInputHintDisplayed", true);
+    let isDualWieldInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isDualWieldInputHintDisplayed", true);
+    let isChargeInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isChargeInputHintDisplayed", true);
+    let isRangedDodgeInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isRangedDodgeInputHintDisplayed", true);
+    let isCrouchInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isCrouchInputHintDisplayed", true);
+    let isThrowCarriedNPCInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isThrowCarriedNPCInputHintDisplayed", true);
+    if isMeleeWeaponEquipped && isExploring && !isExaminingDevice && !isDeviceControlled {
+      if isCrouchInputHintDisplayed && !canDisplayCrouchInputHint {
+        this.RemoveInputHint(scriptInterface, n"ToggleCrouch", n"Melee");
+        stateContext.RemovePermanentBoolParameter(n"isCrouchInputHintDisplayed");
+      };
+      if !isMeleeInputHintDisplayed || this.m_hasControllerChanged || this.m_hasControllerSchemeChanged || NotEquals(isThrowInputHintDisplayed, canDisplayThrowInputHint) || !isCrouchInputHintDisplayed && canDisplayCrouchInputHint {
+        return ActiveBaseContext.MeleeWeapon;
+      };
+    } else {
+      if isMeleeInputHintDisplayed && (!isMeleeWeaponEquipped || !isExploring || isExaminingDevice || isDeviceControlled) {
+        this.RemoveMeleeInputHints(stateContext, scriptInterface);
+      };
+    };
+    if isRangedWeaponEquipped && !rightHandWeapon.IsHeavyWeapon() && isExploring && !isExaminingDevice && !isDeviceControlled {
+      if isChargeInputHintDisplayed && !canDisplayChargeInputHint {
+        this.RemoveInputHint(scriptInterface, n"RangedAttack", n"Ranged");
+        stateContext.RemovePermanentBoolParameter(n"isChargeInputHintDisplayed");
+      };
+      if isRangedDodgeInputHintDisplayed && !canDisplayRangedDodgeInputHint {
+        this.RemoveInputHint(scriptInterface, n"Dodge", n"Ranged");
+        stateContext.RemovePermanentBoolParameter(n"isRangedInputHintDisplayed");
+        stateContext.RemovePermanentBoolParameter(n"isDualWieldInputHintDisplayed");
+      };
+      if isCrouchInputHintDisplayed && !canDisplayCrouchInputHint {
+        this.RemoveInputHint(scriptInterface, n"ToggleCrouch", n"Ranged");
+        stateContext.RemovePermanentBoolParameter(n"isCrouchInputHintDisplayed");
+      };
+      if !isRangedInputHintDisplayed || this.m_hasControllerChanged || this.m_hasControllerSchemeChanged || NotEquals(isDualWieldInputHintDisplayed, isDualWieldEquipped) || !isChargeInputHintDisplayed && canDisplayChargeInputHint || !isRangedDodgeInputHintDisplayed && canDisplayRangedDodgeInputHint || !isCrouchInputHintDisplayed && canDisplayCrouchInputHint || !isThrowCarriedNPCInputHintDisplayed && canDisplayThrowCarriedNPCInputHint {
+        if stateContext.GetBoolParameter(n"isBodyCarryInputHintDisplayed", true) {
+          return ActiveBaseContext.BodyCarringWithRangedWeapon;
+        };
+        return ActiveBaseContext.RangedWeapon;
+      };
+    } else {
+      if isRangedInputHintDisplayed && (!isRangedWeaponEquipped || NotEquals(Equals(rightHandWeapon.GetCurrentTriggerMode().Type(), gamedataTriggerMode.Charge), isChargeInputHintDisplayed) || !isExploring || isExaminingDevice || isDeviceControlled) {
+        this.RemoveRangedInputHints(stateContext, scriptInterface);
+      };
+    };
+    leftHandChargeResult = stateContext.GetPermanentBoolParameter(n"leftHandCharge");
+    if leftHandChargeResult.valid && leftHandChargeResult.value {
+      context = ActiveBaseContext.Locomotion;
+    };
+    return context;
+  }
+
+  protected final func ConsumeControllerChange(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isKBMInputDevice: Bool = scriptInterface.executionOwner.PlayerLastUsedKBM();
+    if stateContext.GetBoolParameter(n"isKBMInputDevice", true) && !isKBMInputDevice {
+      stateContext.SetPermanentBoolParameter(n"isKBMInputDevice", false, true);
+      return true;
+    };
+    if !stateContext.GetBoolParameter(n"isKBMInputDevice", true) && isKBMInputDevice {
+      stateContext.SetPermanentBoolParameter(n"isKBMInputDevice", true, true);
+      return true;
+    };
+    return false;
+  }
+
+  protected final func ConsumeInputSchemeChange() -> Bool {
+    let oldValue: Bool = this.m_onInputSchemeChanged;
+    this.m_onInputSchemeChanged = false;
+    return oldValue;
+  }
+}
+
+public class InitialStateDecisions extends InputContextTransitionDecisions {
+
+  protected final const func ToUiContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let expectedRecordID: TweakDBID;
+    let recordID: TweakDBID;
+    let player: wref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if IsDefined(player) {
+      expectedRecordID = t"Character.Player_Puppet_Menu";
+      recordID = player.GetRecordID();
+      if recordID == expectedRecordID {
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class DeviceControlContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerBool(allBlackboardDef.PlayerStateMachine.IsControllingDevice, this, n"OnControllingDeviceChange");
+      this.EnableOnEnterCondition(scriptInterface.localBlackboard.GetBool(allBlackboardDef.PlayerStateMachine.IsControllingDevice));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnControllingDeviceChange(value: Bool) -> Bool {
+    this.EnableOnEnterCondition(value);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !this.GetUIBlackboard(scriptInterface).GetBool(GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest);
+  }
+}
+
+public class DeviceControlContextEvents extends InputContextTransitionEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveAllInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class BraindanceContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsPlayerInBraindance(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class DeadContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vitals, this, n"OnVitalsChanged");
+      this.OnVitalsChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vitals));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVitalsChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 1);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class BaseContextDecisions extends InputContextTransitionDecisions {
+
+  protected final const func ToVehicleRemoteControlDriverContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if isVehicleRemoteControlled {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class BaseContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateHints(stateContext, scriptInterface);
+    };
+  }
+
+  private final func UpdateHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let context: ActiveBaseContext;
+    let contextTemp: ActiveBaseContext;
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveGenericExplorationInputHints(stateContext, scriptInterface);
+      this.RemoveLadderInputHints(stateContext, scriptInterface);
+      this.RemoveSwimmingInputHints(stateContext, scriptInterface);
+      this.RemoveBodyCarryInputHints(stateContext, scriptInterface);
+      this.RemoveMeleeInputHints(stateContext, scriptInterface);
+      this.RemoveRangedInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    this.m_hasControllerChanged = this.ConsumeControllerChange(stateContext, scriptInterface);
+    this.m_hasControllerSchemeChanged = this.ConsumeInputSchemeChange();
+    context = this.UpdateLocomotionInputHints(stateContext, scriptInterface);
+    if Equals(context, ActiveBaseContext.None) {
+      context = this.UpdateLadderInputHints(stateContext, scriptInterface);
+    };
+    if Equals(context, ActiveBaseContext.None) {
+      context = this.UpdateSwimmingInputHints(stateContext, scriptInterface);
+    };
+    if Equals(context, ActiveBaseContext.None) {
+      context = this.UpdateBodyCarryInputHints(stateContext, scriptInterface);
+    };
+    if Equals(context, ActiveBaseContext.None) || Equals(context, ActiveBaseContext.BodyCarring) {
+      contextTemp = this.UpdateWeaponInputHints(stateContext, scriptInterface);
+      context = NotEquals(contextTemp, ActiveBaseContext.None) ? contextTemp : context;
+    };
+    this.SetBaseContextInputHints(context, stateContext, scriptInterface);
+  }
+
+  protected final func UpdateLocomotionInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> ActiveBaseContext {
+    let isValidState: Bool = this.IsStateValidForExploration(stateContext, scriptInterface);
+    if isValidState {
+      if !stateContext.GetBoolParameter(n"isLocomotionInputHintDisplayed", true) || this.m_hasControllerChanged || this.m_hasControllerSchemeChanged {
+        return ActiveBaseContext.Locomotion;
+      };
+    } else {
+      if !isValidState && stateContext.GetBoolParameter(n"isLocomotionInputHintDisplayed", true) {
+        this.RemoveGenericExplorationInputHints(stateContext, scriptInterface);
+      };
+    };
+    return ActiveBaseContext.None;
+  }
+
+  protected final func UpdateBodyCarryInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> ActiveBaseContext {
+    let psmBodyCarrying: gamePSMBodyCarrying = IntEnum<gamePSMBodyCarrying>(scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.BodyCarrying));
+    let isCarryingBody: Bool = Equals(psmBodyCarrying, gamePSMBodyCarrying.Carry) || Equals(psmBodyCarrying, gamePSMBodyCarrying.Aim);
+    let isBodyCarryInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isBodyCarryInputHintDisplayed", true);
+    let isThrowCarriedNPCInputHintDisplayed: Bool = stateContext.GetBoolParameter(n"isThrowCarriedNPCInputHintDisplayed", true);
+    let canDisplayThrowCarriedNPCInputHint: Bool = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.CanThrowCarriedNPC);
+    if isCarryingBody && !this.AreChoiceHubsActive(scriptInterface) {
+      if isThrowCarriedNPCInputHintDisplayed && !canDisplayThrowCarriedNPCInputHint {
+        this.RemoveInputHint(scriptInterface, n"ThrowNPC", n"BodyCarry");
+        stateContext.RemovePermanentBoolParameter(n"isThrowCarriedNPCInputHintDisplayed");
+      };
+      if !isBodyCarryInputHintDisplayed || !isThrowCarriedNPCInputHintDisplayed && canDisplayThrowCarriedNPCInputHint {
+        return ActiveBaseContext.BodyCarring;
+      };
+    } else {
+      if isBodyCarryInputHintDisplayed {
+        this.RemoveBodyCarryInputHints(stateContext, scriptInterface);
+      };
+    };
+    return ActiveBaseContext.None;
+  }
+
+  protected final func UpdateLadderInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> ActiveBaseContext {
+    let locomotionStateName: CName = this.GetLocomotionState(stateContext);
+    if Equals(locomotionStateName, n"ladder") || Equals(locomotionStateName, n"ladderSprint") || Equals(locomotionStateName, n"ladderSlide") {
+      if !stateContext.GetBoolParameter(n"isLadderInputHintDisplayed", true) {
+        return ActiveBaseContext.Ladder;
+      };
+    } else {
+      if stateContext.GetBoolParameter(n"isLadderInputHintDisplayed", true) {
+        this.RemoveLadderInputHints(stateContext, scriptInterface);
+      };
+    };
+    return ActiveBaseContext.None;
+  }
+
+  protected final func UpdateSwimmingInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> ActiveBaseContext {
+    let isSwimming: Bool = stateContext.IsStateMachineActive(n"LocomotionSwimming");
+    if isSwimming {
+      if !stateContext.GetBoolParameter(n"isSwimmingInputHintDisplayed", true) {
+        return ActiveBaseContext.Swimming;
+      };
+    } else {
+      if stateContext.GetBoolParameter(n"isSwimmingInputHintDisplayed", true) {
+        this.RemoveSwimmingInputHints(stateContext, scriptInterface);
+      };
+    };
+    return ActiveBaseContext.None;
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateHints(stateContext, scriptInterface);
+  }
+
+  private final func IsStateValidForExploration(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let locomotionState: CName;
+    if NotEquals(stateContext.GetStateMachineCurrentState(n"HighLevel"), n"exploration") {
+      return false;
+    };
+    locomotionState = stateContext.GetStateMachineCurrentState(n"Locomotion");
+    if Equals(locomotionState, n"ladder") || Equals(locomotionState, n"ladderSprint") || Equals(locomotionState, n"ladderSlide") {
+      return false;
+    };
+    if Equals(locomotionState, n"climb") {
+      return false;
+    };
+    if scriptInterface.IsPlayerInBraindance() {
+      return false;
+    };
+    if stateContext.IsStateMachineActive(n"CarriedObject") {
+      return false;
+    };
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) != 0 {
+      return false;
+    };
+    if DefaultTransition.HasRightWeaponEquipped(scriptInterface) {
+      return false;
+    };
+    if scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) {
+      return false;
+    };
+    if Equals(locomotionState, n"veryHardLand") || scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsPlayerInsideMovingElevator) || StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoMovement") || StatusEffectSystem.ObjectHasStatusEffectOfType(scriptInterface.executionOwner, gamedataStatusEffectType.Stunned) || StatusEffectSystem.ObjectHasStatusEffectOfType(scriptInterface.executionOwner, gamedataStatusEffectType.Knockdown) {
+      return false;
+    };
+    if scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled() {
+      return false;
+    };
+    if this.IsExaminingDevice(scriptInterface) || DefaultTransition.IsInteractingWithTerminal(scriptInterface) {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class AimingContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_leftHandChargeCallbackID: ref<CallbackHandle>;
+
+  private let m_upperBodyCallbackID: ref<CallbackHandle>;
+
+  private let m_meleeCallbackID: ref<CallbackHandle>;
+
+  private let m_vehicleCombatCallbackID: ref<CallbackHandle>;
+
+  private let m_leftHandCharge: Bool;
+
+  private let m_isAiming: Bool;
+
+  private let m_meleeBlockActive: Bool;
+
+  private let m_isVehicleCombat: Bool;
+
+  private let m_StateGameScriptInterfaceHACK: ref<StateGameScriptInterface>;
+
+  private let m_context: ref<StateContext>;
+
+  protected final func UpdateNeedsToBeChecked() -> Void {
+    this.EnableOnEnterCondition(this.m_leftHandCharge || this.m_isAiming || this.m_meleeBlockActive);
+  }
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    this.m_context = stateContext;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_leftHandChargeCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.LeftHandCyberware, this, n"OnLeftHandCyberwareChanged");
+      this.m_upperBodyCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.UpperBody, this, n"OnUpperBodyChanged");
+      this.m_meleeCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Melee, this, n"OnMeleeChanged");
+      this.m_vehicleCombatCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged", true);
+      this.m_StateGameScriptInterfaceHACK = scriptInterface;
+      this.UpdateLeftHandCyberware(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.LeftHandCyberware));
+      this.UpdateUpperBodyState(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.UpperBody));
+      this.UpdateMeleeState(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Melee));
+      this.UpdateNeedsToBeChecked();
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_leftHandChargeCallbackID = null;
+    this.m_upperBodyCallbackID = null;
+    this.m_meleeCallbackID = null;
+  }
+
+  protected final func UpdateLeftHandCyberware(value: Int32) -> Void {
+    this.m_leftHandCharge = value == 5;
+    this.m_context.SetPermanentBoolParameter(n"leftHandCharge", this.m_leftHandCharge, true);
+  }
+
+  protected cb func OnLeftHandCyberwareChanged(value: Int32) -> Bool {
+    this.UpdateLeftHandCyberware(value);
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected final func UpdateUpperBodyState(value: Int32) -> Void {
+    this.m_isAiming = value == 6;
+    if IsDefined(this.m_StateGameScriptInterfaceHACK) {
+      if this.m_isVehicleCombat {
+        SetValue_ActivateGyroAimingForAiming(this.m_isAiming, this.m_StateGameScriptInterfaceHACK);
+      };
+    };
+  }
+
+  protected cb func OnUpperBodyChanged(value: Int32) -> Bool {
+    this.UpdateUpperBodyState(value);
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected final func UpdateMeleeState(value: Int32) -> Void {
+    this.m_meleeBlockActive = value == 2;
+  }
+
+  protected cb func OnMeleeChanged(value: Int32) -> Bool {
+    this.UpdateMeleeState(value);
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.m_isVehicleCombat = value == 6;
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class AimingContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let context: ActiveBaseContext;
+    this.m_hasControllerChanged = this.ConsumeControllerChange(stateContext, scriptInterface);
+    this.m_hasControllerSchemeChanged = this.ConsumeInputSchemeChange();
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      context = this.UpdateWeaponInputHints(stateContext, scriptInterface);
+      this.SetBaseContextInputHints(context, stateContext, scriptInterface);
+    };
+  }
+}
+
+public class VisionContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_vehicleCallbackID: ref<CallbackHandle>;
+
+  private let m_focusCallbackID: ref<CallbackHandle>;
+
+  private let m_vehicleTransition: Bool;
+
+  private let m_isFocusing: Bool;
+
+  private let m_visionHoldPressed: Bool;
+
+  protected final func UpdateNeedsToBeChecked() -> Void {
+    if this.m_vehicleTransition {
+      this.EnableOnEnterCondition(false);
+    };
+    this.EnableOnEnterCondition(this.m_visionHoldPressed || this.m_isFocusing);
+  }
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_vehicleCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.m_focusCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vision, this, n"OnVisionChanged");
+      this.UpdateVehicleStateValue(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+      this.UpdateVisionValue(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vision));
+    };
+    scriptInterface.executionOwner.RegisterInputListener(this, n"VisionHold");
+    this.UpdateVisionAction(scriptInterface.GetActionValue(n"VisionHold"));
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_vehicleCallbackID = null;
+    this.m_focusCallbackID = null;
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected final func UpdateVisionAction(value: Float) -> Void {
+    this.m_visionHoldPressed = value > 0.00;
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if Equals(ListenerAction.GetName(action), n"VisionHold") {
+      this.UpdateVisionAction(ListenerAction.GetValue(action));
+      this.UpdateNeedsToBeChecked();
+    };
+  }
+
+  protected final func UpdateVehicleStateValue(value: Int32) -> Void {
+    this.m_vehicleTransition = value == 4;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.UpdateVehicleStateValue(value);
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected final func UpdateVisionValue(value: Int32) -> Void {
+    this.m_isFocusing = value == 1;
+  }
+
+  protected cb func OnVisionChanged(value: Int32) -> Bool {
+    this.UpdateVisionValue(value);
+    this.UpdateNeedsToBeChecked();
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicleID: EntityID = scriptInterface.localBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    if EntityID.IsDefined(vehicleID) {
+      return false;
+    };
+    if this.m_isFocusing {
+      return true;
+    };
+    if this.m_visionHoldPressed && !stateContext.GetBoolParameter(n"lockHoldInput", true) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class MotionPatternTutorialContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_statusEffectListener: ref<DefaultTransitionStatusEffectListener>;
+
+  @default(MotionPatternTutorialContextDecisions, false)
+  private let m_allowOnlyMotionPatternInputs: Bool;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if Equals(GetPlatformShortName(), "emporium") {
+      this.m_statusEffectListener = new DefaultTransitionStatusEffectListener();
+      this.m_statusEffectListener.m_transitionOwner = this;
+      scriptInterface.GetStatusEffectSystem().RegisterListener(scriptInterface.executionOwner.GetEntityID(), this.m_statusEffectListener);
+    } else {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_statusEffectListener = null;
+  }
+
+  public func OnStatusEffectApplied(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if statusEffect.GameplayTagsContains(n"AllowOnlyMotionPatternInputs") {
+      this.m_allowOnlyMotionPatternInputs = true;
+    };
+  }
+
+  public func OnStatusEffectRemoved(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if statusEffect.GameplayTagsContains(n"AllowOnlyMotionPatternInputs") {
+      this.m_allowOnlyMotionPatternInputs = false;
+    };
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.m_allowOnlyMotionPatternInputs;
+  }
+}
+
+public class MotionPatternTutorialContextEvents extends InputContextTransitionEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+  }
+}
+
+public class UiContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIContextActive");
+    return psmResult.value;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIContextInactive");
+    return psmResult.value;
+  }
+}
+
+public class UiRadialContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIRadialContextActive");
+    return psmResult.value;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIRadialContextInactive");
+    return psmResult.value;
+  }
+}
+
+public class UiRadialContextEvents extends InputContextTransitionEvents {
+
+  public let m_mouse: Vector4;
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let leftStick: Vector4;
+    leftStick.X = scriptInterface.GetActionValue(n"UI_LookX_Axis");
+    leftStick.Y = scriptInterface.GetActionValue(n"UI_LookY_Axis");
+    if Vector4.Length(leftStick) <= 0.40 {
+      leftStick = Vector4.EmptyVector();
+      this.m_mouse.X += scriptInterface.GetActionValue(n"mouse_x") * MaxF(timeDelta, 0.00);
+      this.m_mouse.Y += scriptInterface.GetActionValue(n"mouse_y") * MaxF(timeDelta, 0.00);
+      this.m_mouse.X += scriptInterface.GetActionValue(n"jcms_x") * MaxF(timeDelta, 0.00);
+      this.m_mouse.Y += scriptInterface.GetActionValue(n"jcms_y") * MaxF(timeDelta, 0.00);
+      this.m_mouse.X += scriptInterface.GetActionValue(n"touch_fast_pan_x") * MaxF(timeDelta, 0.00);
+      this.m_mouse.Y += scriptInterface.GetActionValue(n"touch_fast_pan_y") * MaxF(timeDelta, 0.00);
+      this.m_mouse.X = ClampF(this.m_mouse.X, -1.00, 1.00);
+      this.m_mouse.Y = ClampF(this.m_mouse.Y, -1.00, 1.00);
+      if Vector4.Length(this.m_mouse) <= 0.40 {
+        leftStick = Vector4.EmptyVector();
+      } else {
+        leftStick = Vector4.Normalize(this.m_mouse);
+      };
+    };
+    this.SetUIBlackboardVector4Variable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.leftStick, leftStick);
+  }
+
+  protected final func SetUIBlackboardVector4Variable(scriptInterface: ref<StateGameScriptInterface>, id: BlackboardID_Vector4, value: Vector4) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetVector4(id, value);
+  }
+}
+
+public class UiQuickHackPanelContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsQuickHackPanelOpened(scriptInterface) && this.CheckRequiredStates(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  protected const func CheckRequiredStates(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let vehicleID: EntityID = scriptInterface.localBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    let isDeviceControlled: Bool = scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled();
+    return !EntityID.IsDefined(vehicleID) && (isDeviceControlled || currentState != 1 && currentState != 6);
+  }
+}
+
+public class UiQuickHackPanelContextEvents extends InputContextTransitionEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let inEquipState: Bool = this.IsRightHandInEquippedState(stateContext) || DefaultTransition.IsRightHandInEquippingState(stateContext) || this.IsInFirstEquip(stateContext);
+    let rightHandWeapon: wref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let isRangedWeaponEquipped: Bool = inEquipState && rightHandWeapon.IsRanged();
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveAllInputHints(stateContext, scriptInterface);
+    SetValue_ActivateGyroAimingForRangedWeapons(isRangedWeaponEquipped, scriptInterface);
+  }
+
+  protected final func SetChangeTargetTooltipVisibility(scriptInterface: ref<StateGameScriptInterface>, value: Bool) -> Void {
+    let uiScannerBlackboard: wref<IBlackboard> = GameInstance.GetBlackboardSystem(scriptInterface.owner.GetGame()).Get(GetAllBlackboardDefs().UI_Scanner);
+    uiScannerBlackboard.SetBool(GetAllBlackboardDefs().UI_Scanner.scannerChangeTargetTooltipVisibility, value);
+  }
+}
+
+public class UiQuickHackPanelContextDrivingDecisions extends UiQuickHackPanelContextDecisions {
+
+  protected const func CheckRequiredStates(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isDeviceControlled: Bool = scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled();
+    return !isDeviceControlled && currentState == 1;
+  }
+}
+
+public class UiQuickHackPanelContextDrivingEvents extends UiQuickHackPanelContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetChangeTargetTooltipVisibility(scriptInterface, false);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetChangeTargetTooltipVisibility(scriptInterface, true);
+  }
+}
+
+public class UiQuickHackPanelContextDriverCombatDecisions extends UiQuickHackPanelContextDecisions {
+
+  protected const func CheckRequiredStates(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isDeviceControlled: Bool = scriptInterface.executionOwner.GetTakeOverControlSystem().IsDeviceControlled();
+    return !isDeviceControlled && currentState == 6;
+  }
+}
+
+public class UiQuickHackPanelContextDriverCombatEvents extends UiQuickHackPanelContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetChangeTargetTooltipVisibility(scriptInterface, false);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetChangeTargetTooltipVisibility(scriptInterface, true);
+  }
+}
+
+public class UiQuickHackPanelContextRemoteControlDecisions extends UiQuickHackPanelContextDecisions {
+
+  protected const func CheckRequiredStates(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicleID: EntityID = scriptInterface.localBlackboard.GetEntityID(GetAllBlackboardDefs().PlayerStateMachine.EntityIDVehicleRemoteControlled);
+    return EntityID.IsDefined(vehicleID);
+  }
+}
+
+public class UiQuickHackPanelContextRemoteControlEvents extends UiQuickHackPanelContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+  }
+}
+
+public class UiVendorContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIVendorContextActive");
+    return psmResult.value;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vendorInactive: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIVendorContextInactive");
+    return vendorInactive.value;
+  }
+}
+
+public class UiPhoneContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmContactListResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIContactListContextActive");
+    let psmSmsMessengerResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUISmsMessengerContextActive");
+    return psmContactListResult.value || psmSmsMessengerResult.value;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let psmContactListResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUIContactListContextInactive");
+    let psmSmsMessengerResult: StateResultBool = stateContext.GetTemporaryBoolParameter(n"OnUISmsMessengerContextInactive");
+    return psmContactListResult.value || psmSmsMessengerResult.value;
+  }
+}
+
+public class LadderEnterContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let ladderEntryDuration: StateResultFloat = stateContext.GetPermanentFloatParameter(n"ladderEntryDuration");
+    if !ladderEntryDuration.valid {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleBlockInputContextEvents extends InputContextTransitionEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveAllInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleBlockInputContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 4);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class VehicleGameplayContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value != 0);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class VehiclePassengerContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdatePassengerInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdatePassengerInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveVehiclePassengerInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if stateContext.GetBoolParameter(n"doNotDisplayPassengerInputHint", true) || StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.VehicleCombatNoInterruptions") {
+      if stateContext.GetBoolParameter(n"isPassengerInputHintDisplayed", true) {
+        this.RemoveVehiclePassengerInputHints(stateContext, scriptInterface);
+      };
+      return;
+    };
+    if currentState != 7 && !stateContext.GetBoolParameter(n"isPassengerInputHintDisplayed", true) && !StatusEffectSystem.ObjectHasStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.VehicleCombatNoInterruptions") {
+      this.ShowVehiclePassengerInputHints(stateContext, scriptInterface);
+    } else {
+      if currentState == 7 && stateContext.GetBoolParameter(n"isPassengerInputHintDisplayed", true) {
+        this.RemoveVehiclePassengerInputHints(stateContext, scriptInterface);
+      };
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let vehicle: wref<GameObject>;
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    VehicleComponent.GetVehicle(scriptInterface.owner.GetGame(), scriptInterface.executionOwner, vehicle);
+    if IsDefined(vehicle = vehicle as AVObject) {
+      stateContext.SetPermanentBoolParameter(n"doNotDisplayPassengerInputHint", true, true);
+    };
+    this.ShowVehiclePassengerInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehiclePassengerInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"doNotDisplayPassengerInputHint");
+  }
+}
+
+public class VehiclePassengerContextDecisions extends VehicleGameplayContextDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if isVehicleRemoteControlled {
+      return false;
+    };
+    return true;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if currentState == 0 {
+      return true;
+    };
+    if currentState != 7 && currentState != 3 {
+      return true;
+    };
+    if isVehicleRemoteControlled {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class VehiclePassengerRemoteControlDriverContextDecisions extends VehicleGameplayContextDecisions {
+
+  protected final const func ToVehiclePassengerContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if isVehicleRemoteControlled {
+      return false;
+    };
+    if currentState == 3 {
+      return true;
+    };
+    return false;
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if (currentState == 7 || currentState == 3) && isVehicleRemoteControlled {
+      return true;
+    };
+    return false;
+  }
+
+  protected const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let currentState: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle);
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if currentState == 0 {
+      return true;
+    };
+    if currentState != 7 && currentState != 3 {
+      return true;
+    };
+    if !isVehicleRemoteControlled {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class VehicleRemoteControlDriverContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if scriptInterface.IsActionJustReleased(n"ToggleVehCamera") {
+      this.ToggleVehicleRemoteControlCamera(scriptInterface);
+    };
+    if scriptInterface.IsActionJustPressed(n"Exit") {
+      this.SetVehicleRemoteControlled(scriptInterface, false);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveAllInputHints(stateContext, scriptInterface);
+    this.ShowVehicleRemoteControlDriverInputHints(stateContext, scriptInterface);
+    SaveLocksManager.RequestSaveLockAdd(scriptInterface.owner.GetGame(), n"RemoteControl");
+  }
+
+  protected final func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnCommonExit(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnCommonExit(stateContext, scriptInterface);
+  }
+
+  private final func OnCommonExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveVehicleRemoteControlDriverInputHints(stateContext, scriptInterface);
+    SaveLocksManager.RequestSaveLockRemove(scriptInterface.owner.GetGame(), n"RemoteControl");
+  }
+}
+
+public class VehicleRemoteControlDriverContextDecisions extends VehicleGameplayContextDecisions {
+
+  protected const func ToBaseContext(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let isVehicleRemoteControlled: Bool = this.IsVehicleRemoteControlled(scriptInterface);
+    if isVehicleRemoteControlled {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleNoDriveContextEvents extends InputContextTransitionEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    this.RemoveVehicleDriverInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+  }
+}
+
+public class VehicleNoDriveContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 1);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoDriving") {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class VehicleQuestRestrictedContextDecisions extends InputContextTransitionDecisions {
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleOnlyForward") {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class VehicleQuestRestrictedContextEvents extends VehicleNoDriveContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    this.ShowVehicleRestrictedInputHints(stateContext, scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inVehicleRestrictState", true, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleRestrictedInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inVehicleRestrictState");
+  }
+}
+
+public class VehicleTankDriverContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 1);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicle: wref<GameObject>;
+    if !VehicleComponent.GetVehicle(scriptInterface.owner.GetGame(), scriptInterface.executionOwner, vehicle) {
+      return false;
+    };
+    if (vehicle as TankObject) == null {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleDriverContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateVehicleDriverInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateVehicleDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isExitVehicleBlocked: Bool;
+    let isVehicleCombatModeBlocked: Bool;
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveVehicleDriverInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if stateContext.GetBoolParameter(n"isDriverInputHintDisplayed", true) {
+      isVehicleCombatModeBlocked = this.IsVehicleBlockingCombat(scriptInterface) || this.IsEmptyHandsForced(stateContext, scriptInterface);
+      isExitVehicleBlocked = this.IsExitVehicleBlocked(scriptInterface);
+      if NotEquals(isVehicleCombatModeBlocked, stateContext.GetBoolParameter(n"IsVehicleCombatModeBlocked", true)) {
+        this.ShowVehicleDrawWeaponInputHint(stateContext, scriptInterface);
+      };
+      if NotEquals(isExitVehicleBlocked, stateContext.GetBoolParameter(n"IsExitVehicleBlocked", true)) {
+        this.ShowVehicleExitInputHint(stateContext, scriptInterface, n"VehicleDriver");
+      };
+    } else {
+      this.ShowVehicleDriverInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    this.ShowVehicleDriverInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleDriverContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 1);
+  }
+
+  protected const func DriverCombatTypeEnterCondition(const stateContext: ref<StateContext>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return NotEquals(driverCombatType, gamedataDriverCombatType.MountedWeapons);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.DriverCombatTypeEnterCondition(stateContext) {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleOnlyForward") {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoDriving") {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleDriverMountedWeaponsContextDecisions extends VehicleDriverContextDecisions {
+
+  protected const func DriverCombatTypeEnterCondition(const stateContext: ref<StateContext>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return Equals(driverCombatType, gamedataDriverCombatType.MountedWeapons);
+  }
+}
+
+public class VehicleDriverCombatContextEvents extends InputContextTransitionEvents {
+
+  protected let m_weapon: wref<WeaponObject>;
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_hasControllerChanged = this.ConsumeControllerChange(stateContext, scriptInterface);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateVehicleDriverInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateVehicleDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let canDisplayDriverCombatScannerInputHint: Bool;
+    let weapon: wref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let isDriverCombatMeleeInputHintDirty: Bool = NotEquals(this.m_weapon.IsMelee(), weapon.IsMelee()) || NotEquals(this.m_weapon.IsThrowable(), weapon.IsThrowable());
+    this.m_weapon = weapon;
+    if this.m_hasControllerChanged || this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveVehicleDriverCombatInputHintsInternal(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    } else {
+      canDisplayDriverCombatScannerInputHint = scriptInterface.executionOwner.PlayerLastUsedPad() && EquipmentSystem.IsCyberdeckEquipped(scriptInterface.executionOwner) && !QuickhackModule.IsQuickhackBlockedByScene(scriptInterface.executionOwner);
+      if stateContext.GetBoolParameter(n"isDriverCombatInputHintDisplayed", true) && !isDriverCombatMeleeInputHintDirty && Equals(stateContext.GetBoolParameter(n"isDriverCombatScannerInputHintDisplayed", true), canDisplayDriverCombatScannerInputHint) {
+        return;
+      };
+    };
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateVehicleDriverCombatInputHintsInternal(stateContext, scriptInterface);
+  }
+
+  protected func UpdateVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatInputHints(stateContext, scriptInterface);
+  }
+
+  protected func RemoveVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveVehicleDriverCombatInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleDriverCombatContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  private let m_tppCallbackID: ref<CallbackHandle>;
+
+  private let m_upperBodyCallbackID: ref<CallbackHandle>;
+
+  protected let m_inTpp: Bool;
+
+  protected let m_isAiming: Bool;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions> = GetAllBlackboardDefs();
+    if IsDefined(scriptInterface.localBlackboard) {
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged", true);
+      this.m_tppCallbackID = scriptInterface.localBlackboard.RegisterListenerBool(allBlackboardDef.PlayerStateMachine.IsDriverCombatInTPP, this, n"OnVehiclePerspectiveChanged", true);
+      this.m_upperBodyCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.UpperBody, this, n"OnUpperBodyStateChanged", true);
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions> = GetAllBlackboardDefs();
+    if IsDefined(scriptInterface.localBlackboard) {
+      scriptInterface.localBlackboard.UnregisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this.m_callbackID);
+      scriptInterface.localBlackboard.UnregisterListenerBool(allBlackboardDef.PlayerStateMachine.IsDriverCombatInTPP, this.m_tppCallbackID);
+      scriptInterface.localBlackboard.UnregisterListenerInt(allBlackboardDef.PlayerStateMachine.UpperBody, this.m_upperBodyCallbackID);
+    };
+    this.m_callbackID = null;
+    this.m_tppCallbackID = null;
+    this.m_upperBodyCallbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 6);
+  }
+
+  protected cb func OnVehiclePerspectiveChanged(value: Bool) -> Bool {
+    this.m_inTpp = value;
+  }
+
+  protected cb func OnUpperBodyStateChanged(value: Int32) -> Bool {
+    this.m_isAiming = value == 6;
+  }
+
+  protected const func CameraPerspectiveEnterCondition() -> Bool {
+    return !this.m_inTpp;
+  }
+
+  protected const func IsAimingEnterCondition() -> Bool {
+    return !this.m_isAiming;
+  }
+
+  protected const func DriverCombatTypeEnterCondition(const stateContext: ref<StateContext>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return Equals(driverCombatType, gamedataDriverCombatType.Standard) || Equals(driverCombatType, gamedataDriverCombatType.Doors);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.CameraPerspectiveEnterCondition() || !this.IsAimingEnterCondition() || !this.DriverCombatTypeEnterCondition(stateContext) {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleOnlyForward") {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoDriving") {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleDriverCombatTPPContextEvents extends VehicleDriverCombatContextEvents {
+
+  protected func UpdateVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+  }
+
+  protected func RemoveVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleDriverCombatTPPContextDecisions extends VehicleDriverCombatContextDecisions {
+
+  private const func CameraPerspectiveEnterCondition() -> Bool {
+    return this.m_inTpp;
+  }
+}
+
+public class VehicleDriverCombatAimContextEvents extends VehicleDriverCombatContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleDriverCombatAimContextDecisions extends VehicleDriverCombatContextDecisions {
+
+  protected const func IsAimingEnterCondition() -> Bool {
+    return this.m_isAiming;
+  }
+
+  protected const func CameraPerspectiveEnterCondition() -> Bool {
+    return true;
+  }
+}
+
+public class VehicleDriverCombatMountedWeaponsContextDecisions extends VehicleDriverCombatContextDecisions {
+
+  protected const func CameraPerspectiveEnterCondition() -> Bool {
+    return true;
+  }
+
+  protected const func IsAimingEnterCondition() -> Bool {
+    return true;
+  }
+
+  protected const func DriverCombatTypeEnterCondition(const stateContext: ref<StateContext>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return Equals(driverCombatType, gamedataDriverCombatType.MountedWeapons);
+  }
+}
+
+public class VehicleNoDriveCombatContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 6);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoDriving") {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class VehicleCombatContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateVehicleCombatInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateVehicleCombatInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveVehiclePassengerCombatInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if !stateContext.GetBoolParameter(n"isPassengerCombatInputHintDisplayed", true) {
+      this.ShowVehiclePassengerCombatInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    this.ShowVehiclePassengerCombatInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehiclePassengerCombatInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleCombatContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    if IsDefined(scriptInterface.localBlackboard) {
+      allBlackboardDef = GetAllBlackboardDefs();
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged");
+      this.OnVehicleStateChanged(scriptInterface.localBlackboard.GetInt(allBlackboardDef.PlayerStateMachine.Vehicle));
+    };
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_callbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.EnableOnEnterCondition(value == 2);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class AutodriveAndCinematicCameraContextDecisions extends InputContextTransitionDecisions {
+
+  private let m_autodriveCallbackID: ref<CallbackHandle>;
+
+  private let m_cinematicCameraCallbackID: ref<CallbackHandle>;
+
+  private let m_delamainTaxiCallbackID: ref<CallbackHandle>;
+
+  protected let m_autodriveEnabled: Bool;
+
+  protected let m_cinematicCameraActive: Bool;
+
+  protected let m_delamainTaxi: Bool;
+
+  protected func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let autodriveBB: ref<IBlackboard> = scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData);
+    this.m_autodriveCallbackID = autodriveBB.RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveEnabled, this, n"OnAutodriveStateChanged");
+    this.m_cinematicCameraCallbackID = autodriveBB.RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this, n"OnCinematicCameraStateChanged");
+    this.m_delamainTaxiCallbackID = autodriveBB.RegisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain, this, n"OnDelamainTaxiStateChanged");
+    this.m_autodriveEnabled = autodriveBB.GetBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveEnabled);
+    this.m_cinematicCameraActive = autodriveBB.GetBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive);
+    this.m_delamainTaxi = autodriveBB.GetBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain);
+    this.OnStateChanged();
+  }
+
+  protected func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let autodriveBB: ref<IBlackboard> = scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_AutodriveData);
+    autodriveBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveEnabled, this.m_autodriveCallbackID);
+    autodriveBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.CinematicCameraActive, this.m_cinematicCameraCallbackID);
+    autodriveBB.UnregisterListenerBool(GetAllBlackboardDefs().UI_AutodriveData.AutoDriveDelamain, this.m_delamainTaxiCallbackID);
+    this.m_autodriveCallbackID = null;
+    this.m_cinematicCameraCallbackID = null;
+    this.m_delamainTaxiCallbackID = null;
+  }
+
+  protected cb func OnAutodriveStateChanged(autodriveEnabled: Bool) -> Bool {
+    this.m_autodriveEnabled = autodriveEnabled;
+    this.OnStateChanged();
+  }
+
+  protected cb func OnCinematicCameraStateChanged(cinematicCameraActive: Bool) -> Bool {
+    this.m_cinematicCameraActive = cinematicCameraActive;
+    this.OnStateChanged();
+  }
+
+  protected cb func OnDelamainTaxiStateChanged(delamaintaxi: Bool) -> Bool {
+    this.m_delamainTaxi = delamaintaxi;
+    this.OnStateChanged();
+  }
+
+  protected func OnStateChanged() -> Void;
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+}
+
+public class VehicleAutodriveContextEvents extends InputContextTransitionEvents {
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateAutodriveInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateAutodriveInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveAutodriveInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if !stateContext.GetBoolParameter(n"isAutodriveInputHintDisplayed", true) {
+      this.ShowAutodriveInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowAutodriveInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveAutodriveInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleAutodriveContextDecisions extends AutodriveAndCinematicCameraContextDecisions {
+
+  protected func OnStateChanged() -> Void {
+    this.EnableOnEnterCondition(this.m_autodriveEnabled && !this.m_cinematicCameraActive && !this.m_delamainTaxi);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return NotEquals(driverCombatType, gamedataDriverCombatType.MountedWeapons);
+  }
+}
+
+public class VehicleAutodriveCombatContextEvents extends VehicleAutodriveContextEvents {
+
+  protected let m_weapon: wref<WeaponObject>;
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+    this.m_hasControllerChanged = this.ConsumeControllerChange(stateContext, scriptInterface);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateVehicleDriverInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateVehicleDriverInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let canDisplayDriverCombatScannerInputHint: Bool;
+    let weapon: wref<WeaponObject> = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    let isDriverCombatMeleeInputHintDirty: Bool = NotEquals(this.m_weapon.IsMelee(), weapon.IsMelee()) || NotEquals(this.m_weapon.IsThrowable(), weapon.IsThrowable());
+    this.m_weapon = weapon;
+    if this.m_hasControllerChanged || this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveVehicleDriverCombatInputHintsInternal(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    } else {
+      canDisplayDriverCombatScannerInputHint = scriptInterface.executionOwner.PlayerLastUsedPad() && EquipmentSystem.IsCyberdeckEquipped(scriptInterface.executionOwner) && !QuickhackModule.IsQuickhackBlockedByScene(scriptInterface.executionOwner);
+      if stateContext.GetBoolParameter(n"isDriverCombatInputHintDisplayed", true) && !isDriverCombatMeleeInputHintDirty && Equals(stateContext.GetBoolParameter(n"isDriverCombatScannerInputHintDisplayed", true), canDisplayDriverCombatScannerInputHint) {
+        return;
+      };
+    };
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateVehicleDriverCombatInputHintsInternal(stateContext, scriptInterface);
+  }
+
+  protected func UpdateVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatInputHints(stateContext, scriptInterface);
+  }
+
+  protected func RemoveVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveVehicleDriverCombatInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleAutodriveCombatContextDecisions extends VehicleAutodriveContextDecisions {
+
+  private let m_callbackID: ref<CallbackHandle>;
+
+  private let m_tppCallbackID: ref<CallbackHandle>;
+
+  private let m_upperBodyCallbackID: ref<CallbackHandle>;
+
+  protected let m_inTpp: Bool;
+
+  protected let m_isAiming: Bool;
+
+  protected let m_vehicleState: Int32;
+
+  protected func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    super.OnAttach(stateContext, scriptInterface);
+    allBlackboardDef = GetAllBlackboardDefs();
+    if IsDefined(scriptInterface.localBlackboard) {
+      this.m_callbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this, n"OnVehicleStateChanged", true);
+      this.m_tppCallbackID = scriptInterface.localBlackboard.RegisterListenerBool(allBlackboardDef.PlayerStateMachine.IsDriverCombatInTPP, this, n"OnVehiclePerspectiveChanged", true);
+      this.m_upperBodyCallbackID = scriptInterface.localBlackboard.RegisterListenerInt(allBlackboardDef.PlayerStateMachine.UpperBody, this, n"OnUpperBodyStateChanged", true);
+    };
+  }
+
+  protected func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let allBlackboardDef: ref<AllBlackboardDefinitions>;
+    super.OnDetach(stateContext, scriptInterface);
+    allBlackboardDef = GetAllBlackboardDefs();
+    if IsDefined(scriptInterface.localBlackboard) {
+      scriptInterface.localBlackboard.UnregisterListenerInt(allBlackboardDef.PlayerStateMachine.Vehicle, this.m_callbackID);
+      scriptInterface.localBlackboard.UnregisterListenerBool(allBlackboardDef.PlayerStateMachine.IsDriverCombatInTPP, this.m_tppCallbackID);
+      scriptInterface.localBlackboard.UnregisterListenerInt(allBlackboardDef.PlayerStateMachine.UpperBody, this.m_upperBodyCallbackID);
+    };
+    this.m_callbackID = null;
+    this.m_tppCallbackID = null;
+    this.m_upperBodyCallbackID = null;
+  }
+
+  protected cb func OnVehicleStateChanged(value: Int32) -> Bool {
+    this.m_vehicleState = value;
+    this.OnStateChanged();
+  }
+
+  protected func OnStateChanged() -> Void {
+    this.EnableOnEnterCondition(this.m_autodriveEnabled && !this.m_cinematicCameraActive && !this.m_delamainTaxi && this.m_vehicleState == 6);
+  }
+
+  protected cb func OnVehiclePerspectiveChanged(value: Bool) -> Bool {
+    this.m_inTpp = value;
+  }
+
+  protected cb func OnUpperBodyStateChanged(value: Int32) -> Bool {
+    this.m_isAiming = value == 6;
+  }
+
+  protected const func CameraPerspectiveEnterCondition() -> Bool {
+    return !this.m_inTpp;
+  }
+
+  protected const func IsAimingEnterCondition() -> Bool {
+    return !this.m_isAiming;
+  }
+
+  protected const func DriverCombatTypeEnterCondition(const stateContext: ref<StateContext>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return Equals(driverCombatType, gamedataDriverCombatType.Standard) || Equals(driverCombatType, gamedataDriverCombatType.Doors);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.CameraPerspectiveEnterCondition() || !this.IsAimingEnterCondition() || !this.DriverCombatTypeEnterCondition(stateContext) {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleOnlyForward") {
+      return false;
+    };
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoDriving") {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class VehicleAutodriveCombatTPPContextEvents extends VehicleAutodriveCombatContextEvents {
+
+  protected func UpdateVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+  }
+
+  protected func RemoveVehicleDriverCombatInputHintsInternal(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowAutodriveInputHints(stateContext, scriptInterface);
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveAutodriveInputHints(stateContext, scriptInterface);
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleAutodriveCombatTPPContextDecisions extends VehicleAutodriveCombatContextDecisions {
+
+  private const func CameraPerspectiveEnterCondition() -> Bool {
+    return this.m_inTpp;
+  }
+}
+
+public class VehicleAutodriveCombatAimContextEvents extends VehicleAutodriveCombatContextEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowAutodriveInputHints(stateContext, scriptInterface);
+    this.m_weapon = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"inMeleeDriverCombat", this.m_weapon.IsMelee(), true);
+    this.UpdateGyroAimingContexts(stateContext, scriptInterface);
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.ShowVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveAutodriveInputHints(stateContext, scriptInterface);
+    ResetGyroAndPatternRestrictions(scriptInterface);
+    this.RemoveVehicleDriverCombatTPPInputHints(stateContext, scriptInterface);
+    stateContext.RemovePermanentBoolParameter(n"inMeleeDriverCombat");
+  }
+}
+
+public class VehicleAutodriveCombatAimContextDecisions extends VehicleAutodriveCombatContextDecisions {
+
+  protected const func IsAimingEnterCondition() -> Bool {
+    return this.m_isAiming;
+  }
+
+  protected const func CameraPerspectiveEnterCondition() -> Bool {
+    return true;
+  }
+}
+
+public class VehicleMountedWeaponsAutodriveContextDecisions extends AutodriveAndCinematicCameraContextDecisions {
+
+  protected func OnStateChanged() -> Void {
+    this.EnableOnEnterCondition(this.m_autodriveEnabled && !this.m_cinematicCameraActive && !this.m_delamainTaxi);
+  }
+
+  protected const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetDriverCombatType(stateContext);
+    return Equals(driverCombatType, gamedataDriverCombatType.MountedWeapons);
+  }
+}
+
+public class VehicleCinematicCameraContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateCinematicCameraInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateCinematicCameraInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveCinematicCameraInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if !stateContext.GetBoolParameter(n"isCinematicCameraInputHintDisplayed", true) {
+      this.ShowCinematicCameraInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowCinematicCameraInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveCinematicCameraInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleCinematicCameraContextDecisions extends AutodriveAndCinematicCameraContextDecisions {
+
+  protected func OnStateChanged() -> Void {
+    this.EnableOnEnterCondition(this.m_autodriveEnabled && this.m_cinematicCameraActive);
+  }
+}
+
+public class VehicleDelamainTaxiContextEvents extends InputContextTransitionEvents {
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.m_gameplaySettings.GetIsInputHintEnabled() && this.m_isGameplayInputHintManagerInitialized {
+      this.UpdateDelamainCameraInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected final func UpdateDelamainCameraInputHints(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if this.ShouldForceRefreshInputHints(stateContext) {
+      this.RemoveDelamainInputHints(stateContext, scriptInterface);
+      this.m_isGameplayInputHintRefreshRequired = false;
+    };
+    if !stateContext.GetBoolParameter(n"isDelamainInputHintDisplayed", true) {
+      this.ShowDelamainInputHints(stateContext, scriptInterface);
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ShowDelamainInputHints(stateContext, scriptInterface);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.RemoveDelamainInputHints(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleDelamainTaxiContextDecisions extends AutodriveAndCinematicCameraContextDecisions {
+
+  protected func OnStateChanged() -> Void {
+    this.EnableOnEnterCondition(this.m_autodriveEnabled && !this.m_cinematicCameraActive && this.m_delamainTaxi);
+  }
+}

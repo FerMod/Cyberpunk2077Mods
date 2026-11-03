@@ -1,0 +1,103 @@
+
+public class TwintoneDeleteOneTimeRewardGameController extends inkGameController {
+
+  private edit let m_deleteButtonHit: inkWidgetRef;
+
+  private edit let m_cancelButtonHit: inkWidgetRef;
+
+  private edit let m_templatePreviewContainer: inkWidgetRef;
+
+  private edit let m_templatePreviewLibraryRef: inkWidgetLibraryReference;
+
+  private let m_currentTemplatePreview: wref<ColorTemplatePreviewDisplayController>;
+
+  private let m_deletionData: ref<TwintoneDeletionData>;
+
+  private let m_player: wref<GameObject>;
+
+  private let m_game: GameInstance;
+
+  private let m_templateToDelete: VehicleVisualCustomizationTemplate;
+
+  private let m_outroAnimProxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_deletionData = this.GetRootWidget().GetUserData(n"TwintoneDeletionData") as TwintoneDeletionData;
+    this.m_deletionData.deletionAccepted = false;
+    inkWidgetRef.RegisterToCallback(this.m_deleteButtonHit, n"OnRelease", this, n"OnReleaseDelete");
+    inkWidgetRef.RegisterToCallback(this.m_cancelButtonHit, n"OnRelease", this, n"OnReleaseCancel");
+    this.m_game = (this.GetOwnerEntity() as GameObject).GetGame();
+    this.m_templateToDelete = this.m_deletionData.template;
+    this.m_currentTemplatePreview = this.SpawnFromExternal(inkWidgetRef.Get(this.m_templatePreviewContainer), inkWidgetLibraryResource.GetPath(this.m_templatePreviewLibraryRef.widgetLibrary), this.m_templatePreviewLibraryRef.widgetItem).GetController() as ColorTemplatePreviewDisplayController;
+    this.m_currentTemplatePreview.SetColorCorrectionEnabled(true);
+    this.m_currentTemplatePreview.SetSelected(false);
+    this.m_currentTemplatePreview.SetTemplate(this.m_templateToDelete);
+    this.SetCursorContext(n"Default");
+    this.GetRootWidget().SetVisible(true);
+    PopupsManager.OrderWidgetOnTop(this);
+  }
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    this.m_player = player;
+    this.m_player.RegisterInputListener(this, n"UI_vehicle_customization_override_proceed");
+    this.m_player.RegisterInputListener(this, n"UI_vehicle_customization_override_cancel");
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    this.Hide();
+    this.GetPlayerControlledObject().UnregisterInputListener(this);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_deleteButtonHit, n"OnRelease", this, n"OnReleaseDelete");
+    inkWidgetRef.UnregisterFromCallback(this.m_cancelButtonHit, n"OnRelease", this, n"OnReleaseCancel");
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    let actionName: CName = ListenerAction.GetName(action);
+    if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_RELEASED) && Equals(actionName, n"UI_vehicle_customization_override_cancel") {
+      ListenerActionConsumer.Consume(consumer);
+      this.Hide();
+    } else {
+      if Equals(ListenerAction.GetType(action), gameinputActionType.BUTTON_RELEASED) && Equals(actionName, n"UI_vehicle_customization_override_proceed") {
+        ListenerActionConsumer.Consume(consumer);
+        this.AcceptDeletionAndHide();
+      };
+    };
+  }
+
+  protected cb func OnReleaseDelete(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") {
+      evt.Handle();
+      this.AcceptDeletionAndHide();
+    };
+  }
+
+  protected cb func OnReleaseCancel(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") {
+      evt.Handle();
+      this.Hide();
+    };
+  }
+
+  private final func AcceptDeletionAndHide() -> Void {
+    this.m_deletionData.deletionAccepted = true;
+    this.Hide();
+  }
+
+  private final func Hide() -> Void {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(this.m_outroAnimProxy) {
+      this.OnOutroFinished(this.m_outroAnimProxy);
+      return;
+    };
+    playbackOptions.dependsOnTimeDilation = false;
+    this.m_outroAnimProxy = this.PlayLibraryAnimation(n"outro", playbackOptions);
+    this.m_outroAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOutroFinished");
+  }
+
+  protected cb func OnOutroFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.GetRootWidget().SetVisible(false);
+    this.m_deletionData.token.TriggerCallback(this.m_deletionData);
+  }
+}

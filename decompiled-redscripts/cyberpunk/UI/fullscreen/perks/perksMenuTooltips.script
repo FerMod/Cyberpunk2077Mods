@@ -1,0 +1,962 @@
+
+public class BasePerksMenuTooltipData extends ATooltipData {
+
+  public let manager: ref<PlayerDevelopmentDataManager>;
+
+  public func RefreshRuntimeData() -> Void;
+}
+
+public class AttributeTooltipData extends BasePerksMenuTooltipData {
+
+  public let attributeId: TweakDBID;
+
+  public let attributeType: PerkMenuAttribute;
+
+  public let attributeData: ref<AttributeData>;
+
+  public let displayData: ref<AttributeDisplayData>;
+
+  public func RefreshRuntimeData() -> Void {
+    this.attributeData = this.manager.GetAttribute(this.attributeId);
+    this.displayData = this.manager.GetAttributeData(this.attributeId);
+  }
+}
+
+public class SkillTooltipData extends BasePerksMenuTooltipData {
+
+  public let proficiencyType: gamedataProficiencyType;
+
+  public let attributeRecord: ref<Attribute_Record>;
+
+  public let skillData: ref<ProficiencyDisplayData>;
+
+  public func RefreshRuntimeData() -> Void {
+    this.skillData = this.manager.GetProficiencyDisplayData(this.proficiencyType, this.attributeRecord);
+  }
+}
+
+public class NewPerkTooltipData extends BasePerksMenuTooltipData {
+
+  public let perkType: gamedataNewPerkType;
+
+  public let perkArea: gamedataNewPerkSlotType;
+
+  public let attributeId: TweakDBID;
+
+  public let proficiency: gamedataProficiencyType;
+
+  public let isRipperdoc: Bool;
+
+  public let perkData: ref<NewPerkDisplayData>;
+
+  public let attributeData: ref<AttributeData>;
+
+  public func RefreshRuntimeData() -> Void {
+    this.attributeData = this.manager.GetAttribute(this.attributeId);
+    this.perkData = this.manager.GetNewPerkDisplayData(this.perkType, this.perkArea, this.proficiency, this.attributeId, this.isRipperdoc);
+  }
+}
+
+public class PerkTooltipData extends BasePerksMenuTooltipData {
+
+  public let perkType: gamedataPerkType;
+
+  public let perkArea: gamedataPerkArea;
+
+  public let attributeId: TweakDBID;
+
+  public let proficiency: gamedataProficiencyType;
+
+  public let perkData: ref<PerkDisplayData>;
+
+  public let attributeData: ref<AttributeData>;
+
+  public func RefreshRuntimeData() -> Void {
+    this.attributeData = this.manager.GetAttribute(this.attributeId);
+    this.perkData = this.manager.GetPerkDisplayData(this.perkType, this.perkArea, this.proficiency, this.attributeId);
+  }
+}
+
+public class TraitTooltipData extends BasePerksMenuTooltipData {
+
+  public let traitType: gamedataTraitType;
+
+  public let attributeId: TweakDBID;
+
+  public let proficiency: gamedataProficiencyType;
+
+  public let traitData: ref<TraitDisplayData>;
+
+  public let attributeData: ref<AttributeData>;
+
+  public func RefreshRuntimeData() -> Void {
+    this.attributeData = this.manager.GetAttribute(this.attributeId);
+    this.traitData = this.manager.GetTraitDisplayData(this.traitType, this.attributeId, this.proficiency);
+  }
+}
+
+public class PerkDisplayTooltipController extends AGenericTooltipControllerWithDebug {
+
+  private edit let m_root: inkWidgetRef;
+
+  private edit let m_perkNameText: inkTextRef;
+
+  private edit let m_videoWrapper: inkWidgetRef;
+
+  private edit let m_videoWidget: inkVideoRef;
+
+  private edit let m_unlockStateText: inkTextRef;
+
+  private edit let m_perkTypeText: inkTextRef;
+
+  private edit let m_perkTypeWrapper: inkWidgetRef;
+
+  private edit let m_unlockInfoWrapper: inkWidgetRef;
+
+  private edit let m_unlockPointsText: inkTextRef;
+
+  private edit let m_unlockPointsDesc: inkTextRef;
+
+  private edit let m_unlockPerkWrapper: inkWidgetRef;
+
+  private edit let m_levelText: inkTextRef;
+
+  private edit let m_levelDescriptionText: inkTextRef;
+
+  private edit let m_nextLevelWrapper: inkWidgetRef;
+
+  private edit let m_nextLevelText: inkTextRef;
+
+  private edit let m_nextLevelDescriptionText: inkTextRef;
+
+  private edit let m_level1Wrapper: inkWidgetRef;
+
+  private edit const let m_levelsDescriptions: [PerkTooltipDescriptionEntry];
+
+  private edit let m_relatedWeaponTypeWrapper: inkWidgetRef;
+
+  private edit let m_relatedWeaponTypeIcon: inkImageRef;
+
+  private edit let m_relatedWeaponTypeText: inkTextRef;
+
+  private edit let m_traitLevelGrowthText: inkTextRef;
+
+  private edit let m_unlockTraitPointsText: inkTextRef;
+
+  private edit let m_unlockTraitWrapper: inkWidgetRef;
+
+  private edit let m_inputHints: inkWidgetRef;
+
+  private edit let m_buyHint: inkWidgetRef;
+
+  private edit let m_sellHint: inkWidgetRef;
+
+  private edit let m_relicCost: inkWidgetRef;
+
+  private edit let m_costText: inkTextRef;
+
+  private edit let m_costImage: inkImageRef;
+
+  private edit let m_perkLevelWrapper: inkWidgetRef;
+
+  private edit let m_perkLevelCurrent: inkTextRef;
+
+  private edit let m_perkLevelMax: inkTextRef;
+
+  private edit let m_cornerContainer: inkWidgetRef;
+
+  private edit let m_cyberwareDetailsInfo: inkWidgetRef;
+
+  protected edit let DEBUG_iconErrorWrapper: inkWidgetRef;
+
+  protected edit let DEBUG_iconErrorText: inkTextRef;
+
+  private let m_data: ref<BasePerksMenuTooltipData>;
+
+  protected let m_settings: ref<UserSettings>;
+
+  protected let m_settingsListener: ref<PerkDisplayTooltipSettingsListener>;
+
+  @default(PerkDisplayTooltipController, /accessibility/interface)
+  protected let m_groupPath: CName;
+
+  protected edit let m_tooltipWrapper: inkWidgetRef;
+
+  protected edit let m_horizontalSizer: inkWidgetRef;
+
+  protected let m_bigFontEnabled: Bool;
+
+  protected func DEBUG_UpdateDebugInfo() -> Void {
+    let data: ref<PerkTooltipData>;
+    let perkRecord: wref<Perk_Record>;
+    let playerDevelopmentData: wref<PlayerDevelopmentData>;
+    let resultText: String;
+    let iconsNameResolver: ref<IconsNameResolver> = IconsNameResolver.GetIconsNameResolver();
+    if !iconsNameResolver.IsInDebugMode() {
+      inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, false);
+      return;
+    };
+    inkWidgetRef.SetVisible(this.DEBUG_iconErrorWrapper, this.DEBUG_showDebug);
+    if this.DEBUG_showDebug && this.m_data.IsA(n"PerkTooltipData") {
+      resultText += "Perk enum name:\\n";
+      data = this.m_data as PerkTooltipData;
+      playerDevelopmentData = this.m_data.manager.GetPlayerDevelopmentData();
+      perkRecord = playerDevelopmentData.GetPerkRecord(data.perkData.m_type);
+      resultText += NameToString(perkRecord.EnumName());
+      inkTextRef.SetText(this.DEBUG_iconErrorText, resultText);
+      this.OpenTweakDBRecordInVSCodeIfRequested(perkRecord.GetID());
+    };
+  }
+
+  public func Refresh() -> Void {
+    this.SetData(this.m_data);
+  }
+
+  public func SetData(tooltipData: ref<ATooltipData>) -> Void {
+    this.m_data = tooltipData as BasePerksMenuTooltipData;
+    if this.m_data == null {
+      return;
+    };
+    this.m_data.RefreshRuntimeData();
+    this.m_settings = new UserSettings();
+    this.m_settingsListener = new PerkDisplayTooltipSettingsListener();
+    this.m_settingsListener.RegisterController(this);
+    this.m_settingsListener.Register(this.m_groupPath);
+    this.UpdateTooltipSize();
+    if tooltipData.IsA(n"PerkTooltipData") {
+      this.RefreshTooltip(this.m_data as PerkTooltipData);
+    } else {
+      if tooltipData.IsA(n"TraitTooltipData") {
+        this.RefreshTooltip(this.m_data as TraitTooltipData);
+      } else {
+        if tooltipData.IsA(n"NewPerkTooltipData") {
+          this.RefreshTooltip(this.m_data as NewPerkTooltipData);
+        };
+      };
+    };
+    this.DEBUG_UpdateDebugInfo();
+  }
+
+  private final func GetUiLocalizationData(levelDataRecord: ref<TweakDBRecord>) -> ref<UILocalizationDataPackage> {
+    if levelDataRecord.IsA(n"gamedataPerkLevelData_Record") {
+      return UILocalizationDataPackage.FromPerkUIDataPackage((levelDataRecord as PerkLevelData_Record).UiData());
+    };
+    if levelDataRecord.IsA(n"gamedataNewPerk_Record") {
+      return UILocalizationDataPackage.FromNewPerkUIDataPackage((levelDataRecord as NewPerk_Record).UiData());
+    };
+    return null;
+  }
+
+  private final func GetLevelDescription(perkData: ref<BasePerkDisplayData>, levelDataRecord: ref<TweakDBRecord>) -> String {
+    let constPerkModifier: wref<ConstantStatModifier_Record>;
+    let i: Int32;
+    let perkModifiers: array<wref<StatModifier_Record>>;
+    let perkStat: wref<Stat_Record>;
+    let resultString: String;
+    let statValue: Float;
+    let stringToReplace: String;
+    ArrayClear(perkModifiers);
+    if levelDataRecord.IsA(n"gamedataPerkLevelData_Record") {
+      (levelDataRecord as PerkLevelData_Record).DataPackage().Stats(perkModifiers);
+    } else {
+      if levelDataRecord.IsA(n"gamedataNewPerkLevelData_Record") {
+        (levelDataRecord as NewPerkLevelData_Record).DataPackage().Stats(perkModifiers);
+        resultString = GetLocalizedText((levelDataRecord as NewPerkLevelData_Record).Loc_desc_key());
+      };
+    };
+    if !IsStringValid(resultString) {
+      resultString = perkData.m_localizedDescription;
+    };
+    i = 0;
+    while i < ArraySize(perkModifiers) {
+      perkStat = perkModifiers[i].StatType();
+      constPerkModifier = perkModifiers[i] as ConstantStatModifier_Record;
+      stringToReplace = "<BaseStats." + EnumValueToString("gamedataStatType", EnumInt(perkStat.StatType())) + ">";
+      statValue = constPerkModifier.Value();
+      resultString = StrReplaceAll(resultString, stringToReplace, IntToString(RoundF(statValue)));
+      i += 1;
+    };
+    return resultString;
+  }
+
+  private final func RefreshTooltip(data: ref<PerkTooltipData>) -> Void {
+    let playerDevelopmentData: wref<PlayerDevelopmentData> = this.m_data.manager.GetPlayerDevelopmentData();
+    let perkRecord: wref<Perk_Record> = playerDevelopmentData.GetPerkRecord(data.perkData.m_type);
+    let perkPackageRecords: ref<BasePerkLevelData_Records> = new PerkLevelData_Records();
+    (perkPackageRecords as PerkLevelData_Records).Initialize(perkRecord);
+    this.UpdateState(data.perkData);
+    this.UpdatePerkDescriptions(data.perkData, perkPackageRecords);
+    this.UpdateVideo(data, data.perkData);
+    this.UpdateName(data.perkData);
+    this.UpdateType(perkRecord);
+    this.UpdateTooltipHints(data, data.perkData);
+    this.UpdateRequirements(playerDevelopmentData, data);
+  }
+
+  private final func RefreshTooltip(data: ref<NewPerkTooltipData>) -> Void {
+    let playerDevelopmentData: wref<PlayerDevelopmentData> = this.m_data.manager.GetPlayerDevelopmentData();
+    let perkRecord: wref<NewPerk_Record> = RPGManager.GetNewPerkRecord(data.perkType);
+    let newPerkPackageRecords: ref<BasePerkLevelData_Records> = new NewPerkLevelData_Records();
+    (newPerkPackageRecords as NewPerkLevelData_Records).Initialize(perkRecord);
+    this.UpdateState(data.perkData);
+    this.UpdatePerkDescriptions(data.perkData, newPerkPackageRecords);
+    this.UpdateVideo(data, data.perkData);
+    this.UpdateName(data.perkData);
+    this.UpdateType(perkRecord);
+    if data.perkData.m_isRipperdoc {
+      inkWidgetRef.SetVisible(this.m_inputHints, false);
+      inkWidgetRef.SetVisible(this.m_unlockInfoWrapper, false);
+    } else {
+      this.UpdateTooltipHints(data, data.perkData);
+      this.UpdateRequirements(playerDevelopmentData, data);
+    };
+    this.UpdateRelatedWeaponType(perkRecord);
+    inkWidgetRef.SetVisible(this.m_cyberwareDetailsInfo, Equals(data.perkType, gamedataNewPerkType.Espionage_Central_Milestone_1));
+  }
+
+  private final func RefreshTooltip(data: ref<TraitTooltipData>) -> Void {
+    let playerDevelopmentData: wref<PlayerDevelopmentData> = this.m_data.manager.GetPlayerDevelopmentData();
+    this.UpdateState(data.traitData);
+    this.UpdateTraitDescriptions(data);
+    this.UpdateVideo(data);
+    this.UpdateName(data.traitData);
+    this.UpdateType();
+    this.UpdateTooltipHints(data, data.traitData);
+    this.UpdateRequirements(playerDevelopmentData, data);
+    this.UpdateRelatedWeaponType();
+  }
+
+  private final func UpdateType(opt perkRecord: wref<TweakDBRecord>) -> Void {
+    let perkUtility: wref<PerkUtility_Record>;
+    if IsDefined(perkRecord) {
+      if perkRecord.IsA(n"gamedataPerk_Record") {
+        perkUtility = (perkRecord as Perk_Record).Utility();
+      } else {
+        if perkRecord.IsA(n"gamedataNewPerk_Record") {
+        };
+      };
+      if IsDefined(perkUtility) {
+        inkTextRef.SetText(this.m_perkTypeText, PlayerDevelopmentDataManager.PerkUtilityToString(perkUtility.UtilityType()));
+        inkWidgetRef.SetVisible(this.m_perkTypeWrapper, true);
+        return;
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_perkTypeWrapper, false);
+  }
+
+  private final func UpdateState(basePerkData: ref<BasePerkDisplayData>) -> Void {
+    if basePerkData.m_locked {
+      inkTextRef.SetText(this.m_unlockStateText, GetLocalizedText("UI-Cyberpunk-Fullscreen-PlayerDevelopment-Perks-Locked"));
+      inkWidgetRef.SetState(this.m_root, n"Locked");
+      inkWidgetRef.SetVisible(this.m_cornerContainer, false);
+    } else {
+      if basePerkData.m_level == 0 {
+        inkTextRef.SetText(this.m_unlockStateText, GetLocalizedText("UI-Cyberpunk-Fullscreen-PlayerDevelopment-Perks-NotPurchased"));
+        inkWidgetRef.SetState(this.m_root, n"NotPurchased");
+        inkWidgetRef.SetVisible(this.m_cornerContainer, false);
+      } else {
+        if basePerkData.m_level == basePerkData.m_maxLevel {
+          inkTextRef.SetText(this.m_unlockStateText, GetLocalizedText("UI-Menus-Perks-MaxedOut"));
+          inkWidgetRef.SetState(this.m_root, n"MaxedOut");
+          inkWidgetRef.SetVisible(this.m_cornerContainer, true);
+        } else {
+          inkTextRef.SetText(this.m_unlockStateText, GetLocalizedText("UI-Menus-Perks-Purchased"));
+          inkWidgetRef.SetState(this.m_root, n"Purchased");
+          inkWidgetRef.SetVisible(this.m_cornerContainer, true);
+        };
+      };
+    };
+  }
+
+  private final func IsTrulyEspionagePerk(perkType: gamedataNewPerkType) -> Bool {
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Milestone_1) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Perk_1_1) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Perk_1_2) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Perk_1_3) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Central_Perk_1_4) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Left_Milestone_Perk) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Left_Perk_1_2) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Right_Milestone_1) {
+      return true;
+    };
+    if Equals(perkType, gamedataNewPerkType.Espionage_Right_Perk_1_1) {
+      return true;
+    };
+    return false;
+  }
+
+  private final func UpdatePerkDescriptions(perkData: ref<BasePerkDisplayData>, perkPackageRecords: ref<BasePerkLevelData_Records>) -> Void {
+    let description: String;
+    let i: Int32;
+    let isRelic: Bool;
+    let isRelicMilestone: Bool;
+    let levelLocalizationData: ref<UILocalizationDataPackage>;
+    let levelPerkPackage: wref<NewPerkLevelData_Record>;
+    let levelTextParams: ref<inkTextParams>;
+    let maxLevel: Int32;
+    let newPackageRecord: wref<NewPerkLevelData_Records>;
+    let currentLevel: Int32 = Max(0, perkData.m_level);
+    inkTextRef.SetText(this.m_perkLevelCurrent, IntToString(currentLevel));
+    if perkPackageRecords.IsA(n"NewPerkLevelData_Records") {
+      newPackageRecord = perkPackageRecords as NewPerkLevelData_Records;
+      maxLevel = Max(1, newPackageRecord.Size());
+      inkTextRef.SetText(this.m_perkLevelMax, IntToString(maxLevel));
+    };
+    inkWidgetRef.SetVisible(this.m_level1Wrapper, maxLevel > 1);
+    isRelic = this.IsTrulyEspionagePerk(perkData as NewPerkDisplayData.m_type);
+    isRelicMilestone = this.m_data.manager.IsEspionageMilestonePerk(perkData as NewPerkDisplayData.m_type);
+    inkWidgetRef.SetVisible(this.m_perkLevelWrapper, maxLevel > 1 && !isRelic);
+    inkWidgetRef.SetVisible(this.m_relicCost, isRelic);
+    inkTextRef.SetText(this.m_costText, isRelicMilestone ? "3" : "1");
+    i = 0;
+    while i < 3 {
+      if i < maxLevel {
+        levelTextParams = new inkTextParams();
+        levelTextParams.AddNumber("level", i + 1);
+        inkTextRef.SetTextParameters(this.m_levelsDescriptions[i].m_level, levelTextParams);
+        levelPerkPackage = newPackageRecord.GetItemAt(i);
+        description = this.GetLevelDescription(perkData, levelPerkPackage);
+        if levelPerkPackage.UiData() != null {
+          levelLocalizationData = UILocalizationDataPackage.FromNewPerkUIDataPackage(levelPerkPackage.UiData());
+        } else {
+          levelLocalizationData = this.GetUiLocalizationData(newPackageRecord.GetNewPerkRecord());
+        };
+        if levelLocalizationData == null {
+          levelLocalizationData = new UILocalizationDataPackage();
+        };
+        inkTextRef.SetText(this.m_levelsDescriptions[i].m_text, description + "{__empty__}");
+        levelLocalizationData.EnableNotReplacedWorkaround();
+        if levelLocalizationData.GetParamsCount(true) > 0 {
+          inkTextRef.SetTextParameters(this.m_levelsDescriptions[i].m_text, levelLocalizationData.GetTextParams());
+        };
+        inkWidgetRef.SetVisible(this.m_levelsDescriptions[i].m_wrapper, true);
+        inkWidgetRef.SetState(this.m_levelsDescriptions[i].m_wrapper, currentLevel > i ? n"Purchased" : n"Locked");
+        inkWidgetRef.SetVisible(this.m_relicCost, currentLevel == 0 ? true : false && isRelic);
+        inkWidgetRef.SetVisible(this.m_levelsDescriptions[i].m_videoLabel, i == maxLevel - 1 ? inkWidgetRef.IsVisible(this.m_videoWrapper) : false);
+        inkWidgetRef.SetVisible(this.m_levelsDescriptions[i].m_highlightLabel, currentLevel - 1 == i ? true : false);
+        if this.m_bigFontEnabled {
+          inkTextRef.SetWrappingAtPosition(this.m_levelsDescriptions[i].m_text, 845.00);
+          inkWidgetRef.SetSize(this.m_levelsDescriptions[i].m_highlightLabel, 870.00, 64.00);
+        } else {
+          inkTextRef.SetWrappingAtPosition(this.m_levelsDescriptions[i].m_text, 690.00);
+          inkWidgetRef.SetSize(this.m_levelsDescriptions[i].m_highlightLabel, 720.00, 64.00);
+        };
+      } else {
+        inkWidgetRef.SetVisible(this.m_levelsDescriptions[i].m_wrapper, false);
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_nextLevelWrapper, false);
+    inkWidgetRef.SetVisible(this.m_traitLevelGrowthText, false);
+  }
+
+  private final func UpdateTraitDescriptions(data: ref<TraitTooltipData>) -> Void {
+    let levelTextParams: ref<inkTextParams>;
+    let traitRecord: wref<Trait_Record>;
+    let uiLocalizationData: ref<UILocalizationDataPackage>;
+    let uiLocalizationInfiniteData: ref<UILocalizationDataPackage>;
+    inkWidgetRef.SetVisible(this.m_nextLevelWrapper, false);
+    levelTextParams = new inkTextParams();
+    traitRecord = RPGManager.GetTraitRecord(data.traitData.m_type);
+    inkTextRef.SetText(this.m_levelText, GetLocalizedText("UI-Statistic-Level") + ": " + NameToString(n"<Rich size=\"45\" style=\"Bold\">{level,number}</>"));
+    levelTextParams.AddNumber("level", data.traitData.m_level + 1);
+    inkTextRef.SetTextParameters(this.m_levelText, levelTextParams);
+    inkTextRef.SetText(this.m_levelDescriptionText, data.traitData.m_localizedDescription);
+    inkTextRef.SetText(this.m_traitLevelGrowthText, GetLocalizedText(traitRecord.InfiniteTraitData().Loc_desc_key()));
+    uiLocalizationData = UILocalizationDataPackage.FromLogicUIDataPackage(traitRecord.BaseTraitData().DataPackage().UIData());
+    uiLocalizationInfiniteData = UILocalizationDataPackage.FromLogicUIDataPackage(traitRecord.InfiniteTraitData().DataPackage().UIData());
+    if uiLocalizationData.GetParamsCount() > 0 {
+      inkTextRef.SetTextParameters(this.m_levelDescriptionText, uiLocalizationData.GetTextParams());
+    };
+    if uiLocalizationInfiniteData.GetParamsCount() > 0 {
+      inkTextRef.SetTextParameters(this.m_traitLevelGrowthText, uiLocalizationInfiniteData.GetTextParams());
+    };
+    inkWidgetRef.SetVisible(this.m_traitLevelGrowthText, true);
+  }
+
+  private final func UpdateName(data: ref<BasePerkDisplayData>) -> Void {
+    inkTextRef.SetText(this.m_perkNameText, data.m_localizedName);
+  }
+
+  private final func UpdateVideo(data: ref<BasePerksMenuTooltipData>, perkData: ref<BasePerkDisplayData>) -> Void {
+    data.RefreshRuntimeData();
+    this.CommonUpdateVideo(perkData);
+  }
+
+  private final func UpdateVideo(data: ref<TraitTooltipData>) -> Void {
+    data.RefreshRuntimeData();
+    this.CommonUpdateVideo(data.traitData);
+  }
+
+  private final func CommonUpdateVideo(data: ref<BasePerkDisplayData>) -> Void {
+    let i: Int32;
+    let videoVisible: Bool;
+    if IsDefined(data) && ResRef.IsValid(data.m_binkRef) {
+      inkVideoRef.Stop(this.m_videoWidget);
+      inkVideoRef.SetVideoPath(this.m_videoWidget, data.m_binkRef);
+      inkVideoRef.SetLoop(this.m_videoWidget, true);
+      inkVideoRef.Play(this.m_videoWidget);
+      videoVisible = true;
+    } else {
+      videoVisible = false;
+    };
+    inkWidgetRef.SetVisible(this.m_videoWrapper, videoVisible);
+    i = ArraySize(this.m_levelsDescriptions) - 1;
+    while i >= 0 {
+      if inkWidgetRef.IsVisible(this.m_levelsDescriptions[i].m_wrapper) {
+        inkWidgetRef.SetVisible(this.m_levelsDescriptions[i].m_videoLabel, videoVisible);
+        break;
+      };
+      i -= 1;
+    };
+  }
+
+  private final func UpdateTooltipHints(data: ref<BasePerksMenuTooltipData>, perkData: ref<BasePerkDisplayData>) -> Void {
+    let upgradeable: Bool = data.manager.IsPerkUpgradeable(perkData);
+    let refundable: Bool = data.manager.IsNewPerkRefundable(perkData as NewPerkDisplayData);
+    inkWidgetRef.SetVisible(this.m_inputHints, upgradeable || refundable);
+    inkWidgetRef.SetVisible(this.m_buyHint, upgradeable);
+    inkWidgetRef.SetVisible(this.m_sellHint, refundable);
+  }
+
+  private final func UpdateRequirements(playerDevelopmentData: wref<PlayerDevelopmentData>, data: ref<PerkTooltipData>) -> Void {
+    let areaRecord: wref<PerkArea_Record> = playerDevelopmentData.GetPerkAreaRecord(data.perkData.m_area);
+    let statCastPrereqRecord: wref<StatPrereq_Record> = areaRecord.Requirement() as StatPrereq_Record;
+    inkWidgetRef.SetVisible(this.m_unlockInfoWrapper, data.perkData.m_locked);
+    inkWidgetRef.SetVisible(this.m_unlockPerkWrapper, true);
+    inkWidgetRef.SetVisible(this.m_unlockTraitWrapper, false);
+    inkTextRef.SetText(this.m_unlockPointsText, IntToString(RoundF(statCastPrereqRecord.ValueToCheck())));
+    inkTextRef.SetText(this.m_unlockPointsDesc, "UI-Tooltips-Perks-UnlockInfoText");
+  }
+
+  private final func UpdateRequirements(playerDevelopmentData: wref<PlayerDevelopmentData>, data: ref<NewPerkTooltipData>) -> Void {
+    let areaRecord: wref<NewPerk_Record> = RPGManager.GetNewPerkRecord(data.perkData.m_type);
+    let statCastPrereqRecord: wref<StatPrereq_Record> = areaRecord.Requirement() as StatPrereq_Record;
+    inkWidgetRef.SetVisible(this.m_unlockInfoWrapper, data.perkData.m_locked);
+    inkWidgetRef.SetVisible(this.m_unlockPerkWrapper, true);
+    inkWidgetRef.SetVisible(this.m_unlockTraitWrapper, false);
+    inkTextRef.SetText(this.m_unlockPointsText, IntToString(RoundF(statCastPrereqRecord.ValueToCheck())));
+    inkTextRef.SetText(this.m_unlockPointsDesc, "UI-Tooltips-Perks-UnlockInfoText");
+  }
+
+  private final func UpdateRelatedWeaponType(opt perkRecord: wref<NewPerk_Record>) -> Void {
+    let type: gamedataPerkWeaponGroupType;
+    let weaponGroup: wref<PerkWeaponGroup_Record>;
+    if perkRecord == null {
+      inkWidgetRef.SetVisible(this.m_relatedWeaponTypeWrapper, false);
+      return;
+    };
+    weaponGroup = perkRecord.PerkWeaponGroup();
+    type = IsDefined(weaponGroup) ? weaponGroup.Type() : gamedataPerkWeaponGroupType.Invalid;
+    if Equals(type, gamedataPerkWeaponGroupType.Invalid) {
+      if this.IsMeleewarePerk(perkRecord.Type()) {
+        inkImageRef.SetTexturePart(this.m_relatedWeaponTypeIcon, this.MeleewarePerkToIcon(perkRecord.Type()));
+        inkTextRef.SetText(this.m_relatedWeaponTypeText, this.MeleewarePerkToText(perkRecord.Type()));
+        inkWidgetRef.SetVisible(this.m_relatedWeaponTypeWrapper, true);
+        return;
+      };
+      inkWidgetRef.SetVisible(this.m_relatedWeaponTypeWrapper, false);
+      return;
+    };
+    inkTextRef.SetText(this.m_relatedWeaponTypeText, this.PerkWeaponGroupTypeToText(type));
+    inkImageRef.SetTexturePart(this.m_relatedWeaponTypeIcon, this.NewPerkWeaponGroupTypeToIcon(type));
+    inkWidgetRef.SetVisible(this.m_relatedWeaponTypeWrapper, true);
+    if this.m_bigFontEnabled {
+      inkTextRef.SetWrappingAtPosition(this.m_relatedWeaponTypeText, 760.00);
+    } else {
+      inkTextRef.SetWrappingAtPosition(this.m_relatedWeaponTypeText, 610.00);
+    };
+  }
+
+  private final func UpdateRequirements(playerDevelopmentData: wref<PlayerDevelopmentData>, data: ref<TraitTooltipData>) -> Void {
+    let unlockTraitTextParams: ref<inkTextParams> = new inkTextParams();
+    let traitRecord: wref<Trait_Record> = RPGManager.GetTraitRecord(data.traitData.m_type);
+    let statPrereqRecord: wref<StatPrereq_Record> = traitRecord.Requirement() as StatPrereq_Record;
+    let type: CName = statPrereqRecord.StatType();
+    let proficiencyType: gamedataProficiencyType = IntEnum<gamedataProficiencyType>(Cast<Int32>(EnumValueFromName(n"gamedataProficiencyType", type)));
+    let profString: String = RPGManager.GetProficiencyRecord(proficiencyType).Loc_name_key();
+    inkWidgetRef.SetVisible(this.m_unlockInfoWrapper, data.traitData.m_locked);
+    inkWidgetRef.SetVisible(this.m_unlockPerkWrapper, false);
+    inkWidgetRef.SetVisible(this.m_unlockTraitWrapper, true);
+    unlockTraitTextParams.AddNumber("points", Cast<Int32>(statPrereqRecord.ValueToCheck()));
+    unlockTraitTextParams.AddString("attribute", GetLocalizedText(profString));
+    inkTextRef.SetTextParameters(this.m_unlockTraitPointsText, unlockTraitTextParams);
+  }
+
+  private final func PerkWeaponGroupTypeToText(type: gamedataPerkWeaponGroupType) -> String {
+    switch type {
+      case gamedataPerkWeaponGroupType.AssaultRiflesPerkWeaponGroup:
+        return "LocKey#91788";
+      case gamedataPerkWeaponGroupType.BladesPerkWeaponGroup:
+        return "LocKey#91789";
+      case gamedataPerkWeaponGroupType.BluntsPerkWeaponGroup:
+        return "LocKey#91790";
+      case gamedataPerkWeaponGroupType.BodyGunsPerkWeaponGroup:
+        return "LocKey#91791";
+      case gamedataPerkWeaponGroupType.CoolGunsPerkWeaponGroup:
+        return "LocKey#91792";
+      case gamedataPerkWeaponGroupType.HandgunsPerkWeaponGroup:
+        return "LocKey#91793";
+      case gamedataPerkWeaponGroupType.LMGsPerkWeaponGroup:
+        return "LocKey#91794";
+      case gamedataPerkWeaponGroupType.PrecisionGunsPerkWeaponGroup:
+        return "LocKey#91795";
+      case gamedataPerkWeaponGroupType.ReflexesGunsPerkWeaponGroup:
+        return "LocKey#91796";
+      case gamedataPerkWeaponGroupType.SMGsPerkWeaponGroup:
+        return "LocKey#91797";
+      case gamedataPerkWeaponGroupType.ShotgunsPerkWeaponGroup:
+        return "LocKey#91798";
+      case gamedataPerkWeaponGroupType.SmartGunsPerkWeaponGroup:
+        return "LocKey#91799";
+      case gamedataPerkWeaponGroupType.TechGunsPerkWeaponGroup:
+        return "LocKey#91800";
+      case gamedataPerkWeaponGroupType.ThrowablePerkWeaponGroup:
+        return "LocKey#91801";
+      case gamedataPerkWeaponGroupType.CoolDualWieldingPerkWeaponGroup:
+        return "LocKey#97977";
+    };
+    return "";
+  }
+
+  private final func IsMeleewarePerk(type: gamedataNewPerkType) -> Bool {
+    if Equals(type, gamedataNewPerkType.Intelligence_Left_Perk_3_4) || Equals(type, gamedataNewPerkType.Intelligence_Inbetween_Left_2) || Equals(type, gamedataNewPerkType.Tech_Inbetween_Left_3) || Equals(type, gamedataNewPerkType.Espionage_Central_Perk_1_4) || Equals(type, gamedataNewPerkType.Espionage_Central_Perk_1_2) || Equals(type, gamedataNewPerkType.Espionage_Central_Perk_1_1) || Equals(type, gamedataNewPerkType.Espionage_Central_Perk_1_3) {
+      return true;
+    };
+    return false;
+  }
+
+  private final func MeleewarePerkToIcon(type: gamedataNewPerkType) -> CName {
+    switch type {
+      case gamedataNewPerkType.Espionage_Central_Perk_1_3:
+      case gamedataNewPerkType.Intelligence_Inbetween_Left_2:
+      case gamedataNewPerkType.Intelligence_Left_Perk_3_4:
+        return n"ico_monowire";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_1:
+      case gamedataNewPerkType.Tech_Inbetween_Left_3:
+        return n"ico_projectile_launcher";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_4:
+        return n"ico_blades";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_2:
+        return n"ico_blunt";
+    };
+    return n"None";
+  }
+
+  private final func MeleewarePerkToText(type: gamedataNewPerkType) -> String {
+    switch type {
+      case gamedataNewPerkType.Espionage_Central_Perk_1_3:
+      case gamedataNewPerkType.Intelligence_Inbetween_Left_2:
+      case gamedataNewPerkType.Intelligence_Left_Perk_3_4:
+        return "LocKey#95157";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_1:
+      case gamedataNewPerkType.Tech_Inbetween_Left_3:
+        return "LocKey#95158";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_4:
+        return "LocKey#95160";
+      case gamedataNewPerkType.Espionage_Central_Perk_1_2:
+        return "LocKey#95159";
+    };
+    return "";
+  }
+
+  private final func NewPerkWeaponGroupTypeToIcon(type: gamedataPerkWeaponGroupType) -> CName {
+    switch type {
+      case gamedataPerkWeaponGroupType.SmartGunsPerkWeaponGroup:
+        return n"ico_smart";
+      case gamedataPerkWeaponGroupType.ThrowablePerkWeaponGroup:
+        return n"ico_throwables";
+      case gamedataPerkWeaponGroupType.HandgunsPerkWeaponGroup:
+        return n"ico_master_handgun";
+      case gamedataPerkWeaponGroupType.CoolGunsPerkWeaponGroup:
+        return n"ico_basic_cool_guns";
+      case gamedataPerkWeaponGroupType.PrecisionGunsPerkWeaponGroup:
+        return n"ico_master_revolver_sniper";
+      case gamedataPerkWeaponGroupType.TechGunsPerkWeaponGroup:
+        return n"ico_tech-1";
+      case gamedataPerkWeaponGroupType.BladesPerkWeaponGroup:
+        return n"ico_blades";
+      case gamedataPerkWeaponGroupType.ReflexesGunsPerkWeaponGroup:
+        return n"ico_basic_reflexes_guns";
+      case gamedataPerkWeaponGroupType.AssaultRiflesPerkWeaponGroup:
+        return n"ico_master_rifle";
+      case gamedataPerkWeaponGroupType.SMGsPerkWeaponGroup:
+        return n"ico_master_smg";
+      case gamedataPerkWeaponGroupType.BluntsPerkWeaponGroup:
+        return n"ico_blunt";
+      case gamedataPerkWeaponGroupType.BodyGunsPerkWeaponGroup:
+        return n"ico_basic_body_guns";
+      case gamedataPerkWeaponGroupType.ShotgunsPerkWeaponGroup:
+        return n"ico_master_shotgun";
+      case gamedataPerkWeaponGroupType.LMGsPerkWeaponGroup:
+        return n"ico_master_lmg";
+      case gamedataPerkWeaponGroupType.CoolDualWieldingPerkWeaponGroup:
+        return n"ico_dualwield";
+    };
+    return n"None";
+  }
+
+  private final func PerkWeaponGroupTypeToIcon(type: gamedataPerkWeaponGroupType) -> TweakDBID {
+    if Equals(type, gamedataPerkWeaponGroupType.Invalid) {
+      return TDBID.None();
+    };
+    return TDBID.Create("UIIcon." + EnumValueToString("gamedataPerkWeaponGroupType", Cast<Int64>(EnumInt(type))));
+  }
+
+  public final func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    switch varName {
+      case n"BigFont":
+        this.UpdateTooltipSize();
+        break;
+      default:
+    };
+  }
+
+  private final func UpdateTooltipSize() -> Void {
+    let configVar: ref<ConfigVarBool> = this.m_settings.GetVar(this.m_groupPath, n"BigFont") as ConfigVarBool;
+    this.SetTooltipSize(configVar.GetValue());
+  }
+
+  protected func SetTooltipSize(value: Bool) -> Void {
+    if Equals(value, true) {
+      inkWidgetRef.SetSize(this.m_tooltipWrapper, 945.00, 0.00);
+      inkWidgetRef.SetSize(this.m_horizontalSizer, 850.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_videoWrapper, 50.00, -3.00, 0.00, 0.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkNameText, 850.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkTypeText, 730.00);
+      this.m_bigFontEnabled = true;
+    } else {
+      inkWidgetRef.SetSize(this.m_tooltipWrapper, 795.00, 0.00);
+      inkWidgetRef.SetSize(this.m_horizontalSizer, 700.00, 0.00);
+      inkWidgetRef.SetMargin(this.m_videoWrapper, -28.00, -3.00, 0.00, 0.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkNameText, 600.00);
+      inkTextRef.SetWrappingAtPosition(this.m_perkTypeText, 580.00);
+      this.m_bigFontEnabled = false;
+    };
+  }
+}
+
+public class PerkDisplayTooltipSettingsListener extends ConfigVarListener {
+
+  private let m_ctrl: wref<PerkDisplayTooltipController>;
+
+  public final func RegisterController(ctrl: ref<PerkDisplayTooltipController>) -> Void {
+    this.m_ctrl = ctrl;
+  }
+
+  public func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    this.m_ctrl.OnVarModified(groupPath, varName, varType, reason);
+  }
+}
+
+public class PerkMenuTooltipController extends AGenericTooltipController {
+
+  protected edit let m_titleContainer: inkWidgetRef;
+
+  protected edit let m_titleText: inkTextRef;
+
+  protected edit let m_typeContainer: inkWidgetRef;
+
+  protected edit let m_typeText: inkTextRef;
+
+  protected edit let m_desc1Container: inkWidgetRef;
+
+  protected edit let m_desc1Text: inkTextRef;
+
+  protected edit let m_desc2Container: inkWidgetRef;
+
+  protected edit let m_desc2Text: inkTextRef;
+
+  protected edit let m_desc2TextNextLevel: inkTextRef;
+
+  protected edit let m_desc2TextNextLevelDesc: inkTextRef;
+
+  protected edit let m_holdToUpgrade: inkWidgetRef;
+
+  protected edit let m_openPerkScreen: inkWidgetRef;
+
+  protected edit let m_videoContainerWidget: inkWidgetRef;
+
+  protected edit let m_videoWidget: inkVideoRef;
+
+  private let m_data: ref<BasePerksMenuTooltipData>;
+
+  @default(PerkMenuTooltipController, 20)
+  public const let m_maxProficiencyLevel: Int32;
+
+  public func Refresh() -> Void {
+    this.SetData(this.m_data);
+  }
+
+  public func SetData(tooltipData: ref<ATooltipData>) -> Void {
+    this.m_data = tooltipData as BasePerksMenuTooltipData;
+    if this.m_data == null {
+      return;
+    };
+    this.m_data.RefreshRuntimeData();
+    this.SetupShared(this.m_data);
+    if tooltipData.IsA(n"AttributeTooltipData") {
+      this.SetupCustom(this.m_data as AttributeTooltipData);
+    } else {
+      if tooltipData.IsA(n"SkillTooltipData") {
+        this.SetupCustom(this.m_data as SkillTooltipData);
+      };
+    };
+  }
+
+  private final func SetupShared(data: ref<BasePerksMenuTooltipData>) -> Void {
+    this.SetTitle("");
+    this.SetType("");
+    this.SetDesc1("");
+    this.SetDesc2("");
+    inkWidgetRef.SetVisible(this.m_desc2TextNextLevel, false);
+    inkWidgetRef.SetVisible(this.m_desc2TextNextLevelDesc, false);
+    this.SetCanUpgrade(false);
+    this.SetCanOpenPerks(false);
+    this.PlayVideo(data);
+  }
+
+  private final func PlayVideo(data: ref<BasePerksMenuTooltipData>) -> Void {
+    let perkData: ref<PerkTooltipData> = data as PerkTooltipData;
+    perkData.RefreshRuntimeData();
+    if IsDefined(perkData) && ResRef.IsValid(perkData.perkData.m_binkRef) {
+      inkVideoRef.Stop(this.m_videoWidget);
+      inkVideoRef.SetVideoPath(this.m_videoWidget, perkData.perkData.m_binkRef);
+      inkVideoRef.SetLoop(this.m_videoWidget, true);
+      inkVideoRef.Play(this.m_videoWidget);
+      inkWidgetRef.SetVisible(this.m_videoContainerWidget, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_videoContainerWidget, false);
+    };
+  }
+
+  private final func SetupCustom(data: ref<AttributeTooltipData>) -> Void {
+    let desc1: String;
+    let desc1Params: ref<inkTextParams>;
+    let desc2: String;
+    let i: Int32;
+    let isUpgradable: Bool;
+    let levelStr: String;
+    let skillData: ref<ProficiencyDisplayData>;
+    let skillsStr: String;
+    let title: String;
+    let total: Int32;
+    switch data.attributeType {
+      case PerkMenuAttribute.Johnny:
+        title = "LocKey#1353";
+        break;
+      case PerkMenuAttribute.Espionage:
+        title = data.attributeData.label;
+        desc2 = "LocKey#94101";
+        break;
+      default:
+        title = data.attributeData.label;
+        desc1Params = new inkTextParams();
+        desc1Params.AddNumber("level", data.attributeData.value);
+        desc1Params.AddNumber("total", this.m_maxProficiencyLevel);
+        levelStr += GetLocalizedText("UI-Tooltips-LVL");
+        desc1 += levelStr;
+        if NotEquals(data.attributeData.description, "") {
+          this.AppendLine(desc2, data.attributeData.description);
+        } else {
+          this.AppendLine(desc2, "MISSING DESCRIPTION");
+        };
+        total = ArraySize(data.displayData.m_proficiencies);
+        i = 0;
+        while i < total {
+          skillData = data.displayData.m_proficiencies[i];
+          skillsStr += skillData.m_localizedName;
+          if i != total - 1 {
+            skillsStr += ", ";
+          };
+          i += 1;
+        };
+        this.AppendLine(desc2, skillsStr);
+    };
+    this.SetTitle(title);
+    this.SetDesc1(desc1);
+    this.SetDesc2(desc2);
+    if IsDefined(desc1Params) {
+      inkTextRef.SetTextParameters(this.m_desc1Text, desc1Params);
+    };
+    isUpgradable = data.attributeData.availableToUpgrade && data.manager.HasAvailableAttributePoints() && NotEquals(data.attributeType, PerkMenuAttribute.Espionage);
+    this.SetCanUpgrade(isUpgradable);
+    this.SetCanOpenPerks(true);
+  }
+
+  private final func SetupCustom(data: ref<SkillTooltipData>) -> Void {
+    let desc1: String;
+    let desc2: String;
+    let desc1Params: ref<inkTextParams> = new inkTextParams();
+    desc1Params.AddNumber("level", data.skillData.m_level);
+    desc1Params.AddNumber("total", data.skillData.m_maxLevel);
+    this.AppendLine(desc1, GetLocalizedText("UI-Tooltips-LVL"));
+    if data.skillData.m_level != data.skillData.m_maxLevel {
+      desc1Params.AddNumber("exp", data.skillData.m_expPoints);
+      desc1Params.AddNumber("maxExp", data.skillData.m_maxExpPoints);
+      this.AppendLine(desc1, GetLocalizedText("UI-Tooltips-EXP"));
+    };
+    this.AppendLine(desc2, data.skillData.m_localizedDescription);
+    this.SetTitle(data.skillData.m_localizedName);
+    this.SetDesc1(desc1);
+    this.SetDesc2(desc2);
+    if IsDefined(desc1Params) {
+      inkTextRef.SetTextParameters(this.m_desc1Text, desc1Params);
+    };
+  }
+
+  private final func SetTitle(const value: script_ref<String>) -> Void {
+    inkWidgetRef.SetVisible(this.m_titleContainer, NotEquals(value, ""));
+    inkTextRef.SetText(this.m_titleText, Deref(value));
+  }
+
+  private final func SetType(const value: script_ref<String>) -> Void {
+    inkWidgetRef.SetVisible(this.m_typeContainer, NotEquals(value, ""));
+    inkTextRef.SetText(this.m_typeText, Deref(value));
+  }
+
+  private final func SetDesc1(const value: script_ref<String>) -> Void {
+    inkWidgetRef.SetVisible(this.m_desc1Container, NotEquals(value, ""));
+    inkTextRef.SetText(this.m_desc1Text, Deref(value));
+  }
+
+  private final func SetDesc2(const value: script_ref<String>) -> Void {
+    inkWidgetRef.SetVisible(this.m_desc2Container, NotEquals(value, ""));
+    inkTextRef.SetText(this.m_desc2Text, Deref(value));
+  }
+
+  private final func SetCanUpgrade(value: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_holdToUpgrade, value);
+  }
+
+  private final func SetCanOpenPerks(value: Bool) -> Void {
+    if inkWidgetRef.IsValid(this.m_openPerkScreen) {
+      inkWidgetRef.SetVisible(this.m_openPerkScreen, value);
+    };
+  }
+
+  private final func AppendLine(outString: script_ref<String>, const line: script_ref<String>) -> Void {
+    if NotEquals(line, "") {
+      outString += line;
+      this.AppendNewLine(outString);
+    };
+  }
+
+  private final func AppendNewLine(outString: script_ref<String>) -> Void {
+    outString += " \\n";
+  }
+}

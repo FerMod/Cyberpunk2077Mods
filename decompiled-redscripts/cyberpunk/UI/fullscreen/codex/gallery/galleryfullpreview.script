@@ -1,0 +1,131 @@
+
+public class GalleryFullPreview extends inkGameController {
+
+  protected edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  protected edit let m_screenshotContainer: inkWidgetRef;
+
+  protected edit let m_screenshotMask: inkWidgetRef;
+
+  protected edit let m_screenshotPreview: inkImageRef;
+
+  protected edit let m_container: inkWidgetRef;
+
+  protected edit let m_windowWrapper: inkWidgetRef;
+
+  protected let m_preloader: wref<inkCompoundWidget>;
+
+  protected let m_systemHandler: wref<inkISystemRequestsHandler>;
+
+  protected let m_data: ref<GalleryPreviewData>;
+
+  protected let m_buttonHintsController: wref<ButtonHints>;
+
+  protected let m_deleteConfirmationToken: ref<inkGameNotificationToken>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_systemHandler = this.GetSystemRequestsHandler();
+    this.m_data = this.GetRootWidget().GetUserData(n"GalleryPreviewData") as GalleryPreviewData;
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+    this.m_preloader = this.SpawnFromExternal(inkWidgetRef.Get(this.m_container), r"base\\gameplay\\gui\\common\\preloader\\preloader.inkwidget", n"Root") as inkCompoundWidget;
+    this.m_preloader.SetAnchor(inkEAnchor.Fill);
+    this.m_preloader.SetAnchorPoint(new Vector2(0.50, 0.50));
+    this.m_preloader.GetWidgetByPathName(n"border").SetVisible(false);
+    this.m_preloader.SetVisible(true);
+    inkWidgetRef.SetVisible(this.m_screenshotContainer, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+  }
+
+  protected cb func OnGlobalRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"cancel") || evt.IsAction(n"click") {
+      this.PlaySound(n"Button", n"OnPress");
+      this.m_data.token.TriggerCallback(null);
+    };
+  }
+
+  public final func GetPreviewImageWidget() -> wref<inkImage> {
+    return inkWidgetRef.Get(this.m_screenshotPreview) as inkImage;
+  }
+}
+
+public class GalleryScreenshotFullPreview extends GalleryFullPreview {
+
+  protected edit let m_favoriteIcon: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_systemHandler = this.GetSystemRequestsHandler();
+    this.m_data = this.GetRootWidget().GetUserData(n"GalleryScreenshotPreviewData") as GalleryScreenshotPreviewData;
+    let screenshotData: wref<GalleryScreenshotPreviewData> = this.m_data as GalleryScreenshotPreviewData;
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddButtonHint(n"delete_screenshot", GetLocalizedText("UI-Gallery-DeletePicture"));
+    this.RefreshFavoriteButtonHint();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalRelease");
+    this.m_preloader = this.SpawnFromExternal(inkWidgetRef.Get(this.m_container), r"base\\gameplay\\gui\\common\\preloader\\preloader.inkwidget", n"Root") as inkCompoundWidget;
+    this.m_preloader.SetAnchor(inkEAnchor.Fill);
+    this.m_preloader.SetAnchorPoint(new Vector2(0.50, 0.50));
+    this.m_preloader.GetWidgetByPathName(n"border").SetVisible(false);
+    this.m_preloader.SetVisible(true);
+    inkWidgetRef.SetVisible(this.m_screenshotContainer, false);
+    this.LoadScreenshot();
+    screenshotData.galleryController.m_canInteract = false;
+  }
+
+  protected cb func OnGlobalRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let isFavorite: Bool;
+    let screenshotData: wref<GalleryScreenshotPreviewData>;
+    let screenshotItem: wref<GalleryScreenshotItem>;
+    if evt.IsAction(n"cancel") || evt.IsAction(n"click") {
+      this.PlaySound(n"Button", n"OnPress");
+      screenshotData = this.m_data as GalleryScreenshotPreviewData;
+      this.m_data.token.TriggerCallback(null);
+      screenshotData.galleryController.m_canInteract = true;
+    };
+    if evt.IsAction(n"secondaryAction") {
+      this.PlaySound(n"Button", n"OnPress");
+      screenshotData = this.m_data as GalleryScreenshotPreviewData;
+      isFavorite = screenshotData.favoriteManager.IsFavorite(screenshotData.Hash);
+      screenshotData.favoriteManager.SetFavorite(screenshotData.Hash, !isFavorite);
+      inkWidgetRef.SetVisible(this.m_favoriteIcon, !isFavorite);
+      screenshotData.isFavorite = !isFavorite;
+      screenshotItem = screenshotData.screenshotItem;
+      screenshotItem.SetFavoriteDisplay(!isFavorite);
+      this.RefreshFavoriteButtonHint();
+      evt.Handle();
+    };
+    if evt.IsAction(n"delete_screenshot") {
+      this.PlaySound(n"Button", n"OnPress");
+      screenshotData = this.m_data as GalleryScreenshotPreviewData;
+      screenshotData.token.TriggerCallback(null);
+      screenshotData.galleryController.DeleteScreenshot(screenshotData.screenshotIndex, screenshotData.canBeDeleted);
+      evt.Handle();
+    };
+  }
+
+  protected final func LoadScreenshot() -> Void {
+    let screenshotData: wref<GalleryScreenshotPreviewData> = this.m_data as GalleryScreenshotPreviewData;
+    this.m_systemHandler.RequestGameScreenshot(screenshotData.screenshotIndex, this.GetPreviewImageWidget(), this, n"OnScreenshotLoaded");
+  }
+
+  protected final func RefreshFavoriteButtonHint() -> Void {
+    let screenshotData: wref<GalleryScreenshotPreviewData> = this.m_data as GalleryScreenshotPreviewData;
+    this.m_buttonHintsController.RemoveButtonHint(n"secondaryAction");
+    this.m_buttonHintsController.AddButtonHint(n"secondaryAction", screenshotData.isFavorite ? GetLocalizedText("UI-Gallery-RemoveFromFavorites") : GetLocalizedText("UI-Gallery-AddToFavorites"));
+  }
+
+  public final func OnScreenshotLoaded(screenshotSize: Vector2, errorCode: Int32) -> Void {
+    let screenshotData: wref<GalleryScreenshotPreviewData> = this.m_data as GalleryScreenshotPreviewData;
+    let previewSize: Vector2 = GalleryUtils.FillScreenshotInPreview(screenshotSize, inkWidgetRef.GetSize(this.m_screenshotPreview));
+    inkWidgetRef.SetSize(this.m_screenshotPreview, previewSize);
+    inkWidgetRef.SetSize(this.m_screenshotContainer, previewSize);
+    inkWidgetRef.SetTintColor(this.m_screenshotPreview, new HDRColor(0.73, 0.73, 0.73, 1.00));
+    this.m_preloader.SetVisible(false);
+    inkWidgetRef.SetVisible(this.m_favoriteIcon, screenshotData.isFavorite);
+    this.PlayLibraryAnimation(n"intro");
+  }
+}

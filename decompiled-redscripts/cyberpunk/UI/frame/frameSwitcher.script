@@ -1,0 +1,606 @@
+
+public class FrameSwitcherMenuGameController extends GalleryMenuGameController {
+
+  private edit let m_frameDisplay: inkImageRef;
+
+  private edit let m_frameCanvas: inkWidgetRef;
+
+  private edit let m_frameWrapper: inkWidgetRef;
+
+  private edit let m_defaultImageRef: inkImageRef;
+
+  private edit let m_adjustButtonHintsManagerRef: inkWidgetRef;
+
+  @default(FrameSwitcherMenuGameController, 0.001f)
+  private edit let m_movementGlobalScale: Float;
+
+  @default(FrameSwitcherMenuGameController, 0.9f)
+  private edit let m_zoomScale: Float;
+
+  @default(FrameSwitcherMenuGameController, 0.1f)
+  private edit let m_maxZoom: Float;
+
+  private let m_data: ref<inkFrameNotificationData>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_adjustButtonHintsController: wref<ButtonHints>;
+
+  @default(FrameSwitcherMenuGameController, EFrameState.NoScreenshot)
+  private let m_frameState: EFrameState;
+
+  private let m_isPressing: Bool;
+
+  private let m_readyToZoom: Bool;
+
+  private let m_isHoveringScreenshot: Bool;
+
+  private let m_isHoveringFilter: Bool;
+
+  private let m_lastPressingPoint: Vector2;
+
+  private let m_movementScale: Vector2;
+
+  @default(FrameSwitcherMenuGameController, smartFrameMenu)
+  private let m_timeDilationProfile: String;
+
+  private let m_lastMovementInput: Vector2;
+
+  private let m_transitionAnimproxy: ref<inkAnimProxy>;
+
+  protected cb func OnInitialize() -> Bool {
+    let evt: ref<inkGameNotificationLayer_SetCursorVisibility> = new inkGameNotificationLayer_SetCursorVisibility();
+    evt.Init(true);
+    this.QueueEvent(evt);
+    super.OnInitialize();
+    this.PlaySound(n"GameMenu", n"OnOpen");
+    this.PlayLibraryAnimation(n"smartframeintro");
+    this.UpdateButtonHints();
+    this.m_data = this.GetRootWidget().GetUserData(n"inkFrameNotificationData") as inkFrameNotificationData;
+    this.m_adjustButtonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_adjustButtonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    this.m_adjustButtonHintsController.SetInverted(true);
+    this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_player.RegisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.InitImageDisplay();
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnPostOnPress");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnPostOnAxis");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnPostOnAxis");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnPostOnRelease");
+    inkWidgetRef.RegisterToCallback(this.m_frameDisplay, n"OnPress", this, n"OnFramePressed");
+    inkWidgetRef.RegisterToCallback(this.m_frameDisplay, n"OnHoverOver", this, n"OnHoverOverFrame");
+    inkWidgetRef.RegisterToCallback(this.m_frameDisplay, n"OnHoverOut", this, n"OnHoverOutFrame");
+    TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, this.m_timeDilationProfile, true, false);
+    PopupStateUtils.SetBackgroundBlur(this, true);
+    if this.GetSystemRequestsHandler().IsGamePaused() {
+      this.Close();
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_player.UnregisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnPostOnPress");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnPostOnAxis");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnPostOnAxis");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnPostOnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_frameDisplay, n"OnPress", this, n"OnFramePressed");
+    inkWidgetRef.UnregisterFromCallback(this.m_frameDisplay, n"OnHoverOver", this, n"OnHoverOverFrame");
+    inkWidgetRef.UnregisterFromCallback(this.m_frameDisplay, n"OnHoverOut", this, n"OnHoverOutFrame");
+    TimeDilationHelper.SetTimeDilationWithProfile(this.m_player, this.m_timeDilationProfile, false, false);
+    PopupStateUtils.SetBackgroundBlur(this, false);
+  }
+
+  private final func InitImageDisplay() -> Void {
+    let wrapperSize: Vector2 = inkWidgetRef.GetSize(this.m_frameWrapper);
+    let size: Vector2 = GetDisplaySize(wrapperSize, this.m_data.frame.GetFrameSize());
+    this.m_movementScale = new Vector2(wrapperSize.X / size.X * this.m_movementGlobalScale, wrapperSize.Y / size.Y * this.m_movementGlobalScale);
+    inkWidgetRef.SetSize(this.m_frameCanvas, size);
+    this.SetSelectedItem(this.m_data.hash);
+    if this.GetSystemRequestsHandler().RequestGameScreenshotByHash(this.m_data.hash, inkWidgetRef.Get(this.m_frameDisplay) as inkImage, this, n"OnScreenshotInitialized") {
+      this.SetState(EFrameState.Loading);
+    } else {
+      this.SetState(EFrameState.NoScreenshot);
+    };
+  }
+
+  private final func SetState(state: EFrameState) -> Void {
+    this.m_frameState = state;
+    this.PlaySound(n"Scrolling", n"OnStop");
+    switch state {
+      case EFrameState.NoScreenshot:
+        inkWidgetRef.SetVisible(this.m_defaultImageRef, true);
+        this.DisplayPreload(false);
+        inkWidgetRef.SetVisible(this.m_frameDisplay, false);
+        break;
+      case EFrameState.Loading:
+        this.DisplayPreload(true);
+        break;
+      case EFrameState.HasScreenshot:
+        inkWidgetRef.SetVisible(this.m_defaultImageRef, false);
+        this.DisplayPreload(false);
+        inkWidgetRef.SetVisible(this.m_frameDisplay, true);
+    };
+  }
+
+  private final func DisplayPreload(display: Bool) -> Void {
+    let options: inkAnimOptions;
+    if display {
+      if this.m_transitionAnimproxy.IsValid() && this.m_transitionAnimproxy.IsPlaying() {
+        this.m_transitionAnimproxy.GotoEndAndStop();
+      };
+      options.loopInfinite = true;
+      options.loopType = inkanimLoopType.Cycle;
+      options.dependsOnTimeDilation = false;
+      this.m_transitionAnimproxy = this.PlayLibraryAnimation(n"transition_glitch", options);
+      this.m_transitionAnimproxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnTransitionGlitchEndLoop");
+    };
+  }
+
+  private final func TriggerSingleLoadAnim() -> Void {
+    let options: inkAnimOptions;
+    if this.m_transitionAnimproxy.IsValid() && this.m_transitionAnimproxy.IsPlaying() {
+      this.m_transitionAnimproxy.GotoEndAndStop();
+    };
+    options.loopInfinite = false;
+    options.dependsOnTimeDilation = false;
+    this.m_transitionAnimproxy = this.PlayLibraryAnimation(n"transition_glitch", options);
+    this.m_transitionAnimproxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnTransitionGlitchEndLoop");
+  }
+
+  protected cb func OnTransitionGlitchEndLoop(proxy: ref<inkAnimProxy>) -> Bool {
+    if NotEquals(this.m_frameState, EFrameState.Loading) {
+      proxy.Stop();
+    };
+  }
+
+  private final const func IsLoading() -> Bool {
+    return Equals(this.m_frameState, EFrameState.Loading);
+  }
+
+  protected func InitScreenshotItem(itemButton: wref<inkCompoundWidget>, controller: wref<GalleryScreenshotItem>) -> Void {
+    itemButton.RegisterToCallback(n"OnRelease", this, n"OnReleaseOnScreenshotItem");
+    itemButton.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOverScreenshot");
+    itemButton.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOutScreenshot");
+  }
+
+  protected func SetScreenshotItemData(item: ref<GalleryScreenshotItem>, screenshotInfo: GameScreenshotInfo) -> Void {
+    super.SetScreenshotItemData(item, screenshotInfo);
+    item.SetSelected(this.m_data.hash);
+  }
+
+  private final func SetScreenshot(data: ref<GalleryScreenshotPreviewData>) -> Void {
+    this.m_data.hash = this.GetSystemRequestsHandler().GetPathHash(data.Path);
+    this.m_data.index = data.screenshotIndex;
+    if this.GetSystemRequestsHandler().RequestGameScreenshotByHash(this.m_data.hash, inkWidgetRef.Get(this.m_frameDisplay) as inkImage, this, n"OnNewScreenshotLoaded") {
+      this.SetState(EFrameState.Loading);
+      this.SetSelectedItem(this.m_data.hash);
+    };
+  }
+
+  protected cb func OnPostOnAxis(e: ref<inkPointerEvent>) -> Bool {
+    let result: Vector2;
+    let uv: RectF = this.m_data.uv;
+    let axis: Float = e.GetAxisData();
+    if this.IsLoading() {
+      return true;
+    };
+    if this.m_data.hash == 0u {
+      return super.OnPostOnAxis(e);
+    };
+    if e.IsAction(n"mouse_x") || e.IsAction(n"jcms_x") {
+      if this.m_isPressing {
+        result = this.ProcessAxisMovement(uv.Left, uv.Right, -axis * this.m_movementScale.X);
+        uv.Left = result.X;
+        uv.Right = result.Y;
+        inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+        this.m_data.uv = uv;
+        this.RefreshLastMovementInputX(axis);
+      };
+    } else {
+      if e.IsAction(n"right_stick_x") {
+        result = this.ProcessAxisMovement(uv.Left, uv.Right, axis * this.m_movementScale.X);
+        uv.Left = result.X;
+        uv.Right = result.Y;
+        inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+        this.m_data.uv = uv;
+        this.RefreshLastMovementInputX(axis);
+      } else {
+        if e.IsAction(n"mouse_y") || e.IsAction(n"jcms_y") {
+          if this.m_isPressing {
+            result = this.ProcessAxisMovement(uv.Top, uv.Bottom, axis * this.m_movementScale.Y);
+            uv.Top = result.X;
+            uv.Bottom = result.Y;
+            inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+            this.m_data.uv = uv;
+            this.RefreshLastMovementInputY(axis);
+          };
+        } else {
+          if e.IsAction(n"right_stick_y") {
+            result = this.ProcessAxisMovement(uv.Top, uv.Bottom, -axis * this.m_movementScale.Y);
+            uv.Top = result.X;
+            uv.Bottom = result.Y;
+            inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+            this.m_data.uv = uv;
+            this.RefreshLastMovementInputY(axis);
+          } else {
+            if e.IsAction(n"mouse_wheel") {
+              if this.m_readyToZoom {
+                if axis > 0.00 {
+                  this.ZoomIn();
+                  e.Handle();
+                } else {
+                  if axis < 0.00 {
+                    this.ZoomOut();
+                    e.Handle();
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    super.OnPostOnAxis(e);
+  }
+
+  protected cb func OnReleaseOnScreenshotItem(e: ref<inkPointerEvent>) -> Bool {
+    let controller: ref<GalleryScreenshotItem>;
+    let screenshotData: wref<GalleryScreenshotPreviewData>;
+    let widget: ref<inkWidget>;
+    if !this.IsLoading() && !this.m_isPressing && !e.IsHandled() && this.m_isHoveringScreenshot && e.IsAction(n"click") {
+      widget = e.GetCurrentTarget();
+      controller = widget.GetController() as GalleryScreenshotItem;
+      this.PlaySound(n"Button", n"OnPress");
+      if controller.HasScreenshot() {
+        screenshotData = controller.GetData();
+        this.SetScreenshot(screenshotData);
+        this.UpdateButtonHints();
+      };
+      e.Handle();
+    };
+  }
+
+  protected cb func OnHoverOverScreenshot(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringScreenshot = true;
+    this.UpdateButtonHints();
+  }
+
+  protected cb func OnHoverOutScreenshot(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringScreenshot = false;
+    this.UpdateButtonHints();
+  }
+
+  protected cb func OnFramePressed(e: ref<inkPointerEvent>) -> Bool {
+    if !this.IsLoading() && (e.IsAction(n"mouse_left") || e.IsAction(n"tap")) {
+      this.m_isPressing = true;
+      this.m_lastPressingPoint = WidgetUtils.GlobalToLocal(inkWidgetRef.Get(this.m_frameDisplay), e.GetScreenSpacePosition());
+    };
+  }
+
+  protected cb func OnHoverOverFrame(e: ref<inkPointerEvent>) -> Bool {
+    this.m_readyToZoom = true;
+  }
+
+  protected cb func OnHoverOutFrame(e: ref<inkPointerEvent>) -> Bool {
+    this.m_readyToZoom = false;
+  }
+
+  protected cb func OnPostOnPress(e: ref<inkPointerEvent>) -> Bool {
+    if this.IsLoading() {
+      return true;
+    };
+    if e.IsAction(n"UI_smart_frame_controller_zoom_in") {
+      this.ZoomIn();
+      e.Handle();
+    } else {
+      if e.IsAction(n"UI_smart_frame_controller_zoom_out") {
+        this.ZoomOut();
+        e.Handle();
+      };
+    };
+  }
+
+  protected cb func OnPostOnRelease(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      if this.m_isPressing {
+        this.m_isPressing = false;
+        this.m_lastMovementInput = new Vector2(0.00, 0.00);
+        this.PlaySound(n"Scrolling", n"OnStop");
+        e.Handle();
+        return true;
+      };
+    };
+    if e.IsHandled() {
+      return true;
+    };
+    if e.IsAction(n"UI_smart_frame_remove") {
+      this.Remove();
+      e.Handle();
+    } else {
+      if e.IsAction(n"UI_smart_frame_confirm") {
+        this.Confirm();
+        e.Handle();
+      } else {
+        if e.IsAction(n"UI_smart_frame_close") {
+          this.Close();
+          e.Handle();
+        } else {
+          this.OnShortcutPress(e);
+        };
+      };
+    };
+  }
+
+  private final func UpdateButtonHints() -> Void {
+    this.m_buttonHintsController.ClearButtonHints();
+    this.m_adjustButtonHintsController.ClearButtonHints();
+    if this.m_player.PlayerLastUsedKBM() {
+      this.UpdateButtonHints_KM();
+    } else {
+      this.UpdateButtonHints_Gamepad();
+    };
+  }
+
+  private final func UpdateButtonHints_KM() -> Void {
+    if this.m_data.hash != 0u && !this.IsLoading() {
+      this.m_adjustButtonHintsController.AddButtonHint(n"UI_smart_frame_remove", GetLocalizedText("UI-SmartFrames-Clear"));
+      this.m_adjustButtonHintsController.AddButtonHint(n"ZoomIn", GetLocalizedText("UI-Gallery-ZoomPicture"));
+      this.m_adjustButtonHintsController.AddButtonHint(n"mouse_left", GetLocalizedText("UI-Gallery-MovePicture"));
+    };
+    this.m_buttonHintsController.AddButtonHint(n"UI_smart_frame_close", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddButtonHint(n"UI_smart_frame_confirm", GetLocalizedText("UI-Gallery-ConfirmPicture"));
+    if this.m_isHoveringScreenshot {
+      this.m_buttonHintsController.AddButtonHint(n"click", GetLocalizedText("UI-UserActions-Select"));
+    };
+  }
+
+  private final func UpdateButtonHints_Gamepad() -> Void {
+    if this.m_data.hash != 0u && !this.IsLoading() {
+      this.m_adjustButtonHintsController.AddButtonHint(n"UI_smart_frame_remove", GetLocalizedText("UI-SmartFrames-Clear"));
+      this.m_adjustButtonHintsController.AddButtonHint(n"UI_smart_frame_controller_zoom_in", GetLocalizedText("UI-Gallery-ZoomPicture") + "+");
+      this.m_adjustButtonHintsController.AddButtonHint(n"UI_smart_frame_controller_zoom_out", GetLocalizedText("UI-Gallery-ZoomPicture") + "-");
+      this.m_adjustButtonHintsController.AddButtonHint(n"UI_smart_frame_move", GetLocalizedText("UI-Gallery-MovePicture"));
+    };
+    this.m_buttonHintsController.AddButtonHint(n"UI_smart_frame_close", GetLocalizedText("Common-Access-Close"));
+    this.m_buttonHintsController.AddButtonHint(n"UI_smart_frame_confirm", GetLocalizedText("UI-Gallery-ConfirmPicture"));
+    if this.m_isHoveringScreenshot {
+      this.m_buttonHintsController.AddButtonHint(n"click", GetLocalizedText("UI-UserActions-Select"));
+    };
+  }
+
+  private final func Remove() -> Void {
+    if this.IsLoading() {
+      return;
+    };
+    this.m_data.SetAsRemove();
+    this.TriggerSingleLoadAnim();
+    this.SetState(EFrameState.NoScreenshot);
+    this.UpdateButtonHints();
+    this.SetSelectedItem(0u);
+  }
+
+  private final func Confirm() -> Void {
+    if this.IsLoading() {
+      return;
+    };
+    this.PlaySound(n"GameMenu", n"OnClose");
+    this.m_data.shouldApply = true;
+    this.m_data.token.TriggerCallback(this.m_data);
+    if this.m_lastMovementInput.X != 0.00 || this.m_lastMovementInput.Y != 0.00 {
+      this.PlaySound(n"Scrolling", n"OnStop");
+    };
+  }
+
+  private final func Close() -> Void {
+    this.PlaySound(n"GameMenu", n"OnClose");
+    this.m_data.shouldApply = false;
+    this.m_data.token.TriggerCallback(this.m_data);
+    if this.m_lastMovementInput.X != 0.00 || this.m_lastMovementInput.Y != 0.00 {
+      this.PlaySound(n"Scrolling", n"OnStop");
+    };
+  }
+
+  private final func ProcessAxisMovement(min: Float, max: Float, offset: Float) -> Vector2 {
+    let uvMovement: Float;
+    if offset < 0.00 {
+      if min <= 0.00 {
+        return new Vector2(min, max);
+      };
+      uvMovement = -offset;
+      if min < uvMovement {
+        uvMovement = min;
+      };
+      return new Vector2(min - uvMovement, max - uvMovement);
+    };
+    if FloatIsEqual(max, 1.00) {
+      return new Vector2(min, max);
+    };
+    uvMovement = offset;
+    if max + uvMovement > 1.00 {
+      uvMovement = 1.00 - max;
+    };
+    return new Vector2(min + uvMovement, max + uvMovement);
+  }
+
+  private final func ZoomIn() -> Void {
+    let center: Vector2;
+    let newSize: Vector2;
+    let size: Vector2;
+    let uv: RectF = this.m_data.uv;
+    if this.IsLoading() {
+      return;
+    };
+    size = new Vector2(uv.Right - uv.Left, uv.Bottom - uv.Top);
+    newSize = new Vector2(size.X * this.m_zoomScale, size.Y * this.m_zoomScale);
+    if newSize.X > newSize.Y {
+      if newSize.X < this.m_maxZoom {
+        return;
+      };
+    } else {
+      if newSize.Y < this.m_maxZoom {
+        return;
+      };
+    };
+    center = new Vector2((uv.Left + uv.Right) / 2.00, (uv.Top + uv.Bottom) / 2.00);
+    uv.Left = center.X - newSize.X / 2.00;
+    uv.Right = center.X + newSize.X / 2.00;
+    uv.Top = center.Y - newSize.Y / 2.00;
+    uv.Bottom = center.Y + newSize.Y / 2.00;
+    inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+    this.m_data.uv = uv;
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func ZoomOut() -> Void {
+    let center: Vector2;
+    let newSize: Vector2;
+    let size: Vector2;
+    let tmp: Float;
+    let uv: RectF = this.m_data.uv;
+    if this.IsLoading() {
+      return;
+    };
+    if FloatIsEqual(uv.Left, 0.00) && FloatIsEqual(uv.Right, 1.00) {
+      return;
+    };
+    if FloatIsEqual(uv.Top, 0.00) && FloatIsEqual(uv.Bottom, 1.00) {
+      return;
+    };
+    size = new Vector2(uv.Right - uv.Left, uv.Bottom - uv.Top);
+    newSize = new Vector2(size.X / this.m_zoomScale, size.Y / this.m_zoomScale);
+    if newSize.X > 1.00 {
+      tmp = newSize.Y / newSize.X;
+      newSize = new Vector2(1.00, tmp);
+    } else {
+      if newSize.Y > 1.00 {
+        tmp = newSize.X / newSize.Y;
+        newSize = new Vector2(tmp, 1.00);
+      };
+    };
+    center = new Vector2((uv.Left + uv.Right) / 2.00, (uv.Top + uv.Bottom) / 2.00);
+    uv.Left = center.X - newSize.X / 2.00;
+    uv.Right = center.X + newSize.X / 2.00;
+    uv.Top = center.Y - newSize.Y / 2.00;
+    uv.Bottom = center.Y + newSize.Y / 2.00;
+    if uv.Left < 0.00 {
+      uv.Right -= uv.Left;
+      uv.Left = 0.00;
+    } else {
+      if uv.Right > 1.00 {
+        uv.Left -= uv.Right - 1.00;
+        uv.Right = 1.00;
+      };
+    };
+    if uv.Top < 0.00 {
+      uv.Bottom -= uv.Top;
+      uv.Top = 0.00;
+    } else {
+      if uv.Bottom > 1.00 {
+        uv.Top -= uv.Bottom - 1.00;
+        uv.Bottom = 1.00;
+      };
+    };
+    inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, uv);
+    this.m_data.uv = uv;
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func RefreshLastMovementInputX(axis: Float) -> Void {
+    if axis != 0.00 {
+      if this.m_lastMovementInput.X == 0.00 && this.m_lastMovementInput.Y == 0.00 {
+        this.PlaySound(n"Scrolling", n"OnStart");
+      };
+    } else {
+      if this.m_lastMovementInput.X != 0.00 && this.m_lastMovementInput.Y == 0.00 {
+        this.PlaySound(n"Scrolling", n"OnStop");
+      };
+    };
+    this.m_lastMovementInput.X = axis;
+  }
+
+  private final func RefreshLastMovementInputY(axis: Float) -> Void {
+    if axis != 0.00 {
+      if this.m_lastMovementInput.X == 0.00 && this.m_lastMovementInput.Y == 0.00 {
+        this.PlaySound(n"Scrolling", n"OnStart");
+      };
+    } else {
+      if this.m_lastMovementInput.X == 0.00 && this.m_lastMovementInput.Y != 0.00 {
+        this.PlaySound(n"Scrolling", n"OnStop");
+      };
+    };
+    this.m_lastMovementInput.Y = axis;
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsAction(action, n"__DEVICE_CHANGED__") {
+      this.UpdateButtonHints();
+    };
+  }
+
+  protected cb func OnScreenshotInitialized(screenshotSize: Vector2, errorCode: Int32) -> Bool {
+    if screenshotSize.X == 0.00 || screenshotSize.Y == 0.00 {
+      this.m_data.SetAsRemove();
+      this.SetState(EFrameState.NoScreenshot);
+    } else {
+      inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, this.m_data.uv);
+      this.SetState(EFrameState.HasScreenshot);
+    };
+    this.UpdateButtonHints();
+  }
+
+  protected cb func OnNewScreenshotLoaded(screenshotSize: Vector2, errorCode: Int32) -> Bool {
+    if screenshotSize.X == 0.00 || screenshotSize.Y == 0.00 {
+      this.m_data.SetAsRemove();
+      this.SetState(EFrameState.NoScreenshot);
+    } else {
+      this.m_data.uv = GetFilledUV(inkWidgetRef.GetSize(this.m_frameCanvas), screenshotSize);
+      inkImageRef.SetDynamicTextureUV(this.m_frameDisplay, this.m_data.uv);
+      this.SetState(EFrameState.HasScreenshot);
+    };
+    this.UpdateButtonHints();
+  }
+}
+
+public static func GetFilledUV(containerSize: Vector2, contentSize: Vector2) -> RectF {
+  let rect: RectF;
+  let scale: Float;
+  let containerRatio: Float = containerSize.X / containerSize.Y;
+  let contentRatio: Float = contentSize.X / contentSize.Y;
+  if FloatIsEqual(containerRatio, contentRatio) {
+    rect.Left = 0.00;
+    rect.Right = 1.00;
+    rect.Top = 0.00;
+    rect.Bottom = 1.00;
+  } else {
+    if containerRatio > contentRatio {
+      scale = containerSize.X / contentSize.X;
+      rect.Left = 0.00;
+      rect.Right = 1.00;
+      rect.Top = (1.00 - containerSize.Y / (contentSize.Y * scale)) / 2.00;
+      rect.Bottom = 1.00 - rect.Top;
+    } else {
+      scale = containerSize.Y / contentSize.Y;
+      rect.Left = (1.00 - containerSize.X / (contentSize.X * scale)) / 2.00;
+      rect.Right = 1.00 - rect.Left;
+      rect.Top = 0.00;
+      rect.Bottom = 1.00;
+    };
+  };
+  return rect;
+}
+
+public static func GetDisplaySize(wrapperSize: Vector2, frameSize: Vector2) -> Vector2 {
+  let size: Vector2;
+  let wrapperRatio: Float = wrapperSize.X / wrapperSize.Y;
+  let frameRatio: Float = frameSize.X / frameSize.Y;
+  if FloatIsEqual(wrapperRatio, frameRatio) {
+    return wrapperSize;
+  };
+  if wrapperRatio > frameRatio {
+    size.X = wrapperSize.Y / frameSize.Y * frameSize.X;
+    size.Y = wrapperSize.Y;
+  } else {
+    size.X = wrapperSize.X;
+    size.Y = wrapperSize.X / frameSize.X * frameSize.Y;
+  };
+  return size;
+}

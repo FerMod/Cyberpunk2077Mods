@@ -1,0 +1,225 @@
+
+public class RadioStationDataProvider extends IScriptable {
+
+  public final static func GetStationsCount() -> Int32 {
+    return 15;
+  }
+
+  public final static func GetRadioStationUIIndex(index: Int32) -> Int32 {
+    if index == 4 {
+      return 0;
+    };
+    if index == 0 {
+      return 1;
+    };
+    if index == 11 {
+      return 2;
+    };
+    if index == 10 {
+      return 3;
+    };
+    if index == 1 {
+      return 4;
+    };
+    if index == 9 {
+      return 5;
+    };
+    if index == 8 {
+      return 6;
+    };
+    if index == 6 {
+      return 7;
+    };
+    if index == 13 {
+      return 8;
+    };
+    if index == 2 {
+      return 9;
+    };
+    if index == 14 {
+      return 10;
+    };
+    if index == 3 {
+      return 11;
+    };
+    if index == 7 {
+      return 12;
+    };
+    if index == 5 {
+      return 13;
+    };
+    if index == 12 {
+      return 14;
+    };
+    return 0;
+  }
+
+  public final static func GetRadioStationByUIIndex(index: Int32) -> ERadioStationList {
+    if index == 0 {
+      return ERadioStationList.DOWNTEMPO;
+    };
+    if index == 1 {
+      return ERadioStationList.AGGRO_INDUSTRIAL;
+    };
+    if index == 2 {
+      return ERadioStationList.GROWL;
+    };
+    if index == 3 {
+      return ERadioStationList.JAZZ;
+    };
+    if index == 4 {
+      return ERadioStationList.ELECTRO_INDUSTRIAL;
+    };
+    if index == 5 {
+      return ERadioStationList.MINIMAL_TECHNO;
+    };
+    if index == 6 {
+      return ERadioStationList.METAL;
+    };
+    if index == 7 {
+      return ERadioStationList.POP;
+    };
+    if index == 8 {
+      return ERadioStationList.IMPULSE_FM;
+    };
+    if index == 9 {
+      return ERadioStationList.HIP_HOP;
+    };
+    if index == 10 {
+      return ERadioStationList.EDGE_RUNNERS;
+    };
+    if index == 11 {
+      return ERadioStationList.AGGRO_TECHNO;
+    };
+    if index == 12 {
+      return ERadioStationList.LATINO;
+    };
+    if index == 13 {
+      return ERadioStationList.ATTITUDE_ROCK;
+    };
+    if index == 14 {
+      return ERadioStationList.DARK_STAR;
+    };
+    return ERadioStationList.DOWNTEMPO;
+  }
+
+  public final static func GetStationName(radioStationType: ERadioStationList) -> CName {
+    switch radioStationType {
+      case ERadioStationList.AGGRO_INDUSTRIAL:
+        return n"radio_station_02_aggro_ind";
+      case ERadioStationList.ELECTRO_INDUSTRIAL:
+        return n"radio_station_03_elec_ind";
+      case ERadioStationList.HIP_HOP:
+        return n"radio_station_04_hiphop";
+      case ERadioStationList.AGGRO_TECHNO:
+        return n"radio_station_07_aggro_techno";
+      case ERadioStationList.DOWNTEMPO:
+        return n"radio_station_09_downtempo";
+      case ERadioStationList.ATTITUDE_ROCK:
+        return n"radio_station_01_att_rock";
+      case ERadioStationList.POP:
+        return n"radio_station_05_pop";
+      case ERadioStationList.LATINO:
+        return n"radio_station_10_latino";
+      case ERadioStationList.METAL:
+        return n"radio_station_11_metal";
+      case ERadioStationList.MINIMAL_TECHNO:
+        return n"radio_station_06_minim_techno";
+      case ERadioStationList.JAZZ:
+        return n"radio_station_08_jazz";
+      case ERadioStationList.GROWL:
+        return n"radio_station_12_growl_fm";
+      case ERadioStationList.DARK_STAR:
+        return n"radio_station_13_dark_star";
+      case ERadioStationList.IMPULSE_FM:
+        return n"radio_station_14_impulse_fm";
+      case ERadioStationList.EDGE_RUNNERS:
+        return n"radio_station_15_edgerunners";
+    };
+    return n"station_none";
+  }
+
+  public final static func GetStationNameByIndex(index: Int32, opt isUI: Bool) -> CName {
+    if index == -1 {
+      return n"station_none";
+    };
+    return RadioStationDataProvider.GetStationName(isUI ? RadioStationDataProvider.GetRadioStationByUIIndex(index) : IntEnum<ERadioStationList>(index));
+  }
+
+  public final static func GetChannelName(radioStationType: ERadioStationList) -> String {
+    switch radioStationType {
+      case ERadioStationList.AGGRO_INDUSTRIAL:
+        return "Gameplay-Devices-Radio-RadioStationAggroIndie";
+      case ERadioStationList.ELECTRO_INDUSTRIAL:
+        return "Gameplay-Devices-Radio-RadioStationElectroIndie";
+      case ERadioStationList.HIP_HOP:
+        return "Gameplay-Devices-Radio-RadioStationHipHop";
+      case ERadioStationList.AGGRO_TECHNO:
+        return "Gameplay-Devices-Radio-RadioStationAggroTechno";
+      case ERadioStationList.DOWNTEMPO:
+        return "Gameplay-Devices-Radio-RadioStationDownTempo";
+      case ERadioStationList.ATTITUDE_ROCK:
+        return "Gameplay-Devices-Radio-RadioStationAttRock";
+      case ERadioStationList.POP:
+        return "Gameplay-Devices-Radio-RadioStationPop";
+      case ERadioStationList.LATINO:
+        return "Gameplay-Devices-Radio-RadioStationLatino";
+      case ERadioStationList.METAL:
+        return "Gameplay-Devices-Radio-RadioStationMetal";
+      case ERadioStationList.MINIMAL_TECHNO:
+        return "Gameplay-Devices-Radio-RadioStationMinimalTechno";
+      case ERadioStationList.JAZZ:
+        return "Gameplay-Devices-Radio-RadioStationJazz";
+      case ERadioStationList.GROWL:
+        return "Gameplay-Devices-Radio-RadioStationGrowlFm";
+      case ERadioStationList.DARK_STAR:
+        return "Gameplay-Devices-Radio-RadioStationDarkStar";
+      case ERadioStationList.IMPULSE_FM:
+        return "Gameplay-Devices-Radio-RadioStationImpulseFM";
+      case ERadioStationList.EDGE_RUNNERS:
+        return "Gameplay-Devices-Radio-RadioStationEdgerunners";
+    };
+    return "";
+  }
+
+  public final static func GetRandomStation() -> ERadioStationList {
+    let station: ERadioStationList = IntEnum<ERadioStationList>(RandRange(0, 15));
+    while Equals(station, ERadioStationList.MINIMAL_TECHNO) {
+      station = IntEnum<ERadioStationList>(RandRange(0, 15));
+    };
+    return station;
+  }
+
+  public final static func GetNextStationTo(station: ERadioStationList) -> ERadioStationList {
+    return RadioStationDataProvider.GetNextStationTo(EnumInt(station));
+  }
+
+  public final static func GetNextStationTo(currentIndex: Int32) -> ERadioStationList {
+    let uiCurrentIndex: Int32 = RadioStationDataProvider.GetRadioStationUIIndex(currentIndex);
+    uiCurrentIndex = uiCurrentIndex == 4 ? 5 : uiCurrentIndex;
+    let uiNextIndex: Int32 = (uiCurrentIndex + 1) % 15;
+    return RadioStationDataProvider.GetRadioStationByUIIndex(uiNextIndex);
+  }
+
+  public final static func GetNextStationPocketRadio(currentIndex: Int32) -> ERadioStationList {
+    let uiCurrentIndex: Int32;
+    let uiNextIndex: Int32;
+    if currentIndex == -1 {
+      return RadioStationDataProvider.GetRadioStationByUIIndex(0);
+    };
+    uiCurrentIndex = RadioStationDataProvider.GetRadioStationUIIndex(currentIndex);
+    uiNextIndex = (uiCurrentIndex + 1) % 15;
+    return RadioStationDataProvider.GetRadioStationByUIIndex(uiNextIndex);
+  }
+
+  public final static func GetPreviousStationTo(station: ERadioStationList) -> ERadioStationList {
+    return RadioStationDataProvider.GetPreviousStationTo(EnumInt(station));
+  }
+
+  public final static func GetPreviousStationTo(currentIndex: Int32) -> ERadioStationList {
+    let uiCurrentIndex: Int32 = RadioStationDataProvider.GetRadioStationUIIndex(currentIndex);
+    uiCurrentIndex = uiCurrentIndex == 6 ? 5 : uiCurrentIndex;
+    let uiPrevIndex: Int32 = (uiCurrentIndex - 1 + 15) % 15;
+    return RadioStationDataProvider.GetRadioStationByUIIndex(uiPrevIndex);
+  }
+}

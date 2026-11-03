@@ -1,0 +1,138 @@
+
+public native class DriverCombatHUDGameController extends inkHUDGameController {
+
+  private let m_player: wref<GameObject>;
+
+  private let m_psmBlackboard: wref<IBlackboard>;
+
+  private let m_psmWeaponCallback: ref<CallbackHandle>;
+
+  private let m_uiActiveVehicleFPPRearviewCameraActivatedCallback: ref<CallbackHandle>;
+
+  private let m_reloadingAnimProxy: ref<inkAnimProxy>;
+
+  private edit let m_vehicleFPPRearviewCamera: inkWidgetRef;
+
+  private edit let m_vehicleManufacturer: inkImageRef;
+
+  private native let inWeaponizedVehicle: Bool;
+
+  private native let inDriverCombat: Bool;
+
+  private native let inReloadState: Bool;
+
+  private native let inSafeState: Bool;
+
+  private edit let m_debugTuningStatusText: inkTextRef;
+
+  private final native func Reset() -> Void;
+
+  private final native func UpdateCrosshairVisibility() -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    this.LocalReset();
+  }
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    this.m_player = player;
+    this.m_psmBlackboard = this.GetPSMBlackboard(this.m_player);
+    this.m_psmWeaponCallback = this.m_psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this, n"OnPSMWeaponStateChanged");
+    this.OnPSMWeaponStateChanged(this.m_psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon));
+    this.m_uiActiveVehicleFPPRearviewCameraActivatedCallback = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveVehicleData).RegisterListenerBool(GetAllBlackboardDefs().UI_ActiveVehicleData.IsFPPRearviewCameraActivated, this, n"OnUIActiveVehicleFPPRearviewCameraActivated");
+    this.UpdateVehicleData(GameInstance.GetMountingFacility(this.m_player.GetGame()).GetMountingInfoSingleWithObjects(this.m_player));
+  }
+
+  protected cb func OnPlayerDetach(player: ref<GameObject>) -> Bool {
+    if IsDefined(this.m_psmWeaponCallback) {
+      this.m_psmBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this.m_psmWeaponCallback);
+    };
+    if IsDefined(this.m_uiActiveVehicleFPPRearviewCameraActivatedCallback) {
+      this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveVehicleData).UnregisterListenerBool(GetAllBlackboardDefs().UI_ActiveVehicleData.IsFPPRearviewCameraActivated, this.m_uiActiveVehicleFPPRearviewCameraActivatedCallback);
+    };
+  }
+
+  protected cb func OnMountingEvent(evt: ref<MountingEvent>) -> Bool {
+    if Equals(evt.relationship.relationshipType, gameMountingRelationshipType.Parent) && Equals(evt.relationship.otherMountableType, gameMountingObjectType.Vehicle) {
+      this.UpdateVehicleData(GameInstance.GetMountingFacility(this.m_player.GetGame()).GetMountingInfoSingleWithObjects(this.m_player), true);
+    };
+  }
+
+  protected cb func OnUnmountingEvent(evt: ref<UnmountingEvent>) -> Bool {
+    this.LocalReset();
+  }
+
+  private final func LocalReset() -> Void {
+    this.inWeaponizedVehicle = false;
+    this.Reset();
+    inkWidgetRef.SetVisible(this.m_vehicleFPPRearviewCamera, false);
+    inkWidgetRef.SetVisible(this.m_debugTuningStatusText, false);
+  }
+
+  private final func UpdateVehicleData(mountingInfo: MountingInfo, opt isMounting: Bool) -> Void {
+    let debugTuningStatus: String;
+    let vehicle: ref<VehicleObject>;
+    let vehicleDataPackageRecord: ref<VehicleDataPackage_Record>;
+    let vehicleRecord: ref<Vehicle_Record>;
+    if EntityID.IsDefined(mountingInfo.parentId) {
+      vehicle = GameInstance.FindEntityByID(this.m_player.GetGame(), mountingInfo.parentId) as VehicleObject;
+      vehicleRecord = vehicle.GetRecord();
+      if IsDefined(vehicleRecord) {
+        inkImageRef.SetTexturePart(this.m_vehicleManufacturer, TweakDBInterface.GetUIIconRecord(TDBID.Create("UIIcon." + vehicleRecord.Manufacturer().EnumName())).AtlasPartName());
+        if vehicle.IsPlayerDriver() {
+          vehicleDataPackageRecord = vehicleRecord.VehDataPackageHandle();
+          if IsDefined(vehicleDataPackageRecord) {
+            this.inWeaponizedVehicle = Equals(vehicleDataPackageRecord.DriverCombat().Type(), gamedataDriverCombatType.MountedWeapons);
+            if this.inWeaponizedVehicle && isMounting {
+              this.ToggleVisibility(true, false);
+              GameObject.PlaySoundEvent(vehicle, vehicle.CanSwitchWeapons() ? n"w_mounted_weapon_window_appearing_ui" : n"w_mounted_weapon_window_appearing_ui_no_missile");
+              this.PlayLibraryAnimation(vehicle.CanSwitchWeapons() ? n"vehicles_startup" : n"vehicles_startup_no_missile");
+            };
+          };
+        };
+        inkWidgetRef.SetVisible(this.m_debugTuningStatusText, false);
+        if !IsFinal() {
+          debugTuningStatus = vehicleRecord.DebugStatusString();
+          inkTextRef.SetText(this.m_debugTuningStatusText, debugTuningStatus);
+          inkWidgetRef.SetVisible(this.m_debugTuningStatusText, StrLen(debugTuningStatus) > 0);
+        };
+      };
+    };
+  }
+
+  protected cb func OnUIActiveVehicleFPPRearviewCameraActivated(value: Bool) -> Bool {
+    if value {
+      GameObjectEffectHelper.StartEffectEvent(this.m_player, n"fish_eye");
+    } else {
+      GameObjectEffectHelper.StopEffectEvent(this.m_player, n"fish_eye");
+    };
+    inkWidgetRef.SetVisible(this.m_vehicleFPPRearviewCamera, value);
+  }
+
+  protected cb func OnPSMWeaponStateChanged(value: Int32) -> Bool {
+    let psmRangedWeaponState: gamePSMRangedWeaponStates = IntEnum<gamePSMRangedWeaponStates>(value);
+    let isReloading: Bool = Equals(psmRangedWeaponState, gamePSMRangedWeaponStates.Reload);
+    this.inSafeState = Equals(psmRangedWeaponState, gamePSMRangedWeaponStates.Safe);
+    if this.inReloadState && IsDefined(this.m_reloadingAnimProxy) && this.m_reloadingAnimProxy.IsValid() {
+      this.m_reloadingAnimProxy.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnReloadingIntroFinished");
+      this.m_reloadingAnimProxy.Stop();
+      this.m_reloadingAnimProxy = this.PlayLibraryAnimation(n"reloading_outro");
+    };
+    if NotEquals(this.inReloadState, isReloading) {
+      this.inReloadState = isReloading;
+      if this.inDriverCombat {
+        this.UpdateCrosshairVisibility();
+        if this.inReloadState {
+          this.m_reloadingAnimProxy = this.PlayLibraryAnimation(n"reloading_intro");
+          this.m_reloadingAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnReloadingIntroFinished");
+        };
+      };
+    };
+  }
+
+  protected cb func OnReloadingIntroFinished(anim: ref<inkAnimProxy>) -> Bool {
+    let options: inkAnimOptions;
+    options.loopType = inkanimLoopType.Cycle;
+    options.loopInfinite = true;
+    this.m_reloadingAnimProxy = this.PlayLibraryAnimation(n"reloading_loop", options);
+  }
+}

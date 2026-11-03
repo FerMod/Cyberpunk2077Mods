@@ -1,0 +1,387 @@
+
+public class SimpleQuestListItemController extends inkVirtualCompoundItemController {
+
+  private edit let m_title: inkTextRef;
+
+  private edit let m_description: inkTextRef;
+
+  private edit let m_typeIcon: inkImageRef;
+
+  private edit let m_difficultIcon: inkImageRef;
+
+  private edit let m_fixerIcon: inkImageRef;
+
+  private edit let m_ep1Icon: inkImageRef;
+
+  private edit let m_toggleAnimatedIndicator: inkWidgetRef;
+
+  private edit let m_hoverIndicator: inkWidgetRef;
+
+  private edit let m_questItemFrame: inkWidgetRef;
+
+  private edit let m_questItemBg: inkWidgetRef;
+
+  private edit let m_questItemBgButton: inkWidgetRef;
+
+  private edit let m_distanceContainer: inkWidgetRef;
+
+  private edit let m_defaultDistance: inkTextRef;
+
+  private edit let m_trackedDistance: inkTextRef;
+
+  private edit let m_isNewMarker: inkWidgetRef;
+
+  private edit let m_toggleMarkAnimation: CName;
+
+  private edit let m_trackMarkAnimation: CName;
+
+  private edit let m_distanceAnim_toDefault: CName;
+
+  private edit let m_distanceAnim_toHover: CName;
+
+  private edit let m_distanceAnim_toTracked: CName;
+
+  @default(SimpleQuestListItemController, 0.2f)
+  private edit let m_distanceAnim_toHover_delay: Float;
+
+  private edit let m_pinIcon_toHover: CName;
+
+  private edit let m_pinIcon_toDefault: CName;
+
+  private let m_toggleOnAnimProxy: ref<inkAnimProxy>;
+
+  private let m_toggleOffAnimProxy: ref<inkAnimProxy>;
+
+  private let m_pinIconAnimProxy: ref<inkAnimProxy>;
+
+  private let m_distanceMarkerAnimProxy: ref<inkAnimProxy>;
+
+  private let m_data: ref<QuestListItemData>;
+
+  private let m_openedQuest: wref<JournalQuest>;
+
+  private let m_hovered: Bool;
+
+  private let m_toggled: Bool;
+
+  private let m_tracked: Bool;
+
+  private let m_rootWidget: wref<inkWidget>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_rootWidget = this.GetRootWidget();
+    this.m_rootWidget.SetVAlign(inkEVerticalAlign.Top);
+    this.m_rootWidget.SetHAlign(inkEHorizontalAlign.Left);
+    this.m_rootWidget.RegisterToCallback(n"OnSelected", this, n"OnSelected");
+    this.m_rootWidget.RegisterToCallback(n"OnDeselected", this, n"OnDeselected");
+    this.m_rootWidget.RegisterToCallback(n"OnToggledOn", this, n"OnToggledOn");
+    this.m_rootWidget.RegisterToCallback(n"OnToggledOff", this, n"OnToggledOff");
+    this.m_rootWidget.RegisterToCallback(n"OnPress", this, n"OnPress");
+    this.m_rootWidget.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.m_rootWidget.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_distanceContainer, n"OnRelease", this, n"OnTrackBtnRelease");
+    inkWidgetRef.RegisterToCallback(this.m_distanceContainer, n"OnHoverOver", this, n"OnTrackBtnHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_distanceContainer, n"OnHoverOut", this, n"OnTrackBtnHoverOut");
+  }
+
+  protected cb func OnUnnitialize() -> Bool {
+    this.m_rootWidget.UnregisterFromCallback(n"OnSelected", this, n"OnSelected");
+    this.m_rootWidget.UnregisterFromCallback(n"OnDeselected", this, n"OnDeselected");
+    this.m_rootWidget.UnregisterFromCallback(n"OnToggledOn", this, n"OnToggledOn");
+    this.m_rootWidget.UnregisterFromCallback(n"OnToggledOff", this, n"OnToggledOff");
+    this.m_rootWidget.UnregisterFromCallback(n"OnPress", this, n"OnPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_distanceContainer, n"OnRelease", this, n"OnTrackBtnRelease");
+    inkWidgetRef.UnregisterFromCallback(this.m_distanceContainer, n"OnHoverOver", this, n"OnTrackBtnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_distanceContainer, n"OnHoverOut", this, n"OnTrackBtnHoverOut");
+  }
+
+  protected cb func OnDataChanged(value: Variant) -> Bool {
+    let description: String;
+    let levelDifference: Int32;
+    let questType: CName;
+    this.m_data = FromVariant<ref<IScriptable>>(value) as QuestListItemData;
+    if this.m_data.m_isTrackedQuest && !this.m_tracked {
+      this.m_tracked = true;
+      this.PlayDistanceMarkerAnimation(this.m_distanceAnim_toTracked, true);
+      this.PlayToggleIconAnimation(true, true);
+    } else {
+      if !this.m_data.m_isTrackedQuest && this.m_tracked {
+        this.m_tracked = false;
+        this.PlayDistanceMarkerAnimation(this.m_hovered ? this.m_distanceAnim_toHover : this.m_distanceAnim_toDefault, true);
+        this.PlayToggleIconAnimation(false, true);
+      };
+    };
+    questType = QuestTypeIconUtils.GetIconState(this.m_data.m_questType);
+    inkTextRef.SetText(this.m_title, this.m_data.m_questData.GetTitle(this.m_data.m_journalManager));
+    description = this.m_data.GetFirstObjective().GetDescription();
+    inkTextRef.SetText(this.m_description, description);
+    inkWidgetRef.SetVisible(this.m_description, Equals(description, "") ? false : true);
+    if Equals(this.m_data.m_questType, QuestListItemType.Finished) {
+      inkWidgetRef.SetVisible(this.m_description, true);
+      inkTextRef.SetText(this.m_description, Equals(this.m_data.m_State, gameJournalEntryState.Succeeded) ? "LocKey#27564" : "LocKey#27566");
+    };
+    inkWidgetRef.SetVisible(this.m_ep1Icon, this.m_data.m_journalManager.IsEp1Entry(this.m_data.m_questData));
+    inkImageRef.SetTexturePart(this.m_typeIcon, QuestTypeIconUtils.GetIcon(this.m_data.m_questType));
+    inkWidgetRef.SetState(this.m_typeIcon, questType);
+    inkWidgetRef.SetState(this.m_questItemBg, questType);
+    inkWidgetRef.SetState(this.m_hoverIndicator, questType);
+    inkWidgetRef.SetState(this.m_questItemFrame, questType);
+    levelDifference = this.m_data.m_playerLevel - this.m_data.m_recommendedLevel;
+    inkWidgetRef.SetVisible(this.m_difficultIcon, levelDifference <= -6);
+    this.UpdateState();
+    this.UpdateFixerData();
+    this.UpdateDistancesText();
+    this.m_data.QuestLastUpdateTime();
+  }
+
+  private final func UpdateDistancesText() -> Void {
+    let widgetText: String = "";
+    let distance: Float = this.m_data.GetNearestDistance().m_distance;
+    if distance > 0.00 {
+      if distance < 1000.00 {
+        widgetText = StrUpper(IntToString(RoundF(distance)) + GetLocalizedText("UI-Labels-Units-Meters"));
+      } else {
+        distance = RoundTo(distance / 1000.00, 1);
+        widgetText = StrUpper(FloatToStringPrec(distance, 1) + GetLocalizedText("UI-Labels-Units-Kilometers"));
+      };
+      inkTextRef.SetText(this.m_defaultDistance, widgetText);
+      inkTextRef.SetText(this.m_trackedDistance, widgetText);
+      inkWidgetRef.SetVisible(this.m_defaultDistance, true);
+      inkWidgetRef.SetVisible(this.m_trackedDistance, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_defaultDistance, false);
+      inkWidgetRef.SetVisible(this.m_trackedDistance, false);
+    };
+  }
+
+  private final func UpdateFixerData() -> Void {
+    let fixerIcon: ref<UIIcon_Record>;
+    if Equals(this.m_data.m_questType, QuestListItemType.Gig) || Equals(this.m_data.m_questType, QuestListItemType.Cyberpsycho) {
+      fixerIcon = TweakDBInterface.GetUIIconRecord(QuestLogUtils.GetFixerData(this.m_data.m_journalManager, this.m_data.GetFirstObjective()));
+      if NotEquals(fixerIcon.AtlasPartName(), n"None") {
+        inkWidgetRef.SetVisible(this.m_fixerIcon, true);
+        inkImageRef.SetTexturePart(this.m_fixerIcon, fixerIcon.AtlasPartName());
+        inkWidgetRef.SetVisible(this.m_typeIcon, false);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_fixerIcon, false);
+      inkWidgetRef.SetVAlign(this.m_typeIcon, inkEVerticalAlign.Center);
+      inkWidgetRef.SetVisible(this.m_typeIcon, true);
+    };
+  }
+
+  protected cb func OnSelected(itemController: wref<inkVirtualCompoundItemController>, discreteNav: Bool) -> Bool {
+    if discreteNav {
+      this.SetCursorOverWidget(this.m_rootWidget);
+    };
+  }
+
+  protected cb func OnDeselected(itemController: wref<inkVirtualCompoundItemController>) -> Bool;
+
+  protected cb func OnToggledOn(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    let evt: ref<QuestlListItemSelected>;
+    if !this.m_toggled {
+      this.m_toggled = true;
+      evt = new QuestlListItemSelected();
+      evt.m_questData = this.m_data.m_questData;
+      this.QueueEvent(evt);
+      if this.m_hovered {
+        this.PlaySound(n"Button", n"OnPress");
+      };
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnToggledOff(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    if this.m_toggled {
+      this.m_toggled = false;
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    let target: wref<inkWidget> = e.GetTarget();
+    if target == this.m_rootWidget {
+      this.m_hovered = true;
+      if !this.m_data.m_isTrackedQuest && NotEquals(this.m_data.m_questType, QuestListItemType.Finished) {
+        this.PlayDistanceMarkerAnimation(this.m_distanceAnim_toHover);
+      };
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    let target: wref<inkWidget> = e.GetTarget();
+    if target == this.m_rootWidget {
+      this.m_hovered = false;
+      if !this.m_data.m_isTrackedQuest && NotEquals(this.m_data.m_questType, QuestListItemType.Finished) {
+        this.PlayDistanceMarkerAnimation(this.m_distanceAnim_toDefault, true);
+      };
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnTrackBtnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let trackEvt: ref<RequestChangeTrackedObjective>;
+    if e.IsAction(n"track") || e.IsAction(n"click") || e.IsAction(n"tap") {
+      trackEvt = new RequestChangeTrackedObjective();
+      trackEvt.m_quest = this.m_data.m_questData;
+      trackEvt.m_forceSelectEntry = !this.m_toggled ? this.m_data.GetEntryHash() : 0;
+      this.QueueEvent(trackEvt);
+    };
+  }
+
+  protected cb func OnTrackBtnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_tracked {
+      return false;
+    };
+    if IsDefined(this.m_pinIconAnimProxy) {
+      this.m_pinIconAnimProxy.Stop();
+      this.m_pinIconAnimProxy = null;
+    };
+    this.m_pinIconAnimProxy = this.PlayLibraryAnimation(this.m_pinIcon_toHover);
+  }
+
+  protected cb func OnTrackBtnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_tracked {
+      return false;
+    };
+    if IsDefined(this.m_pinIconAnimProxy) {
+      this.m_pinIconAnimProxy.Stop();
+      this.m_pinIconAnimProxy = null;
+    };
+    this.m_pinIconAnimProxy = this.PlayLibraryAnimation(this.m_pinIcon_toDefault);
+  }
+
+  protected cb func OnQuestlListItemSelected(e: ref<QuestlListItemSelected>) -> Bool {
+    if e.m_questData != this.m_data.m_questData {
+    };
+  }
+
+  protected cb func OnPress(e: ref<inkPointerEvent>) -> Bool {
+    let trackEvt: ref<RequestChangeTrackedObjective>;
+    if (e.IsAction(n"click") || e.IsAction(n"tap") || e.IsAction(n"track")) && e.GetTarget() == this.m_rootWidget && NotEquals(this.m_data.m_questType, QuestListItemType.Finished) {
+      if this.m_toggled && !this.m_tracked || e.IsAction(n"track") {
+        trackEvt = new RequestChangeTrackedObjective();
+        trackEvt.m_quest = this.m_data.m_questData;
+        trackEvt.m_forceSelectEntry = e.IsAction(n"track") ? this.m_data.GetEntryHash() : -1;
+        this.QueueEvent(trackEvt);
+        e.Consume();
+        e.Handle();
+      };
+    };
+  }
+
+  protected cb func OnUpdateTrackedObjectiveEvent(e: ref<UpdateTrackedObjectiveEvent>) -> Bool {
+    if e.m_trackedQuest == this.m_data.m_questData {
+      if !this.m_tracked {
+        this.m_tracked = true;
+        this.PlayDistanceMarkerAnimation(this.m_distanceAnim_toTracked);
+        this.PlayToggleIconAnimation(true);
+      };
+    } else {
+      if this.m_tracked {
+        this.m_tracked = false;
+        this.PlayDistanceMarkerAnimation(this.m_hovered ? this.m_distanceAnim_toHover : this.m_distanceAnim_toDefault, true);
+        this.PlayToggleIconAnimation(false);
+      };
+    };
+    this.UpdateState();
+  }
+
+  protected cb func OnUpdateOpenedQuestEvent(e: ref<UpdateOpenedQuestEvent>) -> Bool {
+    if this.m_openedQuest != e.m_openedQuest {
+      this.m_openedQuest = e.m_openedQuest;
+    };
+  }
+
+  private final func PlayDistanceMarkerAnimation(targetAnimation: CName, opt instant: Bool, opt playReversed: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    if IsDefined(this.m_distanceMarkerAnimProxy) {
+      this.m_distanceMarkerAnimProxy.Stop(true);
+      this.m_distanceMarkerAnimProxy = null;
+    };
+    if Equals(targetAnimation, this.m_distanceAnim_toHover) {
+      playbackOptions.executionDelay = this.m_distanceAnim_toHover_delay;
+      playbackOptions.playReversed = playReversed;
+    };
+    this.m_distanceMarkerAnimProxy = this.PlayLibraryAnimation(targetAnimation, playbackOptions);
+    if instant {
+      this.m_distanceMarkerAnimProxy.GotoEndAndStop(true);
+    };
+  }
+
+  private final func PlayToggleIconAnimation(show: Bool, opt instant: Bool) -> Void {
+    let playbackOptions: inkAnimOptions;
+    if show {
+      if inkWidgetRef.IsVisible(this.m_toggleAnimatedIndicator) {
+        if IsDefined(this.m_toggleOffAnimProxy) && this.m_toggleOffAnimProxy.IsPlaying() {
+          this.m_toggleOffAnimProxy.Stop(true);
+          this.m_toggleOffAnimProxy = null;
+        };
+        if IsDefined(this.m_toggleOnAnimProxy) && this.m_toggleOnAnimProxy.IsPlaying() && instant {
+          this.m_toggleOnAnimProxy.GotoEndAndStop();
+          this.m_toggleOnAnimProxy = null;
+          return;
+        };
+      } else {
+        inkWidgetRef.SetVisible(this.m_toggleAnimatedIndicator, true);
+      };
+      if !IsDefined(this.m_toggleOnAnimProxy) || !this.m_toggleOnAnimProxy.IsPlaying() || this.m_toggleOnAnimProxy.IsFinished() {
+        this.m_toggleOnAnimProxy = this.PlayLibraryAnimation(this.m_toggleMarkAnimation);
+      };
+      if instant {
+        this.m_toggleOnAnimProxy.GotoEndAndStop();
+      };
+    } else {
+      if IsDefined(this.m_toggleOnAnimProxy) {
+        this.m_toggleOnAnimProxy.Stop(true);
+        this.m_toggleOnAnimProxy = null;
+      };
+      if instant {
+        if IsDefined(this.m_toggleOffAnimProxy) {
+          this.m_toggleOffAnimProxy.Stop(true);
+          this.m_toggleOffAnimProxy = null;
+        };
+        inkWidgetRef.SetVisible(this.m_toggleAnimatedIndicator, false);
+      } else {
+        inkWidgetRef.SetVisible(this.m_toggleAnimatedIndicator, true);
+        playbackOptions.playReversed = true;
+        this.m_toggleOffAnimProxy = this.PlayLibraryAnimation(this.m_toggleMarkAnimation, playbackOptions);
+        this.m_toggleOffAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHideToggledIconAnimFinished");
+      };
+    };
+  }
+
+  protected cb func OnHideToggledIconAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_toggleAnimatedIndicator, false);
+  }
+
+  private final func UpdateState() -> Void {
+    if this.m_toggled {
+      this.m_data.SetVisited();
+      inkWidgetRef.SetOpacity(this.m_questItemFrame, 1.00);
+      inkWidgetRef.SetOpacity(this.m_questItemBg, this.m_hovered ? 0.04 : 0.03);
+    } else {
+      if this.m_hovered {
+        inkWidgetRef.SetOpacity(this.m_questItemFrame, 0.07);
+        inkWidgetRef.SetOpacity(this.m_questItemBg, 0.03);
+      } else {
+        if this.m_tracked {
+          inkWidgetRef.SetOpacity(this.m_questItemFrame, 0.10);
+          inkWidgetRef.SetOpacity(this.m_questItemBg, 0.00);
+        } else {
+          inkWidgetRef.SetOpacity(this.m_questItemFrame, 0.07);
+          inkWidgetRef.SetOpacity(this.m_questItemBg, 0.00);
+        };
+      };
+    };
+    if !this.m_data.isVisited() {
+      inkWidgetRef.SetState(this.m_title, n"isNew");
+      inkWidgetRef.SetState(this.m_description, n"isNew");
+    } else {
+      inkWidgetRef.SetState(this.m_title, n"Default");
+      inkWidgetRef.SetState(this.m_description, n"Default");
+    };
+  }
+}

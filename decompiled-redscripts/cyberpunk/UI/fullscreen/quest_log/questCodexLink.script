@@ -1,0 +1,431 @@
+
+public class BaseCodexLinkController extends inkLogicController {
+
+  protected edit let m_linkImage: inkImageRef;
+
+  protected edit let m_linkLabel: inkTextRef;
+
+  protected edit let m_inputContainer: inkWidgetRef;
+
+  protected let m_animProxy: ref<inkAnimProxy>;
+
+  protected let m_isInteractive: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.m_isInteractive = true;
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInteractive {
+      this.ForcePlayAnimation(n"hyperlink_hover");
+      this.GetRootWidget().SetState(n"Hover");
+    };
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInteractive {
+      this.ForcePlayAnimation(n"clear_hyperlink_hover");
+      this.GetRootWidget().SetState(n"Default");
+    };
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isInteractive {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        this.Activate();
+      } else {
+        if e.IsAction(n"activate") {
+          this.ActivateSecondary();
+        };
+      };
+    };
+  }
+
+  public final func EnableInputHint(value: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_inputContainer, value);
+  }
+
+  private func Activate() -> Void;
+
+  private func ActivateSecondary() -> Void;
+
+  private final func ForcePlayAnimation(animationName: CName) -> Void {
+    if this.m_animProxy.IsPlaying() {
+      this.m_animProxy.Stop();
+    };
+    this.m_animProxy = this.PlayLibraryAnimationOnAutoSelectedTargets(animationName, this.GetRootWidget());
+  }
+}
+
+public class QuestCodexLinkController extends BaseCodexLinkController {
+
+  protected edit let m_linkLabelContainer: inkWidgetRef;
+
+  private let m_journalEntry: wref<JournalEntry>;
+
+  public final func Setup(journalEntry: wref<JournalEntry>, opt journalEntryReplacer: wref<JournalEntry>) -> Void {
+    let codexEntry: ref<JournalCodexEntry>;
+    this.m_journalEntry = journalEntry;
+    let imgEntry: ref<JournalImageEntry> = journalEntry as JournalImageEntry;
+    if IsDefined(imgEntry) {
+      this.SetupImageLink(imgEntry);
+    } else {
+      codexEntry = IsDefined(journalEntryReplacer) ? journalEntryReplacer as JournalCodexEntry : journalEntry as JournalCodexEntry;
+      this.SetupCodexLink(codexEntry);
+    };
+  }
+
+  private final func SetupCodexLink(codexEntry: wref<JournalCodexEntry>) -> Void {
+    inkTextRef.SetText(this.m_linkLabel, codexEntry.GetTitle());
+    inkWidgetRef.SetVisible(this.m_linkLabel, true);
+    if CodexUtils.IsImageValid(codexEntry.GetLinkImageID()) {
+      InkImageUtils.RequestSetImage(this, this.m_linkImage, codexEntry.GetLinkImageID(), n"OnCallback");
+    } else {
+      this.GetRootWidget().SetVisible(false);
+      return;
+    };
+    this.GetRootWidget().SetInteractive(true);
+  }
+
+  private final func SetupImageLink(imageEntry: wref<JournalImageEntry>) -> Void {
+    if CodexUtils.IsImageValid(imageEntry.GetThumbnailImageID()) {
+      InkImageUtils.RequestSetImage(this, this.m_linkImage, imageEntry.GetThumbnailImageID());
+    } else {
+      this.GetRootWidget().SetVisible(false);
+      return;
+    };
+    this.m_isInteractive = TDBID.IsValid(imageEntry.GetImageID());
+    if this.m_isInteractive {
+      inkTextRef.SetLocalizedText(this.m_linkLabel, n"Common-Access-Open");
+      inkWidgetRef.SetVisible(this.m_linkLabelContainer, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_linkLabelContainer, false);
+    };
+    this.GetRootWidget().SetInteractive(this.m_isInteractive);
+  }
+
+  private func Activate() -> Void {
+    let evt: ref<OpenCodexPopupEvent>;
+    if this.m_isInteractive {
+      evt = new OpenCodexPopupEvent();
+      evt.m_entry = this.m_journalEntry;
+      this.QueueBroadcastEvent(evt);
+    };
+  }
+}
+
+public class QuestMissionLinkController extends BaseCodexLinkController {
+
+  private edit let m_linkContainer: inkWidgetRef;
+
+  private edit let m_title: inkTextRef;
+
+  private edit let m_description: inkTextRef;
+
+  private edit let m_icon: inkImageRef;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_questEntry: wref<JournalQuest>;
+
+  private let m_questState: gameJournalEntryState;
+
+  private let m_questEntryHash: Int32;
+
+  public final func Setup(journalEntry: wref<JournalQuest>, journalManager: wref<JournalManager>) -> Void {
+    let state: CName;
+    this.m_questEntry = journalEntry;
+    this.m_journalManager = journalManager;
+    let questType: gameJournalQuestType = this.m_questEntry.GetType();
+    this.m_questState = this.m_journalManager.GetEntryState(journalEntry);
+    if Equals(this.m_questState, gameJournalEntryState.Succeeded) || Equals(this.m_questState, gameJournalEntryState.Failed) {
+      state = n"Finished";
+      this.GetRootWidget().SetInteractive(false);
+      inkImageRef.SetTexturePart(this.m_icon, n"completed");
+    } else {
+      state = QuestMissionLinkController.GetState(questType);
+      this.GetRootWidget().SetInteractive(true);
+      inkImageRef.SetTexturePart(this.m_icon, QuestMissionLinkController.GetIcon(questType));
+    };
+    inkWidgetRef.SetState(this.m_linkContainer, state);
+    inkTextRef.SetLocalizedTextString(this.m_title, this.m_questEntry.GetTitle(this.m_journalManager));
+    inkTextRef.SetText(this.m_description, this.GetFirstObjective().GetDescription());
+    this.PlayLibraryAnimation(n"introLink");
+  }
+
+  public final func GetFirstObjective() -> wref<JournalQuestObjective> {
+    let i: Int32;
+    let unpackedData: array<wref<JournalEntry>>;
+    QuestLogUtils.UnpackRecursive(this.m_journalManager, this.m_questEntry, unpackedData);
+    i = 0;
+    while i < ArraySize(unpackedData) {
+      if IsDefined(unpackedData[i] as JournalQuestObjective) {
+        return unpackedData[i] as JournalQuestObjective;
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  protected cb func OnActivateLink(e: ref<ActivateLink>) -> Bool;
+
+  private func Activate() -> Void;
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let evt: ref<ScrollToJournalEntryEvent>;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      evt = new ScrollToJournalEntryEvent();
+      evt.m_hash = this.m_journalManager.GetEntryHash(this.m_questEntry);
+      this.QueueEvent(evt);
+    };
+  }
+
+  public final static func GetIcon(filterType: gameJournalQuestType) -> CName {
+    switch filterType {
+      case gameJournalQuestType.MainQuest:
+        return n"quest";
+      case gameJournalQuestType.CourierSideQuest:
+      case gameJournalQuestType.SideQuest:
+        return n"minor_quest";
+      case gameJournalQuestType.MinorQuest:
+        return n"minor_quest";
+      case gameJournalQuestType.StreetStory:
+        return n"gigs";
+      case gameJournalQuestType.CyberPsycho:
+        return n"hunt_for_psycho";
+      case gameJournalQuestType.Contract:
+        return n"map_bounty";
+      case gameJournalQuestType.ApartmentQuest:
+        return n"apartment_to_buy";
+    };
+    return n"invalid";
+  }
+
+  public final static func GetState(filterType: gameJournalQuestType) -> CName {
+    switch filterType {
+      case gameJournalQuestType.MainQuest:
+        return n"MainQuest";
+      case gameJournalQuestType.CourierSideQuest:
+      case gameJournalQuestType.SideQuest:
+        return n"MainQuest";
+      case gameJournalQuestType.MinorQuest:
+        return n"MainQuest";
+      case gameJournalQuestType.StreetStory:
+        return n"Gig";
+      case gameJournalQuestType.CyberPsycho:
+        return n"Cyberpsycho";
+      case gameJournalQuestType.Contract:
+        return n"Cyberpsycho";
+      case gameJournalQuestType.ApartmentQuest:
+        return n"Apartment";
+    };
+    return n"Default";
+  }
+}
+
+public class QuestContactLinkController extends BaseCodexLinkController {
+
+  private edit let m_msgLabel: inkTextRef;
+
+  private edit let m_msgContainer: inkWidgetRef;
+
+  private let m_msgCounter: Int32;
+
+  private let m_contactEntry: ref<JournalContact>;
+
+  private let m_journalMgr: wref<JournalManager>;
+
+  private let m_phoneSystem: wref<PhoneSystem>;
+
+  private let m_uiSystem: wref<UISystem>;
+
+  public final func Setup(journalEntry: ref<JournalEntry>, journalManager: wref<JournalManager>, phoneSystem: wref<PhoneSystem>, uiSystem: wref<UISystem>) -> Void {
+    let avatarTweakId: TweakDBID;
+    this.m_phoneSystem = phoneSystem;
+    this.m_journalMgr = journalManager;
+    this.m_uiSystem = uiSystem;
+    this.m_contactEntry = journalEntry as JournalContact;
+    inkTextRef.SetText(this.m_linkLabel, this.m_contactEntry.GetLocalizedName(journalManager));
+    avatarTweakId = this.m_contactEntry.GetAvatarID(journalManager);
+    if CodexUtils.IsImageValid(avatarTweakId) {
+      InkImageUtils.RequestSetImage(this, this.m_linkImage, avatarTweakId);
+    } else {
+      this.GetRootWidget().SetVisible(false);
+      return;
+    };
+    this.m_msgCounter = MessengerUtils.GetUnreadMessagesCount(journalManager, this.m_contactEntry);
+    if this.m_msgCounter > 0 {
+      inkTextRef.SetText(this.m_msgLabel, ToString(this.m_msgCounter));
+      inkWidgetRef.SetVisible(this.m_msgContainer, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_msgContainer, false);
+    };
+    this.PlayLibraryAnimation(n"introLink");
+  }
+
+  protected cb func OnActivateLink(e: ref<ActivateLink>) -> Bool {
+    this.Activate();
+  }
+
+  private final func ShowActionBlockedNotification() -> Void {
+    let notificationEvent: ref<UIInGameNotificationEvent> = new UIInGameNotificationEvent();
+    this.m_uiSystem.QueueEvent(new UIInGameNotificationRemoveEvent());
+    notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+    this.m_uiSystem.QueueEvent(notificationEvent);
+  }
+
+  private func Activate() -> Void {
+    if !this.m_phoneSystem.IsCallingEnabled() {
+      this.ShowActionBlockedNotification();
+      return;
+    };
+    this.CallSelectedContact();
+    this.CloseHubMenu();
+  }
+
+  private func ActivateSecondary() -> Void;
+
+  private final func CloseHubMenu() -> Void {
+    let evt: ref<ForceCloseHubMenuEvent> = new ForceCloseHubMenuEvent();
+    this.QueueBroadcastEvent(evt);
+  }
+
+  private final func CallSelectedContact() -> Void {
+    let callRequest: ref<questTriggerCallRequest> = new questTriggerCallRequest();
+    callRequest.addressee = StringToName(this.m_contactEntry.GetId());
+    callRequest.caller = n"Player";
+    callRequest.callPhase = questPhoneCallPhase.IncomingCall;
+    callRequest.callMode = questPhoneCallMode.Video;
+    this.m_phoneSystem.QueueRequest(callRequest);
+  }
+}
+
+public class QuestMessageLinkController extends BaseCodexLinkController {
+
+  private let m_contactEntry: ref<JournalContact>;
+
+  private let m_messageEntry: ref<JournalPhoneMessage>;
+
+  private let m_journalManager: wref<JournalManager>;
+
+  private let m_childEntry: wref<JournalEntry>;
+
+  private let m_conversation: ref<JournalPhoneConversation>;
+
+  private let m_phoneSystem: wref<PhoneSystem>;
+
+  public final func Setup(childEntry: wref<JournalEntry>, journalManager: wref<JournalManager>, phoneSystem: wref<PhoneSystem>) -> Void {
+    let currentParent: ref<JournalEntry>;
+    this.m_journalManager = journalManager;
+    this.m_phoneSystem = phoneSystem;
+    this.m_childEntry = childEntry;
+    if IsDefined(childEntry as JournalPhoneMessage) || IsDefined(childEntry as JournalPhoneChoiceGroup) {
+      currentParent = this.m_journalManager.GetParentEntry(this.m_childEntry);
+      while IsDefined(currentParent) && !IsDefined(currentParent as JournalPhoneConversation) {
+        currentParent = this.m_journalManager.GetParentEntry(currentParent);
+      };
+      this.m_conversation = currentParent as JournalPhoneConversation;
+    } else {
+      this.m_conversation = childEntry as JournalPhoneConversation;
+    };
+    this.m_contactEntry = this.m_journalManager.GetParentEntry(this.m_conversation) as JournalContact;
+    inkTextRef.SetText(this.m_linkLabel, this.m_contactEntry.GetLocalizedName(journalManager));
+    this.PlayLibraryAnimation(n"introLink");
+  }
+
+  private func Activate() -> Void {
+    this.ShowSmsMessenger();
+    this.CloseHubMenu();
+  }
+
+  private final func CloseHubMenu() -> Void {
+    this.QueueBroadcastEvent(new ForceCloseHubMenuEvent());
+  }
+
+  protected cb func OnActivateLink(e: ref<ActivateLink>) -> Bool {
+    this.Activate();
+  }
+
+  private final func ShowSmsMessenger() -> Void {
+    let request: ref<UsePhoneRequest> = new UsePhoneRequest();
+    request.MessageToOpen = this.m_conversation;
+    this.m_phoneSystem.QueueRequest(request);
+  }
+}
+
+public class QuestShardLinkController extends BaseCodexLinkController {
+
+  public let m_journalManager: wref<JournalManager>;
+
+  public let m_journalEntry: wref<JournalOnscreen>;
+
+  public final func Setup(journalEntry: wref<JournalOnscreen>, journalManager: wref<JournalManager>) -> Void {
+    this.m_journalEntry = journalEntry;
+    this.m_journalManager = journalManager;
+    inkTextRef.SetLocalizedTextString(this.m_linkLabel, this.m_journalEntry.GetTitle());
+    this.PlayLibraryAnimation(n"introLink");
+  }
+
+  protected cb func OnActivateLink(e: ref<ActivateLink>) -> Bool {
+    this.Activate();
+  }
+
+  private func Activate() -> Void {
+    this.ShowShardJournalEntry();
+  }
+
+  protected final func ShowShardJournalEntry() -> Void {
+    let evt: ref<OpenMenuRequest> = new OpenMenuRequest();
+    let userData: ref<ShardAttachmentData> = new ShardAttachmentData();
+    userData.m_hash = this.m_journalManager.GetEntryHash(this.m_journalEntry);
+    evt.m_menuName = n"shards";
+    evt.m_isMainMenu = true;
+    evt.m_eventData.userData = userData;
+    evt.m_eventData.m_overrideDefaultUserData = true;
+    evt.m_jumpBack = true;
+    this.QueueBroadcastEvent(evt);
+  }
+}
+
+public class QuestMappinLinkController extends BaseCodexLinkController {
+
+  private let m_mappinEntry: ref<JournalQuestMapPinBase>;
+
+  private let m_mappinEntryHash: ref<JournalQuestMapPinBase>;
+
+  private let m_jumpTo: Vector3;
+
+  private let m_hash: Int32;
+
+  private let m_isTracked: Bool;
+
+  public final func Setup(mappinEntry: ref<JournalQuestMapPinBase>, mappinHash: Int32, jumpTo: Vector3, isTracked: Bool) -> Void {
+    this.m_mappinEntry = mappinEntry;
+    inkTextRef.SetText(this.m_linkLabel, this.m_mappinEntry.GetCaption());
+    this.m_jumpTo = jumpTo;
+    this.m_hash = mappinHash;
+    this.m_isTracked = isTracked;
+  }
+
+  protected cb func OnActivateLink(e: ref<ActivateMapLink>) -> Bool {
+    this.Activate();
+  }
+
+  private func Activate() -> Void {
+    let evt: ref<OpenMenuRequest> = new OpenMenuRequest();
+    evt.m_menuName = n"world_map";
+    let userData: ref<MapMenuUserData> = new MapMenuUserData();
+    userData.m_moveTo = this.m_jumpTo;
+    userData.m_hash = this.m_hash;
+    userData.m_isTracked = this.m_isTracked;
+    evt.m_eventData.userData = userData;
+    evt.m_eventData.m_overrideDefaultUserData = true;
+    evt.m_isMainMenu = true;
+    evt.m_jumpBack = true;
+    this.QueueBroadcastEvent(evt);
+  }
+}

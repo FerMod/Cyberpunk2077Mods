@@ -1,0 +1,439 @@
+
+public class InventoryTooltipData extends ATooltipData {
+
+  public let itemID: ItemID;
+
+  public let isEquipped: Bool;
+
+  public let isLocked: Bool;
+
+  public let isVendorItem: Bool;
+
+  public let isCraftable: Bool;
+
+  public let isPerkRequired: Bool;
+
+  public let qualityStateName: CName;
+
+  public let description: String;
+
+  public let additionalDescription: String;
+
+  public let gameplayDescription: String;
+
+  public let category: String;
+
+  public let quality: String;
+
+  public let itemName: String;
+
+  public let perkRequiredName: String;
+
+  public let price: Float;
+
+  public let buyPrice: Float;
+
+  public let unlockProgress: Float;
+
+  public let primaryStats: [InventoryTooltipData_StatData];
+
+  public let comparedStats: [InventoryTooltipData_StatData];
+
+  public let additionalStats: [InventoryTooltipData_StatData];
+
+  public let randomDamageTypes: [InventoryTooltipData_StatData];
+
+  public let recipeAdditionalStats: [InventoryTooltipData_StatData];
+
+  public let damageType: gamedataDamageType;
+
+  public let isBroken: Bool;
+
+  public let levelRequired: Int32;
+
+  public let attachments: [CName];
+
+  public let specialAbilities: [InventoryItemAbility];
+
+  public let equipArea: gamedataEquipmentArea;
+
+  public let showCyclingDots: Bool;
+
+  public let numberOfCyclingDots: Int32;
+
+  public let selectedCyclingDot: Int32;
+
+  @default(InventoryTooltipData, gamedataQuality.Invalid)
+  public let comparedQuality: gamedataQuality;
+
+  public let qualityF: Float;
+
+  @default(InventoryTooltipData, -1.0f)
+  public let comparisonQualityF: Float;
+
+  public let showIcon: Bool;
+
+  public let randomizedStatQuantity: Int32;
+
+  @default(InventoryTooltipData, gamedataItemType.Invalid)
+  public let itemType: gamedataItemType;
+
+  public let isLeftWeapon: Bool;
+
+  public let hasPairedWeapon: Bool;
+
+  public let canDualWield: Bool;
+
+  public let m_HasPlayerSmartGunLink: Bool;
+
+  public let m_PlayerLevel: Int32;
+
+  public let m_PlayerStrenght: Int32;
+
+  public let m_PlayerReflexes: Int32;
+
+  public let m_PlayerStreetCred: Int32;
+
+  public let itemAttachments: [ref<InventoryItemAttachments>];
+
+  public let inventoryItemData: InventoryItemData;
+
+  public let overrideRarity: Bool;
+
+  public let quickhackData: InventoryTooltipData_QuickhackData;
+
+  public let grenadeData: ref<InventoryTooltiData_GrenadeData>;
+
+  public let cyberdeckData: ref<InventoryTooltipData_CyberdeckData>;
+
+  public let cyberwareUpgradeData: ref<InventoryTooltiData_CyberwareUpgradeData>;
+
+  public let displayContext: InventoryTooltipDisplayContext;
+
+  public let parentItemData: wref<gameItemData>;
+
+  public let slotID: TweakDBID;
+
+  public let transmogItem: ItemID;
+
+  private let managerRef: wref<UIInventoryItemsManager>;
+
+  private let statsManager: ref<UIInventoryItemStatsManager>;
+
+  private let statsManagerFetched: Bool;
+
+  public let DEBUG_iconErrorInfo: ref<DEBUG_IconErrorInfo>;
+
+  public final static func FromItemViewData(const itemViewData: script_ref<ItemViewData>) -> ref<InventoryTooltipData> {
+    let outObject: ref<InventoryTooltipData> = new InventoryTooltipData();
+    outObject.isCraftable = false;
+    outObject.qualityStateName = UIItemsHelper.QualityStringToStateName(Deref(itemViewData).quality);
+    outObject.description = Deref(itemViewData).description;
+    outObject.category = Deref(itemViewData).categoryName;
+    outObject.quality = Deref(itemViewData).quality;
+    outObject.itemName = Deref(itemViewData).itemName;
+    outObject.price = Deref(itemViewData).price;
+    outObject.isBroken = Deref(itemViewData).isBroken;
+    outObject.FillPrimaryStats(Deref(itemViewData).primaryStats);
+    outObject.FillDetailedStats(Deref(itemViewData).secondaryStats);
+    outObject.comparedQuality = Deref(itemViewData).comparedQuality;
+    return outObject;
+  }
+
+  public final func FillPrimaryStats(const rawStats: script_ref<[StatViewData]>) -> Void {
+    let currStatViewData: StatViewData;
+    let maxStat: Int32;
+    let maxStatF: Float;
+    let parsedStat: InventoryTooltipData_StatData;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(rawStats));
+    while i < limit {
+      currStatViewData = Deref(rawStats)[i];
+      maxStat = 100;
+      maxStatF = 100.00;
+      parsedStat = new InventoryTooltipData_StatData(currStatViewData.type, currStatViewData.statName, Min(Max(currStatViewData.statMinValue, 0), currStatViewData.value), Max(Min(currStatViewData.statMaxValue, maxStat), currStatViewData.value), currStatViewData.value, currStatViewData.diffValue, MinF(MaxF(currStatViewData.statMinValueF, 0.00), currStatViewData.valueF), MaxF(MinF(currStatViewData.statMaxValueF, maxStatF), currStatViewData.valueF), currStatViewData.valueF, currStatViewData.diffValueF, EInventoryDataStatDisplayType.Value);
+      ArrayPush(this.primaryStats, parsedStat);
+      i += 1;
+    };
+  }
+
+  public final func FillRecipeDamageTypeData(gi: GameInstance, itemData: wref<gameItemData>) -> Void {
+    let localizedName: String;
+    let parsedStat: InventoryTooltipData_StatData;
+    let statsSystem: ref<StatsSystem> = GameInstance.GetStatsSystem(gi);
+    let damage: gamedataDamageType = RPGManager.GetDominatingDamageType(gi, itemData);
+    let baseDamage: Float = itemData.GetStatValueByType(statsSystem.GetStatType(damage));
+    let i: Int32 = 0;
+    while i < 4 {
+      damage = IntEnum<gamedataDamageType>(i);
+      localizedName = statsSystem.GetDamageRecordFromType(damage).AssociatedStat().LocalizedName();
+      parsedStat = new InventoryTooltipData_StatData(statsSystem.GetStatType(damage), localizedName, 0, 0, 0, 0, baseDamage, baseDamage, baseDamage, baseDamage, EInventoryDataStatDisplayType.Value);
+      ArrayPush(this.randomDamageTypes, parsedStat);
+      i += 1;
+    };
+  }
+
+  public final func FillRecipeStatsData(const rawStats: script_ref<[wref<Stat_Record>]>) -> Void {
+    let currStat: ref<Stat_Record>;
+    let parsedStat: InventoryTooltipData_StatData;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(rawStats));
+    while i < limit {
+      currStat = Deref(rawStats)[i];
+      parsedStat = new InventoryTooltipData_StatData(currStat.StatType(), currStat.LocalizedName(), 0, 0, 0, 0, 0.00, 0.00, 0.00, 0.00, EInventoryDataStatDisplayType.Value);
+      ArrayPush(this.recipeAdditionalStats, parsedStat);
+      i += 1;
+    };
+  }
+
+  public final func FillDetailedStats(const rawStats: script_ref<[StatViewData]>, opt isIconicRecipe: Bool) -> Void {
+    let currStatViewData: StatViewData;
+    let maxStat: Int32;
+    let maxStatF: Float;
+    let parsedStat: InventoryTooltipData_StatData;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(rawStats));
+    while i < limit {
+      currStatViewData = Deref(rawStats)[i];
+      maxStat = 100;
+      maxStatF = 100.00;
+      if currStatViewData.isCompared {
+        if currStatViewData.diffValue < 0 {
+          maxStat = Max(maxStat, currStatViewData.value - currStatViewData.diffValue);
+          maxStatF = MaxF(maxStatF, currStatViewData.valueF - currStatViewData.diffValueF);
+        };
+        parsedStat = new InventoryTooltipData_StatData(currStatViewData.type, currStatViewData.statName, Min(Max(currStatViewData.statMinValue, 0), currStatViewData.value), Max(Min(currStatViewData.statMaxValue, maxStat), currStatViewData.value), currStatViewData.value, currStatViewData.diffValue, MinF(MaxF(currStatViewData.statMinValueF, 0.00), currStatViewData.valueF), MaxF(MinF(currStatViewData.statMaxValueF, maxStatF), currStatViewData.valueF), currStatViewData.valueF, currStatViewData.diffValueF, currStatViewData.canBeCompared ? EInventoryDataStatDisplayType.CompareBar : EInventoryDataStatDisplayType.Value);
+      } else {
+        parsedStat = new InventoryTooltipData_StatData(currStatViewData.type, currStatViewData.statName, Min(Max(currStatViewData.statMinValue, 0), currStatViewData.value), Max(Min(currStatViewData.statMaxValue, maxStat), currStatViewData.value), currStatViewData.value, 0, MinF(MaxF(currStatViewData.statMinValueF, 0.00), currStatViewData.valueF), MaxF(MinF(currStatViewData.statMaxValueF, maxStatF), currStatViewData.valueF), currStatViewData.valueF, 0.00, currStatViewData.canBeCompared ? EInventoryDataStatDisplayType.DisplayBar : EInventoryDataStatDisplayType.Value);
+      };
+      if isIconicRecipe && !this.IsElementalDamageType(parsedStat.statType) {
+      } else {
+        if currStatViewData.canBeCompared {
+          ArrayPush(this.comparedStats, parsedStat);
+        } else {
+          ArrayPush(this.additionalStats, parsedStat);
+        };
+      };
+      i += 1;
+    };
+  }
+
+  private final func IsElementalDamageType(statType: gamedataStatType) -> Bool {
+    switch statType {
+      case gamedataStatType.PhysicalDamage:
+      case gamedataStatType.ElectricDamage:
+      case gamedataStatType.ThermalDamage:
+      case gamedataStatType.ChemicalDamage:
+        return true;
+    };
+    return false;
+  }
+
+  public final static func FromInventoryItemData(const itemData: script_ref<InventoryItemData>) -> ref<InventoryTooltipData> {
+    let attachmentName: CName;
+    let attachments: ref<InventoryItemAttachments>;
+    let attachmentsSize: Int32;
+    let i: Int32;
+    let limit: Int32;
+    let outObject: ref<InventoryTooltipData> = new InventoryTooltipData();
+    outObject.itemID = InventoryItemData.GetID(itemData);
+    outObject.isCraftable = false;
+    outObject.qualityStateName = InventoryItemData.GetQuality(itemData);
+    outObject.description = InventoryItemData.GetDescription(itemData);
+    outObject.additionalDescription = InventoryItemData.GetAdditionalDescription(itemData);
+    outObject.gameplayDescription = InventoryItemData.GetGameplayDescription(itemData);
+    outObject.isBroken = InventoryItemData.IsBroken(itemData);
+    outObject.isVendorItem = InventoryItemData.IsVendorItem(itemData);
+    outObject.category = InventoryItemData.GetCategoryName(itemData);
+    outObject.quality = NameToString(InventoryItemData.GetQuality(itemData));
+    outObject.levelRequired = InventoryItemData.GetRequiredLevel(itemData);
+    outObject.itemName = InventoryItemData.GetName(itemData);
+    outObject.price = InventoryItemData.GetPrice(itemData);
+    outObject.buyPrice = InventoryItemData.GetBuyPrice(itemData);
+    outObject.FillPrimaryStats(InventoryItemData.GetPrimaryStats(itemData));
+    outObject.FillDetailedStats(InventoryItemData.GetSecondaryStats(itemData));
+    outObject.comparedQuality = InventoryItemData.GetComparedQuality(itemData);
+    outObject.qualityF = UIItemsHelper.GetQualityF(itemData);
+    outObject.damageType = InventoryItemData.GetDamageType(itemData);
+    outObject.equipArea = InventoryItemData.GetEquipmentArea(itemData);
+    outObject.itemType = InventoryItemData.GetItemType(itemData);
+    outObject.m_HasPlayerSmartGunLink = InventoryItemData.HasPlayerSmartGunLink(itemData);
+    outObject.m_PlayerLevel = InventoryItemData.GetPlayerLevel(itemData);
+    outObject.m_PlayerStrenght = InventoryItemData.GetPlayerStrenght(itemData);
+    outObject.m_PlayerReflexes = InventoryItemData.GetPlayerReflexes(itemData);
+    outObject.m_PlayerStreetCred = InventoryItemData.GetPlayerStreetCred(itemData);
+    outObject.isEquipped = InventoryItemData.IsEquipped(itemData);
+    outObject.isPerkRequired = InventoryItemData.GetIsPerkRequired(itemData);
+    outObject.perkRequiredName = InventoryItemData.GetPerkRequiredName(itemData);
+    attachmentsSize = InventoryItemData.GetAttachmentsSize(itemData);
+    i = 0;
+    limit = attachmentsSize;
+    while i < limit {
+      attachmentName = n"None";
+      attachments = InventoryItemData.GetAttachment(itemData, i);
+      if !InventoryItemData.IsEmpty(attachments.ItemData) {
+        attachmentName = InventoryItemData.GetQuality(attachments.ItemData);
+      };
+      ArrayPush(outObject.attachments, attachmentName);
+      i += 1;
+    };
+    outObject.specialAbilities = InventoryItemData.GetAbilities(itemData);
+    outObject.itemAttachments = InventoryItemData.GetAttachments(itemData);
+    outObject.inventoryItemData = Deref(itemData);
+    return outObject;
+  }
+
+  public final static func FromRecipeAndItemData(context: GameInstance, recipe: ref<RecipeData>, const itemData: script_ref<InventoryItemData>, const recipeOutcome: script_ref<InventoryItemData>, recipeGameItemData: wref<gameItemData>) -> ref<InventoryTooltipData> {
+    let attachmentName: CName;
+    let attachments: ref<InventoryItemAttachments>;
+    let attachmentsSize: Int32;
+    let i: Int32;
+    let limit: Int32;
+    let stats: array<wref<Stat_Record>>;
+    let weaponEvolution: gamedataWeaponEvolution;
+    let itemRecord: wref<Item_Record> = recipe.id;
+    let outObject: ref<InventoryTooltipData> = InventoryTooltipData.FromInventoryItemData(recipeOutcome);
+    if Equals(InventoryItemData.GetEquipmentArea(itemData), gamedataEquipmentArea.Weapon) {
+      weaponEvolution = TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(InventoryItemData.GetID(itemData))).Evolution().Type();
+      stats = RPGManager.GetListOfRandomStatsFromEvolutionType(weaponEvolution);
+      outObject.FillRecipeStatsData(stats);
+      if !RPGManager.IsItemIconic(recipeGameItemData) {
+        outObject.FillRecipeDamageTypeData(context, recipeGameItemData);
+      };
+      outObject.randomizedStatQuantity = 1;
+    };
+    if IsDefined(outObject) && !IsStringValid(outObject.itemName) {
+      outObject.itemName = LocKeyToString(itemRecord.DisplayName());
+    };
+    outObject.itemID = InventoryItemData.GetID(itemData);
+    outObject.isCraftable = true;
+    if !InventoryItemData.IsEmpty(recipeOutcome) {
+      outObject.qualityStateName = InventoryItemData.GetQuality(recipeOutcome);
+    } else {
+      outObject.qualityStateName = InventoryItemData.GetQuality(itemData);
+    };
+    outObject.quality = NameToString(outObject.qualityStateName);
+    outObject.category = InventoryItemData.GetCategoryName(itemData);
+    outObject.equipArea = InventoryItemData.GetEquipmentArea(itemData);
+    outObject.itemType = InventoryItemData.GetItemType(itemData);
+    outObject.description = InventoryItemData.GetDescription(itemData);
+    outObject.additionalDescription = InventoryItemData.GetAdditionalDescription(itemData);
+    outObject.gameplayDescription = InventoryItemData.GetGameplayDescription(itemData);
+    outObject.isBroken = InventoryItemData.IsBroken(itemData);
+    outObject.isVendorItem = InventoryItemData.IsVendorItem(itemData);
+    outObject.levelRequired = InventoryItemData.GetRequiredLevel(itemData);
+    outObject.price = InventoryItemData.GetPrice(recipeOutcome);
+    outObject.buyPrice = InventoryItemData.GetBuyPrice(recipeOutcome);
+    outObject.FillPrimaryStats(InventoryItemData.GetPrimaryStats(recipeOutcome));
+    if Equals(InventoryItemData.GetEquipmentArea(itemData), gamedataEquipmentArea.Weapon) && RPGManager.IsItemIconic(recipeGameItemData) {
+      ArrayClear(outObject.additionalStats);
+      outObject.FillDetailedStats(InventoryItemData.GetSecondaryStats(recipeOutcome), true);
+    } else {
+      outObject.FillDetailedStats(InventoryItemData.GetSecondaryStats(recipeOutcome));
+    };
+    outObject.comparedQuality = InventoryItemData.GetComparedQuality(itemData);
+    outObject.damageType = InventoryItemData.GetDamageType(itemData);
+    outObject.m_HasPlayerSmartGunLink = InventoryItemData.HasPlayerSmartGunLink(itemData);
+    outObject.m_PlayerLevel = InventoryItemData.GetPlayerLevel(itemData);
+    outObject.m_PlayerStrenght = InventoryItemData.GetPlayerStrenght(itemData);
+    outObject.m_PlayerStreetCred = InventoryItemData.GetPlayerStreetCred(itemData);
+    outObject.inventoryItemData = Deref(itemData);
+    attachmentsSize = InventoryItemData.GetAttachmentsSize(recipeOutcome);
+    i = 0;
+    limit = attachmentsSize;
+    while i < limit {
+      attachmentName = n"None";
+      attachments = InventoryItemData.GetAttachment(recipeOutcome, i);
+      if !InventoryItemData.IsEmpty(attachments.ItemData) {
+        attachmentName = InventoryItemData.GetQuality(attachments.ItemData);
+      };
+      ArrayPush(outObject.attachments, attachmentName);
+      i += 1;
+    };
+    outObject.specialAbilities = InventoryItemData.GetAbilities(recipeOutcome);
+    outObject.itemAttachments = InventoryItemData.GetAttachments(recipeOutcome);
+    outObject.displayContext = InventoryTooltipDisplayContext.Crafting;
+    outObject.inventoryItemData = Deref(recipeOutcome);
+    outObject.overrideRarity = true;
+    return outObject;
+  }
+
+  public final func ToCollapsedVersion() -> Void {
+    if Equals(this.equipArea, gamedataEquipmentArea.Weapon) {
+      this.description = "";
+      this.additionalDescription = "";
+    };
+  }
+
+  public final func SetCyclingDots(selectedDot: Int32, numberOfDots: Int32) -> Void {
+    if numberOfDots > 1 {
+      this.showCyclingDots = true;
+      this.selectedCyclingDot = selectedDot;
+      this.numberOfCyclingDots = numberOfDots;
+    } else {
+      this.showCyclingDots = false;
+      this.selectedCyclingDot = 0;
+      this.numberOfCyclingDots = 0;
+    };
+  }
+
+  public final func SetManager(manager: wref<UIInventoryItemsManager>) -> Void {
+    this.managerRef = manager;
+  }
+
+  public final func GetManager() -> wref<UIInventoryItemsManager> {
+    return this.managerRef;
+  }
+
+  public final func GetStatsManagerHandle(opt refetch: Bool) -> ref<UIInventoryItemStatsManager> {
+    let record: wref<UIStatsMap_Record>;
+    if this.statsManagerFetched && !refetch {
+      return this.statsManager;
+    };
+    record = UIInventoryItemsManager.GetUIStatsMap(this.itemType);
+    this.statsManager = UIInventoryItemStatsManager.Make(InventoryItemData.GetGameItemData(this.inventoryItemData), record, this.managerRef);
+    this.statsManagerFetched = true;
+    return this.statsManager;
+  }
+
+  public final func GetStatsManager(opt refetch: Bool) -> wref<UIInventoryItemStatsManager> {
+    return this.GetStatsManagerHandle(refetch);
+  }
+}
+
+public class InventoryTooltiData_CyberwareUpgradeData extends IScriptable {
+
+  public let upgradeQuality: gamedataQuality;
+
+  public let isUpgradable: Bool;
+
+  public let isRipperdoc: Bool;
+
+  public let isUpgradeScreen: Bool;
+
+  public let playerComponents: Int32;
+
+  public let upgradeCost: CyberwareUpgradeCostData;
+
+  public final func IsValid() -> Bool {
+    if this.upgradeCost.materialRecordID == t"NewPerks.Intelligence_Left_Milestone_2.preventInQueueAgain" || this.upgradeCost.materialCount == 0 {
+      return false;
+    };
+    return true;
+  }
+
+  public final static func Make(item: wref<UIInventoryItem>, player: wref<GameObject>, opt isUpgradeScreen: Bool) -> ref<InventoryTooltiData_CyberwareUpgradeData> {
+    let upgradeCostData: CyberwareUpgradeCostData;
+    let upgradeItem: ref<Item_Record>;
+    let upgradeQuality: gamedataQuality;
+    let instance: ref<InventoryTooltiData_CyberwareUpgradeData> = new InventoryTooltiData_CyberwareUpgradeData();
+    instance.isUpgradable = RPGManager.CanUpgradeCyberware(player, item.GetID(), item.IsEquipped(), gamedataQuality.Invalid, upgradeQuality, upgradeItem, upgradeCostData, true);
+    instance.isRipperdoc = true;
+    instance.isUpgradeScreen = isUpgradeScreen;
+    instance.upgradeCost = upgradeCostData;
+    instance.upgradeQuality = upgradeQuality;
+    let upgradeComponentsItemData: wref<gameItemData> = RPGManager.GetItemData(player.GetGame(), player, ItemID.FromTDBID(upgradeCostData.materialRecordID));
+    instance.playerComponents = upgradeComponentsItemData.GetQuantity();
+    return instance;
+  }
+}

@@ -1,0 +1,15 @@
+
+public class WeaponSlotHitPrereqCondition extends BaseHitPrereqCondition {
+
+  public let m_weaponAttachmentSlotID: TweakDBID;
+
+  public func SetData(recordID: TweakDBID) -> Void {
+    this.m_weaponAttachmentSlotID = TweakDBInterface.GetForeignKey(recordID + t".attachmentSlot", t"NewPerks.Intelligence_Left_Milestone_2.preventInQueueAgain");
+    super.SetData(recordID);
+  }
+
+  public func Evaluate(hitEvent: ref<gameHitEvent>) -> Bool {
+    let slotRecordID: TweakDBID = hitEvent.attackData.GetWeapon().GetAttachedSlotID();
+    return slotRecordID == this.m_weaponAttachmentSlotID;
+  }
+}

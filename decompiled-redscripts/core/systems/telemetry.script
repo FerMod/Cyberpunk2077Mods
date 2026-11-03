@@ -1,0 +1,134 @@
+
+public static func ToInventoryItemData(owner: wref<GameObject>, itemID: ItemID) -> InventoryItemData {
+  let equipmentSystem: ref<EquipmentSystem>;
+  let inventoryManager: wref<InventoryDataManagerV2>;
+  let itemData: wref<gameItemData>;
+  let playerPuppet: wref<GameObject>;
+  let transactionSystem: wref<TransactionSystem>;
+  if IsDefined(owner) {
+    equipmentSystem = GameInstance.GetScriptableSystemsContainer(owner.GetGame()).Get(n"EquipmentSystem") as EquipmentSystem;
+    transactionSystem = GameInstance.GetTransactionSystem(owner.GetGame());
+    playerPuppet = GameInstance.GetPlayerSystem(owner.GetGame()).GetLocalPlayerMainGameObject();
+    if IsDefined(equipmentSystem) && IsDefined(transactionSystem) && IsDefined(playerPuppet) {
+      inventoryManager = equipmentSystem.GetInventoryManager(playerPuppet);
+      if IsDefined(inventoryManager) {
+        itemData = transactionSystem.GetItemData(owner, itemID);
+        if IsDefined(itemData) {
+          return inventoryManager.GetInventoryItemData(itemData);
+        };
+      };
+    };
+  };
+  return EmptyInventoryItemData();
+}
+
+public static func EmptyInventoryItemData() -> InventoryItemData {
+  let inventoryItemData: InventoryItemData;
+  return inventoryItemData;
+}
+
+public static func ToTelemetryInventoryItem(const inventoryItemData: script_ref<InventoryItemData>) -> TelemetryInventoryItem {
+  let telemetryItem: TelemetryInventoryItem;
+  telemetryItem.friendlyName = InventoryItemData.GetGameItemData(inventoryItemData).GetNameAsString();
+  telemetryItem.localizedName = InventoryItemData.GetName(inventoryItemData);
+  telemetryItem.itemID = InventoryItemData.GetID(inventoryItemData);
+  telemetryItem.quality = InventoryItemData.GetComparedQuality(inventoryItemData);
+  telemetryItem.itemType = InventoryItemData.GetItemType(inventoryItemData);
+  telemetryItem.itemLevel = InventoryItemData.GetItemLevel(inventoryItemData);
+  telemetryItem.iconic = InventoryItemData.GetGameItemData(inventoryItemData).GetStatValueByType(gamedataStatType.IsItemIconic) > 0.00;
+  return telemetryItem;
+}
+
+public static func ToTelemetryEnemy(target: wref<GameObject>) -> TelemetryEnemy {
+  let puppet: ref<NPCPuppet>;
+  let telemtryNME: TelemetryEnemy;
+  telemtryNME.enemy = target;
+  if IsDefined(target) {
+    telemtryNME.enemyEntityID = target.GetEntityID();
+    telemtryNME.level = Cast<Int32>(GameInstance.GetStatsSystem(target.GetGame()).GetStatValue(Cast<StatsObjectID>(telemtryNME.enemyEntityID), gamedataStatType.PowerLevel));
+  };
+  telemtryNME.characterRecord = GameObject.GetTDBID(target);
+  if target.IsPuppet() {
+    puppet = target as NPCPuppet;
+    telemtryNME.enemyAffiliation = puppet.IsCharacterCivilian() ? "civilian" : puppet.GetAffiliation();
+    telemtryNME.archetype = TweakDBInterface.GetCharacterRecord(GameObject.GetTDBID(puppet)).ArchetypeData().Type().Type();
+  } else {
+    if target.IsTurret() {
+      telemtryNME.enemyAffiliation = "Turret";
+    } else {
+      if target.IsSensor() {
+        telemtryNME.enemyAffiliation = "Sensor";
+      } else {
+        if target.IsDevice() {
+          telemtryNME.enemyAffiliation = "Device";
+        } else {
+          telemtryNME.enemyAffiliation = "Other";
+        };
+      };
+    };
+  };
+  return telemtryNME;
+}
+
+public static func ToTelemetryDamage(evt: ref<gameTargetDamageEvent>) -> TelemetryDamage {
+  let telemetryDamage: TelemetryDamage = ToTelemetryDamage(evt.attackData);
+  telemetryDamage.damageAmount = evt.damage;
+  return telemetryDamage;
+}
+
+public static func ToTelemetryDamage(evt: ref<gameDamageReceivedEvent>) -> TelemetryDamage {
+  let telemetryDamage: TelemetryDamage = ToTelemetryDamage(evt.hitEvent.attackData);
+  telemetryDamage.damageAmount = evt.totalDamageReceived;
+  return telemetryDamage;
+}
+
+public static func ToTelemetryDamage(attackData: ref<AttackData>) -> TelemetryDamage {
+  let instigator: wref<GameObject>;
+  let itemObjectWeapon: wref<ItemObject>;
+  let source: wref<GameObject>;
+  let sourceIsAPuppet: wref<gamePuppetBase>;
+  let telemetryDamage: TelemetryDamage;
+  let weapon: wref<WeaponObject>;
+  telemetryDamage.attackType = attackData.GetAttackType();
+  if IsDefined(attackData.GetAttackDefinition()) && IsDefined(attackData.GetAttackDefinition().GetRecord()) {
+    telemetryDamage.attackRecord = attackData.GetAttackDefinition().GetRecord().GetID();
+  };
+  weapon = attackData.GetWeapon();
+  instigator = attackData.GetInstigator();
+  source = attackData.GetSource();
+  sourceIsAPuppet = source as gamePuppetBase;
+  itemObjectWeapon = IsDefined(weapon) ? weapon : source as ItemObject;
+  if IsDefined(itemObjectWeapon) && IsDefined(instigator) {
+    telemetryDamage.weapon = TelemetrySystem.GetTelemetryInventoryItemFromdata(itemObjectWeapon.GetItemData());
+    if IsDefined(weapon) {
+      telemetryDamage.weapon.isSilenced = weapon.IsSilenced();
+      GameObject.GetDualWieldWeaponNames(source, telemetryDamage.weapon.leftHandWeapon, telemetryDamage.weapon.rightHandWeapon);
+    };
+  } else {
+    if IsDefined(source) && !IsDefined(sourceIsAPuppet) {
+      telemetryDamage.sourceEntity.className = NameToString(source.GetClassName());
+      telemetryDamage.sourceEntity.sourceEntityRecord = GameObject.GetTDBID(source);
+    };
+  };
+  return telemetryDamage;
+}
+
+public static func ToTelemetryDamageDealt(evt: ref<gameTargetDamageEvent>, situation: gameTelemetryDamageSituation, distance: Float, time: Float) -> TelemetryDamageDealt {
+  let telemetryDamageDealt: TelemetryDamageDealt;
+  telemetryDamageDealt.situation = situation;
+  telemetryDamageDealt.damage = ToTelemetryDamage(evt);
+  telemetryDamageDealt.enemy = ToTelemetryEnemy(evt.target);
+  telemetryDamageDealt.damage.distance = distance;
+  telemetryDamageDealt.damage.time = time;
+  return telemetryDamageDealt;
+}
+
+public static func ToTelemetryDamageDealt(evt: ref<gameDamageReceivedEvent>, situation: gameTelemetryDamageSituation, distance: Float, time: Float) -> TelemetryDamageDealt {
+  let telemetryDamageDealt: TelemetryDamageDealt;
+  telemetryDamageDealt.situation = situation;
+  telemetryDamageDealt.damage = ToTelemetryDamage(evt);
+  telemetryDamageDealt.enemy = ToTelemetryEnemy(evt.hitEvent.attackData.GetInstigator());
+  telemetryDamageDealt.damage.distance = distance;
+  telemetryDamageDealt.damage.time = time;
+  return telemetryDamageDealt;
+}

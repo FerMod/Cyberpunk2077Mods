@@ -1,0 +1,2251 @@
+
+public class vehicleColorSelectorGameController extends inkGameController {
+
+  private edit let m_CursorRootContainerRef: inkWidgetRef;
+
+  private edit let m_CursorRootOffsetPoint: inkWidgetRef;
+
+  private edit let m_colorPaletteRef: inkWidgetRef;
+
+  private edit let m_stickerPaletteRef: inkWidgetRef;
+
+  private edit let m_currentTemplateParentRef: inkWidgetRef;
+
+  private edit let m_windowTitle: inkTextRef;
+
+  private edit const let m_classicBackgrounds: [inkWidgetRef];
+
+  private edit const let m_mordredBackgrounds: [inkWidgetRef];
+
+  public edit let m_colorWheelColorA: inkWidgetRef;
+
+  public edit let m_colorWheelColorB: inkWidgetRef;
+
+  public edit let m_colorWheelColorLights: inkWidgetRef;
+
+  public edit let m_colorWheelColorLightsCircle: inkWidgetRef;
+
+  public edit let m_colorWheelColorLightsFixedCircleContainer: inkWidgetRef;
+
+  public edit let m_colorWheelColorLightsFixedCircle: inkWidgetRef;
+
+  private edit let m_colorPickerA: vehicleColorSelectorPointerDef;
+
+  private edit let m_selectedColorPointerA: vehicleColorSelectorPointerDef;
+
+  private edit let m_colorPickerB: vehicleColorSelectorPointerDef;
+
+  private edit let m_selectedColorPointerB: vehicleColorSelectorPointerDef;
+
+  private edit let m_colorPickerLights: vehicleColorSelectorPointerDef;
+
+  private edit let m_selectedColorPointerLights: vehicleColorSelectorPointerDef;
+
+  private edit let m_swapColorHint: inkWidgetRef;
+
+  private edit let m_changeSliderHint: inkWidgetRef;
+
+  private edit let m_twintoneApplyHintText: inkTextRef;
+
+  private edit let m_changeTabRightHint: inkWidgetRef;
+
+  private edit let m_changeTabLeftHint: inkWidgetRef;
+
+  private edit let m_mouseHitColor1Ref: inkWidgetRef;
+
+  private edit let m_mouseHitColor2Ref: inkWidgetRef;
+
+  private edit let m_mouseHitLightsRef: inkWidgetRef;
+
+  private edit let m_vehiclePreviewColorA: inkImageRef;
+
+  private edit let m_vehiclePreviewColorB: inkImageRef;
+
+  private edit let m_vehiclePreviewLightsCar: inkImageRef;
+
+  private edit let m_vehiclePreviewLightsBike: inkImageRef;
+
+  private edit let m_vehiclePreviewBackground: inkImageRef;
+
+  private edit let m_vehiclePreviewForeground: inkImageRef;
+
+  private edit let m_vehiclePreviewGlowBackground: inkImageRef;
+
+  private edit let m_vehiclePreviewGlowA: inkImageRef;
+
+  private edit let m_vehiclePreviewGlowB: inkImageRef;
+
+  private edit let m_vehiclePreviewGlowLights: inkImageRef;
+
+  private edit let m_vehiclePreviewScalingCanvas: inkWidgetRef;
+
+  private edit let m_lightsPreviewBeamA: inkImageRef;
+
+  private edit let m_lightsPreviewBeamB: inkImageRef;
+
+  private edit let m_lightsPreviewBeamBike: inkImageRef;
+
+  private edit let m_lightErrorMessage: inkTextRef;
+
+  @default(vehicleColorSelectorGameController, radialMenu)
+  protected let m_timeDilationProfile: String;
+
+  @default(vehicleColorSelectorGameController, Intro)
+  private let m_introAnimation: CName;
+
+  @default(vehicleColorSelectorGameController, Cancel)
+  private let m_cancelAnimation: CName;
+
+  @default(vehicleColorSelectorGameController, Apply)
+  private let m_applyAnimation: CName;
+
+  private edit let m_titleTextMain: inkTextRef;
+
+  private edit let m_titleTextNumber: inkTextRef;
+
+  private edit let m_colorHints: inkWidgetRef;
+
+  private edit let m_mouseHitSaturationBar: inkWidgetRef;
+
+  private edit let m_saturationBarFill: inkWidgetRef;
+
+  private edit let m_saturationPointer: inkWidgetRef;
+
+  private edit let m_saturationBarHighlight: inkImageRef;
+
+  private edit let m_saturationBarHint: inkWidgetRef;
+
+  private edit let m_brightnessBarHighlight: inkImageRef;
+
+  private edit let m_brightnessBarHint: inkWidgetRef;
+
+  private edit let m_headlightsIcon: inkWidgetRef;
+
+  private edit let m_mouseHitBrightnessBar: inkWidgetRef;
+
+  private edit let m_brightnessPointer: inkWidgetRef;
+
+  private edit let m_modeChangeBack: inkWidgetRef;
+
+  private edit let m_modeChangeNext: inkWidgetRef;
+
+  private edit let m_applyContainerWidget: inkWidgetRef;
+
+  private edit let m_resetContainerWidget: inkWidgetRef;
+
+  private edit let m_vehicleUnknownPane: inkWidgetRef;
+
+  private edit let m_vehicleBrandIcon: inkImageRef;
+
+  private edit let m_crackedCarGlitchMinimumInterval: Float;
+
+  private edit let m_crackedCarGlitchMaximumInterval: Float;
+
+  private edit let m_vehicleNameText: inkTextRef;
+
+  private edit let m_templatePreviewLibraryRef: inkWidgetLibraryReference;
+
+  private edit let m_uniqueColorPanel: inkWidgetRef;
+
+  private edit let m_uniqueColorErrorPanel: inkWidgetRef;
+
+  private edit let m_genericPatternsGrid: inkVirtualCompoundRef;
+
+  private edit let m_uniquePatternsGrid: inkVirtualCompoundRef;
+
+  private edit let m_saveProfileHint: inkWidgetRef;
+
+  private edit let m_deleteProfileHint: inkWidgetRef;
+
+  protected let m_popupData: ref<inkGameNotificationData>;
+
+  private let m_systemRequestsHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_gameInstance: GameInstance;
+
+  private let m_timeSystem: ref<TimeSystem>;
+
+  private let m_vehicle: wref<VehicleObject>;
+
+  private let m_animProxy: ref<inkAnimProxy>;
+
+  private let m_fakeUpdateProxy: ref<inkAnimProxy>;
+
+  private let m_sbBarsProxy: ref<inkAnimProxy>;
+
+  private let m_LightsFocusProxy: ref<inkAnimProxy>;
+
+  private let m_stickersPage: wref<inkWidget>;
+
+  private let m_isInMenuCallbackID: ref<CallbackHandle>;
+
+  @default(vehicleColorSelectorGameController, vehicleColorSelectorActiveMode.None)
+  private let m_activeMode: vehicleColorSelectorActiveMode;
+
+  @default(vehicleColorSelectorGameController, vehicleColorSelectorActiveMode.None)
+  private let m_previousMode: vehicleColorSelectorActiveMode;
+
+  @default(vehicleColorSelectorGameController, vehicleColorSelectorActiveInputMode.None)
+  private let m_activeInputMode: vehicleColorSelectorActiveInputMode;
+
+  private let m_currentAngle: Float;
+
+  private let m_colorADefined: Bool;
+
+  private let m_colorBDefined: Bool;
+
+  private let m_lightsDefined: Bool;
+
+  private let m_targetColorAngleA: Float;
+
+  private let m_targetColorAngleB: Float;
+
+  private let m_targetColorAngleLights: Float;
+
+  private let m_targetColorASaturation: Float;
+
+  private let m_targetColorBSaturation: Float;
+
+  private let m_targetColorABrightness: Float;
+
+  private let m_targetColorBBrightness: Float;
+
+  private let m_axisInputCache: Vector2;
+
+  @default(vehicleColorSelectorGameController, false)
+  private let m_inputEnabled: Bool;
+
+  private let m_sbBarsShown: Bool;
+
+  @default(vehicleColorSelectorGameController, 756.0f)
+  private let m_sbBarsLength: Float;
+
+  @default(vehicleColorSelectorGameController, 0.1)
+  private let m_axisInputThreshold: Float;
+
+  private let m_saturationPointerPosition: Float;
+
+  private let m_brightnessPointerPosition: Float;
+
+  private let m_mouseInputEnabled: Bool;
+
+  private let m_lightsEditingEnabled: Bool;
+
+  private let m_hasCustomRims: Bool;
+
+  private let m_hasUniquePaintjobs: Bool;
+
+  private let m_saturationSliderHolded: Bool;
+
+  private let m_brightnessSliderHolded: Bool;
+
+  @default(vehicleColorSelectorGameController, 4.5f)
+  private let m_ChromaSliderStepPad: Float;
+
+  @default(vehicleColorSelectorGameController, 18.0f)
+  private let m_ChromaSliderStepMouse: Float;
+
+  private let m_sliderHoldGamepad: Bool;
+
+  private let m_sliderHoldGamepadDamp: Int32;
+
+  @default(vehicleColorSelectorGameController, 50)
+  private let m_sliderPadHoldAccelerationTreshhold: Int32;
+
+  private let m_storedSelectedColorID: Int32;
+
+  private let m_cachedNewColorA: Color;
+
+  private let m_cachedNewColorB: Color;
+
+  private let m_cachedNewColorLights: Color;
+
+  private let m_CloseReason: vehicleColorSelectorMenuCloseReason;
+
+  private let m_unsupportedVehicle: Bool;
+
+  private let m_previewDataMissing: Bool;
+
+  private let m_virtualGenericTemplateGridController: wref<TwintoneTemplateGridController>;
+
+  private let m_virtualUniqueTemplateGridController: wref<TwintoneTemplateGridController>;
+
+  private let m_genericGridInitialized: Bool;
+
+  private let m_uniqueGridInitialized: Bool;
+
+  private let m_currentTemplate: VehicleVisualCustomizationTemplate;
+
+  private let m_toggledTemplate: VehicleVisualCustomizationTemplate;
+
+  private let m_currentTemplatePreview: wref<ColorTemplatePreviewDisplayController>;
+
+  @default(vehicleColorSelectorGameController, vehicleColorSelectorActiveTab.None)
+  private let m_activePanel: vehicleColorSelectorActiveTab;
+
+  @default(vehicleColorSelectorGameController, vehicleColorSelectorSBBar.None)
+  private let m_activeSBBar: vehicleColorSelectorSBBar;
+
+  private let m_mainPanelAnimProxy: ref<inkAnimProxy>;
+
+  private let m_twintonePanelAnimProxy: ref<inkAnimProxy>;
+
+  private let m_carGlitchProxy: ref<inkAnimProxy>;
+
+  private let m_crackedAnimProxy: ref<inkAnimProxy>;
+
+  private let m_deletionPopup: ref<inkGameNotificationToken>;
+
+  protected cb func OnInitialize() -> Bool {
+    let deadzoneConfig: ref<ConfigVarFloat>;
+    let lightsEvent: ref<VehicleLightQuestToggleEvent>;
+    let record: wref<Vehicle_Record>;
+    let uiSystemBB: ref<IBlackboard>;
+    let controlsGroupBase: CName = n"/controls";
+    let deadzoneSettingName: CName = n"Axis_DeadzoneInner";
+    this.m_deletionPopup = null;
+    this.SetInputEnabled(false);
+    this.m_popupData = this.GetRootWidget().GetUserData(n"inkGameNotificationData") as inkGameNotificationData;
+    this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_player.RegisterInputListener(this, n"__DEVICE_CHANGED__");
+    this.m_gameInstance = this.m_player.GetGame();
+    this.m_vehicle = this.m_player.GetMountedVehicle();
+    record = this.m_vehicle.GetRecord();
+    this.m_lightsEditingEnabled = record.CustomizeLights();
+    this.m_hasCustomRims = record.CustomizeCarRims();
+    this.m_hasUniquePaintjobs = record.HasUniqueCustomization();
+    uiSystemBB = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_System);
+    this.m_isInMenuCallbackID = uiSystemBB.RegisterDelayedListenerBool(GetAllBlackboardDefs().UI_System.IsInMenu, this, n"OnIsInMenuChanged");
+    if GameInstance.GetSettingsSystem(this.m_player.GetGame()).HasVar(controlsGroupBase, deadzoneSettingName) {
+      deadzoneConfig = GameInstance.GetSettingsSystem(this.m_player.GetGame()).GetVar(controlsGroupBase, deadzoneSettingName) as ConfigVarFloat;
+    };
+    if IsDefined(deadzoneConfig) {
+      this.m_axisInputThreshold = deadzoneConfig.GetValue();
+    } else {
+      this.m_axisInputThreshold = 0.35;
+    };
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalInputReleased");
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnGlobalInputHold");
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnGlobalPressInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnMouseInput");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnGlobalAxisInput");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitColor1Ref, n"OnHoverOver", this, n"OnHoverOverColorWheel1");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitColor2Ref, n"OnHoverOver", this, n"OnHoverOverColorWheel2");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitColor1Ref, n"OnHoverOut", this, n"OnHoverOutColorWheel1");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitColor2Ref, n"OnHoverOut", this, n"OnHoverOutColorWheel2");
+    if this.m_lightsEditingEnabled {
+      inkWidgetRef.RegisterToCallback(this.m_mouseHitLightsRef, n"OnHoverOver", this, n"OnHoverOverColorWheelLights");
+      inkWidgetRef.RegisterToCallback(this.m_mouseHitLightsRef, n"OnHoverOut", this, n"OnHoverOutColorWheelLights");
+    };
+    inkWidgetRef.SetVisible(this.m_uniqueColorPanel, this.m_hasUniquePaintjobs);
+    inkWidgetRef.SetVisible(this.m_uniqueColorErrorPanel, !this.m_hasUniquePaintjobs);
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitSaturationBar, n"OnHoverOver", this, n"OnHoverOverSaturationBar");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitBrightnessBar, n"OnHoverOver", this, n"OnHoverOverBrightnessBar");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitSaturationBar, n"OnPress", this, n"OnSaturationBarPressed");
+    inkWidgetRef.RegisterToCallback(this.m_mouseHitBrightnessBar, n"OnPress", this, n"OnBrightnessBarPressed");
+    this.m_currentTemplatePreview = this.SpawnFromExternal(inkWidgetRef.Get(this.m_currentTemplateParentRef), inkWidgetLibraryResource.GetPath(this.m_templatePreviewLibraryRef.widgetLibrary), this.m_templatePreviewLibraryRef.widgetItem).GetController() as ColorTemplatePreviewDisplayController;
+    this.m_currentTemplatePreview.SetSelected(false);
+    this.m_currentTemplatePreview.SetCanAdd(false);
+    this.m_currentTemplatePreview.SetToggleable(false);
+    if this.m_player.PlayerLastUsedKBM() {
+      inkWidgetRef.SetVisible(this.m_changeTabRightHint, false);
+      inkWidgetRef.SetVisible(this.m_changeTabLeftHint, false);
+    } else {
+      inkWidgetRef.SetVisible(this.m_changeTabRightHint, true);
+      inkWidgetRef.SetVisible(this.m_changeTabLeftHint, true);
+    };
+    inkWidgetRef.SetVisible(this.m_saturationBarHint, false);
+    inkWidgetRef.SetVisible(this.m_brightnessBarHint, false);
+    this.InitializeMQ058();
+    this.SetTimeDilatation(true);
+    this.UpdateVehiclePreview();
+    this.UpdateVehicleManufacturer();
+    this.UpdateTwintonePanel();
+    this.ProcessPreviousCustomizationState();
+    this.ProccessSwapColorHintVisibility();
+    this.PlayAnimation(this.m_introAnimation);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnIntroFinished");
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_open");
+    if this.m_lightsEditingEnabled {
+      inkWidgetRef.SetVisible(this.m_colorWheelColorLightsCircle, true);
+      inkWidgetRef.SetVisible(this.m_colorWheelColorLightsFixedCircleContainer, false);
+      lightsEvent = new VehicleLightQuestToggleEvent();
+      lightsEvent.toggle = true;
+      this.m_vehicle.QueueEvent(lightsEvent);
+    } else {
+      inkWidgetRef.SetVisible(this.m_colorWheelColorLightsCircle, false);
+      inkWidgetRef.SetVisible(this.m_colorWheelColorLightsFixedCircleContainer, true);
+      this.SetHeadlightsFixedColor(record);
+    };
+    this.ProcessFakeUpdate(true);
+    this.UpdateNavigationState();
+  }
+
+  private final func InitializeMQ058() -> Void {
+    let isVVCUpdateRequired: Bool = this.m_vehicle.GetVehicleComponent().GetVisualCustomizationUpdateRequired();
+    let playerVVCC: ref<vehicleVisualCustomizationComponent> = this.m_player.GetVehicleVisualCustomizationComponent();
+    let hasUniqueTemplates: Bool = playerVVCC.GetNumberOfStoredVisualCustomizationTemplates(VehicleVisualCustomizationType.Unique, n"yaiba.semimaru") > 0;
+    if isVVCUpdateRequired && !hasUniqueTemplates {
+      playerVVCC.FindAndStoreUniqueTemplate(n"yaiba.semimaru", t"Vehicle.vcc_paintjob_yaiba_semimaru_basic_urban_02");
+      playerVVCC.FindAndStoreUniqueTemplate(n"yaiba.semimaru", t"Vehicle.vcc_paintjob_yaiba_semimaru_basic_urban_03");
+      playerVVCC.FindAndStoreUniqueTemplate(n"yaiba.semimaru", t"Vehicle.vcc_paintjob_yaiba_semimaru_basic_urban_04");
+      playerVVCC.FindAndStoreUniqueTemplate(n"yaiba.semimaru", t"Vehicle.vcc_paintjob_yaiba_semimaru_basic_urban_05");
+    };
+  }
+
+  protected cb func OnIntroFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.SetInputEnabled(true);
+    this.UpdateControlsState();
+    this.SetNavigationEnabledInGrids(this.m_player.PlayerLastUsedKBM());
+    this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Primary);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnGlobalInputReleased");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnGlobalInputHold");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnGlobalPress");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelative", this, n"OnMouseInput");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnAxis", this, n"OnGlobalAxisInput");
+    this.ProcessFakeUpdate(false);
+    this.SetTimeDilatation(false);
+    this.UnitializeTwintone();
+  }
+
+  protected cb func OnHoverOverColorWheel1(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    this.m_mouseInputEnabled = true;
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_hover");
+  }
+
+  protected cb func OnHoverOverColorWheel2(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    this.m_mouseInputEnabled = true;
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_hover");
+  }
+
+  protected cb func OnHoverOverColorWheelLights(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    this.m_mouseInputEnabled = true;
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_hover");
+  }
+
+  protected cb func OnHoverOutColorWheel1(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Primary) {
+      this.m_mouseInputEnabled = false;
+    };
+  }
+
+  protected cb func OnHoverOutColorWheel2(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Secondary) {
+      this.m_mouseInputEnabled = false;
+    };
+  }
+
+  protected cb func OnHoverOutColorWheelLights(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Lights) {
+      this.m_mouseInputEnabled = false;
+    };
+  }
+
+  protected cb func OnMouseInput(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled {
+      return false;
+    };
+    this.m_sliderHoldGamepad = false;
+    if e.IsAction(n"mouse_x") || e.IsAction(n"mouse_y") {
+      this.ProcessMouseInput(e.GetScreenSpacePosition());
+      if this.m_saturationSliderHolded {
+        this.UpdateSliderFromScreenPosition(vehicleColorSelectorSBBar.Saturation, e.GetScreenSpacePosition());
+      } else {
+        if this.m_brightnessSliderHolded {
+          this.UpdateSliderFromScreenPosition(vehicleColorSelectorSBBar.Brightness, e.GetScreenSpacePosition());
+        };
+      };
+    };
+  }
+
+  private final func SignalUICallBack() -> Void {
+    this.m_popupData.token.TriggerCallback(this.m_popupData);
+  }
+
+  protected cb func OnFakeUpdate(proxy: ref<inkAnimProxy>) -> Bool {
+    this.Update();
+  }
+
+  protected cb func OnIsInMenuChanged(param: Bool) -> Bool {
+    if param {
+      this.Cancel();
+    };
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsAction(action, n"__DEVICE_CHANGED__") {
+      this.UpdateNavigationState();
+    };
+  }
+
+  private final func UpdateNavigationState() -> Void {
+    if Equals(this.GetActiveInputMode(), this.m_activeInputMode) {
+      return;
+    };
+    this.m_activeInputMode = this.GetActiveInputMode();
+    if this.m_player.PlayerLastUsedKBM() {
+      this.SetCursorVisibility(true);
+      this.SelectActivePanel(vehicleColorSelectorActiveTab.Both);
+      this.m_virtualGenericTemplateGridController.UnSelectCurrentItem();
+      this.m_virtualUniqueTemplateGridController.UnSelectCurrentItem();
+    } else {
+      this.SetCursorVisibility(false);
+      this.SelectActivePanel(vehicleColorSelectorActiveTab.Main);
+      this.m_virtualGenericTemplateGridController.UnSelectCurrentItem();
+      this.m_virtualUniqueTemplateGridController.UnSelectCurrentItem();
+    };
+    inkWidgetRef.SetVisible(this.m_changeSliderHint, this.m_sbBarsShown && !this.m_player.PlayerLastUsedKBM());
+  }
+
+  private final func GetActiveInputMode() -> vehicleColorSelectorActiveInputMode {
+    if !IsDefined(this.m_player) {
+      return vehicleColorSelectorActiveInputMode.None;
+    };
+    if this.m_player.PlayerLastUsedKBM() {
+      return vehicleColorSelectorActiveInputMode.KBM;
+    };
+    return vehicleColorSelectorActiveInputMode.Gamepad;
+  }
+
+  protected cb func OnHoverOverSaturationBar(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    if this.m_sbBarsShown && !this.m_brightnessSliderHolded {
+      this.SelectSBBar(vehicleColorSelectorSBBar.Saturation);
+    };
+  }
+
+  protected cb func OnHoverOverBrightnessBar(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return false;
+    };
+    if this.m_sbBarsShown && !this.m_saturationSliderHolded {
+      this.SelectSBBar(vehicleColorSelectorSBBar.Brightness);
+    };
+  }
+
+  protected cb func OnSaturationBarPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_inputEnabled && evt.IsAction(n"click") {
+      this.m_saturationSliderHolded = true;
+    };
+  }
+
+  protected cb func OnBrightnessBarPressed(evt: ref<inkPointerEvent>) -> Bool {
+    if this.m_inputEnabled && evt.IsAction(n"click") {
+      this.m_brightnessSliderHolded = true;
+    };
+  }
+
+  private final func UpdateSliderFromScreenPosition(slider: vehicleColorSelectorSBBar, position: Vector2) -> Void {
+    let mouseHit: inkWidgetRef = Equals(slider, vehicleColorSelectorSBBar.Saturation) ? this.m_mouseHitSaturationBar : this.m_mouseHitBrightnessBar;
+    let localPosition: Vector2 = WidgetUtils.GlobalToLocal(inkWidgetRef.Get(mouseHit), position);
+    this.SetSliderPosition(slider, ClampF(this.m_sbBarsLength - localPosition.X, 0.00, this.m_sbBarsLength));
+    this.ReadSBBarsValues();
+  }
+
+  protected cb func OnGlobalAxisInput(e: ref<inkPointerEvent>) -> Bool {
+    let value: Float = e.GetAxisData();
+    if e.IsAction(n"popup_axisX") {
+      this.m_axisInputCache.X = value;
+    } else {
+      if e.IsAction(n"popup_axisY") {
+        this.m_axisInputCache.Y = value;
+      };
+    };
+  }
+
+  protected cb func OnGlobalPressInput(e: ref<inkPointerEvent>) -> Bool {
+    let holdEvent: ref<VehicleColorSelectionSliderHoldEvent>;
+    if e.IsHandled() || !this.m_inputEnabled {
+      return false;
+    };
+    if e.IsAction(n"UI_vehicle_customization_slider_up") {
+      if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+        e.Handle();
+        this.ProcessCurrentSliderChange(1);
+        holdEvent = new VehicleColorSelectionSliderHoldEvent();
+        holdEvent.direction = 1;
+        this.m_sliderHoldGamepad = true;
+        this.QueueEvent(holdEvent);
+      };
+    } else {
+      if e.IsAction(n"UI_vehicle_customization_slider_down") {
+        if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+          e.Handle();
+          this.ProcessCurrentSliderChange(-1);
+          holdEvent = new VehicleColorSelectionSliderHoldEvent();
+          holdEvent.direction = -1;
+          this.m_sliderHoldGamepad = true;
+          this.QueueEvent(holdEvent);
+        };
+      } else {
+        if e.IsAction(n"UI_vehicle_customization_slider_change_left") {
+          if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+            e.Handle();
+            this.SelectSBBar(vehicleColorSelectorSBBar.Saturation);
+          };
+        } else {
+          if e.IsAction(n"UI_vehicle_customization_slider_change_right") {
+            if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+              e.Handle();
+              this.SelectSBBar(vehicleColorSelectorSBBar.Brightness);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnVehicleColorSelectionSliderHoldEvent(evt: ref<VehicleColorSelectionSliderHoldEvent>) -> Bool {
+    if this.m_sliderHoldGamepad && (Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both)) {
+      if evt.direction > 0 {
+        this.ProcessCurrentSliderChange(1);
+      } else {
+        this.ProcessCurrentSliderChange(-1);
+      };
+      this.QueueEvent(evt);
+    };
+  }
+
+  protected cb func OnGlobalInputReleased(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsHandled() || !this.m_inputEnabled {
+      return false;
+    };
+    this.ResetSliderControls();
+    if e.IsAction(n"UI_vehicle_customization_select") {
+      e.Handle();
+      this.ProcessPointerClick(e);
+      GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Both);
+    } else {
+      if e.IsAction(n"UI_vehicle_customization_confirm") {
+        if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+          if this.Apply() {
+            e.Consume();
+            GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_close");
+            this.PlayRumble(RumbleStrength.Light, RumbleType.Pulse, RumblePosition.Both);
+          } else {
+            this.PlayFailSound();
+          };
+        } else {
+          this.PlayFailSound();
+        };
+      } else {
+        if e.IsAction(n"UI_vehicle_customization_swap") {
+          if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+            if this.SwapColors() {
+              e.Consume();
+              GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+            } else {
+              this.PlayFailSound();
+            };
+          } else {
+            this.PlayFailSound();
+          };
+        } else {
+          if e.IsAction(n"UI_vehicle_customization_cancel") {
+            e.Consume();
+            this.Cancel();
+            GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_close");
+          } else {
+            if e.IsAction(n"UI_vehicle_customization_mode_next") {
+              if !this.m_unsupportedVehicle && (Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both)) {
+                e.Consume();
+                this.SwitchActiveMode(1);
+                GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+              };
+            } else {
+              if e.IsAction(n"UI_vehicle_customization_mode_prev") {
+                if !this.m_unsupportedVehicle && (Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both)) {
+                  e.Consume();
+                  this.SwitchActiveMode(-1);
+                  GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+                };
+              } else {
+                if e.IsAction(n"UI_vehicle_customization_reset") {
+                  if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+                    if this.Reset() {
+                      e.Consume();
+                      GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_close");
+                    } else {
+                      this.PlayFailSound();
+                    };
+                  } else {
+                    this.PlayFailSound();
+                  };
+                } else {
+                  if e.IsAction(n"UI_vehicle_customization_tab_right") {
+                    if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) {
+                      e.Consume();
+                      this.SelectActivePanel(vehicleColorSelectorActiveTab.Twintone);
+                      GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_gui_tab_change");
+                    };
+                  } else {
+                    if e.IsAction(n"UI_vehicle_customization_tab_left") {
+                      if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+                        e.Consume();
+                        this.SelectActivePanel(vehicleColorSelectorActiveTab.Main);
+                        GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_gui_tab_change");
+                      };
+                    } else {
+                      if e.IsAction(n"UI_vehicle_customization_save") {
+                        if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+                          if this.SaveProfile() {
+                            e.Consume();
+                            GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+                          } else {
+                            this.PlayFailSound();
+                          };
+                        } else {
+                          this.PlayFailSound();
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+    if e.IsAction(n"click") {
+      if this.m_saturationSliderHolded {
+        this.UpdateSliderFromScreenPosition(vehicleColorSelectorSBBar.Saturation, e.GetScreenSpacePosition());
+      } else {
+        if this.m_brightnessSliderHolded {
+          this.UpdateSliderFromScreenPosition(vehicleColorSelectorSBBar.Brightness, e.GetScreenSpacePosition());
+        };
+      };
+      this.m_brightnessSliderHolded = false;
+      this.m_saturationSliderHolded = false;
+      this.HandleClickReleased(e);
+    };
+    this.HandleNavigation(e);
+  }
+
+  private final func HandleClickReleased(e: ref<inkPointerEvent>) -> Void {
+    let previousNavigationState: Bool;
+    if this.m_sbBarsShown && e.GetTarget() == inkWidgetRef.Get(this.m_mouseHitSaturationBar) {
+      this.SelectSBBar(vehicleColorSelectorSBBar.Saturation);
+    } else {
+      if this.m_sbBarsShown && e.GetTarget() == inkWidgetRef.Get(this.m_mouseHitBrightnessBar) {
+        this.SelectSBBar(vehicleColorSelectorSBBar.Brightness);
+      };
+    };
+    if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+      if IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) {
+        e.Handle();
+        previousNavigationState = this.GetNavigationEnabledInGrids();
+        this.SetNavigationEnabledInGrids(true);
+        this.m_virtualGenericTemplateGridController.ToggleItem(this.m_virtualGenericTemplateGridController.GetSelectedController().GetCurrentData().m_indexInList);
+        this.SetNavigationEnabledInGrids(previousNavigationState);
+        GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+      } else {
+        if IsDefined(this.m_virtualUniqueTemplateGridController.GetSelectedController()) {
+          e.Handle();
+          previousNavigationState = this.GetNavigationEnabledInGrids();
+          this.SetNavigationEnabledInGrids(true);
+          this.m_virtualUniqueTemplateGridController.ToggleItem(this.m_virtualUniqueTemplateGridController.GetSelectedController().GetCurrentData().m_indexInList);
+          this.SetNavigationEnabledInGrids(previousNavigationState);
+          GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_onpress");
+        };
+      };
+    };
+  }
+
+  private final func HandleNavigation(e: ref<inkPointerEvent>) -> Void {
+    if e.IsHandled() || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+      return;
+    };
+    if e.IsAction(n"navigate_down") || e.IsAction(n"popup_navigate_down") {
+      e.Handle();
+      this.MoveNavigation(inkDiscreteNavigationDirection.Down);
+    } else {
+      if e.IsAction(n"navigate_up") || e.IsAction(n"popup_navigate_up") {
+        e.Handle();
+        this.MoveNavigation(inkDiscreteNavigationDirection.Up);
+      } else {
+        if e.IsAction(n"navigate_left") || e.IsAction(n"popup_navigate_left") {
+          e.Handle();
+          this.MoveNavigation(inkDiscreteNavigationDirection.Left);
+        } else {
+          if e.IsAction(n"navigate_right") || e.IsAction(n"popup_navigate_right") {
+            e.Handle();
+            this.MoveNavigation(inkDiscreteNavigationDirection.Right);
+          };
+        };
+      };
+    };
+  }
+
+  private final func MoveNavigation(direction: inkDiscreteNavigationDirection) -> Void {
+    let previousNavigationState: Bool = this.GetNavigationEnabledInGrids();
+    this.SetNavigationEnabledInGrids(true);
+    if !IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) && !IsDefined(this.m_virtualUniqueTemplateGridController.GetSelectedController()) {
+      this.SelectDefaultTemplateInGrids();
+    };
+    if IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) {
+      this.m_virtualGenericTemplateGridController.MoveDiscreteNavigation(direction);
+    } else {
+      this.m_virtualUniqueTemplateGridController.MoveDiscreteNavigation(direction);
+    };
+    this.SetNavigationEnabledInGrids(previousNavigationState);
+  }
+
+  protected cb func OnGlobalInputHold(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsHandled() {
+      return false;
+    };
+    if evt.GetHoldProgress() >= 1.00 && evt.IsAction(n"UI_vehicle_customization_delete") {
+      if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+        if this.DeleteProfile() {
+          evt.Handle();
+          GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_item_disassemble");
+        } else {
+          this.PlayFailSound();
+        };
+      } else {
+        this.PlayFailSound();
+      };
+    };
+  }
+
+  private final func SetNavigationEnabledInGrids(enabled: Bool) -> Void {
+    if IsDefined(this.m_virtualGenericTemplateGridController) && IsDefined(this.m_virtualUniqueTemplateGridController) {
+      this.m_virtualGenericTemplateGridController.SetCanNavigateInGrid(enabled);
+      this.m_virtualUniqueTemplateGridController.SetCanNavigateInGrid(enabled);
+    };
+  }
+
+  private final func GetNavigationEnabledInGrids() -> Bool {
+    if IsDefined(this.m_virtualGenericTemplateGridController) && IsDefined(this.m_virtualUniqueTemplateGridController) {
+      return this.m_virtualGenericTemplateGridController.GetCanNavigateInGrid() && this.m_virtualUniqueTemplateGridController.GetCanNavigateInGrid();
+    };
+    return false;
+  }
+
+  private final func Apply() -> Bool {
+    if !this.m_inputEnabled || !this.m_vehicle.GetVehicleComponent().CanApplyTemplateOnVehicle(this.m_currentTemplate, true) {
+      return false;
+    };
+    this.SetInputEnabled(false);
+    this.m_CloseReason = vehicleColorSelectorMenuCloseReason.Apply;
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Lights) {
+      this.PlayLightsFocusAnimation(false);
+    };
+    this.PlayAnimation(this.m_applyAnimation);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnFinalAnimationFinished");
+    return true;
+  }
+
+  private final func SwapColors() -> Bool {
+    let swapCachedColor: Color;
+    let swapTargetAngle: Float;
+    let swapTargetBrightness: Float;
+    let swapTargetSaturation: Float;
+    if !this.m_inputEnabled || !this.m_colorADefined || !this.m_colorBDefined {
+      return false;
+    };
+    swapTargetAngle = this.m_targetColorAngleA;
+    swapTargetSaturation = this.m_targetColorASaturation;
+    swapTargetBrightness = this.m_targetColorABrightness;
+    swapCachedColor = this.m_cachedNewColorA;
+    this.m_targetColorAngleA = this.m_targetColorAngleB;
+    this.m_targetColorASaturation = this.m_targetColorBSaturation;
+    this.m_targetColorABrightness = this.m_targetColorBBrightness;
+    this.m_cachedNewColorA = this.m_cachedNewColorB;
+    this.m_targetColorAngleB = swapTargetAngle;
+    this.m_targetColorBSaturation = swapTargetSaturation;
+    this.m_targetColorBBrightness = swapTargetBrightness;
+    this.m_cachedNewColorB = swapCachedColor;
+    this.UpdateControlsState();
+    this.UpdateSBBarsForActiveColor();
+    this.UpdateTintedPartsForMode(vehicleColorSelectorActiveMode.Primary);
+    this.UpdateTintedPartsForMode(vehicleColorSelectorActiveMode.Secondary);
+    this.UpdateCurrentTemplate(this.PackCurrentConfigurationToTemplate());
+    return true;
+  }
+
+  private final func Cancel() -> Void {
+    if !this.m_inputEnabled {
+      return;
+    };
+    this.SetInputEnabled(false);
+    this.m_CloseReason = vehicleColorSelectorMenuCloseReason.Cancel;
+    this.PlayAnimation(this.m_cancelAnimation);
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnFinalAnimationFinished");
+    StatusEffectHelper.ApplyStatusEffect(this.m_player, t"BaseStatusEffect.VehicleVisualModCooldownInstant");
+  }
+
+  private final func Reset() -> Bool {
+    if !this.m_inputEnabled {
+      return false;
+    };
+    if !VehicleVisualCustomizationTemplate.IsValid(this.m_vehicle.GetVehiclePS().GetVehicleVisualCustomizationTemplate()) {
+      return false;
+    };
+    this.SetInputEnabled(false);
+    this.UpdateLightsPreviewWidgets(true);
+    this.m_CloseReason = vehicleColorSelectorMenuCloseReason.Reset;
+    this.PlayAnimation(this.m_applyAnimation);
+    this.PlayLibraryAnimation(n"Reset");
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Lights) {
+      this.PlayLightsFocusAnimation(false);
+    };
+    this.m_animProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnFinalAnimationFinished");
+    return true;
+  }
+
+  private final func SetInputEnabled(enabled: Bool) -> Void {
+    if Equals(this.m_inputEnabled, enabled) {
+      return;
+    };
+    this.m_inputEnabled = enabled;
+    this.m_virtualGenericTemplateGridController.SetEnabled(this.m_inputEnabled);
+    this.m_virtualUniqueTemplateGridController.SetEnabled(this.m_inputEnabled);
+  }
+
+  private final func Update() -> Void {
+    let angle: Float;
+    let angleReadout: wref<inkText>;
+    let root: wref<inkCompoundWidget>;
+    let sektorReadout: wref<inkText>;
+    this.ProcessSaveProfileHintVisibility();
+    this.ProcessDeleteProfileHintVisibility();
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return;
+    };
+    if AbsF(this.m_axisInputCache.Y) > this.m_axisInputThreshold || AbsF(this.m_axisInputCache.X) > this.m_axisInputThreshold {
+      angle = AtanF(this.m_axisInputCache.X, this.m_axisInputCache.Y) - 1.57;
+      this.ProcessPointerMovement(angle, this.GetColorPickerForActiveColor());
+      root = this.GetRootWidget() as inkCompoundWidget;
+      angleReadout = root.GetWidgetByPath(inkWidgetPath.Build(n"AngleTest")) as inkText;
+      sektorReadout = root.GetWidgetByPath(inkWidgetPath.Build(n"SectionTest")) as inkText;
+      this.m_currentAngle = this.CalculateNewColorAngle(angle);
+      sektorReadout.SetText(FloatToString(this.m_axisInputCache.X));
+      angleReadout.SetText(FloatToString(this.m_axisInputCache.Y));
+      this.m_axisInputCache.X = 0.00;
+      this.m_axisInputCache.Y = 0.00;
+    };
+  }
+
+  protected cb func OnFinalAnimationFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    switch this.m_CloseReason {
+      case vehicleColorSelectorMenuCloseReason.Apply:
+        this.SendCustomizationToVehicle();
+        break;
+      case vehicleColorSelectorMenuCloseReason.Reset:
+        this.ResetCustomizationToVehicle();
+    };
+    this.FinishMQ058IfNecessary();
+    this.UnitializeTwintone();
+    this.SignalUICallBack();
+    if IsDefined(this.m_carGlitchProxy) {
+      this.m_carGlitchProxy.GotoEndAndStop(true);
+      this.m_carGlitchProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_carGlitchProxy = null;
+    };
+  }
+
+  private final func FinishMQ058IfNecessary() -> Void {
+    let questSystem: ref<QuestsSystem> = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    let isVVCUpdateRequired: Bool = this.m_vehicle.GetVehicleComponent().GetVisualCustomizationUpdateRequired();
+    let isVVCUpToDate: Bool = this.m_vehicle.GetVehicleComponent().GetVisualCustomizationUpToDate();
+    let wasMQ058Completed: Bool = questSystem.GetFact(n"mq058_opened_vvc") == 1;
+    if !wasMQ058Completed && isVVCUpdateRequired && isVVCUpToDate {
+      questSystem.SetFact(n"mq058_opened_vvc", 1);
+    };
+  }
+
+  private final func ProcessMouseInput(mousePos: Vector2) -> Void {
+    let angle: Float;
+    let mouseLocationRelativeToColorPicker: Vector2;
+    let activeColorPicker: vehicleColorSelectorPointerDef = this.GetColorPickerForActiveColor();
+    if this.m_inputEnabled && (Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) || Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Both)) {
+      if !this.ShouldProcessMouseInputForActiveColorPicker(mousePos) {
+        return;
+      };
+      mouseLocationRelativeToColorPicker = this.GetMouseLocationRelativeToActiveColorPicker(mousePos);
+      angle = AtanF(mouseLocationRelativeToColorPicker.Y, mouseLocationRelativeToColorPicker.X);
+      this.ProcessPointerMovement(angle, activeColorPicker);
+    };
+  }
+
+  private final func ProcessPointerMovement(angle: Float, pointer: vehicleColorSelectorPointerDef) -> Void {
+    this.m_currentAngle = this.CalculateNewColorAngle(angle);
+    let selectedColorID: Int32 = FloorF(this.m_currentAngle) + 1;
+    if selectedColorID != this.m_storedSelectedColorID {
+      this.m_storedSelectedColorID = selectedColorID;
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+    };
+    this.UpdatePointerPosition(this.m_currentAngle, pointer, true);
+  }
+
+  private final func ProcessPointerClick(e: ref<inkPointerEvent>) -> Void {
+    if this.m_player.PlayerLastUsedKBM() {
+      switch e.GetTarget() {
+        case inkWidgetRef.Get(this.m_mouseHitColor1Ref):
+          this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Primary);
+          this.m_mouseInputEnabled = true;
+          this.ProcessMouseInput(e.GetScreenSpacePosition());
+          break;
+        case inkWidgetRef.Get(this.m_mouseHitColor2Ref):
+          this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Secondary);
+          this.m_mouseInputEnabled = true;
+          this.ProcessMouseInput(e.GetScreenSpacePosition());
+          break;
+        case inkWidgetRef.Get(this.m_mouseHitLightsRef):
+          this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Lights);
+          this.m_mouseInputEnabled = true;
+          this.ProcessMouseInput(e.GetScreenSpacePosition());
+      };
+    };
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return;
+    };
+    if this.m_player.PlayerLastUsedKBM() && !this.ShouldProcessMouseInputForActiveColorPicker(e.GetScreenSpacePosition()) {
+      return;
+    };
+    if Equals(VehicleVisualCustomizationTemplate.GetType(this.m_currentTemplate), VehicleVisualCustomizationType.Unique) {
+      this.m_targetColorAngleA = 0.00;
+      this.m_targetColorASaturation = 1.00;
+      this.m_targetColorABrightness = 1.00;
+      this.m_targetColorAngleB = 0.00;
+      this.m_targetColorBSaturation = 1.00;
+      this.m_targetColorBBrightness = 1.00;
+      this.UpdateCurrentTemplate(this.PackCurrentConfigurationToTemplate());
+    };
+    switch this.m_activeMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        this.m_colorADefined = true;
+        this.m_targetColorAngleA = this.CalculateNewColorAngle(this.m_currentAngle);
+        this.UpdateSBBarsForActiveColor();
+        this.UpdateColor(this.m_targetColorAngleA, this.m_activeMode);
+        this.UpdatePointerPosition(this.m_targetColorAngleA, this.m_selectedColorPointerA, false);
+        this.ProcessApplyHintVisiblity();
+        this.ProccessSwapColorHintVisibility();
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        this.m_colorBDefined = true;
+        this.m_targetColorAngleB = this.CalculateNewColorAngle(this.m_currentAngle);
+        this.UpdateSBBarsForActiveColor();
+        this.UpdateColor(this.m_targetColorAngleB, this.m_activeMode);
+        this.UpdatePointerPosition(this.m_targetColorAngleB, this.m_selectedColorPointerB, false);
+        if !this.m_colorADefined {
+          this.m_colorADefined = true;
+          this.m_targetColorAngleA = this.CalculateNewColorAngle(this.m_currentAngle);
+          this.UpdateColor(this.m_targetColorAngleA, vehicleColorSelectorActiveMode.Primary);
+        };
+        this.ProcessApplyHintVisiblity();
+        this.ProccessSwapColorHintVisibility();
+        break;
+      case vehicleColorSelectorActiveMode.Lights:
+        if this.m_lightsEditingEnabled {
+          this.m_lightsDefined = true;
+          this.m_targetColorAngleLights = this.CalculateNewColorAngle(this.m_currentAngle);
+          this.UpdateColor(this.m_targetColorAngleLights, this.m_activeMode);
+          this.UpdatePointerPosition(this.m_targetColorAngleLights, this.m_selectedColorPointerLights, true);
+          this.ProcessApplyHintVisiblity();
+          this.ProccessSwapColorHintVisibility();
+        } else {
+          this.UpdatePointerVisiblity(this.m_selectedColorPointerLights, false);
+        };
+        this.UpdateLightsPreviewWidgets();
+    };
+    this.UpdateCurrentTemplate(this.PackCurrentConfigurationToTemplate());
+  }
+
+  private final func ShouldProcessMouseInputForActiveColorPicker(mousePos: Vector2) -> Bool {
+    let mouseLocationRelativeToColorPicker: Vector2 = this.GetMouseLocationRelativeToActiveColorPicker(mousePos);
+    let activeColorPicker: vehicleColorSelectorPointerDef = this.GetColorPickerForActiveColor();
+    return mouseLocationRelativeToColorPicker.X * mouseLocationRelativeToColorPicker.X + mouseLocationRelativeToColorPicker.Y * mouseLocationRelativeToColorPicker.Y <= (activeColorPicker.m_pointerCircleRadius + activeColorPicker.m_selectionMargin) * (activeColorPicker.m_pointerCircleRadius + activeColorPicker.m_selectionMargin);
+  }
+
+  private final func GetMouseLocationRelativeToActiveColorPicker(mousePos: Vector2) -> Vector2 {
+    let localPos: Vector2;
+    let offsetX: Float;
+    let offsetY: Float;
+    let rootSize: Vector2;
+    let offsetMargins: inkMargin = inkWidgetRef.GetMargin(this.m_CursorRootOffsetPoint);
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Lights) {
+      offsetX = (offsetMargins.left - rootSize.X / 2.00) * -1.00;
+      offsetY = (offsetMargins.top - rootSize.Y / 2.00) * -1.00;
+    };
+    localPos = WidgetUtils.GlobalToLocal(inkWidgetRef.Get(this.m_CursorRootContainerRef), mousePos);
+    rootSize = this.GetRootWidget().GetSize();
+    return new Vector2(localPos.X + offsetX - rootSize.X / 2.00, localPos.Y + offsetY - rootSize.Y / 2.00);
+  }
+
+  private final func SetCursorVisibility(visible: Bool) -> Void {
+    let evt: ref<inkGameNotificationLayer_SetCursorVisibility> = new inkGameNotificationLayer_SetCursorVisibility();
+    evt.Init(visible);
+    this.QueueEvent(evt);
+  }
+
+  private final func ShowSBBars(val: Bool) -> Void {
+    let animOptions: inkAnimOptions;
+    if Equals(this.m_sbBarsShown, val) {
+      return;
+    };
+    if !this.m_sbBarsShown && !val {
+      return;
+    };
+    this.m_sbBarsShown = val;
+    if !val {
+      animOptions.playReversed = true;
+    };
+    this.UpdateSlidersPosition();
+    this.m_sbBarsProxy = this.PlayLibraryAnimation(n"ShowSBBars", animOptions);
+    this.m_sbBarsProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnShowSBBarsAnimFinished");
+  }
+
+  protected cb func OnShowSBBarsAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    if Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.None) {
+      this.SelectSBBar(vehicleColorSelectorSBBar.Saturation);
+    };
+    this.m_sbBarsProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    inkWidgetRef.SetVisible(this.m_changeSliderHint, this.m_sbBarsShown && !this.m_player.PlayerLastUsedKBM());
+  }
+
+  private final func ProcessCurrentSliderChange(change: Int32) -> Void {
+    if !this.m_inputEnabled || NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) && NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+      return;
+    };
+    if this.m_sliderHoldGamepadDamp < 0 {
+      this.m_sliderHoldGamepadDamp = 0;
+    };
+    if this.m_sliderHoldGamepadDamp >= this.m_sliderPadHoldAccelerationTreshhold || this.m_sliderHoldGamepadDamp == 0 {
+      switch this.m_activeMode {
+        case vehicleColorSelectorActiveMode.Primary:
+          if !this.m_colorADefined {
+            return;
+          };
+          this.MoveCurrentSlider(change);
+          this.ReadSBBarsValues();
+          this.UpdateColor(this.m_targetColorAngleA, this.m_activeMode);
+          break;
+        case vehicleColorSelectorActiveMode.Secondary:
+          if !this.m_colorBDefined {
+            return;
+          };
+          this.MoveCurrentSlider(change);
+          this.ReadSBBarsValues();
+          this.UpdateColor(this.m_targetColorAngleB, this.m_activeMode);
+          break;
+        case vehicleColorSelectorActiveMode.Lights:
+          return;
+      };
+      if this.m_sliderHoldGamepadDamp > this.m_sliderPadHoldAccelerationTreshhold {
+        this.m_sliderHoldGamepadDamp -= 5;
+        if this.m_sliderPadHoldAccelerationTreshhold > 0 {
+          this.m_sliderPadHoldAccelerationTreshhold -= 1;
+        };
+      };
+    };
+    this.UpdateCurrentTemplate(this.PackCurrentConfigurationToTemplate());
+  }
+
+  private final func ResetSliderControls() -> Void {
+    this.m_sliderHoldGamepad = false;
+    this.m_sliderHoldGamepadDamp = 0;
+    this.m_sliderPadHoldAccelerationTreshhold = 50;
+  }
+
+  private final func MoveCurrentSlider(direction: Int32) -> Void {
+    let activeBarCurrentPosition: Float = Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Saturation) ? this.m_saturationPointerPosition : this.m_brightnessPointerPosition;
+    this.SetSliderPosition(this.m_activeSBBar, ClampF(activeBarCurrentPosition + this.GetSliderStepForControlDevice() * Cast<Float>(direction), 0.00, this.m_sbBarsLength));
+  }
+
+  private final func UpdateSlidersPosition() -> Void {
+    this.SetSliderPosition(vehicleColorSelectorSBBar.Saturation, this.m_saturationPointerPosition);
+    this.SetSliderPosition(vehicleColorSelectorSBBar.Brightness, this.m_brightnessPointerPosition);
+  }
+
+  private final func SetSliderPosition(bar: vehicleColorSelectorSBBar, newPosition: Float) -> Void {
+    switch bar {
+      case vehicleColorSelectorSBBar.Saturation:
+        this.m_saturationPointerPosition = newPosition;
+        inkWidgetRef.SetMargin(this.m_saturationPointer, 0.00, 0.00, this.m_saturationPointerPosition, 0.00);
+        break;
+      case vehicleColorSelectorSBBar.Brightness:
+        this.m_brightnessPointerPosition = newPosition;
+        inkWidgetRef.SetMargin(this.m_brightnessPointer, 0.00, 0.00, this.m_brightnessPointerPosition, 0.00);
+    };
+  }
+
+  private final func SelectSBBar(bar: vehicleColorSelectorSBBar) -> Void {
+    this.m_activeSBBar = bar;
+    this.UpdateActiveSBBar();
+  }
+
+  private final func UpdateActiveSBBar() -> Void {
+    if Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Saturation) || Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Brightness) {
+      inkWidgetRef.SetVisible(this.m_saturationPointer, true);
+      inkWidgetRef.SetVisible(this.m_brightnessPointer, true);
+    } else {
+      inkWidgetRef.SetVisible(this.m_saturationPointer, false);
+      inkWidgetRef.SetVisible(this.m_brightnessPointer, false);
+    };
+    inkWidgetRef.SetVisible(this.m_saturationBarHighlight, Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Saturation));
+    inkWidgetRef.SetVisible(this.m_saturationBarHint, Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Saturation));
+    inkWidgetRef.SetVisible(this.m_brightnessBarHighlight, Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Brightness));
+    inkWidgetRef.SetVisible(this.m_brightnessBarHint, Equals(this.m_activeSBBar, vehicleColorSelectorSBBar.Brightness));
+  }
+
+  private final func ReadSBBarsValues() -> Void {
+    let saturation: Float = this.m_saturationPointerPosition / this.m_sbBarsLength;
+    let brightness: Float = this.m_brightnessPointerPosition / this.m_sbBarsLength;
+    switch this.m_activeMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        this.m_targetColorASaturation = saturation;
+        this.m_targetColorABrightness = brightness;
+        this.UpdateColor(this.m_targetColorAngleA, this.m_activeMode);
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        this.m_targetColorBSaturation = saturation;
+        this.m_targetColorBBrightness = brightness;
+        this.UpdateColor(this.m_targetColorAngleB, this.m_activeMode);
+    };
+  }
+
+  private final func GetSliderStepForControlDevice() -> Float {
+    if this.m_player.PlayerLastUsedKBM() {
+      return this.m_ChromaSliderStepMouse;
+    };
+    return this.m_ChromaSliderStepPad;
+  }
+
+  private final func UpdateSBBarsForActiveColor() -> Void {
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Primary) && this.m_colorADefined || Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Secondary) && this.m_colorBDefined {
+      this.ShowSBBars(true);
+    } else {
+      this.ShowSBBars(false);
+      return;
+    };
+    switch this.m_activeMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        inkWidgetRef.SetTintColor(this.m_saturationBarFill, Color.ToSRGB(Color.HSBToColor(Rad2Deg(this.m_targetColorAngleA), true)));
+        this.m_saturationPointerPosition = this.m_targetColorASaturation * this.m_sbBarsLength;
+        this.m_brightnessPointerPosition = this.m_targetColorABrightness * this.m_sbBarsLength;
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        inkWidgetRef.SetTintColor(this.m_saturationBarFill, Color.ToSRGB(Color.HSBToColor(Rad2Deg(this.m_targetColorAngleB), true)));
+        this.m_saturationPointerPosition = this.m_targetColorBSaturation * this.m_sbBarsLength;
+        this.m_brightnessPointerPosition = this.m_targetColorBBrightness * this.m_sbBarsLength;
+    };
+    this.UpdateSlidersPosition();
+  }
+
+  private final func UpdatePointerPosition(colorAngle: Float, pointer: vehicleColorSelectorPointerDef, rotate: Bool) -> Void {
+    let dx: Float;
+    let dy: Float;
+    if pointer.m_pointerCircleRadius == 0.00 {
+      return;
+    };
+    dx = CosF(colorAngle) * pointer.m_pointerCircleRadius;
+    dy = SinF(colorAngle) * pointer.m_pointerCircleRadius;
+    inkWidgetRef.SetMargin(pointer.m_pointerRoot, dx, dy, 0.00, 0.00);
+    if rotate {
+      inkWidgetRef.SetRotation(pointer.m_pointerRoot, this.NormalizeAngle(colorAngle) * 60.00);
+    };
+    this.UpdatePointerVisiblity(pointer, true);
+  }
+
+  private final func UpdatePointerVisiblity(pointer: vehicleColorSelectorPointerDef, set: Bool) -> Void {
+    let widget: wref<inkWidget> = inkWidgetRef.Get(pointer.m_pointerRoot);
+    widget.SetVisible(set);
+  }
+
+  private final func GetColorPickerForActiveColor() -> vehicleColorSelectorPointerDef {
+    let emptyColorPicker: vehicleColorSelectorPointerDef;
+    switch this.m_activeMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        return this.m_colorPickerA;
+      case vehicleColorSelectorActiveMode.Secondary:
+        return this.m_colorPickerB;
+      case vehicleColorSelectorActiveMode.Lights:
+        return this.m_lightsEditingEnabled ? this.m_colorPickerLights : emptyColorPicker;
+    };
+    return this.m_colorPickerA;
+  }
+
+  private final func SwitchActiveMode(opt direction: Int32, opt switchTo: vehicleColorSelectorActiveMode) -> Void {
+    if this.m_unsupportedVehicle || !this.m_inputEnabled {
+      return;
+    };
+    this.m_previousMode = this.m_activeMode;
+    switch switchTo {
+      case vehicleColorSelectorActiveMode.Primary:
+        this.m_activeMode = vehicleColorSelectorActiveMode.Primary;
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        this.m_activeMode = vehicleColorSelectorActiveMode.Secondary;
+        break;
+      case vehicleColorSelectorActiveMode.Lights:
+        this.m_activeMode = vehicleColorSelectorActiveMode.Lights;
+        break;
+      default:
+        this.m_activeMode = this.GetNextValidMode(this.m_activeMode, direction);
+    };
+    if Equals(this.m_previousMode, this.m_activeMode) {
+      return;
+    };
+    if !this.m_player.PlayerLastUsedKBM() {
+      switch this.m_activeMode {
+        case vehicleColorSelectorActiveMode.Primary:
+          this.m_currentAngle = this.CalculateNewColorAngle(this.m_targetColorAngleA);
+          break;
+        case vehicleColorSelectorActiveMode.Secondary:
+          this.m_currentAngle = this.CalculateNewColorAngle(this.m_targetColorAngleB);
+          break;
+        case vehicleColorSelectorActiveMode.Lights:
+          this.m_currentAngle = this.CalculateNewColorAngle(this.m_targetColorAngleLights);
+      };
+    };
+    this.m_stickersPage.SetVisible(false);
+    inkWidgetRef.SetVisible(this.m_colorPaletteRef, true);
+    if Equals(this.m_activeMode, vehicleColorSelectorActiveMode.Lights) {
+      inkWidgetRef.SetOpacity(this.m_titleTextMain, 1.00);
+      inkTextRef.SetText(this.m_titleTextMain, GetLocalizedText("LocKey#96054"));
+      inkWidgetRef.SetOpacity(this.m_titleTextNumber, 0.00);
+      inkWidgetRef.SetVisible(this.m_lightErrorMessage, !this.m_lightsEditingEnabled);
+      if !this.m_lightsEditingEnabled {
+        inkWidgetRef.SetVisible(this.m_colorHints, false);
+        inkWidgetRef.Get(this.m_headlightsIcon).BindProperty(n"tintColor", n"MainColors.Red");
+      };
+    } else {
+      inkWidgetRef.SetOpacity(this.m_titleTextMain, 1.00);
+      inkTextRef.SetText(this.m_titleTextMain, GetLocalizedText("LocKey#95816"));
+      inkTextRef.SetText(this.m_titleTextNumber, IntToString(EnumInt(this.m_activeMode)));
+      inkWidgetRef.SetOpacity(this.m_titleTextNumber, 1.00);
+      inkWidgetRef.SetVisible(this.m_lightErrorMessage, false);
+      inkWidgetRef.SetVisible(this.m_colorHints, true);
+      inkWidgetRef.Get(this.m_headlightsIcon).BindProperty(n"tintColor", n"MainColors.Blue");
+    };
+    this.UpdateSBBarsForActiveColor();
+    this.UpdateWidgetsForNewMode(this.m_activeMode, this.m_previousMode);
+  }
+
+  private final func GetNextValidMode(currentMode: vehicleColorSelectorActiveMode, opt direction: Int32) -> vehicleColorSelectorActiveMode {
+    let newEnumValue: vehicleColorSelectorActiveMode;
+    let enumMax: Int32 = Cast<Int32>(EnumGetMax(n"vehicleColorSelectorActiveMode"));
+    let i: Int32 = EnumInt(currentMode);
+    i += direction;
+    if i <= 0 {
+      i = enumMax;
+    };
+    if i > enumMax {
+      i = 1;
+    };
+    newEnumValue = IntEnum<vehicleColorSelectorActiveMode>(i);
+    return newEnumValue;
+  }
+
+  private final func UpdateWidgetsForNewMode(currentMode: vehicleColorSelectorActiveMode, previousMode: vehicleColorSelectorActiveMode) -> Void {
+    this.PlayAnimation(n"Opened");
+    switch currentMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorA, 0.80);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorB, 0.30);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorLights, 0.30);
+        this.UpdatePointerPosition(this.m_targetColorAngleA, this.m_colorPickerA, true);
+        this.UpdatePointerVisiblity(this.m_colorPickerB, false);
+        this.UpdatePointerVisiblity(this.m_colorPickerLights, false);
+        if Equals(previousMode, vehicleColorSelectorActiveMode.Lights) {
+          this.PlayLightsFocusAnimation(false);
+        };
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorA, 0.30);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorB, 0.80);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorLights, 0.30);
+        this.UpdatePointerPosition(this.m_targetColorAngleB, this.m_colorPickerB, true);
+        this.UpdatePointerVisiblity(this.m_colorPickerA, false);
+        this.UpdatePointerVisiblity(this.m_colorPickerLights, false);
+        if Equals(previousMode, vehicleColorSelectorActiveMode.Lights) {
+          this.PlayLightsFocusAnimation(false);
+        };
+        break;
+      case vehicleColorSelectorActiveMode.Lights:
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorA, 0.15);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorB, 0.15);
+        inkWidgetRef.SetOpacity(this.m_colorWheelColorLights, 0.80);
+        if this.m_lightsEditingEnabled {
+          this.UpdatePointerPosition(this.m_targetColorAngleLights, this.m_colorPickerLights, true);
+        };
+        this.UpdatePointerVisiblity(this.m_colorPickerA, false);
+        this.UpdatePointerVisiblity(this.m_colorPickerB, false);
+        if NotEquals(previousMode, vehicleColorSelectorActiveMode.Lights) {
+          this.PlayLightsFocusAnimation(true);
+        };
+    };
+  }
+
+  private final func CalculateNewColorAngle(angle: Float) -> Float {
+    let value: Float = (angle + 6.28) % 6.28;
+    return value;
+  }
+
+  private final func UpdateColor(colorAngle: Float, selectedMode: vehicleColorSelectorActiveMode) -> Void {
+    switch selectedMode {
+      case vehicleColorSelectorActiveMode.Primary:
+        if this.m_colorADefined {
+          this.m_cachedNewColorA = Color.HSBToColor(Rad2Deg(colorAngle), false, this.m_targetColorASaturation, this.m_targetColorABrightness);
+        } else {
+          this.m_cachedNewColorA = new Color(255u, 255u, 255u, 255u);
+        };
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        if this.m_colorBDefined {
+          this.m_cachedNewColorB = Color.HSBToColor(Rad2Deg(colorAngle), false, this.m_targetColorBSaturation, this.m_targetColorBBrightness);
+        } else {
+          if this.m_colorADefined {
+            this.m_cachedNewColorB = Color.HSBToColor(Rad2Deg(colorAngle), false, this.m_targetColorASaturation, this.m_targetColorABrightness);
+          } else {
+            this.m_cachedNewColorB = new Color(255u, 255u, 255u, 255u);
+          };
+        };
+        break;
+      case vehicleColorSelectorActiveMode.Lights:
+        if this.m_lightsEditingEnabled {
+          if this.m_lightsDefined {
+            this.m_cachedNewColorLights = Color.HSBToColor(Rad2Deg(colorAngle), true);
+          } else {
+            this.m_cachedNewColorLights = new Color(255u, 255u, 255u, 255u);
+          };
+        };
+    };
+    this.UpdateTintedPartsForMode(selectedMode);
+    this.UpdateSBBarsForActiveColor();
+    this.UpdateCurrentTemplate(this.PackCurrentConfigurationToTemplate());
+  }
+
+  private final func NormalizeAngle(angle: Float) -> Float {
+    return angle / 6.28 * 6.00;
+  }
+
+  private final func UpdateTintedPartsForMode(mode: vehicleColorSelectorActiveMode) -> Void {
+    switch mode {
+      case vehicleColorSelectorActiveMode.Primary:
+        inkWidgetRef.SetTintColor(this.m_vehiclePreviewColorA, Color.ToSRGB(this.m_cachedNewColorA));
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorA, true);
+        inkWidgetRef.SetTintColor(this.m_selectedColorPointerA.m_partToPaint, Color.ToSRGB(this.m_cachedNewColorA));
+        if !this.m_colorBDefined {
+          inkWidgetRef.SetTintColor(this.m_vehiclePreviewColorB, Color.ToSRGB(this.m_cachedNewColorA));
+          inkWidgetRef.SetVisible(this.m_vehiclePreviewColorB, true);
+        };
+        break;
+      case vehicleColorSelectorActiveMode.Secondary:
+        inkWidgetRef.SetTintColor(this.m_vehiclePreviewColorB, Color.ToSRGB(this.m_cachedNewColorB));
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorB, true);
+        inkWidgetRef.SetTintColor(this.m_selectedColorPointerB.m_partToPaint, Color.ToSRGB(this.m_cachedNewColorB));
+        break;
+      case vehicleColorSelectorActiveMode.Lights:
+        inkWidgetRef.SetTintColor(this.m_selectedColorPointerLights.m_partToPaint, Color.ToSRGB(this.m_cachedNewColorLights));
+    };
+  }
+
+  private final func UpdateCurrentTemplate(newTemplate: VehicleVisualCustomizationTemplate) -> Void {
+    let previousNavigationState: Bool = this.GetNavigationEnabledInGrids();
+    this.m_currentTemplate = newTemplate;
+    this.m_currentTemplatePreview.SetTemplate(this.m_currentTemplate);
+    this.m_currentTemplatePreview.SetLightsColorAvailability(this.m_lightsEditingEnabled);
+    if Equals(VehicleVisualCustomizationTemplate.GetType(this.m_currentTemplate), VehicleVisualCustomizationType.Unique) {
+      return;
+    };
+    this.SetNavigationEnabledInGrids(true);
+    if !VehicleVisualCustomizationTemplate.Equals(this.m_toggledTemplate, this.m_currentTemplate) {
+      this.m_virtualGenericTemplateGridController.UnToggleCurrentItem();
+      this.m_virtualUniqueTemplateGridController.UnToggleCurrentItem();
+    };
+    this.m_virtualGenericTemplateGridController.ToggleTemplateInGrid(this.m_currentTemplate, !this.m_player.PlayerLastUsedKBM());
+    this.SetNavigationEnabledInGrids(previousNavigationState);
+  }
+
+  private final func SendCustomizationToVehicle() -> Void {
+    let evt: ref<NewVehicleVisualCustomizationEvent> = new NewVehicleVisualCustomizationEvent();
+    evt.template = this.m_currentTemplate;
+    this.m_vehicle.QueueEvent(evt);
+  }
+
+  private final func PackCurrentConfigurationToTemplate() -> VehicleVisualCustomizationTemplate {
+    let template: VehicleVisualCustomizationTemplate;
+    if this.m_colorADefined {
+      template.genericData.primaryColorDefined = true;
+      GenericTemplatePersistentData.SetPrimaryColor(template.genericData, Color.HSBToColor(Rad2Deg(this.m_targetColorAngleA), false, this.m_targetColorASaturation, this.m_targetColorABrightness));
+    } else {
+      template.genericData.primaryColorDefined = false;
+      GenericTemplatePersistentData.SetPrimaryColor(template.genericData, new Color(255u, 255u, 255u, 255u));
+    };
+    if this.m_colorBDefined {
+      template.genericData.secondaryColorDefined = true;
+      GenericTemplatePersistentData.SetSecondaryColor(template.genericData, Color.HSBToColor(Rad2Deg(this.m_targetColorAngleB), false, this.m_targetColorBSaturation, this.m_targetColorBBrightness));
+    } else {
+      if template.genericData.primaryColorDefined {
+        template.genericData.secondaryColorDefined = false;
+        GenericTemplatePersistentData.SetSecondaryColor(template.genericData, GenericTemplatePersistentData.GetPrimaryColor(template.genericData));
+      };
+    };
+    if this.m_lightsDefined {
+      template.genericData.lightsColorDefined = true;
+      template.genericData.lightsColorHue = Rad2Deg(this.m_targetColorAngleLights);
+    };
+    return template;
+  }
+
+  private final func ResetCustomizationToVehicle() -> Void {
+    let template: VehicleVisualCustomizationTemplate;
+    let evt: ref<NewVehicleVisualCustomizationEvent> = new NewVehicleVisualCustomizationEvent();
+    evt.template = template;
+    evt.reset = true;
+    this.m_vehicle.QueueEvent(evt);
+  }
+
+  private final func ProcessPreviousCustomizationState() -> Void {
+    let template: VehicleVisualCustomizationTemplate = this.m_vehicle.GetVehiclePS().GetVehicleVisualCustomizationTemplate();
+    if this.m_vehicle.GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled() {
+      if !VehicleVisualCustomizationTemplate.IsValid(template) {
+        template = this.m_player.GetVehicleVisualCustomizationComponent().RetrieveVisualCustomizationForVehicle(this.m_vehicle.GetRecordID());
+      };
+      if VehicleVisualCustomizationTemplate.IsValid(template) {
+        this.LoadTemplateData(template);
+      } else {
+        this.m_targetColorAngleA = 0.00;
+        this.m_targetColorASaturation = 1.00;
+        this.m_targetColorABrightness = 1.00;
+        this.m_targetColorAngleB = 0.00;
+        this.m_targetColorBSaturation = 1.00;
+        this.m_targetColorBBrightness = 1.00;
+      };
+    };
+  }
+
+  private final func LoadTemplateData(template: VehicleVisualCustomizationTemplate) -> Void {
+    let hsbColor: HSBColor;
+    this.UpdateCurrentTemplate(template);
+    if Equals(VehicleVisualCustomizationTemplate.GetType(template), VehicleVisualCustomizationType.Unique) {
+      this.m_virtualUniqueTemplateGridController.ToggleTemplateInGrid(template, !this.m_player.PlayerLastUsedKBM());
+      return;
+    };
+    this.m_colorADefined = template.genericData.primaryColorDefined;
+    this.m_colorBDefined = template.genericData.secondaryColorDefined;
+    this.m_lightsDefined = template.genericData.lightsColorDefined;
+    this.UpdatePointerVisiblity(this.m_selectedColorPointerA, this.m_colorADefined);
+    this.UpdatePointerVisiblity(this.m_selectedColorPointerB, this.m_colorBDefined);
+    this.UpdatePointerVisiblity(this.m_selectedColorPointerLights, this.m_lightsDefined && this.m_lightsEditingEnabled);
+    if this.m_colorADefined {
+      hsbColor = Color.ColorToHSB(GenericTemplatePersistentData.GetPrimaryColor(template.genericData));
+      this.m_targetColorAngleA = Deg2Rad(hsbColor.Hue);
+      this.m_targetColorASaturation = hsbColor.Saturation;
+      this.m_targetColorABrightness = hsbColor.Brightness;
+    } else {
+      this.m_targetColorAngleA = 0.00;
+      this.m_targetColorASaturation = 1.00;
+      this.m_targetColorABrightness = 1.00;
+    };
+    this.UpdateControlsState();
+    this.UpdateColor(this.m_targetColorAngleA, vehicleColorSelectorActiveMode.Primary);
+    if this.m_colorBDefined {
+      hsbColor = Color.ColorToHSB(GenericTemplatePersistentData.GetSecondaryColor(template.genericData));
+      this.m_targetColorAngleB = Deg2Rad(hsbColor.Hue);
+      this.m_targetColorBSaturation = hsbColor.Saturation;
+      this.m_targetColorBBrightness = hsbColor.Brightness;
+    } else {
+      if this.m_colorADefined {
+        hsbColor = Color.ColorToHSB(GenericTemplatePersistentData.GetSecondaryColor(template.genericData));
+        this.m_targetColorAngleB = Deg2Rad(hsbColor.Hue);
+        this.m_targetColorBSaturation = hsbColor.Saturation;
+        this.m_targetColorBBrightness = hsbColor.Brightness;
+      } else {
+        this.m_targetColorAngleB = 0.00;
+        this.m_targetColorBSaturation = 1.00;
+        this.m_targetColorBBrightness = 1.00;
+      };
+    };
+    this.UpdateControlsState();
+    this.UpdateColor(this.m_targetColorAngleB, vehicleColorSelectorActiveMode.Secondary);
+    if this.m_lightsDefined {
+      this.m_targetColorAngleLights = Deg2Rad(template.genericData.lightsColorHue);
+    } else {
+      this.m_targetColorAngleLights = 0.00;
+    };
+    this.UpdateControlsState();
+    this.UpdateColor(this.m_targetColorAngleLights, vehicleColorSelectorActiveMode.Lights);
+    this.UpdateLightsPreviewWidgets();
+    this.m_virtualGenericTemplateGridController.ToggleTemplateInGrid(template, !this.m_player.PlayerLastUsedKBM());
+    this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Primary);
+    if Equals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+      this.SelectActivePanel(vehicleColorSelectorActiveTab.Main);
+    };
+  }
+
+  private final func UpdateControlsState() -> Void {
+    if this.m_colorADefined {
+      this.UpdatePointerPosition(this.m_targetColorAngleA, this.m_selectedColorPointerA, false);
+    };
+    if this.m_colorBDefined {
+      this.UpdatePointerPosition(this.m_targetColorAngleB, this.m_selectedColorPointerB, false);
+    };
+    if this.m_lightsDefined && this.m_lightsEditingEnabled {
+      this.UpdatePointerPosition(this.m_targetColorAngleLights, this.m_selectedColorPointerLights, false);
+    };
+    this.UpdateSBBarsForActiveColor();
+    this.ProcessApplyHintVisiblity();
+    this.ProccessSwapColorHintVisibility();
+    this.ProcessResetHintVisiblity();
+  }
+
+  private final func UpdateLightsPreviewWidgets(opt reset: Bool) -> Void {
+    let color: Color;
+    if reset && this.m_lightsEditingEnabled {
+      color = new Color(255u, 255u, 255u, 255u);
+    } else {
+      color = this.m_cachedNewColorLights;
+    };
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamA, Color.ToSRGB(color));
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamB, Color.ToSRGB(color));
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamBike, Color.ToSRGB(color));
+    if this.m_vehicle == (this.m_vehicle as BikeObject) {
+      if this.m_hasCustomRims {
+        inkWidgetRef.SetTintColor(this.m_vehiclePreviewLightsBike, Color.ToSRGB(color));
+      };
+    } else {
+      inkWidgetRef.SetTintColor(this.m_vehiclePreviewLightsCar, Color.ToSRGB(color));
+    };
+  }
+
+  private final func PlayLightsFocusAnimation(val: Bool) -> Void {
+    let animOptions: inkAnimOptions;
+    if val {
+      if this.m_vehicle == (this.m_vehicle as BikeObject) {
+        this.m_LightsFocusProxy = this.PlayLibraryAnimation(n"ZoomOnLights_Bikes");
+      } else {
+        this.m_LightsFocusProxy = this.PlayLibraryAnimation(n"ZoomOnLights");
+      };
+    } else {
+      animOptions.playReversed = true;
+      if this.m_vehicle == (this.m_vehicle as BikeObject) {
+        this.m_LightsFocusProxy = this.PlayLibraryAnimation(n"ZoomOnLights_Bikes", animOptions);
+      } else {
+        this.m_LightsFocusProxy = this.PlayLibraryAnimation(n"ZoomOnLights", animOptions);
+      };
+    };
+  }
+
+  private final func VerifyVehicleValidity() -> Bool {
+    if !this.m_vehicle.GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled() {
+      this.SwitchActiveMode(0, vehicleColorSelectorActiveMode.Lights);
+      inkWidgetRef.SetVisible(this.m_mouseHitColor1Ref, false);
+      inkWidgetRef.SetVisible(this.m_mouseHitColor2Ref, false);
+      inkWidgetRef.SetVisible(this.m_modeChangeNext, false);
+      inkWidgetRef.SetVisible(this.m_modeChangeBack, false);
+      inkWidgetRef.SetOpacity(this.m_colorWheelColorA, 0.00);
+      inkWidgetRef.SetOpacity(this.m_colorWheelColorB, 0.00);
+      this.m_unsupportedVehicle = true;
+      inkWidgetRef.SetOpacity(this.m_vehicleUnknownPane, 1.00);
+      return false;
+    };
+    return true;
+  }
+
+  private final func UpdateVehicleManufacturer() -> Void {
+    let recordID: TweakDBID = this.m_vehicle.GetRecordID();
+    let record: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let vehicleManufacturer: ref<VehicleManufacturer_Record> = record.Manufacturer();
+    if IsDefined(vehicleManufacturer) {
+      if NotEquals(vehicleManufacturer.Type(), gamedataVehicleManufacturer.Rayfield) {
+        inkWidgetRef.SetOpacity(this.m_vehicleBrandIcon, 0.80);
+        InkImageUtils.RequestSetImage(this, this.m_vehicleBrandIcon, "UIIcon." + vehicleManufacturer.EnumName());
+        inkWidgetRef.SetScale(this.m_vehicleBrandIcon, new Vector2(1.00, 1.00));
+        inkWidgetRef.SetMargin(this.m_vehicleBrandIcon, 0.00, 20.00, 0.00, 0.00);
+      };
+    } else {
+      inkWidgetRef.SetOpacity(this.m_vehicleBrandIcon, 0.00);
+    };
+  }
+
+  private final func UpdateVehiclePreview() -> Void {
+    let recordID: TweakDBID = this.m_vehicle.GetRecordID();
+    let record: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let previewRecord: ref<VehicleVisualCustomizationPreviewSetup_Record> = record.CustomizationPreview();
+    let previewGlowRecord: ref<VehicleVisualCustomizationPreviewGlowSetup_Record> = record.CustomizationPreviewGlow();
+    let menuType: CName = record.CustomizationMenuType();
+    switch menuType {
+      case n"Rayfield":
+        inkTextRef.SetLocalizedTextScript(this.m_windowTitle, "LocKey#96050");
+        this.SetClassicBackgroundVisibility(true);
+        this.SetMordredBackgroundVisibility(false);
+        break;
+      case n"Partner":
+        inkTextRef.SetLocalizedTextScript(this.m_windowTitle, "LocKey#96138");
+        this.SetClassicBackgroundVisibility(true);
+        this.SetMordredBackgroundVisibility(false);
+        break;
+      case n"Mordred":
+        inkTextRef.SetLocalizedTextScript(this.m_windowTitle, "LocKey#96050");
+        this.SetClassicBackgroundVisibility(false);
+        this.SetMordredBackgroundVisibility(true);
+        break;
+      default:
+        inkTextRef.SetLocalizedTextScript(this.m_windowTitle, "LocKey#96050");
+        this.SetClassicBackgroundVisibility(true);
+        this.SetMordredBackgroundVisibility(false);
+        this.StartCrackedAnimations();
+    };
+    if IsDefined(previewRecord) {
+      if this.m_vehicle == (this.m_vehicle as BikeObject) {
+        inkWidgetRef.SetScale(this.m_vehiclePreviewScalingCanvas, new Vector2(1.20, 1.20));
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewLightsBike, previewRecord.LightsImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewLightsCar, false);
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewLightsBike, this.m_hasCustomRims);
+        inkWidgetRef.SetVisible(this.m_lightsPreviewBeamA, false);
+        inkWidgetRef.SetVisible(this.m_lightsPreviewBeamB, false);
+        inkWidgetRef.SetVisible(this.m_lightsPreviewBeamBike, true);
+      } else {
+        inkWidgetRef.SetScale(this.m_vehiclePreviewScalingCanvas, new Vector2(0.85, 0.85));
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewLightsCar, previewRecord.LightsImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewLightsCar, true);
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewLightsBike, false);
+        if previewRecord.PreviewLeftLight() {
+          inkWidgetRef.SetVisible(this.m_lightsPreviewBeamA, true);
+          inkWidgetRef.SetMargin(this.m_lightsPreviewBeamA, 0.00, previewRecord.LeftLightMarginTop(), previewRecord.LeftLightMarginRight(), 0.00);
+          inkWidgetRef.SetSize(this.m_lightsPreviewBeamA, new Vector2(previewRecord.LeftLightWidth(), previewRecord.LeftLightHeight()));
+        } else {
+          inkWidgetRef.SetVisible(this.m_lightsPreviewBeamA, false);
+        };
+        if previewRecord.PreviewRightLight() {
+          inkWidgetRef.SetVisible(this.m_lightsPreviewBeamB, true);
+          inkWidgetRef.SetMargin(this.m_lightsPreviewBeamB, 0.00, previewRecord.RightLightMarginTop(), previewRecord.RightLightMarginRight(), 0.00);
+          inkWidgetRef.SetSize(this.m_lightsPreviewBeamB, new Vector2(previewRecord.RightLightWidth(), previewRecord.RightLightHeight()));
+        } else {
+          inkWidgetRef.SetVisible(this.m_lightsPreviewBeamB, false);
+        };
+        inkWidgetRef.SetVisible(this.m_lightsPreviewBeamBike, false);
+      };
+      if IsDefined(previewRecord.PrimaryImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewColorA, previewRecord.PrimaryImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorA, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorA, false);
+      };
+      if IsDefined(previewRecord.SecondaryImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewColorB, previewRecord.SecondaryImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorB, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewColorB, false);
+      };
+      if IsDefined(previewRecord.BackgroundImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewBackground, previewRecord.BackgroundImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewBackground, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewBackground, false);
+      };
+    } else {
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewColorA, 0.00);
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewColorB, 0.00);
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewLightsCar, 0.00);
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewLightsBike, 0.00);
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewBackground, 0.00);
+      inkWidgetRef.SetOpacity(this.m_vehiclePreviewForeground, 0.00);
+      inkWidgetRef.SetVisible(this.m_lightsPreviewBeamA, false);
+      inkWidgetRef.SetVisible(this.m_lightsPreviewBeamB, false);
+      this.m_previewDataMissing = true;
+    };
+    if IsDefined(previewGlowRecord) {
+      if IsDefined(previewGlowRecord.PrimaryImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewGlowA, previewGlowRecord.PrimaryImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowA, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowA, false);
+      };
+      if IsDefined(previewGlowRecord.SecondaryImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewGlowB, previewGlowRecord.SecondaryImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowB, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowB, false);
+      };
+      if IsDefined(previewGlowRecord.BackgroundImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewGlowBackground, previewGlowRecord.BackgroundImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowBackground, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowBackground, false);
+      };
+      if IsDefined(previewGlowRecord.LightsImage()) {
+        InkImageUtils.RequestSetImage(this, this.m_vehiclePreviewGlowLights, previewGlowRecord.LightsImage().GetID());
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowLights, true);
+      } else {
+        inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowLights, false);
+      };
+    } else {
+      inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowA, false);
+      inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowB, false);
+      inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowBackground, false);
+      inkWidgetRef.SetVisible(this.m_vehiclePreviewGlowLights, false);
+    };
+  }
+
+  private final func SetClassicBackgroundVisibility(visible: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_classicBackgrounds) {
+      inkWidgetRef.SetVisible(this.m_classicBackgrounds[i], visible);
+      i += 1;
+    };
+  }
+
+  private final func SetMordredBackgroundVisibility(visible: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_mordredBackgrounds) {
+      inkWidgetRef.SetVisible(this.m_mordredBackgrounds[i], visible);
+      i += 1;
+    };
+  }
+
+  private final func StartCrackedAnimations() -> Void {
+    let animOptions: inkAnimOptions;
+    if this.m_crackedAnimProxy.IsValid() && this.m_crackedAnimProxy.IsPlaying() {
+      this.m_crackedAnimProxy.Stop();
+    };
+    animOptions.dependsOnTimeDilation = false;
+    this.m_crackedAnimProxy = this.PlayLibraryAnimation(n"MenuStyleCracked", animOptions);
+    this.m_crackedAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCrackedAnimIntroEnd");
+    animOptions.loopType = inkanimLoopType.Cycle;
+    animOptions.loopInfinite = true;
+    this.m_currentTemplatePreview.PlayLibraryAnimation(n"CrackedPreview", animOptions);
+    this.PlayCarGlitchEffect();
+  }
+
+  protected cb func OnCrackedAnimIntroEnd(proxy: ref<inkAnimProxy>) -> Bool {
+    let animOptions: inkAnimOptions;
+    proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    animOptions.loopType = inkanimLoopType.Cycle;
+    animOptions.loopInfinite = true;
+    animOptions.dependsOnTimeDilation = false;
+    this.m_crackedAnimProxy = this.PlayLibraryAnimation(n"MenuStyleCracked_IdleOn", animOptions);
+  }
+
+  private final func PlayCarGlitchEffect() -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.loopType = inkanimLoopType.None;
+    animOptions.executionDelay = RandRangeF(this.m_crackedCarGlitchMinimumInterval, this.m_crackedCarGlitchMaximumInterval);
+    this.m_carGlitchProxy = this.PlayLibraryAnimation(n"CarGlitch", animOptions);
+    this.m_carGlitchProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCarGlitchFinish");
+  }
+
+  protected cb func OnCarGlitchFinish(proxy: ref<inkAnimProxy>) -> Bool {
+    proxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+    this.PlayCarGlitchEffect();
+  }
+
+  private final func UpdateTwintonePanel() -> Void {
+    let vehicleCustomizationComponent: ref<vehicleVisualCustomizationComponent> = this.m_player.GetVehicleVisualCustomizationComponent();
+    inkTextRef.SetLocalizedText(this.m_vehicleNameText, this.m_vehicle.GetRecord().DisplayName());
+    this.m_virtualUniqueTemplateGridController = inkWidgetRef.GetControllerByType(this.m_uniquePatternsGrid, n"TwintoneTemplateGridController") as TwintoneTemplateGridController;
+    this.m_virtualGenericTemplateGridController = inkWidgetRef.GetControllerByType(this.m_genericPatternsGrid, n"TwintoneTemplateGridController") as TwintoneTemplateGridController;
+    this.m_genericGridInitialized = false;
+    this.m_uniqueGridInitialized = false;
+    this.m_virtualGenericTemplateGridController.SetupTemplatesGrid(VehicleVisualCustomizationType.Generic, vehicleCustomizationComponent);
+    this.m_virtualGenericTemplateGridController.RegisterToCallback(n"OnTemplateToggled", this, n"OnGenericTemplateToggled");
+    this.m_virtualGenericTemplateGridController.RegisterToCallback(n"OnControllerSelected", this, n"OnGenericControllerSelected");
+    this.m_virtualGenericTemplateGridController.RegisterToCallback(n"OnAllElementsSpawned", this, n"OnAllGenericElementsSpawned");
+    this.m_virtualUniqueTemplateGridController.SetupTemplatesGrid(VehicleVisualCustomizationType.Unique, vehicleCustomizationComponent, this.m_vehicle.GetRecord().TwintoneModelName());
+    this.m_virtualUniqueTemplateGridController.RegisterToCallback(n"OnTemplateToggled", this, n"OnUniqueTemplateToggled");
+    this.m_virtualUniqueTemplateGridController.RegisterToCallback(n"OnControllerSelected", this, n"OnUniqueControllerSelected");
+    this.m_virtualUniqueTemplateGridController.RegisterToCallback(n"OnAllElementsSpawned", this, n"OnAllUniqueElementsSpawned");
+  }
+
+  protected cb func OnAllGenericElementsSpawned() -> Bool {
+    this.m_genericGridInitialized = true;
+    this.OnBothGridInitialized();
+  }
+
+  protected cb func OnAllUniqueElementsSpawned() -> Bool {
+    this.m_uniqueGridInitialized = true;
+    this.OnBothGridInitialized();
+  }
+
+  private final func OnBothGridInitialized() -> Void {
+    if this.m_genericGridInitialized && this.m_uniqueGridInitialized {
+      this.m_virtualUniqueTemplateGridController.UnregisterFromCallback(n"OnAllElementsSpawned", this, n"OnAllUniqueElementsSpawned");
+      this.m_virtualGenericTemplateGridController.UnregisterFromCallback(n"OnAllElementsSpawned", this, n"OnAllGenericElementsSpawned");
+      this.SetNavigationEnabledInGrids(true);
+      if VehicleVisualCustomizationTemplate.IsValid(this.m_currentTemplate) {
+        if Equals(VehicleVisualCustomizationTemplate.GetType(this.m_currentTemplate), VehicleVisualCustomizationType.Unique) {
+          this.m_virtualUniqueTemplateGridController.ToggleTemplateInGrid(this.m_currentTemplate, !this.m_player.PlayerLastUsedKBM());
+        } else {
+          this.m_virtualGenericTemplateGridController.ToggleTemplateInGrid(this.m_currentTemplate, !this.m_player.PlayerLastUsedKBM());
+        };
+      };
+      this.SetNavigationEnabledInGrids(this.m_player.PlayerLastUsedKBM() && this.m_inputEnabled);
+      this.UpdateNavigationOverride();
+    };
+  }
+
+  private final func UpdateNavigationOverride() -> Void {
+    if this.m_virtualUniqueTemplateGridController.GetFirstEmptyIndex() != 0u {
+      this.m_virtualGenericTemplateGridController.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_uniquePatternsGrid));
+    } else {
+      this.m_virtualGenericTemplateGridController.OverrideNavigation(inkDiscreteNavigationDirection.Up, null);
+    };
+    if this.m_virtualGenericTemplateGridController.GetFirstEmptyIndex() != 0u {
+      this.m_virtualUniqueTemplateGridController.OverrideNavigation(inkDiscreteNavigationDirection.Down, inkWidgetRef.Get(this.m_genericPatternsGrid));
+    } else {
+      this.m_virtualUniqueTemplateGridController.OverrideNavigation(inkDiscreteNavigationDirection.Down, null);
+    };
+  }
+
+  private final func UnitializeTwintone() -> Void {
+    this.m_virtualGenericTemplateGridController.UnregisterFromCallback(n"OnTemplateToggled", this, n"OnGenericTemplateToggled");
+    this.m_virtualUniqueTemplateGridController.UnregisterFromCallback(n"OnTemplateToggled", this, n"OnUniqueTemplateToggled");
+    this.m_virtualGenericTemplateGridController.ResetTemplatesGrid();
+    this.m_virtualUniqueTemplateGridController.ResetTemplatesGrid();
+  }
+
+  private final func SelectActivePanel(nextPanel: vehicleColorSelectorActiveTab) -> Void {
+    if Equals(nextPanel, this.m_activePanel) {
+      return;
+    };
+    if this.m_mainPanelAnimProxy.IsPlaying() {
+      this.m_mainPanelAnimProxy.GotoEndAndStop();
+    };
+    if this.m_twintonePanelAnimProxy.IsPlaying() {
+      this.m_twintonePanelAnimProxy.GotoEndAndStop();
+    };
+    if Equals(nextPanel, vehicleColorSelectorActiveTab.Main) {
+      if NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+        this.m_mainPanelAnimProxy = this.PlayLibraryAnimation(n"MainPanelOpen");
+      };
+      this.SetNavigationEnabledInGrids(false);
+      inkWidgetRef.SetVisible(this.m_changeTabRightHint, true);
+      inkWidgetRef.SetVisible(this.m_changeTabLeftHint, true);
+      this.m_twintonePanelAnimProxy = this.PlayLibraryAnimation(n"TwintonePanelClose");
+    } else {
+      if Equals(nextPanel, vehicleColorSelectorActiveTab.Twintone) {
+        if NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Both) {
+          this.m_twintonePanelAnimProxy = this.PlayLibraryAnimation(n"TwintonePanelOpen");
+        };
+        this.m_mainPanelAnimProxy = this.PlayLibraryAnimation(n"MainPanelClose");
+        inkWidgetRef.SetVisible(this.m_changeTabRightHint, true);
+        inkWidgetRef.SetVisible(this.m_changeTabLeftHint, true);
+        this.SetNavigationEnabledInGrids(true);
+        this.SelectDefaultTemplateInGrids();
+        this.SetNavigationEnabledInGrids(false);
+      } else {
+        if Equals(nextPanel, vehicleColorSelectorActiveTab.Both) {
+          if NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Main) {
+            this.m_mainPanelAnimProxy = this.PlayLibraryAnimation(n"MainPanelOpen");
+          };
+          if NotEquals(this.m_activePanel, vehicleColorSelectorActiveTab.Twintone) {
+            this.m_twintonePanelAnimProxy = this.PlayLibraryAnimation(n"TwintonePanelOpen");
+          };
+          inkWidgetRef.SetVisible(this.m_changeTabRightHint, false);
+          inkWidgetRef.SetVisible(this.m_changeTabLeftHint, false);
+          this.SetNavigationEnabledInGrids(true);
+        };
+      };
+    };
+    this.m_activePanel = nextPanel;
+  }
+
+  private final func SelectDefaultTemplateInGrids() -> Void {
+    if !this.m_virtualUniqueTemplateGridController.TryToFocusElement(true) {
+      if !this.m_virtualGenericTemplateGridController.TryToFocusElement(true) {
+        if !this.m_virtualUniqueTemplateGridController.TryToFocusElement(false) {
+          this.m_virtualGenericTemplateGridController.TryToFocusElement(false);
+        };
+      };
+    };
+  }
+
+  protected cb func OnGenericTemplateToggled(widget: wref<inkWidget>) -> Bool {
+    let template: VehicleVisualCustomizationTemplate;
+    if !IsDefined(this.m_virtualGenericTemplateGridController.GetToggledController()) {
+      return false;
+    };
+    template = this.m_virtualGenericTemplateGridController.GetToggledController().GetCurrentData().m_template;
+    if VehicleVisualCustomizationTemplate.IsValid(template) {
+      this.m_virtualUniqueTemplateGridController.UnToggleCurrentItem();
+      this.m_toggledTemplate = template;
+      this.LoadTemplateData(template);
+    };
+  }
+
+  protected cb func OnUniqueTemplateToggled(widget: wref<inkWidget>) -> Bool {
+    let template: VehicleVisualCustomizationTemplate;
+    if !IsDefined(this.m_virtualUniqueTemplateGridController.GetToggledController()) {
+      return false;
+    };
+    template = this.m_virtualUniqueTemplateGridController.GetToggledController().GetCurrentData().m_template;
+    if VehicleVisualCustomizationTemplate.IsValid(template) {
+      this.m_virtualGenericTemplateGridController.UnToggleCurrentItem();
+      this.m_toggledTemplate = template;
+      this.LoadTemplateData(template);
+      this.Apply();
+    };
+  }
+
+  protected cb func OnGenericControllerSelected(widget: wref<inkWidget>) -> Bool {
+    if IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) {
+      this.m_virtualUniqueTemplateGridController.UnSelectCurrentItem();
+      inkTextRef.SetLocalizedTextScript(this.m_twintoneApplyHintText, "LocKey#6890");
+    };
+  }
+
+  protected cb func OnUniqueControllerSelected(widget: wref<inkWidget>) -> Bool {
+    if IsDefined(this.m_virtualUniqueTemplateGridController.GetSelectedController()) {
+      this.m_virtualGenericTemplateGridController.UnSelectCurrentItem();
+      inkTextRef.SetLocalizedTextScript(this.m_twintoneApplyHintText, "LocKey#96133");
+    };
+  }
+
+  private final func SaveProfile() -> Bool {
+    let previousNavigationState: Bool;
+    let saveIndex: Uint32;
+    let vehicleCustomizationComponent: ref<vehicleVisualCustomizationComponent>;
+    let wrappedTemplate: ref<WrappedTemplateData>;
+    let templateToSave: VehicleVisualCustomizationTemplate = this.PackCurrentConfigurationToTemplate();
+    if !VehicleVisualCustomizationTemplate.IsValid(templateToSave) {
+      return false;
+    };
+    vehicleCustomizationComponent = this.m_player.GetVehicleVisualCustomizationComponent();
+    if !IsDefined(vehicleCustomizationComponent) || !IsDefined(this.m_vehicle) {
+      return false;
+    };
+    if !vehicleCustomizationComponent.CanStoreVisualCustomizationTemplateType(VehicleVisualCustomizationType.Generic) || vehicleCustomizationComponent.HasVisualCustomizationTemplateStored(templateToSave) {
+      return false;
+    };
+    vehicleCustomizationComponent.StoreVisualCustomizationTemplate(templateToSave, this.m_vehicle.GetRecord().TwintoneModelName());
+    saveIndex = this.m_virtualGenericTemplateGridController.GetFirstEmptyIndex();
+    wrappedTemplate = new WrappedTemplateData();
+    wrappedTemplate.m_parentGridController = this.m_virtualGenericTemplateGridController;
+    wrappedTemplate.m_indexInList = saveIndex;
+    wrappedTemplate.m_canAcceptSave = true;
+    wrappedTemplate.m_template = templateToSave;
+    this.m_virtualGenericTemplateGridController.UpdateTemplateInGrid(wrappedTemplate);
+    previousNavigationState = this.GetNavigationEnabledInGrids();
+    this.SetNavigationEnabledInGrids(true);
+    this.m_virtualGenericTemplateGridController.ToggleTemplateInGrid(templateToSave, !this.m_player.PlayerLastUsedKBM());
+    this.SetNavigationEnabledInGrids(previousNavigationState);
+    this.UpdateNavigationOverride();
+    return true;
+  }
+
+  private final func DeleteProfile() -> Bool {
+    let deletedTemplate: VehicleVisualCustomizationTemplate;
+    let previousNavigationState: Bool;
+    let selectedTemplate: VehicleVisualCustomizationTemplate;
+    let vehicleCustomizationComponent: ref<vehicleVisualCustomizationComponent> = this.m_player.GetVehicleVisualCustomizationComponent();
+    if !IsDefined(vehicleCustomizationComponent) || !IsDefined(this.m_vehicle) {
+      return false;
+    };
+    if !this.CanDeleteProfile() {
+      return false;
+    };
+    if IsDefined(this.m_virtualUniqueTemplateGridController.GetSelectedController()) {
+      selectedTemplate = this.m_virtualUniqueTemplateGridController.GetSelectedController().GetCurrentData().m_template;
+      if selectedTemplate.isOneTimeReward {
+        this.SpawnOneTimeRewardDeletionPopup(selectedTemplate);
+        return false;
+      };
+      deletedTemplate = this.m_virtualUniqueTemplateGridController.DeleteSelectedTemplateInGrid(!this.m_player.PlayerLastUsedKBM());
+      vehicleCustomizationComponent.DeleteVisualCustomizationTemplate(deletedTemplate, this.m_vehicle.GetRecord().TwintoneModelName());
+      if !this.m_player.PlayerLastUsedKBM() && this.m_virtualUniqueTemplateGridController.GetFirstEmptyIndex() == 0u {
+        if this.m_virtualGenericTemplateGridController.GetFirstEmptyIndex() != 0u {
+          previousNavigationState = this.GetNavigationEnabledInGrids();
+          this.SetNavigationEnabledInGrids(true);
+          this.m_virtualGenericTemplateGridController.SelectItem(0u, true);
+          this.SetNavigationEnabledInGrids(previousNavigationState);
+        };
+      };
+      return true;
+    };
+    if IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) {
+      deletedTemplate = this.m_virtualGenericTemplateGridController.DeleteSelectedTemplateInGrid(!this.m_player.PlayerLastUsedKBM());
+      vehicleCustomizationComponent.DeleteVisualCustomizationTemplate(deletedTemplate);
+      if !this.m_player.PlayerLastUsedKBM() && this.m_virtualGenericTemplateGridController.GetFirstEmptyIndex() == 0u {
+        if this.m_virtualUniqueTemplateGridController.GetFirstEmptyIndex() != 0u {
+          previousNavigationState = this.GetNavigationEnabledInGrids();
+          this.SetNavigationEnabledInGrids(true);
+          this.m_virtualUniqueTemplateGridController.SelectItem(0u, true);
+          this.SetNavigationEnabledInGrids(previousNavigationState);
+        };
+      };
+      return true;
+    };
+    return false;
+  }
+
+  private final func SpawnOneTimeRewardDeletionPopup(selectedTemplate: VehicleVisualCustomizationTemplate) -> Void {
+    let notificationData: ref<TwintoneDeletionData> = new TwintoneDeletionData();
+    notificationData.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\vehicle_customization\\twintone_delete_one_time_reward.inkwidget";
+    notificationData.queueName = n"modal_popup";
+    notificationData.isBlocking = true;
+    notificationData.useCursor = true;
+    notificationData.template = selectedTemplate;
+    notificationData.modelName = this.m_vehicle.GetRecord().TwintoneModelName();
+    this.m_deletionPopup = this.ShowGameNotification(notificationData);
+    this.m_deletionPopup.RegisterListener(this, n"OnCloseRewardDeletionPopup");
+    this.SetInputEnabled(false);
+  }
+
+  protected cb func OnCloseRewardDeletionPopup(data: ref<inkGameNotificationData>) -> Bool {
+    let deletedTemplate: VehicleVisualCustomizationTemplate;
+    let previousNavigationState: Bool;
+    let vehicleCustomizationComponent: ref<vehicleVisualCustomizationComponent> = this.m_player.GetVehicleVisualCustomizationComponent();
+    let resultData: ref<TwintoneDeletionData> = data as TwintoneDeletionData;
+    PopupsManager.OrderWidgetOnTop(this);
+    this.SetInputEnabled(true);
+    this.m_deletionPopup = null;
+    if resultData.deletionAccepted {
+      deletedTemplate = this.m_virtualUniqueTemplateGridController.DeleteSelectedTemplateInGrid(!this.m_player.PlayerLastUsedKBM());
+      vehicleCustomizationComponent.DeleteVisualCustomizationTemplate(deletedTemplate, this.m_vehicle.GetRecord().TwintoneModelName());
+      if !this.m_player.PlayerLastUsedKBM() && this.m_virtualUniqueTemplateGridController.GetFirstEmptyIndex() == 0u {
+        if this.m_virtualGenericTemplateGridController.GetFirstEmptyIndex() != 0u {
+          previousNavigationState = this.GetNavigationEnabledInGrids();
+          this.SetNavigationEnabledInGrids(true);
+          this.m_virtualGenericTemplateGridController.SelectItem(0u, true);
+          this.SetNavigationEnabledInGrids(previousNavigationState);
+        };
+      };
+    };
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_item_disassemble");
+  }
+
+  private final func CanDeleteProfile() -> Bool {
+    let record: ref<Vehicle_Record>;
+    let canDeleteProfile: Bool = false;
+    if IsDefined(this.m_virtualUniqueTemplateGridController.GetSelectedController()) {
+      if VehicleVisualCustomizationTemplate.IsValid(this.m_virtualUniqueTemplateGridController.GetSelectedController().GetCurrentData().m_template) {
+        if VehicleComponent.GetVehicleRecord(this.m_vehicle, record) {
+          canDeleteProfile = record.CanDeleteUniqueTemplates();
+        };
+      };
+    } else {
+      if IsDefined(this.m_virtualGenericTemplateGridController.GetSelectedController()) {
+        if VehicleVisualCustomizationTemplate.IsValid(this.m_virtualGenericTemplateGridController.GetSelectedController().GetCurrentData().m_template) {
+          canDeleteProfile = true;
+        };
+      };
+    };
+    return canDeleteProfile;
+  }
+
+  private final func PlayAnimation(animationName: CName, opt playbackOptions: inkAnimOptions) -> Void {
+    if IsDefined(this.m_animProxy) && this.m_animProxy.IsPlaying() {
+      this.m_animProxy.Stop(true);
+    };
+    this.m_animProxy = this.PlayLibraryAnimation(animationName, playbackOptions);
+  }
+
+  private final func PlayFailSound() -> Void {
+    GameInstance.GetAudioSystem(this.m_gameInstance).Play(n"ui_menu_item_crafting_fail");
+  }
+
+  protected final func SetTimeDilatation(enable: Bool) -> Void {
+    let uiSystem: ref<UISystem> = GameInstance.GetUISystem(this.m_player.GetGame());
+    if enable {
+      TimeDilationHelper.SetTimeDilationWithProfile(this.GetPlayerControlledObject(), this.m_timeDilationProfile, true, true);
+      uiSystem.PushGameContext(UIGameContext.ModalPopup);
+      uiSystem.RequestNewVisualState(n"inkModalPopupState");
+      PopupStateUtils.SetBackgroundBlur(this, true);
+    } else {
+      TimeDilationHelper.SetTimeDilationWithProfile(this.GetPlayerControlledObject(), this.m_timeDilationProfile, false, false);
+      uiSystem.PopGameContext(UIGameContext.ModalPopup);
+      uiSystem.RestorePreviousVisualState(n"inkModalPopupState");
+      PopupStateUtils.SetBackgroundBlur(this, false);
+    };
+  }
+
+  private final func ProcessFakeUpdate(on: Bool) -> Void {
+    let alphaInterpolator: ref<inkAnimTransparency>;
+    let anim: ref<inkAnimDef>;
+    let animOptions: inkAnimOptions;
+    if on {
+      anim = new inkAnimDef();
+      alphaInterpolator = new inkAnimTransparency();
+      alphaInterpolator.SetDuration(0.00);
+      alphaInterpolator.SetStartTransparency(1.00);
+      alphaInterpolator.SetEndTransparency(1.00);
+      alphaInterpolator.SetType(inkanimInterpolationType.Linear);
+      alphaInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+      anim.AddInterpolator(alphaInterpolator);
+      animOptions.playReversed = false;
+      animOptions.executionDelay = 0.00;
+      animOptions.loopType = inkanimLoopType.Cycle;
+      animOptions.loopInfinite = true;
+      this.m_fakeUpdateProxy = inkWidgetRef.PlayAnimationWithOptions(this.m_CursorRootContainerRef, anim, animOptions);
+      this.m_fakeUpdateProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnFakeUpdate");
+    } else {
+      if this.m_fakeUpdateProxy.IsPlaying() {
+        this.m_fakeUpdateProxy.Stop();
+        this.m_fakeUpdateProxy.UnregisterFromCallback(inkanimEventType.OnEndLoop, this, n"OnFakeUpdate");
+      };
+    };
+  }
+
+  private final func SetHeadlightsFixedColor(record: wref<Vehicle_Record>) -> Void {
+    let color: Color;
+    let values: array<Int32> = record.HeadlightColor();
+    color.Red = Cast<Uint8>(values[0]);
+    color.Green = Cast<Uint8>(values[1]);
+    color.Blue = Cast<Uint8>(values[2]);
+    color.Alpha = Cast<Uint8>(values[3]);
+    inkWidgetRef.SetTintColor(this.m_colorWheelColorLightsFixedCircle, color);
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamA, color);
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamB, color);
+    inkWidgetRef.SetTintColor(this.m_lightsPreviewBeamBike, color);
+    this.m_cachedNewColorLights = color;
+  }
+
+  private final func ProcessApplyHintVisiblity() -> Void {
+    inkWidgetRef.SetOpacity(this.m_applyContainerWidget, this.m_vehicle.GetVehicleComponent().CanApplyTemplateOnVehicle(this.m_currentTemplate, true) ? 1.00 : 0.25);
+  }
+
+  private final func ProcessResetHintVisiblity() -> Void {
+    inkWidgetRef.SetOpacity(this.m_resetContainerWidget, VehicleVisualCustomizationTemplate.IsValid(this.m_vehicle.GetVehiclePS().GetVehicleVisualCustomizationTemplate()) ? 1.00 : 0.25);
+  }
+
+  private final func ProccessSwapColorHintVisibility() -> Void {
+    inkWidgetRef.SetOpacity(this.m_swapColorHint, this.m_colorADefined && this.m_colorBDefined ? 1.00 : 0.25);
+  }
+
+  private final func ProcessSaveProfileHintVisibility() -> Void {
+    let canSaveProfile: Bool;
+    let vehicleCustomizationComponent: ref<vehicleVisualCustomizationComponent> = this.m_player.GetVehicleVisualCustomizationComponent();
+    let templateToSave: VehicleVisualCustomizationTemplate = this.PackCurrentConfigurationToTemplate();
+    if !IsDefined(vehicleCustomizationComponent) {
+      canSaveProfile = false;
+    } else {
+      canSaveProfile = VehicleVisualCustomizationTemplate.IsValid(templateToSave) && vehicleCustomizationComponent.CanStoreVisualCustomizationTemplateType(VehicleVisualCustomizationType.Generic) && !vehicleCustomizationComponent.HasVisualCustomizationTemplateStored(templateToSave);
+    };
+    inkWidgetRef.SetOpacity(this.m_saveProfileHint, canSaveProfile ? 1.00 : 0.25);
+  }
+
+  private final func ProcessDeleteProfileHintVisibility() -> Void {
+    inkWidgetRef.SetOpacity(this.m_deleteProfileHint, this.CanDeleteProfile() ? 1.00 : 0.25);
+  }
+}

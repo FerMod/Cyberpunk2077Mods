@@ -1,0 +1,259 @@
+
+public class HDRSettingsVarListener extends ConfigVarListener {
+
+  private let m_ctrl: wref<HDRSettingsGameController>;
+
+  public final func RegisterController(ctrl: ref<HDRSettingsGameController>) -> Void {
+    this.m_ctrl = ctrl;
+  }
+
+  public func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    this.m_ctrl.OnVarModified(groupPath, varName, varType, reason);
+  }
+}
+
+public class HDRSettingsNotificationListener extends ConfigNotificationListener {
+
+  private let m_ctrl: wref<HDRSettingsGameController>;
+
+  public final func RegisterController(ctrl: ref<HDRSettingsGameController>) -> Void {
+    this.m_ctrl = ctrl;
+  }
+
+  public func OnNotify(status: ConfigNotificationType) -> Void {
+    this.m_ctrl.OnSettingsNotify(status);
+  }
+}
+
+public native class HDRSettingsGameController extends gameuiMenuGameController {
+
+  private let s_maxBrightnessGroup: CName;
+
+  private let s_calibrationImageDay: CName;
+
+  private let s_calibrationImageNight: CName;
+
+  private let s_currentCalibrationImage: CName;
+
+  private edit let m_settingsOptionsList: inkCompoundRef;
+
+  private edit let m_targetImageWidget: inkWidgetRef;
+
+  private edit let m_descriptionText: inkTextRef;
+
+  private edit let m_defaultButton: inkWidgetRef;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_settings: ref<UserSettings>;
+
+  private let m_settingsListener: ref<HDRSettingsVarListener>;
+
+  private let m_settingsNotificationListener: ref<HDRSettingsNotificationListener>;
+
+  private let m_SettingsElements: [wref<SettingsSelectorController>];
+
+  private let m_isPreGame: Bool;
+
+  private let m_calibrationImagesCycleAnimDef: ref<inkAnimDef>;
+
+  private let m_calibrationImagesCycleProxy: ref<inkAnimProxy>;
+
+  @default(HDRSettingsGameController, MinMonitorBrightness)
+  private const let c_minMonitorBrightness: CName;
+
+  @default(HDRSettingsGameController, MaxMonitorBrightness)
+  private const let c_maxMonitorBrightness: CName;
+
+  @default(HDRSettingsGameController, PaperWhiteLevel)
+  private const let c_paperWhiteLevel: CName;
+
+  protected cb func OnInitialize() -> Bool {
+    let updateHDRCalibrationScreenEvt: ref<UpdateHDRCalibrationScreenEvt>;
+    this.s_maxBrightnessGroup = n"/video/display";
+    this.s_calibrationImageDay = n"hdr_day";
+    this.s_calibrationImageNight = n"hdr_night";
+    this.m_settings = this.GetSystemRequestsHandler().GetUserSettings();
+    this.m_isPreGame = this.GetSystemRequestsHandler().IsPreGame();
+    this.m_settingsListener = new HDRSettingsVarListener();
+    this.m_settingsListener.RegisterController(this);
+    this.m_settingsListener.Register(this.s_maxBrightnessGroup);
+    this.m_settingsNotificationListener = new HDRSettingsNotificationListener();
+    this.m_settingsNotificationListener.RegisterController(this);
+    this.m_settingsNotificationListener.Register();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    ArrayClear(this.m_SettingsElements);
+    if Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux") || Equals(GetPlatformShortName(), "steamdeck") {
+      this.SetOptionSelector(this.c_minMonitorBrightness);
+      this.SetOptionSelector(this.c_maxMonitorBrightness);
+    };
+    if !this.GetSystemRequestsHandler().HasAltDisplay() {
+      this.SetOptionSelector(this.c_paperWhiteLevel);
+    };
+    this.PrepareHDRCycleAnimations();
+    this.s_currentCalibrationImage = this.s_calibrationImageNight;
+    updateHDRCalibrationScreenEvt = new UpdateHDRCalibrationScreenEvt();
+    this.QueueEvent(updateHDRCalibrationScreenEvt);
+    inkWidgetRef.SetVisible(this.m_descriptionText, false);
+    inkWidgetRef.SetVisible(this.m_defaultButton, !this.GetSystemRequestsHandler().HasAltDisplay());
+    inkWidgetRef.GetControllerByType(this.m_defaultButton, n"inkButtonController").RegisterToCallback(n"OnButtonClick", this, n"OnDefaultButtonReleased");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.SetHDRCalibrationScreen(false);
+    inkWidgetRef.GetControllerByType(this.m_defaultButton, n"inkButtonController").UnregisterFromCallback(n"OnButtonClick", this, n"OnDefaultButtonReleased");
+  }
+
+  protected cb func OnUpdateHDRCalibrationScreen(evt: ref<UpdateHDRCalibrationScreenEvt>) -> Bool {
+    this.SetTexturePart(this.s_currentCalibrationImage);
+  }
+
+  private final func SetOptionSelector(optionName: CName) -> Void {
+    let selector: wref<SettingsSelectorController>;
+    let selectorControllerFloat: wref<SettingsSelectorControllerFloat>;
+    let option: ref<ConfigVar> = this.m_settings.GetVar(this.s_maxBrightnessGroup, optionName);
+    if this.m_isPreGame ? option.IsInPreGame() : option.IsInGame() {
+      switch option.GetType() {
+        case ConfigVarType.Int:
+          selector = this.SpawnFromExternal(inkWidgetRef.Get(this.m_settingsOptionsList), r"base\\gameplay\\gui\\fullscreen\\settings\\settings_main.inkwidget", n"settingsSelectorInt").GetController() as SettingsSelectorController;
+          break;
+        case ConfigVarType.Float:
+          selector = this.SpawnFromExternal(inkWidgetRef.Get(this.m_settingsOptionsList), r"base\\gameplay\\gui\\fullscreen\\settings\\settings_main.inkwidget", n"settingsSelectorFloat").GetController() as SettingsSelectorController;
+          break;
+        default:
+      };
+      if IsDefined(selector) {
+        selector.Setup(option, this.m_isPreGame);
+        selector.RegisterToCallback(n"OnHoverOver", this, n"OnSettingHoverOver");
+        selector.RegisterToCallback(n"OnHoverOut", this, n"OnSettingHoverOut");
+        ArrayPush(this.m_SettingsElements, selector);
+        selectorControllerFloat = selector as SettingsSelectorControllerFloat;
+        selectorControllerFloat.HACK_DisableIfNeededForHDRCalibrationScreen();
+      };
+    };
+  }
+
+  protected cb func OnSettingHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    let description: String;
+    let currentItem: wref<SettingsSelectorController> = evt.GetCurrentTarget().GetController() as SettingsSelectorController;
+    if IsDefined(currentItem) {
+      description = GetLocalizedTextByKey(currentItem.GetDescription());
+      inkTextRef.SetText(this.m_descriptionText, description);
+      inkWidgetRef.SetVisible(this.m_descriptionText, true);
+    };
+  }
+
+  protected cb func OnSettingHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_descriptionText, false);
+  }
+
+  public final func OnVarModified(groupPath: CName, varName: CName, varType: ConfigVarType, reason: ConfigChangeReason) -> Void {
+    let i: Int32;
+    let item: ref<SettingsSelectorController>;
+    let size: Int32;
+    if Equals(varName, n"HDRModes") || Equals(varName, n"HDRModes_Alt") {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnSettingsBack");
+      this.m_menuEventDispatcher.SpawnEvent(n"OnBack");
+    };
+    size = ArraySize(this.m_SettingsElements);
+    i = 0;
+    while i < size {
+      item = this.m_SettingsElements[i];
+      if Equals(item.GetGroupPath(), groupPath) && Equals(item.GetVarName(), varName) {
+        this.m_SettingsElements[i].Refresh();
+      };
+      i += 1;
+    };
+  }
+
+  private final func PrepareHDRCycleAnimations() -> Void {
+    let options: inkAnimOptions;
+    options.loopType = inkanimLoopType.Cycle;
+    options.loopInfinite = true;
+    this.m_calibrationImagesCycleAnimDef = new inkAnimDef();
+    let alphaInterpolator: ref<inkAnimTransparency> = new inkAnimTransparency();
+    alphaInterpolator.SetStartTransparency(0.00);
+    alphaInterpolator.SetEndTransparency(0.00);
+    alphaInterpolator.SetDuration(5.00);
+    alphaInterpolator.SetStartDelay(0.25);
+    alphaInterpolator.SetType(inkanimInterpolationType.Linear);
+    alphaInterpolator.SetMode(inkanimInterpolationMode.EasyIn);
+    this.m_calibrationImagesCycleAnimDef.AddInterpolator(alphaInterpolator);
+    this.m_calibrationImagesCycleProxy = inkWidgetRef.PlayAnimationWithOptions(this.m_targetImageWidget, this.m_calibrationImagesCycleAnimDef, options);
+    this.m_calibrationImagesCycleProxy.RegisterToCallback(inkanimEventType.OnEndLoop, this, n"OnCalibrationImageEndLoop");
+    this.m_calibrationImagesCycleProxy.RegisterToCallback(inkanimEventType.OnStart, this, n"OnCalibrationImageAnimStart");
+  }
+
+  protected cb func OnCalibrationImageAnimStart(anim: ref<inkAnimProxy>) -> Bool {
+    this.SetHDRCalibrationScreen(true);
+  }
+
+  protected cb func OnCalibrationImageEndLoop(anim: ref<inkAnimProxy>) -> Bool {
+    if Equals(this.s_currentCalibrationImage, this.s_calibrationImageNight) {
+      this.s_currentCalibrationImage = this.s_calibrationImageDay;
+    } else {
+      this.s_currentCalibrationImage = this.s_calibrationImageNight;
+    };
+    this.SetTexturePart(this.s_currentCalibrationImage);
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+  }
+
+  protected cb func OnDefaultButtonReleased(controller: wref<inkButtonController>) -> Bool {
+    this.GetSystemRequestsHandler().RequestSystemNotificationGenericYesNo(n"UI-Labels-Settings", n"UI-Settings-RestoreToDefaultsDialog", this, n"OnDefaultButtonAcceptedCallback", true);
+  }
+
+  protected cb func OnDefaultButtonAcceptedCallback(accepted: Bool) -> Bool {
+    let minBrightness: Float = RenderScriptInterface.GetMonitorMinLuminanceNits();
+    let maxBrightness: Float = RenderScriptInterface.GetMonitorMaxLuminanceNits();
+    let paperWhiteLevel: Float = RenderScriptInterface.GetMonitorPaperWhiteLuminanceNits();
+    if !accepted {
+      return false;
+    };
+    if Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux") || Equals(GetPlatformShortName(), "steamdeck") {
+      this.ApplyValueToOption(this.c_minMonitorBrightness, minBrightness);
+      this.ApplyValueToOption(this.c_maxMonitorBrightness, maxBrightness);
+    };
+    if !this.GetSystemRequestsHandler().HasAltDisplay() {
+      this.ApplyValueToOption(this.c_paperWhiteLevel, paperWhiteLevel);
+    };
+    RenderScriptInterface.RequestGameConfigRefreshNotify();
+  }
+
+  private final func ApplyValueToOption(optionName: CName, value: Float) -> Void {
+    let floatOption: ref<ConfigVarFloat>;
+    let option: ref<ConfigVar> = this.m_settings.GetVar(this.s_maxBrightnessGroup, optionName);
+    if Equals(option.GetType(), ConfigVarType.Float) {
+      floatOption = option as ConfigVarFloat;
+      floatOption.SetValue(value);
+    };
+  }
+
+  public final func OnSettingsNotify(status: ConfigNotificationType) -> Void {
+    switch status {
+      case ConfigNotificationType.Refresh:
+        ArrayClear(this.m_SettingsElements);
+        inkCompoundRef.RemoveAllChildren(this.m_settingsOptionsList);
+        inkTextRef.SetText(this.m_descriptionText, "");
+        inkWidgetRef.SetVisible(this.m_descriptionText, false);
+        if Equals(GetPlatformShortName(), "windows") || Equals(GetPlatformShortName(), "windowsGDK") || Equals(GetPlatformShortName(), "linux") || Equals(GetPlatformShortName(), "steamdeck") {
+          this.SetOptionSelector(this.c_minMonitorBrightness);
+          this.SetOptionSelector(this.c_maxMonitorBrightness);
+        };
+        if !this.GetSystemRequestsHandler().HasAltDisplay() {
+          this.SetOptionSelector(this.c_paperWhiteLevel);
+        };
+        this.RefreshInputIcons();
+    };
+  }
+
+  private final native func SetTexturePart(partName: CName) -> Void;
+
+  private final native func SetHDRCalibrationScreen(enabled: Bool) -> Void;
+
+  private final native func SetRenderGameInBackground(enabled: Bool) -> Void;
+}

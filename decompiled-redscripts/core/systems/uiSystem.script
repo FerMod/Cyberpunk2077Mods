@@ -1,0 +1,147 @@
+
+public final native class UISystem extends IUISystem {
+
+  private final native const func GetGameInstance() -> GameInstance;
+
+  public final native func QueueEvent(evt: ref<Event>) -> Void;
+
+  public final native func QueueMenuEvent(eventName: CName, opt userData: ref<IScriptable>) -> Void;
+
+  public final func PushGameContext(context: UIGameContext) -> Void {
+    let evt: ref<PushUIGameContextEvent> = new PushUIGameContextEvent();
+    evt.context = context;
+    this.QueueEvent(evt);
+  }
+
+  public final func PopGameContext(context: UIGameContext, opt invalidate: Bool) -> Void {
+    let evt: ref<PopUIGameContextEvent> = new PopUIGameContextEvent();
+    evt.context = context;
+    evt.invalidate = invalidate;
+    this.QueueEvent(evt);
+  }
+
+  public final func SwapGameContext(oldContext: UIGameContext, newContext: UIGameContext) -> Void {
+    let evt: ref<SwapUIGameContextEvent> = new SwapUIGameContextEvent();
+    evt.oldContext = oldContext;
+    evt.newContext = newContext;
+    this.QueueEvent(evt);
+  }
+
+  public final func ResetGameContext() -> Void {
+    this.QueueEvent(new ResetUIGameContextEvent());
+  }
+
+  public final func RequestNewVisualState(newVisualState: CName) -> Void {
+    let evt: ref<VisualStateChangeEvent> = new VisualStateChangeEvent();
+    evt.visualState = newVisualState;
+    this.QueueEvent(evt);
+  }
+
+  public final func RestorePreviousVisualState(popVisualState: CName) -> Void {
+    let evt: ref<VisualStateRestorePreviousEvent> = new VisualStateRestorePreviousEvent();
+    evt.visualState = popVisualState;
+    this.QueueEvent(evt);
+  }
+
+  public final native func RequestVendorMenu(data: ref<VendorPanelData>, opt scenarioName: CName) -> Void;
+
+  public final native func RequestModioBrowserMenu(opt scenarioName: CName) -> Void;
+
+  public final native func RequestFastTravelMenu() -> Void;
+
+  private final func GetFastTravelSystem() -> ref<FastTravelSystem> {
+    return GameInstance.GetScriptableSystemsContainer(this.GetGameInstance()).Get(n"FastTravelSystem") as FastTravelSystem;
+  }
+
+  private final func NotifyFastTravelSystem(menuEnabled: Bool) -> Void {
+    let request: ref<FastTravelMenuToggledEvent> = new FastTravelMenuToggledEvent();
+    request.isEnabled = menuEnabled;
+    this.GetFastTravelSystem().QueueRequest(request);
+  }
+
+  protected final cb func OnEnterFastTravelMenu() -> Bool {
+    this.NotifyFastTravelSystem(true);
+  }
+
+  protected final cb func OnExitFastTravelMenu() -> Bool {
+    this.NotifyFastTravelSystem(false);
+  }
+
+  public final native func RequestDelamainTaxiMenu() -> Void;
+
+  private final func GetDelamainTaxiSystem() -> ref<DelamainTaxiSystem> {
+    return GameInstance.GetScriptableSystemsContainer(this.GetGameInstance()).Get(n"DelamainTaxiSystem") as DelamainTaxiSystem;
+  }
+
+  private final func NotifyDelamainTaxiSystem(menuEnabled: Bool) -> Void {
+    let request: ref<DelamainTaxiMenuToggledEvent> = new DelamainTaxiMenuToggledEvent();
+    request.isEnabled = menuEnabled;
+    this.GetDelamainTaxiSystem().QueueRequest(request);
+  }
+
+  protected final cb func OnEnterDelamainTaxiMenu() -> Bool {
+    this.NotifyDelamainTaxiSystem(true);
+  }
+
+  protected final cb func OnExitDelamainTaxiMenu() -> Bool {
+    this.NotifyDelamainTaxiSystem(false);
+  }
+
+  public final native func NotifyFastTravelStart() -> Void;
+
+  public final native func ShowTutorialBracket(data: TutorialBracketData) -> Void;
+
+  public final native func HideTutorialBracket(bracketID: CName) -> Void;
+
+  public final native func ShowTutorialOverlay(data: TutorialOverlayData) -> Void;
+
+  public final native func HideTutorialOverlay(data: TutorialOverlayData) -> Void;
+
+  public final native func SetGlobalThemeOverride(themeID: CName) -> Void;
+
+  public final native func ClearGlobalThemeOverride() -> Void;
+
+  public final native func GetNeededPatchIntroPackage() -> gameuiPatchIntroPackage;
+
+  public final native func IsPatchIntroNeeded(patchIntro: gameuiPatchIntro) -> Bool;
+
+  public final native func MarkPatchIntroAsSeen(patchIntro: gameuiPatchIntro) -> Void;
+
+  public final native func ResetPatchIntro(patchIntro: gameuiPatchIntro) -> Void;
+
+  public final native func SetOneTimeMessageSeen(message: gameuiOneTimeMessage, seen: Bool) -> Void;
+
+  public final native func GetOneTimeMessageSeen(message: gameuiOneTimeMessage) -> Bool;
+
+  public final native func SetIsEulaAccepted(isEulaAccepted: Bool) -> Void;
+
+  public final native func GetIsEulaAccepted() -> Bool;
+
+  public final native func SetAndSaveHasTelemetryScreenBeenDisplayed(telemetryScreenDisplayed: Bool) -> Void;
+
+  public final native func GetHasTelemetryScreenBeenDisplayed() -> Bool;
+
+  public final native func ResetPitchScreenLastSeenPatch() -> Void;
+
+  public final native func UpdatePitchScreenLastSeenPatch() -> Void;
+
+  public final native func GetPitchScreenLastSeenPatch() -> gameuiPatchIntro;
+
+  public final native func GetCurrentWindowSize() -> Vector2;
+
+  public final native func GetInverseUIScale() -> Float;
+
+  public final native func GetBlackBarsSizes() -> Vector2;
+
+  public final native func GetHudScalingOverride() -> Float;
+
+  public final native func SetHudEntryForcedVisibility(entryName: CName, visibility: worlduiEntryVisibility) -> Void;
+
+  public final native func GetHudEntryForcedVisibility(entryName: CName) -> worlduiEntryVisibility;
+
+  public final native func SetNavigationOppositeAxisDistanceCost(cost: Float) -> Void;
+
+  public final native func ResetNavigationOppositeAxisDistanceCost() -> Void;
+
+  public final native func GetInteractableWidgetUnderCursor() -> wref<inkWidget>;
+}

@@ -1,0 +1,285 @@
+
+public class InventoryWeaponDisplayController extends InventoryItemDisplayController {
+
+  protected edit let m_weaponSpecyficModsRoot: inkCompoundRef;
+
+  protected edit let m_silencerIcon: inkWidgetRef;
+
+  protected edit let m_scopeIcon: inkWidgetRef;
+
+  protected edit let m_ammoIcon: inkImageRef;
+
+  protected edit let m_inactiveDualWieldIcon: inkWidgetRef;
+
+  protected edit let m_primaryWeaponOnlyEquippedIcon: inkWidgetRef;
+
+  protected edit let m_dualWieldPrimaryWeaponIcon: inkWidgetRef;
+
+  protected edit let m_dualWieldSecondaryWeaponIcon: inkWidgetRef;
+
+  protected edit let m_switchToPrimaryArrow: inkWidgetRef;
+
+  protected edit let m_switchToSecondaryArrow: inkWidgetRef;
+
+  protected let m_switchToPrimaryArrowController: wref<inkButtonController>;
+
+  protected let m_switchToSecondaryArrowController: wref<inkButtonController>;
+
+  protected let m_toggleToPrimary: Bool;
+
+  protected let m_toggleToSecondary: Bool;
+
+  protected let m_showArrows: Bool;
+
+  protected let m_canCycleWeapons: Bool;
+
+  protected let m_isHoveringArrow: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    if inkWidgetRef.IsValid(this.m_switchToPrimaryArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_switchToPrimaryArrow, n"OnRelease", this, n"OnToggleToPrimary");
+      inkWidgetRef.RegisterToCallback(this.m_switchToPrimaryArrow, n"OnHoverOver", this, n"OnHoverOver");
+      inkWidgetRef.RegisterToCallback(this.m_switchToPrimaryArrow, n"OnHoverOut", this, n"OnHoverOut");
+      this.m_switchToPrimaryArrowController = inkWidgetRef.GetController(this.m_switchToPrimaryArrow) as inkButtonController;
+    };
+    if inkWidgetRef.IsValid(this.m_switchToSecondaryArrow) {
+      inkWidgetRef.RegisterToCallback(this.m_switchToSecondaryArrow, n"OnRelease", this, n"OnToggleToSecondary");
+      inkWidgetRef.RegisterToCallback(this.m_switchToSecondaryArrow, n"OnHoverOver", this, n"OnHoverOver");
+      inkWidgetRef.RegisterToCallback(this.m_switchToSecondaryArrow, n"OnHoverOut", this, n"OnHoverOut");
+      this.m_switchToSecondaryArrowController = inkWidgetRef.GetController(this.m_switchToSecondaryArrow) as inkButtonController;
+    };
+    this.SetShowArrows(true);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+    if inkWidgetRef.IsValid(this.m_switchToPrimaryArrow) {
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToPrimaryArrow, n"OnRelease", this, n"OnToggleToPrimary");
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToPrimaryArrow, n"OnHoverOver", this, n"OnHoverOver");
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToPrimaryArrow, n"OnHoverOut", this, n"OnHoverOut");
+    };
+    if inkWidgetRef.IsValid(this.m_switchToSecondaryArrow) {
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToSecondaryArrow, n"OnRelease", this, n"OnToggleToSecondary");
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToSecondaryArrow, n"OnHoverOver", this, n"OnHoverOver");
+      inkWidgetRef.UnregisterFromCallback(this.m_switchToSecondaryArrow, n"OnHoverOut", this, n"OnHoverOut");
+    };
+  }
+
+  public func OnCreate() -> Void {
+    this.SetShowArrows(false);
+    this.RefreshUI();
+  }
+
+  protected func NewRefreshUI(itemData: ref<UIInventoryItem>) -> Void {
+    super.NewRefreshUI(itemData);
+    this.NewUpdateWeaponParts(itemData);
+    this.UpdateAmmoIcon(itemData.GetItemData());
+    this.NewUpdateDualWield(itemData);
+  }
+
+  protected final func UpdateAmmoIcon(itemData: wref<gameItemData>) -> Void {
+    let icon: CName;
+    let type: gamedataItemType;
+    if IsDefined(itemData) {
+      type = itemData.GetItemType();
+      icon = UIItemsHelper.GetAmmoIconByType(type);
+      inkImageRef.SetTexturePart(this.m_ammoIcon, icon);
+    };
+  }
+
+  protected func NewUpdateWeaponParts(itemData: ref<UIInventoryItem>) -> Void {
+    let hasScopeInstalled: Bool;
+    let hasScopeSlot: Bool;
+    let hasSilencerInstalled: Bool;
+    let hasSilencerSlot: Bool;
+    if IsDefined(itemData) {
+      hasScopeSlot = itemData.HasScopeSlot();
+      hasSilencerSlot = itemData.HasSilencerSlot();
+      hasScopeInstalled = itemData.HasScopeInstalled();
+      hasSilencerInstalled = itemData.HasSilencerInstalled();
+    };
+    inkWidgetRef.SetVisible(this.m_scopeIcon, hasScopeSlot);
+    inkWidgetRef.SetState(this.m_scopeIcon, hasScopeInstalled ? n"Default" : n"Empty");
+    inkWidgetRef.SetVisible(this.m_silencerIcon, hasSilencerSlot);
+    inkWidgetRef.SetState(this.m_silencerIcon, hasSilencerInstalled ? n"Default" : n"Empty");
+  }
+
+  protected func RefreshUI() -> Void {
+    super.RefreshUI();
+    this.UpdateWeaponParts();
+    this.UpdateAmmoIcon(InventoryItemData.GetGameItemData(this.m_itemData));
+    this.UpdateDualWield(InventoryItemData.GetGameItemData(this.m_itemData));
+  }
+
+  protected func UpdateWeaponParts() -> Void {
+    let attachment: ref<InventoryItemAttachments>;
+    let hasScopeSlot: Bool;
+    let hasSilencerSlot: Bool;
+    let scopeAttachment: ref<InventoryItemAttachments>;
+    let silencerAttachment: ref<InventoryItemAttachments>;
+    let itemData: InventoryItemData = this.GetItemData();
+    let attachmentsSize: Int32 = ArraySize(itemData.Attachments);
+    let i: Int32 = 0;
+    while i < attachmentsSize {
+      attachment = itemData.Attachments[i];
+      if attachment.SlotID == t"AttachmentSlots.Scope" {
+        scopeAttachment = attachment;
+        hasScopeSlot = true;
+      } else {
+        if attachment.SlotID == t"AttachmentSlots.PowerModule" {
+          silencerAttachment = attachment;
+          hasSilencerSlot = true;
+        };
+      };
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_scopeIcon, hasScopeSlot);
+    inkWidgetRef.SetState(this.m_scopeIcon, scopeAttachment.ItemData.Empty ? n"Empty" : n"Default");
+    inkWidgetRef.SetVisible(this.m_silencerIcon, hasSilencerSlot);
+    inkWidgetRef.SetState(this.m_silencerIcon, silencerAttachment.ItemData.Empty ? n"Empty" : n"Default");
+  }
+
+  protected final func NewUpdateDualWield(itemData: ref<UIInventoryItem>) -> Void {
+    let weaponType: WeaponType = UIInventoryItemsManager.GetItemTypeWeapon(itemData.GetItemType());
+    if NotEquals(weaponType, WeaponType.Invalid) {
+      itemData.FetchWeaponImmediate(weaponType);
+    };
+    this.DoUpdateDualWield(itemData != null, itemData.IsLeftWeapon(), itemData.HasPairedWeapon(), itemData.CanDualWield(), itemData.IsEquipped());
+  }
+
+  protected final func UpdateDualWield(itemData: wref<gameItemData>) -> Void {
+    this.DoUpdateDualWield(!InventoryItemData.IsEmpty(this.GetItemData()), this.IsLeftWeapon(), this.HasPairedWeapon(), InventoryItemData.CanDualWield(this.GetItemData()), InventoryItemData.IsEquipped(this.GetItemData()));
+  }
+
+  protected final func DoUpdateDualWield(itemDataExists: Bool, isLeftWeapon: Bool, hasPairedWeapon: Bool, canDualWield: Bool, isEquipped: Bool) -> Void {
+    let displayContextData: ItemDisplayContext;
+    if itemDataExists && !canDualWield || !this.m_inventoryDataManager.HasPlayerDualWield() {
+      this.SetArrowsVisibility(false, false);
+      this.SetDualWieldIconsVisiblity(false, false, false, false);
+      return;
+    };
+    inkWidgetRef.SetState(this.m_inactiveDualWieldIcon, n"Empty");
+    displayContextData = this.GetDisplayContext();
+    if this.m_showArrows && Equals(displayContextData, ItemDisplayContext.GearPanel) {
+      this.SetArrowsVisibility(isLeftWeapon || this.GetCanCycleWeapons(), (!isLeftWeapon || this.GetCanCycleWeapons()) && itemDataExists);
+    } else {
+      this.SetArrowsVisibility(false, false);
+    };
+    if itemDataExists {
+      this.SetDualWieldIconsVisiblity(!hasPairedWeapon && isEquipped, hasPairedWeapon && isEquipped && !isLeftWeapon, hasPairedWeapon && isEquipped && isLeftWeapon, !isEquipped);
+    } else {
+      this.SetDualWieldIconsVisiblity(false, false, false, canDualWield);
+    };
+  }
+
+  protected func UpdateIcon() -> Void {
+    let emptyIcon: CName;
+    super.UpdateIcon();
+    if this.IsLeftWeapon() {
+      emptyIcon = n"UIIcon.ItemShadow_DualWield";
+      InkImageUtils.RequestSetImage(this, this.m_itemEmptyImage, emptyIcon);
+    };
+  }
+
+  public func GetSlotName() -> String {
+    if IsStringValid(this.m_slotName) {
+      return this.m_slotName;
+    };
+    if this.IsLeftWeapon() {
+      return GetLocalizedText("Gameplay-Weapons-DualWield-SecondaryWeapon");
+    };
+    return UIItemsHelper.GetSlotName(this.GetSlotID(), this.GetItemType(), this.GetEquipmentArea());
+  }
+
+  public final func SetShowArrows(value: Bool) -> Void {
+    this.m_showArrows = value;
+  }
+
+  public final func SetArrowsVisibility(showRight: Bool, showLeft: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_switchToPrimaryArrow, showRight);
+    this.m_switchToPrimaryArrowController.SetNavigable(showRight);
+    inkWidgetRef.SetVisible(this.m_switchToSecondaryArrow, showLeft);
+    this.m_switchToSecondaryArrowController.SetNavigable(showLeft);
+  }
+
+  public final func SetDualWieldIconsVisiblity(showPrimaryOnlyEquipped: Bool, showDualWieldPrimaryWeapon: Bool, showDualWieldSecondaryWeapon: Bool, showInactive: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_primaryWeaponOnlyEquippedIcon, showPrimaryOnlyEquipped);
+    inkWidgetRef.SetVisible(this.m_dualWieldPrimaryWeaponIcon, showDualWieldPrimaryWeapon);
+    inkWidgetRef.SetVisible(this.m_dualWieldSecondaryWeaponIcon, showDualWieldSecondaryWeapon);
+    inkWidgetRef.SetVisible(this.m_inactiveDualWieldIcon, showInactive);
+  }
+
+  public final func IsLeftWeapon() -> Bool {
+    let slotIndex: Int32 = this.GetSlotIndex();
+    return slotIndex >= 3 && slotIndex <= 5;
+  }
+
+  public final func HasPairedWeapon() -> Bool {
+    let dualWieldSlot: Int32 = 0;
+    dualWieldSlot = EquipmentSystemPlayerData.GetOppositeWeaponSlotIndex(InventoryItemData.GetSlotIndex(this.m_itemData));
+    let pairedWeapon: InventoryItemData = this.m_inventoryDataManager.GetWeaponEquippedInSlot(dualWieldSlot);
+    return !pairedWeapon.Empty;
+  }
+
+  public final func GetToggleToPrimary() -> Bool {
+    return this.m_toggleToPrimary;
+  }
+
+  public final func GetToggleToSecondary() -> Bool {
+    return this.m_toggleToSecondary;
+  }
+
+  public final func IsHoveringArrow() -> Bool {
+    return this.m_isHoveringArrow;
+  }
+
+  public final func ResetToggle() -> Void {
+    this.QueueEvent(new DelayedResetDualWieldItemToggled());
+  }
+
+  protected cb func OnToggleToPrimary(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_toggleToPrimary = true;
+    };
+  }
+
+  protected cb func OnToggleToSecondary(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_toggleToSecondary = true;
+    };
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringArrow = true;
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.m_isHoveringArrow = false;
+  }
+
+  protected cb func OnDelayedResetDualWieldItemToggled(evt: ref<DelayedResetDualWieldItemToggled>) -> Bool {
+    this.m_toggleToPrimary = false;
+    this.m_toggleToSecondary = false;
+  }
+
+  public final func GetCanCycleWeapons() -> Bool {
+    return this.m_canCycleWeapons;
+  }
+
+  public final func SetCanCycleWeapons(value: Bool) -> Void {
+    this.m_canCycleWeapons = value;
+  }
+
+  public final func PlayCycleAnimation(isNext: Bool) -> Void {
+    if isNext {
+      this.PlayLibraryAnimation(n"Weapon_Cycle_Next");
+    } else {
+      this.PlayLibraryAnimation(n"Weapon_Cycle_Previous");
+    };
+  }
+
+  public final func PlaySwapWeaponsAnimation() -> Void {
+    this.PlayLibraryAnimation(n"Weapon_Swap");
+  }
+}

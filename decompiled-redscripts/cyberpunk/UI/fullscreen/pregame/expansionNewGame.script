@@ -1,0 +1,219 @@
+
+public class ExpansionNewGame extends BaseCharacterCreationController {
+
+  public edit let m_newGameDescription: inkTextRef;
+
+  public edit let m_textureTop: inkImageRef;
+
+  public edit let m_textureBottom: inkImageRef;
+
+  public edit let m_creditsBaseTexture: inkImageRef;
+
+  public edit let m_creditsExpansionTexture: inkImageRef;
+
+  public edit let m_creditsBase: inkWidgetRef;
+
+  public edit let m_creditsExpansion: inkWidgetRef;
+
+  public edit let m_creditsHoverFrameLeft: inkWidgetRef;
+
+  public edit let m_creditsHoverFrameRight: inkWidgetRef;
+
+  private edit let m_introAnimation: CName;
+
+  private edit let m_outroAnimation: CName;
+
+  private edit let m_hoverAnimation: CName;
+
+  private let m_animationProxy: ref<inkAnimProxy>;
+
+  private let translationAnimationCtrl: wref<inkTextReplaceController>;
+
+  private let localizedText: String;
+
+  private let m_lastShownPart: CName;
+
+  private let m_baseGameButtonHovered: Bool;
+
+  private let m_standaloneButtonHovered: Bool;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_baseGameButton: inkWidgetRef;
+
+  @runtimeProperty("category", "Buttons")
+  private edit let m_standaloneButton: inkWidgetRef;
+
+  @default(ExpansionNewGame, false)
+  private let m_isInputLocked: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.GetCharacterCustomizationSystem().InitializeState();
+    super.OnInitialize();
+    inkWidgetRef.RegisterToCallback(this.m_baseGameButton, n"OnHoverOver", this, n"OnHoverOverBaseGame");
+    inkWidgetRef.RegisterToCallback(this.m_baseGameButton, n"OnHoverOut", this, n"OnHoverOutBaseGame");
+    inkWidgetRef.RegisterToCallback(this.m_baseGameButton, n"OnPress", this, n"OnPressBaseGame");
+    inkWidgetRef.RegisterToCallback(this.m_standaloneButton, n"OnHoverOver", this, n"OnHoverOverExpansion");
+    inkWidgetRef.RegisterToCallback(this.m_standaloneButton, n"OnHoverOut", this, n"OnHoverOutExpansion");
+    inkWidgetRef.RegisterToCallback(this.m_standaloneButton, n"OnPress", this, n"OnPressExpansion");
+    inkWidgetRef.RegisterToCallback(this.m_creditsBase, n"OnHoverOver", this, n"OnHoverOverBaseCredits");
+    inkWidgetRef.RegisterToCallback(this.m_creditsBase, n"OnHoverOut", this, n"OnHoverOutBaseCredits");
+    inkWidgetRef.RegisterToCallback(this.m_creditsBase, n"OnPress", this, n"OnCredits");
+    inkWidgetRef.RegisterToCallback(this.m_creditsExpansion, n"OnHoverOver", this, n"OnHoverOverExpansionCredits");
+    inkWidgetRef.RegisterToCallback(this.m_creditsExpansion, n"OnHoverOut", this, n"OnHoverOutExpansionCredits");
+    inkWidgetRef.RegisterToCallback(this.m_creditsExpansion, n"OnPress", this, n"OnCreditsEp1");
+    this.OnIntro();
+  }
+
+  protected cb func OnCreditsEp1(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_eventDispatcher.SpawnEvent(n"OnSwitchToCreditsEp1");
+    };
+  }
+
+  protected cb func OnCredits(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_eventDispatcher.SpawnEvent(n"OnSwitchToCredits");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+    inkWidgetRef.UnregisterFromCallback(this.m_baseGameButton, n"OnHoverOver", this, n"OnHoverOverBaseGame");
+    inkWidgetRef.UnregisterFromCallback(this.m_baseGameButton, n"OnHoverOut", this, n"OnHoverOutBaseGame");
+    inkWidgetRef.UnregisterFromCallback(this.m_baseGameButton, n"OnPress", this, n"OnPressBaseGame");
+    inkWidgetRef.UnregisterFromCallback(this.m_standaloneButton, n"OnHoverOver", this, n"OnHoverOverExpansion");
+    inkWidgetRef.UnregisterFromCallback(this.m_standaloneButton, n"OnHoverOut", this, n"OnHoverOutExpansion");
+    inkWidgetRef.UnregisterFromCallback(this.m_standaloneButton, n"OnPress", this, n"OnPressExpansion");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsBase, n"OnHoverOver", this, n"OnHoverOverBaseCredits");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsBase, n"OnHoverOut", this, n"OnHoverOutBaseCredits");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsBase, n"OnPress", this, n"OnPressBaseCredits");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsExpansion, n"OnHoverOver", this, n"OnHoverOverExpansionCredits");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsExpansion, n"OnHoverOut", this, n"OnHoverOutExpansionCredits");
+    inkWidgetRef.UnregisterFromCallback(this.m_creditsExpansion, n"OnPress", this, n"OnPressExpansionCredits");
+  }
+
+  protected cb func OnPressBaseGame(evt: ref<inkPointerEvent>) -> Bool {
+    if (evt.IsAction(n"click") || evt.IsAction(n"tap") && this.m_baseGameButtonHovered) && !this.m_isInputLocked {
+      this.m_characterCustomizationState.SetIsExpansionStandalone(false);
+      this.PlaySound(n"Button", n"OnPress");
+      this.NextMenu();
+    };
+    if evt.IsAction(n"tap") {
+      this.m_baseGameButtonHovered = true;
+    };
+  }
+
+  protected cb func OnPressExpansion(evt: ref<inkPointerEvent>) -> Bool {
+    if (evt.IsAction(n"click") || evt.IsAction(n"tap") && this.m_standaloneButtonHovered) && !this.m_isInputLocked {
+      this.m_characterCustomizationState.SetIsExpansionStandalone(true);
+      this.PlaySound(n"Button", n"OnPress");
+      this.NextMenu();
+    };
+    if evt.IsAction(n"tap") {
+      this.m_standaloneButtonHovered = true;
+    };
+  }
+
+  private final func TextureTransition(part: CName) -> Void {
+    if NotEquals(this.m_lastShownPart, part) {
+      this.m_lastShownPart = part;
+      inkImageRef.SetTexturePart(this.m_textureBottom, inkImageRef.GetTexturePart(this.m_textureTop));
+      inkWidgetRef.SetOpacity(this.m_textureTop, 0.00);
+      inkImageRef.SetTexturePart(this.m_textureTop, part);
+      this.PlayLibraryAnimation(n"hoverAnimation");
+    };
+  }
+
+  protected cb func OnHoverOverBaseCredits(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_creditsHoverFrameLeft, true);
+    inkWidgetRef.Get(this.m_creditsBaseTexture).SetEffectEnabled(inkEffectType.Glitch, n"Glitch_0", true);
+    this.PlayLibraryAnimation(n"hoverBaseCredits");
+  }
+
+  protected cb func OnHoverOutBaseCredits(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_creditsHoverFrameLeft, false);
+    inkWidgetRef.Get(this.m_creditsBaseTexture).SetEffectEnabled(inkEffectType.Glitch, n"Glitch_0", false);
+    this.PlayLibraryAnimation(n"hoverOutBaseCredits");
+  }
+
+  protected cb func OnHoverOverExpansionCredits(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_creditsHoverFrameRight, true);
+    inkWidgetRef.Get(this.m_creditsExpansionTexture).SetEffectEnabled(inkEffectType.Glitch, n"Glitch_0", true);
+    this.PlayLibraryAnimation(n"hoverExpansionCredits");
+  }
+
+  protected cb func OnHoverOutExpansionCredits(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_creditsHoverFrameRight, false);
+    inkWidgetRef.Get(this.m_creditsExpansionTexture).SetEffectEnabled(inkEffectType.Glitch, n"Glitch_0", false);
+    this.PlayLibraryAnimation(n"hoverOutExpansionCredits");
+  }
+
+  protected cb func OnHoverOverBaseGame(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(n"flow_base_game");
+    this.localizedText = GetLocalizedText("LocKey#93618");
+    this.translationAnimationCtrl.SetBaseText("...");
+    this.translationAnimationCtrl = inkWidgetRef.GetController(this.m_newGameDescription) as inkTextReplaceController;
+    this.translationAnimationCtrl.SetTargetText(this.localizedText);
+    this.translationAnimationCtrl.PlaySetAnimation();
+  }
+
+  protected cb func OnHoverOutBaseGame(e: ref<inkPointerEvent>) -> Bool {
+    this.m_baseGameButtonHovered = false;
+  }
+
+  protected cb func OnHoverOverExpansion(e: ref<inkPointerEvent>) -> Bool {
+    this.TextureTransition(n"flow_ep");
+    this.localizedText = GetLocalizedText("LocKey#93620");
+    this.translationAnimationCtrl.SetBaseText("...");
+    this.translationAnimationCtrl = inkWidgetRef.GetController(this.m_newGameDescription) as inkTextReplaceController;
+    this.translationAnimationCtrl.SetTargetText(this.localizedText);
+    this.translationAnimationCtrl.PlaySetAnimation();
+  }
+
+  protected cb func OnHoverOutExpansion(e: ref<inkPointerEvent>) -> Bool {
+    this.m_standaloneButtonHovered = false;
+  }
+
+  protected func PriorMenu() -> Void {
+    this.GetTelemetrySystem().LogInitialChoiceSetStatege(telemetryInitalChoiceStage.None);
+    this.GetCharacterCustomizationSystem().ClearState();
+    super.PriorMenu();
+  }
+
+  protected func NextMenu() -> Void {
+    this.m_isInputLocked = true;
+    this.OnOutro();
+  }
+
+  private final func OnIntro() -> Void {
+    this.PlayAnim(this.m_introAnimation, n"OnIntroComplete");
+    this.PlaySound(n"CharacterCreationConfirmationAnimation", n"OnOpen");
+  }
+
+  private final func OnOutro() -> Void {
+    let animOptions: inkAnimOptions;
+    animOptions.playReversed = false;
+    this.PlayAnim(this.m_outroAnimation, n"OnOutroComplete", animOptions);
+  }
+
+  protected cb func OnOutroComplete(anim: ref<inkAnimProxy>) -> Bool {
+    this.NextMenu();
+  }
+
+  protected cb func OnIntroComplete(anim: ref<inkAnimProxy>) -> Bool {
+    inkWidgetRef.SetInteractive(this.m_creditsBase, true);
+    inkWidgetRef.SetInteractive(this.m_creditsExpansion, true);
+    inkWidgetRef.SetInteractive(this.m_baseGameButton, true);
+    inkWidgetRef.SetInteractive(this.m_standaloneButton, true);
+  }
+
+  public final func PlayAnim(animName: CName, opt callBack: CName, opt options: inkAnimOptions) -> Void {
+    if IsDefined(this.m_animationProxy) && this.m_animationProxy.IsPlaying() {
+      this.m_animationProxy.Stop();
+    };
+    this.m_animationProxy = this.PlayLibraryAnimation(animName, options);
+    if NotEquals(callBack, n"None") {
+      this.m_animationProxy.RegisterToCallback(inkanimEventType.OnFinish, this, callBack);
+    };
+  }
+}

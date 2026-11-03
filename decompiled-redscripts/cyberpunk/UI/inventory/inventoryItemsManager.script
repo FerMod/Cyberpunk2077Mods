@@ -1,0 +1,523 @@
+
+public class UIInventoryItemsManager extends IScriptable {
+
+  private let m_iconsNameResolver: ref<IconsNameResolver>;
+
+  private let m_useMaleIcons: Bool;
+
+  private let m_ammoTypeCache: ref<inkIntHashMap>;
+
+  private let m_statsMapCache: ref<inkWeakHashMap>;
+
+  private let m_statsPropertiesCache: ref<inkHashMap>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_transactionSystem: ref<TransactionSystem>;
+
+  private let m_statsDataSystem: ref<StatsDataSystem>;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_inventoryManager: wref<InventoryManager>;
+
+  private let m_equipmentSystem: wref<EquipmentSystem>;
+
+  private let m_equippedItemsFetched: Bool;
+
+  private let m_equippedItems: [ItemID];
+
+  private let m_transmogItemsFetched: Bool;
+
+  private let m_transmogItems: [ItemID];
+
+  private let m_maxStatValuesData: [ref<WeaponMaxStatValueData>];
+
+  private let m_notSellableTags: [CName];
+
+  private let m_TEMP_cuverBarsEnabled: Bool;
+
+  private let m_TEMP_separatorBarsEnabled: Bool;
+
+  public final static func Make(player: wref<PlayerPuppet>, transactionSystem: ref<TransactionSystem>, uiScriptableSystem: wref<UIScriptableSystem>) -> ref<UIInventoryItemsManager> {
+    let instance: ref<UIInventoryItemsManager> = new UIInventoryItemsManager();
+    instance.m_transactionSystem = transactionSystem;
+    instance.m_uiScriptableSystem = uiScriptableSystem;
+    instance.m_iconsNameResolver = IconsNameResolver.GetIconsNameResolver();
+    instance.m_useMaleIcons = Equals(UIGenderHelper.GetIconGender(player), ItemIconGender.Male);
+    instance.m_statsDataSystem = GameInstance.GetStatsDataSystem(player.GetGame());
+    instance.m_inventoryManager = GameInstance.GetInventoryManager(player.GetGame());
+    instance.m_equipmentSystem = EquipmentSystem.GetInstance(player);
+    instance.AttachPlayer(player);
+    instance.m_ammoTypeCache = new inkIntHashMap();
+    instance.m_statsMapCache = new inkWeakHashMap();
+    instance.m_statsPropertiesCache = new inkHashMap();
+    instance.PopulatemaxStatValues();
+    instance.m_notSellableTags = TweakDBInterface.GetCNameArray(t"RTDB.Vendor.customerFilterTags");
+    ArrayRemove(instance.m_notSellableTags, n"Cyberware");
+    return instance;
+  }
+
+  public final func AttachPlayer(player: wref<PlayerPuppet>) -> Void {
+    this.m_player = player;
+  }
+
+  public final func GetAttachedPlayer() -> wref<PlayerPuppet> {
+    return this.m_player;
+  }
+
+  public final func GetPlayerBufferSize() -> Float {
+    let playerBufferValue: Float;
+    GameInstance.GetStatsSystem(this.m_player.GetGame()).GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.BufferSize);
+    return playerBufferValue;
+  }
+
+  public final func GetTransactionSystem() -> wref<TransactionSystem> {
+    return this.m_transactionSystem;
+  }
+
+  public final func GetInventoryManager() -> wref<InventoryManager> {
+    return this.m_inventoryManager;
+  }
+
+  public final func SetCuverBarsEnabled(value: Bool) -> Void {
+    this.m_TEMP_cuverBarsEnabled = value;
+  }
+
+  public final func GetCurveBarsEnabled() -> Bool {
+    return this.m_TEMP_cuverBarsEnabled;
+  }
+
+  public final func SetSeparatorBarsEnabled(value: Bool) -> Void {
+    this.m_TEMP_separatorBarsEnabled = value;
+  }
+
+  public final func GetSeparatorBarsEnabled() -> Bool {
+    return this.m_TEMP_separatorBarsEnabled;
+  }
+
+  private final func PopulatemaxStatValues() -> Void {
+    let element: ref<WeaponMaxStatValueData>;
+    let i: Int32;
+    let limit: Int32;
+    let stats: array<wref<Stat_Record>>;
+    let values: array<Float>;
+    let record: ref<WeaponsTooltipData_Record> = TweakDBInterface.GetWeaponsTooltipDataRecord(t"WeaponsTooltip.TooltipData");
+    record.StatsToCompare(stats);
+    values = record.MaxStatsValue();
+    i = 0;
+    limit = ArraySize(stats);
+    while i < limit {
+      element = new WeaponMaxStatValueData();
+      element.stat = stats[i].StatType();
+      element.value = values[i];
+      ArrayPush(this.m_maxStatValuesData, element);
+      i += 1;
+    };
+  }
+
+  public final func GetWeaponStatMaxValue(stat: gamedataStatType) -> Float {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_maxStatValuesData);
+    while i < limit {
+      if Equals(this.m_maxStatValuesData[i].stat, stat) {
+        return this.m_maxStatValuesData[i].value;
+      };
+      i += 1;
+    };
+    return -1.00;
+  }
+
+  public final static func ResolveItemIconName(itemTweakID: TweakDBID, itemRecord: wref<Item_Record>, manager: wref<UIInventoryItemsManager>) -> String {
+    let resolver: wref<IconsNameResolver>;
+    let useMaleIcons: Bool;
+    let result: String = itemRecord.IconPath();
+    if IsStringValid(result) {
+      return "UIIcon." + result;
+    };
+    resolver = IsDefined(manager) ? manager.m_iconsNameResolver : IconsNameResolver.GetIconsNameResolver();
+    useMaleIcons = IsDefined(manager) ? manager.m_useMaleIcons : false;
+    result = NameToString(resolver.TranslateItemToIconName(itemTweakID, useMaleIcons));
+    if IsStringValid(result) {
+      return "UIIcon." + result;
+    };
+    return result;
+  }
+
+  public final static func ResolveItemIconName(itemTweakID: TweakDBID, itemRecord: wref<Item_Record>, useMaleIcon: Bool) -> String {
+    let useMaleIcons: Bool;
+    let result: String = itemRecord.IconPath();
+    if IsStringValid(result) {
+      return "UIIcon." + result;
+    };
+    result = NameToString(IconsNameResolver.GetIconsNameResolver().TranslateItemToIconName(itemTweakID, useMaleIcons));
+    if IsStringValid(result) {
+      return "UIIcon." + result;
+    };
+    return result;
+  }
+
+  public final static func ResolveItemIconName(itemTweakID: TweakDBID, itemRecord: wref<Item_Record>, player: wref<PlayerPuppet>) -> String {
+    return UIInventoryItemsManager.ResolveItemIconName(itemTweakID, itemRecord, IsDefined(player) ? Equals(UIGenderHelper.GetIconGender(player), ItemIconGender.Male) : false);
+  }
+
+  public final func IsSellable(itemData: ref<gameItemData>) -> Bool {
+    return UIInventoryItemsManager.IsSellableStatic(itemData, this.m_notSellableTags);
+  }
+
+  public final static func IsSellableStatic(itemData: ref<gameItemData>) -> Bool {
+    let tags: array<CName> = TweakDBInterface.GetCNameArray(t"RTDB.Vendor.customerFilterTags");
+    ArrayRemove(tags, n"Cyberware");
+    return UIInventoryItemsManager.IsSellableStatic(itemData, tags);
+  }
+
+  public final static func IsSellableStatic(itemData: ref<gameItemData>, filterTags: script_ref<[CName]>) -> Bool {
+    return !itemData.HasAnyOfTags(Deref(filterTags));
+  }
+
+  public final static func GetAmmo(itemRecord: wref<Item_Record>, opt force: Bool, manager: wref<UIInventoryItemsManager>) -> Int32 {
+    let ammoCount: Int32;
+    let ammoHash: Uint64;
+    let ammoId: ItemID;
+    let category: gamedataItemCategory;
+    let weaponRecord: ref<WeaponItem_Record>;
+    if IsDefined(manager) && manager.m_player != null {
+      category = itemRecord.ItemCategory().Type();
+      if Equals(category, gamedataItemCategory.Weapon) {
+        weaponRecord = itemRecord as WeaponItem_Record;
+        ammoId = ItemID.CreateQuery(weaponRecord.Ammo().GetID());
+        if force {
+          return manager.m_transactionSystem.GetItemQuantity(manager.m_player, ammoId);
+        };
+        ammoHash = ItemID.GetCombinedHash(ammoId);
+        ammoCount = manager.m_ammoTypeCache.Get(ammoHash);
+        if ammoCount >= 0 {
+          return ammoCount;
+        };
+        ammoCount = manager.m_transactionSystem.GetItemQuantity(manager.m_player, ammoId);
+        manager.m_ammoTypeCache.Insert(ammoHash, ammoCount);
+        return ammoCount;
+      };
+    };
+    return -1;
+  }
+
+  public final func FlushAmmoCache() -> Void {
+    this.m_ammoTypeCache.Clear();
+  }
+
+  public final static func GetUIStatsMap(itemType: gamedataItemType, opt manager: wref<UIInventoryItemsManager>) -> wref<UIStatsMap_Record> {
+    let record: wref<UIStatsMap_Record>;
+    let numericItemType: Uint64 = EnumInt(itemType);
+    if IsDefined(manager) {
+      record = manager.m_statsMapCache.Get(numericItemType) as UIStatsMap_Record;
+      if IsDefined(record) {
+        return record;
+      };
+    };
+    record = TweakDBInterface.GetUIStatsMapRecord(TDBID.Create("UIMaps." + EnumValueToString("gamedataItemType", Cast<Int64>(Cast<Int32>(numericItemType)))));
+    if IsDefined(manager) {
+      manager.m_statsMapCache.Insert(numericItemType, record);
+    };
+    return record;
+  }
+
+  public final func GetStatsSystemValueFromCurve(set: CName, curve: CName, value: Float) -> Float {
+    return this.m_statsDataSystem.GetValueFromCurve(set, value, curve);
+  }
+
+  public final static func GetUIStatProperties(statType: gamedataStatType, opt manager: wref<UIInventoryItemsManager>) -> ref<UIItemStatProperties> {
+    let instance: ref<UIItemStatProperties> = new UIItemStatProperties();
+    let statId: TweakDBID = TDBID.Create("BaseStats." + EnumValueToString("gamedataStatType", Cast<Int64>(EnumInt(statType))));
+    instance = UIItemStatProperties.Make(TweakDBInterface.GetString(statId + t".localizedName", ""), TweakDBInterface.GetInt(statId + t".decimalPlaces", 2), TweakDBInterface.GetBool(statId + t".displayPercent", false), TweakDBInterface.GetBool(statId + t".displayPlus", false), TweakDBInterface.GetBool(statId + t".inMeters", false), TweakDBInterface.GetBool(statId + t".inSeconds", false), TweakDBInterface.GetBool(statId + t".inSpeed", false), TweakDBInterface.GetBool(statId + t".multiplyBy100InText", false), TweakDBInterface.GetBool(statId + t".roundValue", false), manager != null ? manager.GetWeaponStatMaxValue(statType) : -1.00, TweakDBInterface.GetBool(statId + t".shouldFlipNegativeValue", false));
+    return instance;
+  }
+
+  public final static func GetUIStatProperties(statType: gamedataStatType, roundValue: Bool, opt manager: wref<UIInventoryItemsManager>) -> ref<UIItemStatProperties> {
+    let instance: ref<UIItemStatProperties> = new UIItemStatProperties();
+    let statId: TweakDBID = TDBID.Create("BaseStats." + EnumValueToString("gamedataStatType", Cast<Int64>(EnumInt(statType))));
+    instance = UIItemStatProperties.Make(TweakDBInterface.GetString(statId + t".localizedName", ""), TweakDBInterface.GetInt(statId + t".decimalPlaces", 2), TweakDBInterface.GetBool(statId + t".displayPercent", false), TweakDBInterface.GetBool(statId + t".displayPlus", false), TweakDBInterface.GetBool(statId + t".inMeters", false), TweakDBInterface.GetBool(statId + t".inSeconds", false), TweakDBInterface.GetBool(statId + t".inSpeed", false), TweakDBInterface.GetBool(statId + t".multiplyBy100InText", false), roundValue, manager != null ? manager.GetWeaponStatMaxValue(statType) : -1.00, TweakDBInterface.GetBool(statId + t".shouldFlipNegativeValue", false));
+    return instance;
+  }
+
+  public final func GetCachedUIStatProperties(statType: gamedataStatType) -> wref<UIItemStatProperties> {
+    let instance: ref<UIItemStatProperties> = this.m_statsPropertiesCache.Get(EnumInt(statType)) as UIItemStatProperties;
+    if IsDefined(instance) {
+      return instance;
+    };
+    instance = UIInventoryItemsManager.GetUIStatProperties(statType, this);
+    this.m_statsPropertiesCache.Insert(EnumInt(statType), instance);
+    return instance;
+  }
+
+  public final func GetCachedUIStatProperties(statType: gamedataStatType, roundValue: Bool) -> wref<UIItemStatProperties> {
+    let instance: ref<UIItemStatProperties> = this.m_statsPropertiesCache.Get(EnumInt(statType)) as UIItemStatProperties;
+    if IsDefined(instance) {
+      return instance;
+    };
+    instance = UIInventoryItemsManager.GetUIStatProperties(statType, roundValue, this);
+    this.m_statsPropertiesCache.Insert(EnumInt(statType), instance);
+    return instance;
+  }
+
+  public final func FlushStatMaps() -> Void {
+    this.m_statsMapCache.Clear();
+  }
+
+  public final func GetCachedEquippedItems() -> [ItemID] {
+    let cyberwarEquipmentAreas: array<gamedataEquipmentArea>;
+    let i: Int32;
+    let j: Int32;
+    let jLimit: Int32;
+    let limit: Int32;
+    let playerData: ref<EquipmentSystemPlayerData>;
+    if this.m_equippedItemsFetched {
+      return this.m_equippedItems;
+    };
+    playerData = this.m_equipmentSystem.GetPlayerData(this.m_player);
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Head, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Face, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.OuterChest, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.InnerChest, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Legs, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Feet, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Outfit, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 0));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 1));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 2));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 3));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 4));
+    ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, 5));
+    ArrayPush(this.m_equippedItems, playerData.GetActiveConsumable());
+    ArrayPush(this.m_equippedItems, playerData.GetActiveGadget());
+    cyberwarEquipmentAreas = UIInventoryItemsManager.GetCyberwarEquipmentAreas();
+    i = 0;
+    limit = ArraySize(cyberwarEquipmentAreas);
+    while i < limit {
+      j = 0;
+      jLimit = playerData.GetNumberOfSlots(cyberwarEquipmentAreas[i], true);
+      while j < jLimit {
+        ArrayPush(this.m_equippedItems, playerData.GetItemInEquipSlot(cyberwarEquipmentAreas[i], j));
+        j += 1;
+      };
+      i += 1;
+    };
+    this.m_equippedItemsFetched = true;
+    return this.m_equippedItems;
+  }
+
+  public final func IsItemNew(item: ItemID) -> Bool {
+    return this.m_uiScriptableSystem.IsInventoryItemNew(item);
+  }
+
+  public final func IsItemPlayerFavourite(item: ItemID) -> Bool {
+    return this.m_uiScriptableSystem.IsItemPlayerFavourite(item);
+  }
+
+  public final func IsItemEquipped(itemID: ItemID) -> Bool {
+    if this.m_equippedItemsFetched {
+      return ArrayContains(this.m_equippedItems, itemID);
+    };
+    this.GetCachedEquippedItems();
+    return ArrayContains(this.m_equippedItems, itemID);
+  }
+
+  public final func FlushEquippedItems() -> Void {
+    ArrayClear(this.m_equippedItems);
+    this.m_equippedItemsFetched = false;
+  }
+
+  public final func GetNumberOfSlots(equipmentArea: gamedataEquipmentArea) -> Int32 {
+    return EquipmentSystem.GetInstance(this.m_player).GetPlayerData(this.m_player).GetNumberOfSlots(equipmentArea, true);
+  }
+
+  public final func GetRawEquippedItems(equipmentArea: gamedataEquipmentArea) -> [ItemID] {
+    let i: Int32;
+    let limit: Int32;
+    let numberOfSlots: Int32;
+    let result: array<ItemID>;
+    let equipmentSystem: ref<EquipmentSystem> = EquipmentSystem.GetInstance(this.m_player);
+    let playerData: ref<EquipmentSystemPlayerData> = equipmentSystem.GetPlayerData(this.m_player);
+    if Equals(equipmentArea, gamedataEquipmentArea.Consumable) {
+      ArrayPush(result, equipmentSystem.GetItemIDFromHotkey(this.m_player, EHotkey.DPAD_UP));
+      return result;
+    };
+    numberOfSlots = playerData.GetNumberOfSlots(equipmentArea, true);
+    i = 0;
+    limit = numberOfSlots;
+    while i < limit {
+      ArrayPush(result, playerData.GetItemInEquipSlot(equipmentArea, i));
+      i += 1;
+    };
+    return result;
+  }
+
+  public final func GetRawEquippedWeapons(opt onlyRightHandWeapons: Bool) -> [ItemID] {
+    let result: array<ItemID>;
+    let equipmentSystem: ref<EquipmentSystem> = EquipmentSystem.GetInstance(this.m_player);
+    let playerData: ref<EquipmentSystemPlayerData> = equipmentSystem.GetPlayerData(this.m_player);
+    let numberOfSlots: Int32 = onlyRightHandWeapons ? 3 : 6;
+    let i: Int32 = 0;
+    while i < numberOfSlots {
+      ArrayPush(result, playerData.GetItemInEquipSlot(gamedataEquipmentArea.Weapon, i));
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func AddTransmogIfNotEmpty(itemID: ItemID) -> Void {
+    if ItemID.IsValid(itemID) {
+      ArrayPush(this.m_transmogItems, itemID);
+    };
+  }
+
+  public final func GetCachedTransmogItems() -> [ItemID] {
+    let equipmentSystem: ref<EquipmentSystem>;
+    let playerData: ref<EquipmentSystemPlayerData>;
+    if this.m_transmogItemsFetched {
+      return this.m_transmogItems;
+    };
+    equipmentSystem = EquipmentSystem.GetInstance(this.m_player);
+    playerData = equipmentSystem.GetPlayerData(this.m_player);
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.Head));
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.Face));
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.OuterChest));
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.InnerChest));
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.Legs));
+    this.AddTransmogIfNotEmpty(playerData.GetSlotOverridenVisualItem(gamedataEquipmentArea.Feet));
+    this.m_transmogItemsFetched = true;
+    return this.m_transmogItems;
+  }
+
+  public final func IsItemTransmog(itemID: ItemID) -> Bool {
+    if this.m_transmogItemsFetched {
+      return ArrayContains(this.m_transmogItems, itemID);
+    };
+    this.GetCachedTransmogItems();
+    return ArrayContains(this.m_transmogItems, itemID);
+  }
+
+  public final func FlushTransmogItems() -> Void {
+    ArrayClear(this.m_transmogItems);
+    this.m_transmogItemsFetched = false;
+  }
+
+  public final func HasPairedWeapon(itemID: ItemID) -> Bool {
+    let playerData: ref<EquipmentSystemPlayerData> = this.m_equipmentSystem.GetPlayerData(this.m_player);
+    return playerData.GetInventoryManager().HasPairedWeapon(playerData.GetSlotIndex(itemID));
+  }
+
+  public final func IsLeftWeapon(itemID: ItemID) -> Bool {
+    let playerData: ref<EquipmentSystemPlayerData> = this.m_equipmentSystem.GetPlayerData(this.m_player);
+    return playerData.GetInventoryManager().IsLeftWeapon(playerData.GetSlotIndex(itemID));
+  }
+
+  public final func CanDualWield(data: wref<gameItemData>) -> Bool {
+    let playerData: ref<EquipmentSystemPlayerData> = this.m_equipmentSystem.GetPlayerData(this.m_player);
+    return playerData.GetInventoryManager().CanDualWield(data);
+  }
+
+  public final static func IsItemTypeWeapon(itemType: gamedataItemType) -> Bool {
+    return NotEquals(UIInventoryItemsManager.GetItemTypeWeapon(itemType), WeaponType.Invalid);
+  }
+
+  public final static func GetItemTypeWeapon(itemType: gamedataItemType) -> WeaponType {
+    if UIInventoryItemsManager.IsItemTypeRangedWeapon(itemType) {
+      return WeaponType.Ranged;
+    };
+    if UIInventoryItemsManager.IsItemTypeMeleeWeapon(itemType) {
+      return WeaponType.Melee;
+    };
+    return WeaponType.Invalid;
+  }
+
+  public final static func GetBlacklistedTags() -> [CName] {
+    let tags: array<CName>;
+    ArrayPush(tags, n"SoftwareShsard");
+    ArrayPush(tags, n"TppHead");
+    ArrayPush(tags, n"HideInUI");
+    ArrayPush(tags, n"Currency");
+    ArrayPush(tags, n"Ammo");
+    ArrayPush(tags, n"base_fists");
+    return tags;
+  }
+
+  public final static func GetStashBlacklistedTags() -> [CName] {
+    let tags: array<CName>;
+    ArrayPush(tags, n"HideInBackpackUI");
+    ArrayPush(tags, n"Grenade");
+    ArrayPush(tags, n"Inhaler");
+    ArrayPush(tags, n"Injector");
+    return tags;
+  }
+
+  public final static func GetCyberwarEquipmentAreas() -> [gamedataEquipmentArea] {
+    let result: array<gamedataEquipmentArea>;
+    ArrayPush(result, gamedataEquipmentArea.FrontalCortexCW);
+    ArrayPush(result, gamedataEquipmentArea.SystemReplacementCW);
+    ArrayPush(result, gamedataEquipmentArea.ArmsCW);
+    ArrayPush(result, gamedataEquipmentArea.EyesCW);
+    ArrayPush(result, gamedataEquipmentArea.MusculoskeletalSystemCW);
+    ArrayPush(result, gamedataEquipmentArea.HandsCW);
+    ArrayPush(result, gamedataEquipmentArea.NervousSystemCW);
+    ArrayPush(result, gamedataEquipmentArea.CardiovascularSystemCW);
+    ArrayPush(result, gamedataEquipmentArea.IntegumentarySystemCW);
+    ArrayPush(result, gamedataEquipmentArea.LegsCW);
+    ArrayPush(result, gamedataEquipmentArea.ArmsCWStyle);
+    return result;
+  }
+
+  public final static func IsItemTypeCyberwareWeapon(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Cyb_Launcher) || Equals(itemType, gamedataItemType.Cyb_MantisBlades) || Equals(itemType, gamedataItemType.Cyb_NanoWires) || Equals(itemType, gamedataItemType.Cyb_StrongArms);
+  }
+
+  public final static func IsItemTypeCyberware(itemType: gamedataItemType) -> Bool {
+    return UIInventoryItemsManager.IsItemTypeCyberwareWeapon(itemType) || Equals(itemType, gamedataItemType.Cyberware) || Equals(itemType, gamedataItemType.Cyb_Ability) || Equals(itemType, gamedataItemType.Cyb_HealingAbility);
+  }
+
+  public final static func IsItemTypeCloting(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Clo_Face) || Equals(itemType, gamedataItemType.Clo_Feet) || Equals(itemType, gamedataItemType.Clo_Head) || Equals(itemType, gamedataItemType.Clo_InnerChest) || Equals(itemType, gamedataItemType.Clo_Legs) || Equals(itemType, gamedataItemType.Clo_OuterChest) || Equals(itemType, gamedataItemType.Clo_Outfit);
+  }
+
+  public final static func IsItemTypeGrenade(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Gad_Grenade);
+  }
+
+  public final static func IsItemTypeMeleeWeapon(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Wea_TwoHandedClub) || Equals(itemType, gamedataItemType.Wea_ShortBlade) || Equals(itemType, gamedataItemType.Wea_OneHandedClub) || Equals(itemType, gamedataItemType.Wea_Melee) || Equals(itemType, gamedataItemType.Wea_LongBlade) || Equals(itemType, gamedataItemType.Wea_Katana) || Equals(itemType, gamedataItemType.Wea_Sword) || Equals(itemType, gamedataItemType.Wea_Knife) || Equals(itemType, gamedataItemType.Wea_Axe) || Equals(itemType, gamedataItemType.Wea_Chainsword) || Equals(itemType, gamedataItemType.Wea_Machete) || Equals(itemType, gamedataItemType.Wea_Fists) || Equals(itemType, gamedataItemType.Wea_Hammer);
+  }
+
+  public final static func IsItemTypeRangedWeapon(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Wea_AssaultRifle) || Equals(itemType, gamedataItemType.Wea_Handgun) || Equals(itemType, gamedataItemType.Wea_HeavyMachineGun) || Equals(itemType, gamedataItemType.Wea_LightMachineGun) || Equals(itemType, gamedataItemType.Wea_PrecisionRifle) || Equals(itemType, gamedataItemType.Wea_Revolver) || Equals(itemType, gamedataItemType.Wea_Rifle) || Equals(itemType, gamedataItemType.Wea_Shotgun) || Equals(itemType, gamedataItemType.Wea_ShotgunDual) || Equals(itemType, gamedataItemType.Wea_SniperRifle) || Equals(itemType, gamedataItemType.Wea_SubmachineGun);
+  }
+
+  public final static func ShouldHideTier(itemType: gamedataItemType) -> Bool {
+    return Equals(itemType, gamedataItemType.Clo_Face) || Equals(itemType, gamedataItemType.Clo_Feet) || Equals(itemType, gamedataItemType.Clo_Head) || Equals(itemType, gamedataItemType.Clo_InnerChest) || Equals(itemType, gamedataItemType.Clo_Legs) || Equals(itemType, gamedataItemType.Clo_OuterChest) || Equals(itemType, gamedataItemType.Clo_Outfit) || Equals(itemType, gamedataItemType.Con_Ammo) || Equals(itemType, gamedataItemType.Con_Edible) || Equals(itemType, gamedataItemType.Gen_Keycard) || Equals(itemType, gamedataItemType.Gen_Misc) || Equals(itemType, gamedataItemType.Gen_Tarot) || Equals(itemType, gamedataItemType.Gen_Jewellery) || Equals(itemType, gamedataItemType.Gen_Junk) || Equals(itemType, gamedataItemType.Gen_Readable);
+  }
+
+  public final static func QualityToInt(quality: gamedataQuality) -> Int32 {
+    return UIItemsHelper.QualityEnumToInt(quality);
+  }
+
+  public final static func QualityToName(quality: gamedataQuality) -> CName {
+    return UIItemsHelper.QualityEnumToName(quality);
+  }
+
+  public final static func QualityFromInt(quality: Int32) -> gamedataQuality {
+    switch quality {
+      case 0:
+        return gamedataQuality.Common;
+      case 1:
+        return gamedataQuality.Uncommon;
+      case 2:
+        return gamedataQuality.Rare;
+      case 3:
+        return gamedataQuality.Epic;
+      case 4:
+        return gamedataQuality.Legendary;
+      case 5:
+        return gamedataQuality.Iconic;
+    };
+    return gamedataQuality.Invalid;
+  }
+}

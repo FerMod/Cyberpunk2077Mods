@@ -1,0 +1,605 @@
+
+public class VendorHubMenuGameController extends gameuiMenuGameController {
+
+  private edit let m_notificationRoot: inkWidgetRef;
+
+  @runtimeProperty("category", "Center")
+  private edit let m_centerContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Center")
+  private edit let m_tabRootContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Center")
+  private edit let m_tabRootRef: inkWidgetRef;
+
+  @runtimeProperty("category", "Right")
+  private edit let m_playerCredits: inkWidgetRef;
+
+  @runtimeProperty("category", "Right")
+  private edit let m_playerCreditsValue: inkTextRef;
+
+  @runtimeProperty("category", "Right")
+  private edit let m_playerWeight: inkWidgetRef;
+
+  @runtimeProperty("category", "Right")
+  private edit let m_playerWeightValue: inkTextRef;
+
+  @runtimeProperty("category", "Right")
+  private edit let m_vendorShopLabel: inkTextRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_leftContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_levelValue: inkTextRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_streetCredLabel: inkTextRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_levelBarProgress: inkWidgetRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_levelBarSpacer: inkWidgetRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_streetCredBarProgress: inkWidgetRef;
+
+  @runtimeProperty("category", "Left")
+  private edit let m_streetCredBarSpacer: inkWidgetRef;
+
+  private let m_VendorDataManager: ref<VendorDataManager>;
+
+  private let m_vendorUserData: ref<VendorUserData>;
+
+  private let m_vendorPanelData: ref<VendorPanelData>;
+
+  private let m_storageUserData: ref<StorageUserData>;
+
+  private let m_PDS: ref<PlayerDevelopmentSystem>;
+
+  private let m_root: wref<inkWidget>;
+
+  private let m_tabRoot: wref<TabRadioGroup>;
+
+  private let m_playerMoneyAnimator: wref<MoneyLabelController>;
+
+  private let m_isRipperdoc: Bool;
+
+  private let m_isRipperdocViktorTutorial: Bool;
+
+  private let m_statusEffectSystem: wref<StatusEffectSystem>;
+
+  private let m_questSystem: wref<QuestsSystem>;
+
+  private let m_equipAnimationCategories: [ref<RipperdocCyberwareEquipAnimationCategory>];
+
+  private let m_docTimeDilationCallback: ref<RipperdocTimeDilationCallback>;
+
+  private let m_timeDilationEnabling: Bool;
+
+  private let m_isGlamdoc: Bool;
+
+  @default(VendorHubMenuGameController, glamdoc_customized)
+  private let m_glamdocCustomizationFact: CName;
+
+  public let m_VendorBlackboard: wref<IBlackboard>;
+
+  public let m_playerStatsBlackboard: wref<IBlackboard>;
+
+  public let m_VendorBlackboardDef: ref<UI_VendorDef>;
+
+  public let m_VendorUpdatedCallbackID: ref<CallbackHandle>;
+
+  public let m_weightListener: ref<CallbackHandle>;
+
+  public let m_characterLevelListener: ref<CallbackHandle>;
+
+  public let m_characterCurrentXPListener: ref<CallbackHandle>;
+
+  public let m_characterCredListener: ref<CallbackHandle>;
+
+  public let m_characterCredPointsListener: ref<CallbackHandle>;
+
+  public let m_characterCurrentHealthListener: ref<CallbackHandle>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_menuData: [MenuData];
+
+  private let m_activeMenu: Int32;
+
+  private let m_isChangedManually: Bool;
+
+  private let m_cameFromRipperdoc: Bool;
+
+  private let m_storageDef: ref<StorageBlackboardDef>;
+
+  private let m_storageBlackboard: wref<IBlackboard>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.SpawnFromLocal(inkWidgetRef.Get(this.m_notificationRoot), n"notification_layer");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let vendorData: VendorData;
+    if this.m_isRipperdoc || this.m_isGlamdoc {
+      this.UninitializeExtraDocData();
+    };
+    vendorData.isActive = false;
+    this.m_VendorBlackboard.SetVariant(GetAllBlackboardDefs().UI_Vendor.VendorData, ToVariant(vendorData), true);
+    this.RemoveBB();
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let requestStatsEvent: ref<RequestStatsBB>;
+    let vendorData: VendorData;
+    let vendorPanelData: ref<VendorPanelData>;
+    this.m_storageDef = GetAllBlackboardDefs().StorageBlackboard;
+    this.m_storageBlackboard = this.GetBlackboardSystem().Get(this.m_storageDef);
+    let storageUserData: ref<StorageUserData> = FromVariant<ref<StorageUserData>>(this.m_storageBlackboard.GetVariant(this.m_storageDef.StorageData));
+    if userData == null && storageUserData == null {
+      return false;
+    };
+    vendorPanelData = userData as VendorPanelData;
+    this.m_storageUserData = storageUserData;
+    if IsDefined(vendorPanelData) {
+      vendorData = vendorPanelData.data;
+      this.m_vendorUserData = new VendorUserData();
+      this.m_vendorUserData.vendorData = vendorPanelData;
+      this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+      this.m_PDS = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"PlayerDevelopmentSystem") as PlayerDevelopmentSystem;
+      this.m_VendorDataManager = new VendorDataManager();
+      this.m_VendorDataManager.Initialize(this.GetPlayerControlledObject(), vendorData.entityID);
+      requestStatsEvent = new RequestStatsBB();
+      requestStatsEvent.Set(this.m_player);
+      this.m_PDS.QueueRequest(requestStatsEvent);
+      this.Init();
+    } else {
+      if IsDefined(storageUserData) {
+        this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+        this.m_PDS = GameInstance.GetScriptableSystemsContainer(this.m_player.GetGame()).Get(n"PlayerDevelopmentSystem") as PlayerDevelopmentSystem;
+        this.m_VendorDataManager = new VendorDataManager();
+        this.m_VendorDataManager.Initialize(this.GetPlayerControlledObject(), vendorData.entityID);
+        requestStatsEvent = new RequestStatsBB();
+        requestStatsEvent.Set(this.m_player);
+        this.m_PDS.QueueRequest(requestStatsEvent);
+        this.Init();
+      };
+    };
+  }
+
+  private final func Init() -> Void {
+    let vendorObject: ref<NPCPuppet>;
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.RegisterToGlobalInputCallback(n"OnPostOnAxis", this, n"OnButtonRelease");
+    this.m_root = this.GetRootWidget();
+    this.m_playerMoneyAnimator = inkWidgetRef.GetController(this.m_playerCreditsValue) as MoneyLabelController;
+    vendorObject = this.m_VendorDataManager.GetVendorInstance() as NPCPuppet;
+    this.m_isRipperdoc = vendorObject.IsRipperdoc();
+    this.m_isGlamdoc = vendorObject.IsGlamdoc();
+    this.m_statusEffectSystem = GameInstance.GetStatusEffectSystem(this.m_player.GetGame());
+    this.m_questSystem = GameInstance.GetQuestsSystem(this.m_player.GetGame());
+    this.SetupMenuTabs(false);
+    this.SetupTopBar();
+    this.SetupBB();
+    this.OnPlayerWeightUpdated(-1.00);
+    if this.m_isRipperdoc || this.m_isGlamdoc {
+      this.InitializeExtraDocData();
+    };
+    inkWidgetRef.SetVisible(this.m_centerContainer, !this.m_isGlamdoc);
+    inkWidgetRef.SetVisible(this.m_leftContainer, !this.m_isGlamdoc);
+  }
+
+  private final func InitializeExtraDocData() -> Void {
+    this.m_isRipperdocViktorTutorial = this.m_VendorDataManager.GetVendorID() == t"Vendors.wat_lch_ripperdoc_01" && this.m_questSystem.GetFact(n"q001_ripperdoc_done") == 0;
+    if !this.m_isRipperdocViktorTutorial {
+      this.m_statusEffectSystem.RemoveStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimationEnd");
+      this.m_statusEffectSystem.RemoveStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimationEndFast");
+      this.m_statusEffectSystem.ApplyStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimationBlackout");
+    };
+    this.InitializeEquipAnimationData();
+    this.m_docTimeDilationCallback = new RipperdocTimeDilationCallback();
+    this.m_docTimeDilationCallback.m_controller = this;
+    GameInstance.GetDelaySystem(this.m_player.GetGame()).DelayCallback(this.m_docTimeDilationCallback, 1.00);
+    this.m_timeDilationEnabling = true;
+  }
+
+  private final func UninitializeExtraDocData() -> Void {
+    this.FinalizeEquipAnimationData();
+    this.SetTimeDilatation(false);
+    ArrayClear(this.m_equipAnimationCategories);
+  }
+
+  private final func InitializeEquipAnimationData() -> Void {
+    let category: ref<RipperdocCyberwareEquipAnimationCategory>;
+    let equipAreas: array<gamedataEquipmentArea>;
+    ArrayClear(this.m_equipAnimationCategories);
+    category = new RipperdocCyberwareEquipAnimationCategory();
+    ArrayPush(equipAreas, gamedataEquipmentArea.ArmsCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.HandsCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.NervousSystemCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.IntegumentarySystemCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.CardiovascularSystemCW);
+    category.SetData(n"ripperdoc_cw_equip_animation_category_hands", equipAreas, 1.00);
+    ArrayPush(this.m_equipAnimationCategories, category);
+    category = new RipperdocCyberwareEquipAnimationCategory();
+    ArrayPush(equipAreas, gamedataEquipmentArea.FrontalCortexCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.SystemReplacementCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.EyesCW);
+    category.SetData(n"ripperdoc_cw_equip_animation_category_vanilla", equipAreas, 2.00);
+    ArrayPush(this.m_equipAnimationCategories, category);
+    category = new RipperdocCyberwareEquipAnimationCategory();
+    ArrayPush(equipAreas, gamedataEquipmentArea.LegsCW);
+    ArrayPush(equipAreas, gamedataEquipmentArea.MusculoskeletalSystemCW);
+    category.SetData(n"ripperdoc_cw_equip_animation_category_legs", equipAreas, 1.50);
+    ArrayPush(this.m_equipAnimationCategories, category);
+    category = new RipperdocCyberwareEquipAnimationCategory();
+    category.SetData(n"ripperdoc_cw_equip_animation_category_generic", equipAreas, 0.20);
+    ArrayPush(this.m_equipAnimationCategories, category);
+  }
+
+  private final func ResetEquipAnimationData() -> Void {
+    let i: Int32;
+    if !IsDefined(this.m_questSystem) {
+      return;
+    };
+    i = 0;
+    while i < ArraySize(this.m_equipAnimationCategories) {
+      this.m_questSystem.SetFact(this.m_equipAnimationCategories[i].m_factName, 0);
+      this.m_equipAnimationCategories[i].m_equipCount = 0;
+      i += 1;
+    };
+    if this.m_isGlamdoc {
+      this.m_questSystem.SetFact(this.m_glamdocCustomizationFact, 0);
+    };
+  }
+
+  private final func UpdateEquipAnimationData(equipArea: gamedataEquipmentArea, isEquip: Bool) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_equipAnimationCategories) {
+      if ArraySize(this.m_equipAnimationCategories[i].m_equipAreas) == 0 || ArrayContains(this.m_equipAnimationCategories[i].m_equipAreas, equipArea) {
+        if isEquip {
+          this.m_equipAnimationCategories[i].m_equipCount += 1;
+        } else {
+          if this.m_equipAnimationCategories[i].m_equipCount > 0 {
+            this.m_equipAnimationCategories[i].m_equipCount -= 1;
+          };
+        };
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  private final func FinalizeEquipAnimationData() -> Void {
+    let i: Int32;
+    let pickedCategory: Int32;
+    let randomFloat: Float;
+    let sum: Float;
+    let thresholds: array<Float>;
+    if !IsDefined(this.m_questSystem) {
+      return;
+    };
+    if this.m_isRipperdocViktorTutorial {
+      return;
+    };
+    i = 0;
+    while i < ArraySize(this.m_equipAnimationCategories) {
+      sum += Cast<Float>(this.m_equipAnimationCategories[i].m_equipCount) * this.m_equipAnimationCategories[i].m_weight;
+      ArrayPush(thresholds, sum);
+      i += 1;
+    };
+    this.ResetEquipAnimationData();
+    if sum <= 0.00 {
+      this.m_statusEffectSystem.RemoveStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimationBlackout");
+      this.m_statusEffectSystem.ApplyStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimationEndFast");
+      return;
+    };
+    if this.m_isGlamdoc {
+      this.m_questSystem.SetFact(this.m_glamdocCustomizationFact, 1);
+    } else {
+      randomFloat = RandRangeF(0.00, sum);
+      i = 0;
+      while i < ArraySize(thresholds) {
+        if randomFloat <= thresholds[i] {
+          pickedCategory = i;
+          break;
+        };
+        i += 1;
+      };
+      this.m_questSystem.SetFact(this.m_equipAnimationCategories[pickedCategory].m_factName, 1);
+    };
+    this.m_statusEffectSystem.ApplyStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.CyberwareInstallationAnimation");
+  }
+
+  public final func SetTimeDilatation(enable: Bool) -> Void {
+    let timeDilationReason: CName = n"VendorStash";
+    let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(this.m_player.GetGame());
+    if IsDefined(timeSystem) {
+      if enable && this.m_timeDilationEnabling {
+        timeSystem.SetTimeDilation(timeDilationReason, 0.00, n"Linear", n"Linear");
+        timeSystem.SetTimeDilationOnLocalPlayerZero(timeDilationReason, 0.00, n"Linear", n"Linear");
+      } else {
+        if !enable {
+          timeSystem.UnsetTimeDilation(timeDilationReason);
+          timeSystem.UnsetTimeDilationOnLocalPlayerZero(timeDilationReason);
+        };
+      };
+      this.m_timeDilationEnabling = false;
+    };
+  }
+
+  private final func SetupBB() -> Void {
+    let vendorData: VendorData;
+    vendorData.isActive = true;
+    this.m_VendorBlackboardDef = GetAllBlackboardDefs().UI_Vendor;
+    this.m_VendorBlackboard = this.GetBlackboardSystem().Get(this.m_VendorBlackboardDef);
+    this.m_VendorBlackboard.SetVariant(GetAllBlackboardDefs().UI_Vendor.VendorData, ToVariant(vendorData), true);
+    this.m_playerStatsBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_PlayerStats);
+    this.m_weightListener = this.m_playerStatsBlackboard.RegisterDelayedListenerFloat(GetAllBlackboardDefs().UI_PlayerStats.currentInventoryWeight, this, n"OnPlayerWeightUpdated");
+    this.m_characterLevelListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.Level, this, n"OnCharacterLevelUpdated");
+    this.m_characterCurrentXPListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.CurrentXP, this, n"OnCharacterLevelCurrentXPUpdated");
+    this.m_playerStatsBlackboard.SignalInt(GetAllBlackboardDefs().UI_PlayerStats.CurrentXP);
+    this.m_characterCredListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.StreetCredLevel, this, n"OnCharacterStreetCredLevelUpdated");
+    this.m_playerStatsBlackboard.SignalInt(GetAllBlackboardDefs().UI_PlayerStats.StreetCredLevel);
+    this.m_characterCredPointsListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.StreetCredPoints, this, n"OnCharacterStreetCredPointsUpdated");
+    this.m_playerStatsBlackboard.SignalInt(GetAllBlackboardDefs().UI_PlayerStats.StreetCredPoints);
+    this.m_playerStatsBlackboard.SignalInt(GetAllBlackboardDefs().UI_PlayerStats.weightMax);
+    this.m_playerStatsBlackboard.SignalInt(GetAllBlackboardDefs().UI_PlayerStats.Level);
+    this.m_characterCurrentHealthListener = this.m_playerStatsBlackboard.RegisterDelayedListenerInt(GetAllBlackboardDefs().UI_PlayerStats.CurrentHealth, this, n"OnCharacterCurrentHealthUpdated");
+    if IsDefined(this.m_VendorBlackboard) {
+      this.m_VendorUpdatedCallbackID = this.m_VendorBlackboard.RegisterDelayedListenerVariant(this.m_VendorBlackboardDef.VendorData, this, n"OnVendorUpdated");
+    };
+  }
+
+  private final func RemoveBB() -> Void {
+    if IsDefined(this.m_VendorBlackboard) {
+      this.m_VendorBlackboard.UnregisterDelayedListener(this.m_VendorBlackboardDef.VendorData, this.m_VendorUpdatedCallbackID);
+    };
+    if IsDefined(this.m_playerStatsBlackboard) {
+      this.m_playerStatsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_PlayerStats.Level, this.m_characterLevelListener);
+      this.m_playerStatsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_PlayerStats.CurrentXP, this.m_characterCurrentXPListener);
+      this.m_playerStatsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_PlayerStats.StreetCredLevel, this.m_characterCredListener);
+      this.m_playerStatsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_PlayerStats.StreetCredPoints, this.m_characterCredPointsListener);
+      this.m_playerStatsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_PlayerStats.CurrentXP, this.m_characterCurrentHealthListener);
+    };
+    this.m_VendorBlackboard = null;
+  }
+
+  private final func SetupTopBar() -> Void {
+    this.UpdateMoney();
+    inkTextRef.SetText(this.m_vendorShopLabel, this.m_VendorDataManager.GetVendorName());
+  }
+
+  protected cb func OnPlayerWeightUpdated(value: Float) -> Bool {
+    let gameInstance: GameInstance = this.m_player.GetGame();
+    let carryCapacity: Int32 = Cast<Int32>(GameInstance.GetStatsSystem(gameInstance).GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.CarryCapacity));
+    inkTextRef.SetText(this.m_playerWeightValue, IntToString(RoundF(this.m_player.m_curInventoryWeight)) + "/" + carryCapacity);
+  }
+
+  protected cb func OnCharacterLevelUpdated(value: Int32) -> Bool {
+    inkTextRef.SetText(this.m_levelValue, IntToString(value));
+  }
+
+  protected cb func OnCharacterLevelCurrentXPUpdated(value: Int32) -> Bool {
+    let remainingXP: Int32 = this.m_PDS.GetRemainingExpForLevelUp(this.m_player, gamedataProficiencyType.Level);
+    let percentageValue: Float = Cast<Float>(value) / Cast<Float>(remainingXP + value);
+    inkWidgetRef.SetSizeCoefficient(this.m_levelBarProgress, percentageValue);
+    inkWidgetRef.SetSizeCoefficient(this.m_levelBarSpacer, 1.00 - percentageValue);
+  }
+
+  protected cb func OnCharacterStreetCredLevelUpdated(value: Int32) -> Bool {
+    inkTextRef.SetText(this.m_streetCredLabel, ToString(value));
+  }
+
+  protected cb func OnCharacterStreetCredPointsUpdated(value: Int32) -> Bool {
+    let remainingXP: Int32 = this.m_PDS.GetRemainingExpForLevelUp(this.m_player, gamedataProficiencyType.StreetCred);
+    let percentageValue: Float = Cast<Float>(value) / Cast<Float>(remainingXP + value);
+    inkWidgetRef.SetSizeCoefficient(this.m_streetCredBarProgress, percentageValue);
+    inkWidgetRef.SetSizeCoefficient(this.m_streetCredBarSpacer, 1.00 - percentageValue);
+  }
+
+  protected cb func OnCharacterCurrentHealthUpdated(value: Int32) -> Bool {
+    if value <= 0 {
+      this.CloseVendor();
+    };
+  }
+
+  private final func SetupMenuTabs(tutorialFinished: Bool) -> Void {
+    let cyberwareTutorial: Bool;
+    let icons: array<String>;
+    let labels: array<String>;
+    let selectedIdentifier: Int32;
+    let isCarftingAvailable: Bool = true;
+    let psmBlackboard: ref<IBlackboard> = this.m_player.GetPlayerStateMachineBlackboard();
+    isCarftingAvailable = psmBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Combat) != 1 && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_player, n"NoCrafting");
+    inkWidgetRef.SetVisible(this.m_tabRootContainer, false);
+    if IsDefined(this.m_vendorUserData) && this.m_isRipperdoc {
+      cyberwareTutorial = this.m_VendorDataManager.GetVendorID() == t"Vendors.wat_lch_ripperdoc_01" && this.m_questSystem.GetFact(n"q001_ripperdoc_done") == 0;
+      cyberwareTutorial = cyberwareTutorial || (this.m_questSystem.GetFact(n"mq048_active") > 0 && this.m_questSystem.GetFact(n"mq048_done") == 0 || this.m_questSystem.GetFact(n"ep1_standalone") > 0) && this.m_questSystem.GetFact(n"ep1_ripperdoc_tutorial_seen") == 0;
+      cyberwareTutorial = cyberwareTutorial && !tutorialFinished;
+      this.m_tabRoot = inkWidgetRef.GetController(this.m_tabRootRef) as TabRadioGroup;
+      if !cyberwareTutorial {
+        ArrayPush(labels, "UI-PanelNames-TRADE");
+      };
+      ArrayPush(labels, "UI-PanelNames-CYBERWARE");
+      if !cyberwareTutorial {
+        ArrayPush(labels, "UI-PanelNames-CHARACTER");
+      };
+      if !cyberwareTutorial && isCarftingAvailable {
+        ArrayPush(labels, "Gameplay-RPG-Skills-CraftingName");
+      };
+      if !cyberwareTutorial {
+        ArrayPush(icons, "ico_cyberware");
+        ArrayPush(icons, "ico_cyberware");
+        ArrayPush(icons, "ico_cyberware");
+      };
+      ArrayPush(icons, "ico_cyberware");
+      this.m_tabRoot.SetData(cyberwareTutorial ? 1 : 4, null, labels, icons);
+      inkWidgetRef.SetVisible(this.m_tabRootContainer, true);
+      this.m_tabRoot.RegisterToCallback(n"OnValueChanged", this, n"OnValueChanged");
+      selectedIdentifier = this.m_isRipperdoc ? 1 : 0;
+      this.m_activeMenu = selectedIdentifier;
+      this.m_tabRoot.Toggle(selectedIdentifier);
+      this.OnValueChanged(this.m_tabRoot, selectedIdentifier);
+    } else {
+      if IsDefined(this.m_vendorUserData) && this.m_isGlamdoc {
+        this.OnValueChanged(this.m_tabRoot, 4);
+      } else {
+        this.m_activeMenu = 0;
+        this.m_vendorUserData.menu = "TRADE";
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToVendor", this.m_vendorUserData);
+      };
+    };
+  }
+
+  protected cb func OnCyberwareModsRequest(evt: ref<CyberwareTabModsRequest>) -> Bool {
+    this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToInventory", evt.wrapper);
+  }
+
+  protected cb func OnValueChanged(controller: wref<inkRadioGroupController>, selectedIndex: Int32) -> Bool {
+    inkWidgetRef.SetVisible(this.m_playerWeight, true);
+    if this.m_isChangedManually {
+      this.m_isChangedManually = false;
+      return false;
+    };
+    switch selectedIndex {
+      case 0:
+        this.m_vendorUserData.menu = "TRADE";
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToVendor", this.m_vendorUserData);
+        break;
+      case 1:
+        this.m_vendorUserData.menu = "CYBERWARE";
+        inkWidgetRef.SetVisible(this.m_playerWeight, false);
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToRipperDoc", this.m_vendorUserData);
+        break;
+      case 2:
+        this.m_vendorUserData.menu = "CHARACTER";
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToCharacter", this.m_vendorUserData);
+        break;
+      case 3:
+        this.m_vendorUserData.menu = "CRAFTING";
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToCrafting", this.m_vendorUserData);
+        break;
+      case 4:
+        this.m_vendorUserData.menu = "GLAMDOC";
+        inkWidgetRef.SetVisible(this.m_playerWeight, false);
+        this.m_menuEventDispatcher.SpawnEvent(n"OnSwitchToGlamdoc", this.m_vendorUserData);
+    };
+    this.m_activeMenu = selectedIndex;
+    this.NotifyActivePanel(IntEnum<HubVendorMenuItems>(selectedIndex));
+    this.ForceResetCursorType();
+  }
+
+  protected cb func OnRefreshCurrentTab(userData: ref<IScriptable>) -> Bool {
+    if this.m_cameFromRipperdoc {
+      this.m_cameFromRipperdoc = false;
+      this.m_activeMenu = 1;
+      this.m_tabRoot.Toggle(this.m_activeMenu);
+    } else {
+      if this.m_activeMenu == 1 {
+        this.OnValueChanged(this.m_tabRoot, this.m_activeMenu);
+      } else {
+        this.m_tabRoot.Toggle(this.m_activeMenu);
+      };
+    };
+  }
+
+  protected cb func OnTutorialComplete(userData: ref<IScriptable>) -> Bool {
+    this.SetupMenuTabs(true);
+  }
+
+  protected cb func OnSwitchToCharacterFromRipperdoc(userData: ref<IScriptable>) -> Bool {
+    this.m_isChangedManually = true;
+    this.m_activeMenu = 2;
+    this.m_tabRoot.Toggle(this.m_activeMenu);
+    this.m_cameFromRipperdoc = true;
+  }
+
+  protected cb func OnEquipAnimationDataUpdate(userData: ref<IScriptable>) -> Bool {
+    let equipAnimationUpdateData: ref<EquipAnimationUpdateData> = userData as EquipAnimationUpdateData;
+    this.UpdateEquipAnimationData(equipAnimationUpdateData.equipArea, true);
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsHandled() {
+      return false;
+    };
+    if evt.IsAction(n"prior_menu") {
+      this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Left);
+      this.m_activeMenu -= 1;
+      if this.m_activeMenu < 0 {
+        this.m_activeMenu = 3;
+      };
+      this.m_tabRoot.Toggle(this.m_activeMenu);
+    } else {
+      if evt.IsAction(n"next_menu") {
+        this.PlayRumble(RumbleStrength.SuperLight, RumbleType.Pulse, RumblePosition.Right);
+        this.m_activeMenu += 1;
+        if this.m_activeMenu > 3 {
+          this.m_activeMenu = 0;
+        };
+        this.m_tabRoot.Toggle(this.m_activeMenu);
+      } else {
+        if evt.IsAction(n"back") {
+          if StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+            return false;
+          };
+          if Equals(this.m_vendorUserData.menu, "CHARACTER") || Equals(this.m_vendorUserData.menu, "GLAMDOC") {
+            return false;
+          };
+          if NotEquals(this.m_vendorUserData.menu, "CYBERWARE") {
+            this.CloseVendor();
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnVendorUpdated(value: Variant) -> Bool {
+    this.UpdateMoney();
+  }
+
+  private final func UpdateMoney() -> Void {
+    let playerMoney: Int32 = VendorDataManager.GetLocalPlayerCurrencyAmount(VendorDataManager.GetLocalPlayer(this.m_player.GetGame()));
+    if playerMoney != StringToInt(inkTextRef.GetText(this.m_playerCreditsValue)) {
+      this.m_playerMoneyAnimator.SetMoney(playerMoney, 0.10, 0.25);
+    };
+  }
+
+  private final func NotifyActivePanel(item: HubVendorMenuItems) -> Void {
+    let evt: ref<VendorHubMenuChanged> = new VendorHubMenuChanged();
+    evt.item = item;
+    this.QueueEvent(evt);
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"RefreshCurrentTab", this, n"OnRefreshCurrentTab");
+    this.m_menuEventDispatcher.RegisterToEvent(n"SwitchToCharacterFromRipperdoc", this, n"OnSwitchToCharacterFromRipperdoc");
+    this.m_menuEventDispatcher.RegisterToEvent(n"TutorialComplete", this, n"OnTutorialComplete");
+    this.m_menuEventDispatcher.RegisterToEvent(n"EquipAnimationDataUpdate", this, n"OnEquipAnimationDataUpdate");
+  }
+
+  private final func CloseVendor() -> Void {
+    let menuEvent: ref<inkMenuInstance_SpawnEvent> = new inkMenuInstance_SpawnEvent();
+    menuEvent.Init(n"OnVendorClose");
+    this.QueueEvent(menuEvent);
+  }
+}
+
+public class RipperdocTimeDilationCallback extends DelayCallback {
+
+  public let m_controller: wref<VendorHubMenuGameController>;
+
+  public func Call() -> Void {
+    let strongController: ref<VendorHubMenuGameController> = this.m_controller;
+    if IsDefined(strongController) {
+      strongController.SetTimeDilatation(true);
+    };
+  }
+}

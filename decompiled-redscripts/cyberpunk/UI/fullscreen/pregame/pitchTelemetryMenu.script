@@ -1,0 +1,206 @@
+
+public class PitchTelemetryMenuGameController extends gameuiMenuGameController {
+
+  private edit let m_telemetrySelectorRef: inkWidgetRef;
+
+  private edit let m_marketing1SelectorRef: inkWidgetRef;
+
+  private edit let m_hyperlinkButtonRef: inkWidgetRef;
+
+  private edit let m_inputHintConsentRef: inkTextRef;
+
+  private let m_telemetrySelectorController: wref<PitchSelectorControllerBool>;
+
+  private let m_marketing1SelectorController: wref<PitchSelectorControllerBool>;
+
+  private let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_requestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_shouldConsentToAll: Bool;
+
+  protected cb func OnSetMenuEventDispatcher(d: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = d;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_shouldConsentToAll = true;
+    if !IsDefined(this.m_uiSystem) {
+      this.m_uiSystem = GameInstance.GetUISystem(this.GetPlayerControlledObject().GetGame());
+    };
+    this.m_requestHandler = this.GetSystemRequestsHandler();
+    this.m_telemetrySelectorController = inkWidgetRef.GetControllerByType(this.m_telemetrySelectorRef, n"PitchSelectorControllerBool") as PitchSelectorControllerBool;
+    this.m_marketing1SelectorController = inkWidgetRef.GetControllerByType(this.m_marketing1SelectorRef, n"PitchSelectorControllerBool") as PitchSelectorControllerBool;
+    this.m_telemetrySelectorController.Setup(this);
+    this.m_marketing1SelectorController.Setup(this);
+    this.RegisterToGlobalInputCallback(n"OnPostOnHold", this, n"OnHold");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnHold", this, n"OnHold");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef, n"OnPress", this, n"OnPressHyperlink");
+  }
+
+  protected cb func OnHold(evt: ref<inkPointerEvent>) -> Bool {
+    let progress: Float = evt.GetHoldProgress();
+    if progress < 1.00 {
+      return false;
+    };
+    if evt.IsAction(n"system_notification_confirm_hold") {
+      evt.Handle();
+      if this.m_shouldConsentToAll {
+        this.ConsentAll();
+      } else {
+        this.OnTelemetryUpdate();
+      };
+      this.LeaveTelemetryMenu();
+    };
+    if evt.IsAction(n"close_popup_hold") {
+      evt.Handle();
+      this.RefuseAll();
+      this.LeaveTelemetryMenu();
+    };
+  }
+
+  private final func LeaveTelemetryMenu() -> Void {
+    if this.m_shouldConsentToAll {
+      GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogTelemetryConsentChanged();
+      GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogMarketingConsentChanged();
+    } else {
+      if this.m_telemetrySelectorController.GetValue() {
+        GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogTelemetryConsentChanged();
+      };
+      if this.m_marketing1SelectorController.GetValue() {
+        GameInstance.GetTelemetrySystem(this.GetPlayerControlledObject().GetGame()).LogMarketingConsentChanged();
+      };
+    };
+    this.m_uiSystem.SetAndSaveHasTelemetryScreenBeenDisplayed(true);
+    this.m_eventDispatcher.SpawnEvent(n"OnMainMenu");
+    this.m_eventDispatcher.SpawnEvent(n"OnRequestPatchNotes");
+    this.m_requestHandler.RequestTelemetryDataRemoval();
+  }
+
+  public final func OnTelemetryUpdate() -> Void {
+    let telemetryConsent: Bool = this.m_telemetrySelectorController.GetValue();
+    let marketingConsent: Bool = this.m_marketing1SelectorController.GetValue();
+    this.UpdateTelemetry(telemetryConsent, marketingConsent);
+    this.m_shouldConsentToAll = false;
+    inkTextRef.SetText(this.m_inputHintConsentRef, GetLocalizedTextByKey(n"UI-PitchScreen-Telemetry-InputHintConfirm"));
+  }
+
+  private final func RefuseAll() -> Void {
+    this.UpdateTelemetry(false, false);
+  }
+
+  private final func ConsentAll() -> Void {
+    this.UpdateTelemetry(true, true);
+  }
+
+  private final func UpdateTelemetry(telemetryConsent: Bool, marketingConsent: Bool) -> Void {
+    let configVarMarketing: ref<ConfigVarBool>;
+    let configVarTelemetry: ref<ConfigVarBool>;
+    let settingsGroup: ref<ConfigGroup>;
+    let settings: ref<UserSettings> = this.m_requestHandler.GetUserSettings();
+    if settings.HasGroup(n"/gameplay/misc") {
+      settingsGroup = settings.GetGroup(n"/gameplay/misc");
+      if settingsGroup.HasVar(n"EnableTelemetry") {
+        configVarTelemetry = settingsGroup.GetVar(n"EnableTelemetry") as ConfigVarBool;
+        configVarTelemetry.SetValue(telemetryConsent);
+      };
+      if settingsGroup.HasVar(n"EnableMarketing") {
+        configVarMarketing = settingsGroup.GetVar(n"EnableMarketing") as ConfigVarBool;
+        configVarMarketing.SetValue(marketingConsent);
+      };
+    };
+  }
+
+  protected cb func OnPressHyperlink(evt: ref<inkPointerEvent>) -> Bool {
+    if !IsConsolePlatform() {
+      if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+        this.m_requestHandler.OpenPrivacyPolicyUrl();
+      };
+    };
+  }
+}
+
+public class PitchSelectorControllerBool extends inkLogicController {
+
+  protected edit let m_yesRef: inkWidgetRef;
+
+  protected edit let m_noRef: inkWidgetRef;
+
+  private let m_localValue: Bool;
+
+  private let m_telemetryController: wref<PitchTelemetryMenuGameController>;
+
+  public final func GetValue() -> Bool {
+    return this.m_localValue;
+  }
+
+  public final func Setup(telemetryController: wref<PitchTelemetryMenuGameController>) -> Void {
+    this.m_localValue = false;
+    this.m_telemetryController = telemetryController;
+    this.Refresh();
+    if inkWidgetRef.IsValid(this.m_yesRef) {
+      inkWidgetRef.RegisterToCallback(this.m_yesRef, n"OnRelease", this, n"OnYes");
+      inkWidgetRef.RegisterToCallback(this.m_yesRef, n"OnHoverOver", this, n"OnHoverOverYes");
+      inkWidgetRef.RegisterToCallback(this.m_yesRef, n"OnHoverOut", this, n"OnHoverOut");
+    };
+    if inkWidgetRef.IsValid(this.m_noRef) {
+      inkWidgetRef.RegisterToCallback(this.m_noRef, n"OnRelease", this, n"OnNo");
+      inkWidgetRef.RegisterToCallback(this.m_noRef, n"OnHoverOver", this, n"OnHoverOverNo");
+      inkWidgetRef.RegisterToCallback(this.m_noRef, n"OnHoverOut", this, n"OnHoverOut");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    if inkWidgetRef.IsValid(this.m_yesRef) {
+      inkWidgetRef.UnregisterFromCallback(this.m_yesRef, n"OnPostOnRelease", this, n"OnYes");
+      inkWidgetRef.UnregisterFromCallback(this.m_yesRef, n"OnHoverOver", this, n"OnHoverOverYes");
+      inkWidgetRef.UnregisterFromCallback(this.m_yesRef, n"OnHoverOut", this, n"OnHoverOut");
+    };
+    if inkWidgetRef.IsValid(this.m_noRef) {
+      inkWidgetRef.UnregisterFromCallback(this.m_noRef, n"OnPostOnRelease", this, n"OnNo");
+      inkWidgetRef.UnregisterFromCallback(this.m_noRef, n"OnHoverOver", this, n"OnHoverOverNo");
+      inkWidgetRef.UnregisterFromCallback(this.m_noRef, n"OnHoverOut", this, n"OnHoverOut");
+    };
+  }
+
+  public final func Refresh() -> Void {
+    inkWidgetRef.SetState(this.m_yesRef, this.m_localValue ? n"Default" : n"Off");
+    inkWidgetRef.SetState(this.m_noRef, !this.m_localValue ? n"Default" : n"Off");
+  }
+
+  protected cb func OnYes(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_localValue = true;
+      this.Refresh();
+      this.PlaySound(n"ButtonValueDown", n"OnPress");
+      this.m_telemetryController.OnTelemetryUpdate();
+    };
+  }
+
+  protected cb func OnNo(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_localValue = false;
+      this.Refresh();
+      this.PlaySound(n"ButtonValueUp", n"OnPress");
+      this.m_telemetryController.OnTelemetryUpdate();
+    };
+  }
+
+  protected cb func OnHoverOverYes(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_yesRef, n"Hover");
+  }
+
+  protected cb func OnHoverOverNo(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetState(this.m_noRef, n"Hover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.Refresh();
+  }
+}

@@ -1,0 +1,3520 @@
+
+public abstract class VehicleTransition extends DefaultTransition {
+
+  public const let stateMachineInitData: wref<VehicleTransitionInitData>;
+
+  @default(CombatExitingEvents, combat)
+  @default(CoolExitingEvents, cool)
+  @default(SlideExitingEvents, combat)
+  @default(SpeedExitingEvents, speed)
+  @default(VehicleTransition, default)
+  protected let m_exitSlot: CName;
+
+  public final static func CanEnterDriverCombat() -> Bool {
+    return TweakDBInterface.GetBool(t"player.vehicle.canEnterDriverCombat", false);
+  }
+
+  protected final const func IsVehicleExitBlocked1Frame(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.GetBoolParameter(n"delayVehicleExit1Frame", false);
+  }
+
+  public final static func DoesVehicleSupportCombat(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return VehicleComponent.GetVehicleAllowsCombat(scriptInterface.owner.GetGame(), scriptInterface.owner as VehicleObject);
+  }
+
+  protected final const func DeactivateTimeDilationCW(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if scriptInterface.GetTimeSystem().IsTimeDilationActive(n"sandevistan") {
+      stateContext.SetTemporaryBoolParameter(n"requestSandevistanDeactivation", true, true);
+      stateContext.SetTemporaryBoolParameter(n"delayVehicleExit1Frame", true, true);
+    };
+    if scriptInterface.GetTimeSystem().IsTimeDilationActive(n"kereznikov") {
+      stateContext.SetTemporaryBoolParameter(n"requestKerenzikovDeactivation", true, true);
+      stateContext.SetTemporaryBoolParameter(n"delayVehicleExit1Frame", true, true);
+    };
+  }
+
+  protected final const func IsPlayerAllowedToEnterDriverCombat(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let driverCombatForbiddenZone: StateResultBool;
+    let tier: Int32;
+    if !this.IsPlayerAllowedToEnterCombat(scriptInterface) || this.IsNoCombatActionsForced(scriptInterface) || !VehicleTransition.CanEnterDriverCombat() || !VehicleTransition.DoesVehicleSupportCombat(scriptInterface) {
+      return false;
+    };
+    tier = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel);
+    if tier > 1 {
+      return false;
+    };
+    driverCombatForbiddenZone = stateContext.GetPermanentBoolParameter(n"driverCombatForbiddenZone");
+    if driverCombatForbiddenZone.value {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func IsPlayerAllowedToEnterCombat(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsNoCombatActionsForced(scriptInterface) {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func IsPlayerAllowedToExitCombat(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleCombatBlockExit") || StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"FirearmsNoUnequip") {
+      return false;
+    };
+    return true;
+  }
+
+  protected final func SetVehicleStatusEffects(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, shouleAdd: Bool) -> Void {
+    let statusEffectsApplied: StateResultBool = stateContext.GetPermanentBoolParameter(n"vehicleStatusEffectsApplied");
+    if statusEffectsApplied.value && shouleAdd {
+      return;
+    };
+    stateContext.SetPermanentBoolParameter(n"vehicleStatusEffectsApplied", shouleAdd, true);
+    if Equals(shouleAdd, true) {
+      if VehicleTransition.DoesVehicleSupportCombat(scriptInterface) && this.DoesVehicleSupportFireArms(scriptInterface.owner as VehicleObject) {
+        if IsDefined(scriptInterface.owner as BikeObject) {
+          StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.DriverCombatBikeWeapons");
+        } else {
+          StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.DriverCombatFirearms");
+        };
+      } else {
+        StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons");
+      };
+    } else {
+      if VehicleTransition.DoesVehicleSupportCombat(scriptInterface) && this.DoesVehicleSupportFireArms(scriptInterface.owner as VehicleObject) {
+        if IsDefined(scriptInterface.owner as BikeObject) {
+          StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.DriverCombatBikeWeapons");
+        } else {
+          StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.DriverCombatFirearms");
+        };
+      } else {
+        StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons", 1u);
+      };
+    };
+  }
+
+  protected final func SetFirearmsGameplayRestriction(scriptInterface: ref<StateGameScriptInterface>, shouleAdd: Bool) -> Void {
+    if Equals(shouleAdd, true) {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Firearms");
+    } else {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.Firearms");
+    };
+  }
+
+  protected final const func IsDriverInVehicle(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsDriverInVehicle();
+  }
+
+  protected final const func IsPassengerInVehicle(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsPassengerInVehicle();
+  }
+
+  protected final const func IsVehicleRemoteControlled(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return (scriptInterface.owner as VehicleObject).IsVehicleRemoteControlled();
+  }
+
+  protected final func SendAnimFeature(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_VehicleData> = new AnimFeature_VehicleData();
+    let vehicleDataPackage: ref<VehicleDataPackage_Record> = this.GetVehicleDataPackage(stateContext);
+    animFeature.isInVehicle = stateContext.GetBoolParameter(n"isInVehicle", true);
+    animFeature.isDriver = stateContext.GetBoolParameter(n"isDriver", true);
+    animFeature.vehType = stateContext.GetIntParameter(n"vehType", true);
+    animFeature.vehSlot = stateContext.GetIntParameter(n"vehSlot", true);
+    animFeature.isInCombat = stateContext.GetBoolParameter(n"isInVehCombat", true);
+    animFeature.isInWindowCombat = stateContext.GetBoolParameter(n"isInVehWindowCombat", true);
+    animFeature.isInDriverCombat = stateContext.GetBoolParameter(n"isInDriverCombat", true);
+    animFeature.vehClass = stateContext.GetIntParameter(n"vehClass", true);
+    animFeature.isEnteringCombat = stateContext.GetBoolParameter(n"isEnteringCombat", true);
+    animFeature.enteringCombatDuration = vehicleDataPackage.ToCombat();
+    animFeature.isExitingCombat = stateContext.GetBoolParameter(n"isExitingCombat", true);
+    animFeature.exitingCombatDuration = vehicleDataPackage.FromCombat();
+    animFeature.isEnteringVehicle = stateContext.GetBoolParameter(n"isEnteringVehicle", true);
+    animFeature.isExitingVehicle = stateContext.GetBoolParameter(n"isExitingVehicle", true);
+    animFeature.isWorldRenderPlane = stateContext.GetBoolParameter(n"isWorldRenderPlane", true);
+    scriptInterface.SetAnimationParameterFeature(n"VehicleData", animFeature, scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(n"VehicleData", animFeature);
+  }
+
+  protected final func ResetAnimFeature(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_VehicleData> = new AnimFeature_VehicleData();
+    scriptInterface.SetAnimationParameterFeature(n"VehicleData", animFeature, scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(n"VehicleData", animFeature);
+  }
+
+  protected final func ResetVehParams(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetIsInVehicle(stateContext, false);
+    this.SetIsVehicleDriver(stateContext, false);
+    this.SetVehicleType(stateContext, 0);
+    this.SetIsInVehicleCombat(stateContext, false);
+    this.SetIsInVehicleWindowCombat(stateContext, false);
+    this.SetIsInVehicleDriverCombat(stateContext, false);
+    this.SetVehicleClass(stateContext, 0);
+    this.SetIsEnteringCombat(stateContext, false);
+    this.SetIsExitingCombat(stateContext, false);
+    this.SetIsWorldRenderPlane(stateContext, false);
+    this.SetIsCar(stateContext, false);
+    this.SetWasStolen(stateContext, false);
+    stateContext.SetPermanentIntParameter(n"vehSlot", 0, true);
+    stateContext.SetPermanentIntParameter(n"vehUnmountDir", 0, true);
+  }
+
+  protected final func SendIsCar(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_VehiclePassenger> = new AnimFeature_VehiclePassenger();
+    animFeature.isCar = stateContext.GetBoolParameter(n"isCar", true);
+    scriptInterface.SetAnimationParameterFeature(n"VehiclePassenger", animFeature, scriptInterface.executionOwner);
+  }
+
+  protected final func ResetIsCar(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeature: ref<AnimFeature_VehiclePassenger> = new AnimFeature_VehiclePassenger();
+    animFeature.isCar = false;
+    scriptInterface.SetAnimationParameterFeature(n"VehiclePassenger", animFeature, scriptInterface.executionOwner);
+  }
+
+  protected final func SetIsInVehicle(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isInVehicle", value, true);
+  }
+
+  protected final func SetIsVehicleDriver(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isDriver", value, true);
+  }
+
+  protected final func SetVehicleType(stateContext: ref<StateContext>, value: Int32) -> Void {
+    stateContext.SetPermanentIntParameter(n"vehType", value, true);
+  }
+
+  protected final func SetIsInVehicleCombat(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isInVehCombat", value, true);
+  }
+
+  protected final func SetIsInVehicleWindowCombat(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isInVehWindowCombat", value, true);
+  }
+
+  protected final func SetIsInVehicleDriverCombat(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isInDriverCombat", value, true);
+  }
+
+  protected final func SetVehicleClass(stateContext: ref<StateContext>, value: Int32) -> Void {
+    stateContext.SetPermanentIntParameter(n"vehClass", value, true);
+  }
+
+  protected final func SetIsEnteringCombat(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isEnteringCombat", value, true);
+  }
+
+  protected final func SetIsExitingCombat(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isExitingCombat", value, true);
+  }
+
+  protected final func SetIsExitingVehicle(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isExitingVehicle", value, true);
+  }
+
+  protected final func SetIsWorldRenderPlane(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isWorldRenderPlane", value, true);
+  }
+
+  protected final func SetIsCar(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"isCar", value, true);
+  }
+
+  protected final func SetWasStolen(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"wasStolen", value, true);
+  }
+
+  protected final const func SetWasCombatForced(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"wasCombatForced", value, true);
+  }
+
+  protected final const func SetRequestedTPPCamera(stateContext: ref<StateContext>, value: Bool) -> Void {
+    stateContext.SetPermanentBoolParameter(n"requestedTPPCamera", value, true);
+  }
+
+  protected final func SetSide(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let value: Int32;
+    let mountingInfo: MountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    let slotName: CName = mountingInfo.slotId.id;
+    if Equals(slotName, n"seat_front_left") {
+      value = 1;
+    } else {
+      if Equals(slotName, n"seat_back_left") {
+        value = 1;
+      } else {
+        if Equals(slotName, n"seat_front_right") {
+          value = 2;
+        } else {
+          if Equals(slotName, n"seat_back_right") {
+            value = 2;
+          } else {
+            value = 0;
+          };
+        };
+      };
+    };
+    stateContext.SetPermanentIntParameter(n"vehSlot", value, true);
+  }
+
+  protected final func IsUnmountDirectionClosest(stateContext: ref<StateContext>, unmountDirection: vehicleExitDirection) -> Bool {
+    let side: Int32 = stateContext.GetIntParameter(n"vehSlot", true);
+    if side == 1 && Equals(unmountDirection, vehicleExitDirection.Left) {
+      return true;
+    };
+    if side == 2 && Equals(unmountDirection, vehicleExitDirection.Right) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final func IsUnmountDirectionOpposite(stateContext: ref<StateContext>, unmountDirection: vehicleExitDirection) -> Bool {
+    let side: Int32 = stateContext.GetIntParameter(n"vehSlot", true);
+    if side == 1 && Equals(unmountDirection, vehicleExitDirection.Right) {
+      return true;
+    };
+    if side == 2 && Equals(unmountDirection, vehicleExitDirection.Left) {
+      return true;
+    };
+    return false;
+  }
+
+  public final static func CheckVehicleDesiredTag(const scriptInterface: ref<StateGameScriptInterface>, desiredTag: CName) -> Bool {
+    let tags: array<CName>;
+    let recordID: TweakDBID = (scriptInterface.owner as VehicleObject).GetRecordID();
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    if !IsDefined(vehicleRecord) {
+      return false;
+    };
+    tags = vehicleRecord.Tags();
+    if ArrayContains(tags, desiredTag) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final func SetVehFppCameraParams(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, isPassenger: Bool, opt side: Bool, opt combat: Bool) -> Void {
+    let vehCamParamsRecord: ref<VehicleFPPCameraParams_Record>;
+    let recordID: TweakDBID = (scriptInterface.owner as VehicleObject).GetRecordID();
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let camBodyOffset: ref<AnimFeature_CameraBodyOffset> = new AnimFeature_CameraBodyOffset();
+    let camGameplay: ref<AnimFeature_CameraGameplay> = new AnimFeature_CameraGameplay();
+    if combat {
+      if !isPassenger {
+        vehCamParamsRecord = vehicleRecord.VehDriverCombat_FPPCameraParams();
+      };
+      if isPassenger {
+        if Equals(side, true) {
+          vehCamParamsRecord = vehicleRecord.VehPassCombatL_FPPCameraParams();
+        } else {
+          vehCamParamsRecord = vehicleRecord.VehPassCombatR_FPPCameraParams();
+        };
+      };
+    } else {
+      if !isPassenger {
+        vehCamParamsRecord = vehicleRecord.VehDriver_FPPCameraParams();
+      };
+      if isPassenger {
+        if Equals(side, true) {
+          vehCamParamsRecord = vehicleRecord.VehPassL_FPPCameraParams();
+        } else {
+          vehCamParamsRecord = vehicleRecord.VehPassR_FPPCameraParams();
+        };
+      };
+    };
+    camBodyOffset.lookat_pitch_forward_offset = vehCamParamsRecord.Lookat_pitch_forward_offset();
+    camBodyOffset.lookat_pitch_forward_down_ratio = vehCamParamsRecord.Lookat_pitch_forward_down_ratio();
+    camBodyOffset.lookat_yaw_left_offset = vehCamParamsRecord.Lookat_yaw_left_offset();
+    camBodyOffset.lookat_yaw_left_up_offset = vehCamParamsRecord.Lookat_yaw_left_up_offset();
+    camBodyOffset.lookat_yaw_right_offset = vehCamParamsRecord.Lookat_yaw_right_offset();
+    camBodyOffset.lookat_yaw_right_up_offset = vehCamParamsRecord.Lookat_yaw_right_up_offset();
+    camBodyOffset.lookat_yaw_offset_active_angle = vehCamParamsRecord.Lookat_yaw_offset_active_angle();
+    camBodyOffset.is_paralax = vehCamParamsRecord.Is_paralax();
+    camBodyOffset.paralax_radius = vehCamParamsRecord.Paralax_radius();
+    camBodyOffset.paralax_forward_offset = vehCamParamsRecord.Paralax_forward_offset();
+    camBodyOffset.lookat_offset_vertical = vehCamParamsRecord.Lookat_offset_vertical();
+    camGameplay.is_forward_offset = vehCamParamsRecord.Is_forward_offset();
+    camGameplay.forward_offset_value = vehCamParamsRecord.Forward_offset_value();
+    camGameplay.upperbody_pitch_weight = vehCamParamsRecord.Upperbody_pitch_weight();
+    camGameplay.upperbody_yaw_weight = vehCamParamsRecord.Upperbody_yaw_weight();
+    camGameplay.is_pitch_off = vehCamParamsRecord.Is_pitch_off();
+    camGameplay.is_yaw_off = vehCamParamsRecord.Is_yaw_off();
+    scriptInterface.SetAnimationParameterFeature(n"CameraBodyOffset", camBodyOffset, scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(n"CameraGameplay", camGameplay, scriptInterface.executionOwner);
+  }
+
+  protected final func ResetVehFppCameraParams(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.SetAnimationParameterFeature(n"CameraBodyOffset", new AnimFeature_CameraBodyOffset(), scriptInterface.executionOwner);
+    scriptInterface.SetAnimationParameterFeature(n"CameraGameplay", new AnimFeature_CameraGameplay(), scriptInterface.executionOwner);
+  }
+
+  protected final func GetVehType(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Int32 {
+    let recordID: TweakDBID = (scriptInterface.owner as VehicleObject).GetRecordID();
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let vehicleDataPackage: wref<VehicleDataPackage_Record> = vehicleRecord.VehDataPackage();
+    let templateName: CName = vehicleDataPackage.SeatingTemplateOverride();
+    if Equals(templateName, n"standard_vehicle") {
+      return 0;
+    };
+    if Equals(templateName, n"sport_vehicle") || Equals(templateName, n"sport1_vehicle") {
+      return 1;
+    };
+    return 0;
+  }
+
+  protected final const func GetVehClass(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Int32 {
+    let vehClassInt: Int32;
+    let recordID: TweakDBID = (scriptInterface.owner as VehicleObject).GetRecordID();
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let vehTypeRecord: ref<VehicleType_Record> = vehicleRecord.Type();
+    let vehClassName: String = vehTypeRecord.EnumName();
+    switch vehClassName {
+      case "Car":
+        vehClassInt = 0;
+        break;
+      case "Bike":
+        vehClassInt = 1;
+        break;
+      case "Panzer":
+        vehClassInt = 2;
+        break;
+      default:
+        vehClassInt = 0;
+    };
+    return vehClassInt;
+  }
+
+  protected final func GetAdjacentSeat(slotName: CName, out nextSlotName: CName) -> Bool {
+    if !IsNameValid(slotName) {
+      return false;
+    };
+    switch slotName {
+      case n"seat_front_left":
+        nextSlotName = n"seat_front_right";
+        break;
+      case n"seat_front_right":
+        nextSlotName = n"seat_front_left";
+        break;
+      case n"seat_back_left":
+        nextSlotName = n"seat_back_right";
+        break;
+      case n"seat_back_right":
+        nextSlotName = n"seat_back_left";
+    };
+    return true;
+  }
+
+  protected final func IsAdjacentSeatAvailable(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, slotName: CName) -> Bool {
+    let adjacentSeat: CName;
+    let doorName: EVehicleDoor;
+    let seatInteractionAvailable: Bool;
+    let vehicle: wref<VehicleObject>;
+    if !IsNameValid(slotName) {
+      return false;
+    };
+    vehicle = scriptInterface.owner as VehicleObject;
+    this.GetAdjacentSeat(slotName, adjacentSeat);
+    vehicle.GetVehiclePS().GetVehicleDoorEnum(doorName, adjacentSeat);
+    seatInteractionAvailable = NotEquals(vehicle.GetVehiclePS().GetDoorInteractionState(doorName), VehicleDoorInteractionState.Disabled);
+    if !seatInteractionAvailable {
+      return false;
+    };
+    if !VehicleComponent.IsSlotAvailable(scriptInterface.GetGame(), vehicle, n"seat_front_left") {
+      return false;
+    };
+    return true;
+  }
+
+  protected final func SendEquipToHandsRequest(scriptInterface: ref<StateGameScriptInterface>, itemID: ItemID) -> Void {
+    let drawItemRequest: ref<DrawItemRequest>;
+    let equipmentSystem: ref<EquipmentSystem> = scriptInterface.GetScriptableSystem(n"EquipmentSystem") as EquipmentSystem;
+    let equipRequest: ref<EquipRequest> = new EquipRequest();
+    equipRequest.itemID = itemID;
+    equipRequest.addToInventory = true;
+    equipRequest.owner = scriptInterface.executionOwner;
+    equipmentSystem.QueueRequest(equipRequest);
+    drawItemRequest = new DrawItemRequest();
+    drawItemRequest.owner = scriptInterface.executionOwner;
+    drawItemRequest.itemID = itemID;
+    equipmentSystem.QueueRequest(drawItemRequest);
+  }
+
+  protected final func RequestVehicleCinematicCamera(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.QueueEvent(new vehicleCinematicCameraToggleEvent());
+  }
+
+  protected final func RequestToggleVehicleCamera(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let camEvent: ref<vehicleRequestCameraPerspectiveEvent>;
+    if scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vision) == 1 {
+      return;
+    };
+    camEvent = new vehicleRequestCameraPerspectiveEvent();
+    switch (scriptInterface.owner as VehicleObject).GetCameraManager().GetActivePerspective() {
+      case vehicleCameraPerspective.FPP:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPClose;
+        break;
+      case vehicleCameraPerspective.TPPClose:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPMedium;
+        break;
+      case vehicleCameraPerspective.TPPMedium:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPFar;
+        break;
+      case vehicleCameraPerspective.TPPFar:
+        if !scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsDriverCombatInTPP) {
+          camEvent.cameraPerspective = vehicleCameraPerspective.TPPClose;
+        } else {
+          camEvent.cameraPerspective = vehicleCameraPerspective.FPP;
+        };
+        break;
+      case vehicleCameraPerspective.DriverCombatClose:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPClose;
+        break;
+      case vehicleCameraPerspective.DriverCombatMedium:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPMedium;
+        break;
+      case vehicleCameraPerspective.DriverCombatFar:
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPFar;
+    };
+    scriptInterface.executionOwner.QueueEvent(camEvent);
+  }
+
+  protected final func ResetVehicleCamera(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let camEvent: ref<vehicleCameraResetEvent> = new vehicleCameraResetEvent();
+    scriptInterface.executionOwner.QueueEvent(camEvent);
+  }
+
+  protected final func ToggleWindowForOccupiedSeat(scriptInterface: ref<StateGameScriptInterface>, slotName: CName, shouldopen: Bool) -> Void {
+    let VehWindowRequestEvent: ref<VehicleExternalWindowRequestEvent> = new VehicleExternalWindowRequestEvent();
+    VehWindowRequestEvent.slotName = slotName;
+    VehWindowRequestEvent.shouldOpen = shouldopen;
+    scriptInterface.owner.QueueEvent(VehWindowRequestEvent);
+  }
+
+  protected final const func GetUnmountingEvent(const stateContext: ref<StateContext>) -> ref<MountEventData> {
+    let unmountEvent: ref<MountEventData> = stateContext.GetPermanentScriptableParameter(n"Unmount") as MountEventData;
+    return unmountEvent;
+  }
+
+  protected final const func IsExitForced(const stateContext: ref<StateContext>) -> Bool {
+    return IsDefined(this.GetUnmountingEvent(stateContext));
+  }
+
+  protected final func RemoveUnmountingRequest(stateContext: ref<StateContext>) -> Void {
+    stateContext.RemovePermanentScriptableParameter(n"Unmount");
+  }
+
+  protected final func RemoveMountingRequest(stateContext: ref<StateContext>) -> Void {
+    stateContext.RemovePermanentScriptableParameter(n"Mount");
+  }
+
+  protected final func StartLeavingVehicle(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let isInstant: Bool;
+    let vehicleUpsideDown: Bool;
+    let evt: ref<VehicleStartedMountingEvent> = new VehicleStartedMountingEvent();
+    let vehicle: ref<VehicleObject> = scriptInterface.owner as VehicleObject;
+    let unmountEvent: ref<MountEventData> = this.GetUnmountingEvent(stateContext);
+    if IsDefined(unmountEvent) {
+      isInstant = unmountEvent.isInstant;
+    } else {
+      isInstant = false;
+    };
+    vehicleUpsideDown = vehicle.IsVehicleUpsideDown();
+    if !isInstant && vehicleUpsideDown {
+      this.ExitWorkspot(stateContext, scriptInterface, isInstant, true);
+    } else {
+      this.ExitWorkspot(stateContext, scriptInterface, isInstant);
+    };
+    this.SetIsInVehicle(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    evt.slotID = vehicle.GetSlotIdForMountedObject(scriptInterface.executionOwner);
+    evt.isMounting = false;
+    evt.character = scriptInterface.executionOwner;
+    evt.animationSlotName = this.m_exitSlot;
+    vehicle.QueueEvent(evt);
+  }
+
+  protected final func PlayVehicleExitDoorAnimation(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let vehicle: ref<VehicleObject> = scriptInterface.owner as VehicleObject;
+    let mountInfo: MountingInfo = scriptInterface.GetMountingFacility().GetMountingInfoSingleWithObjects(scriptInterface.executionOwner);
+    let doorOpensForDriverCombat: Bool = Equals(this.GetVehicleDataPackage(stateContext).DriverCombat().Type(), gamedataDriverCombatType.Doors);
+    let VehDoorRequestEvent: ref<VehicleExternalDoorRequestEvent> = new VehicleExternalDoorRequestEvent();
+    VehDoorRequestEvent.slotName = mountInfo.slotId.id;
+    VehDoorRequestEvent.autoCloseTime = this.GetVehicleDataPackage(stateContext).Normal_open();
+    VehDoorRequestEvent.autoClose = !VehicleComponent.IsDestroyed(scriptInterface.GetGame(), mountInfo.parentId) && !doorOpensForDriverCombat;
+    let tempDisableAutoCloseDoor: ref<SetIgnoreAutoDoorCloseEvent> = new SetIgnoreAutoDoorCloseEvent();
+    tempDisableAutoCloseDoor.set = true;
+    let vehiceCustomizationSwitchState: ref<SwitchVehicleVisualCustomizationStateEvent> = new SwitchVehicleVisualCustomizationStateEvent();
+    vehiceCustomizationSwitchState.on = false;
+    vehicle.QueueEvent(tempDisableAutoCloseDoor);
+    vehicle.QueueEvent(VehDoorRequestEvent);
+  }
+
+  protected func ExitWorkspot(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, isInstant: Bool, opt upsideDown: Bool) -> Void {
+    let unmountDirResult: StateResultInt;
+    let workspotSystem: ref<WorkspotGameSystem>;
+    let exitSlotName: CName = this.m_exitSlot;
+    this.SetSide(stateContext, scriptInterface);
+    unmountDirResult = stateContext.GetPermanentIntParameter(n"vehUnmountDir");
+    if upsideDown {
+      exitSlotName = n"exit_upside_down";
+    } else {
+      if unmountDirResult.valid && this.IsUnmountDirectionOpposite(stateContext, IntEnum<vehicleExitDirection>(unmountDirResult.value)) {
+        exitSlotName = n"exit_opposite";
+      };
+    };
+    workspotSystem = scriptInterface.GetWorkspotSystem();
+    workspotSystem.UnmountFromVehicle(scriptInterface.owner, scriptInterface.executionOwner, isInstant, exitSlotName);
+  }
+
+  protected final func PlayerStateChange(scriptInterface: ref<StateGameScriptInterface>, newstate: Int32) -> Void {
+    let data: VehEntityPlayerStateData;
+    data.entID = scriptInterface.ownerEntityID;
+    data.state = newstate;
+    let activeVehicleBlackboard: ref<IBlackboard> = this.GetVehicleBlackboard(scriptInterface);
+    activeVehicleBlackboard.SetVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.VehPlayerStateData, ToVariant(data));
+  }
+
+  private final func GetVehicleBlackboard(scriptInterface: ref<StateGameScriptInterface>) -> ref<IBlackboard> {
+    let owner: ref<GameObject> = scriptInterface.executionOwner;
+    return GameInstance.GetBlackboardSystem(owner.GetGame()).Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+  }
+
+  protected final func SetupVehicleDataPackage(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> wref<VehicleDataPackage_Record> {
+    let recordID: TweakDBID = (scriptInterface.owner as VehicleObject).GetRecordID();
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(recordID);
+    let vehicleDataPackage: wref<VehicleDataPackage_Record> = vehicleRecord.VehDataPackage();
+    stateContext.SetConditionWeakScriptableParameter(n"VehicleDataPackage", vehicleDataPackage, true);
+    return vehicleDataPackage;
+  }
+
+  protected final const func GetVehicleDataPackage(const stateContext: ref<StateContext>) -> wref<VehicleDataPackage_Record> {
+    return stateContext.GetConditionWeakScriptableParameter(n"VehicleDataPackage") as VehicleDataPackage_Record;
+  }
+
+  protected final func GetVehicleInventory(scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected final func SetVehicleCameraParameters(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let cameraParamName: CName;
+    let param: StateResultCName = this.GetStaticCNameParameter("onEnterCameraParamsName");
+    let paramSecondary: StateResultCName = this.GetStaticCNameParameter("onEnterCameraParamsNameSecondary");
+    let vehClass: Int32 = this.GetVehClass(stateContext, scriptInterface);
+    if vehClass == 1 && paramSecondary.valid {
+      cameraParamName = paramSecondary.value;
+    };
+    if (vehClass == 2 || vehClass == 0) && param.valid || vehClass == 1 && !paramSecondary.valid {
+      cameraParamName = param.value;
+    };
+    stateContext.SetPermanentCNameParameter(n"VehicleCameraParams", cameraParamName, true);
+    this.UpdateCameraParams(stateContext, scriptInterface);
+  }
+
+  protected final const func GetPuppetVehicleSceneTransition(const stateContext: ref<StateContext>) -> PuppetVehicleState {
+    let puppetVehicleStateValue: PuppetVehicleState;
+    let puppetVehicleState: StateResultInt = stateContext.GetTemporaryIntParameter(n"scenePuppetVehicleState");
+    if puppetVehicleState.valid {
+      puppetVehicleStateValue = IntEnum<PuppetVehicleState>(puppetVehicleState.value);
+      return puppetVehicleStateValue;
+    };
+    puppetVehicleState = stateContext.GetPermanentIntParameter(n"scenePuppetVehicleState");
+    if puppetVehicleState.valid {
+      puppetVehicleStateValue = IntEnum<PuppetVehicleState>(puppetVehicleState.value);
+      return puppetVehicleStateValue;
+    };
+    return PuppetVehicleState.IdleStand;
+  }
+
+  protected final const func TryToStopVehicle(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>, opt force: Bool) -> Void {
+    let vehicle: wref<VehicleObject> = scriptInterface.owner as VehicleObject;
+    let vehicleBlackboard: ref<IBlackboard> = vehicle.GetBlackboard();
+    let speed: Float = vehicleBlackboard.GetFloat(GetAllBlackboardDefs().Vehicle.SpeedValue);
+    if force {
+      vehicle.ForceBrakesUntilStoppedOrFor(4.00);
+    } else {
+      if speed <= this.GetStaticFloatParameterDefault("highSpeedThreshold", 20.00) && NotEquals(this.m_exitSlot, n"cool") {
+        vehicle.ForceBrakesUntilStoppedOrFor(2.00);
+      };
+    };
+  }
+
+  protected final const func IsInScene(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let highLevel: Int32 = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.HighLevel);
+    return highLevel >= 3 && highLevel <= 5;
+  }
+
+  public final func GetVehicleObject(scriptInterface: ref<StateGameScriptInterface>) -> wref<VehicleObject> {
+    return scriptInterface.owner as VehicleObject;
+  }
+
+  public final func GetVehiclePS(scriptInterface: ref<StateGameScriptInterface>) -> wref<VehicleComponentPS> {
+    return (scriptInterface.owner as VehicleObject).GetVehiclePS();
+  }
+
+  public final const func IsInVehicleWorkspot(const scriptInterface: ref<StateGameScriptInterface>, slotName: CName) -> Bool {
+    let workspotSystem: ref<WorkspotGameSystem> = scriptInterface.GetWorkspotSystem();
+    let res: Bool = workspotSystem.IsInVehicleWorkspot(scriptInterface.owner, scriptInterface.executionOwner, slotName);
+    return res;
+  }
+
+  protected final const func DriverSwitchSeatsCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let seatInteractionAvailable: Bool;
+    let vehicle: wref<VehicleObject>;
+    let questForceSwitchSeats: StateResultBool = stateContext.GetTemporaryBoolParameter(n"switchSeats");
+    let switchExitRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"validSwitchSeatExitRequest");
+    let exitAfterRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"validExitAfterSwitchRequest");
+    if switchExitRequest.value && exitAfterRequest.value {
+      return true;
+    };
+    if questForceSwitchSeats.value {
+      vehicle = scriptInterface.owner as VehicleObject;
+      seatInteractionAvailable = NotEquals(vehicle.GetVehiclePS().GetDoorInteractionState(EVehicleDoor.seat_front_right), VehicleDoorInteractionState.Disabled);
+      if seatInteractionAvailable {
+        if VehicleComponent.IsSlotAvailable(scriptInterface.GetGame(), scriptInterface.owner as VehicleObject, n"seat_front_right") && this.GetInStateTime() >= 0.20 {
+          return true;
+        };
+      };
+    };
+    return false;
+  }
+
+  protected final const func PassangerSwitchSeatsCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitAfterRequest: StateResultBool;
+    let seatInteractionAvailable: Bool;
+    let slotName: CName;
+    let switchExitRequest: StateResultBool;
+    let vehicle: wref<VehicleObject>;
+    let questForceSwitchSeats: StateResultBool = stateContext.GetTemporaryBoolParameter(n"switchSeats");
+    let switchSeatsDisabled: Bool = this.GetVehicleDataPackage(stateContext).DisableSwitchSeats();
+    let debugBB: ref<IBlackboard> = scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().DebugData);
+    if switchSeatsDisabled || debugBB.GetBool(GetAllBlackboardDefs().DebugData.Vehicle_BlockSwitchSeats) {
+      return false;
+    };
+    VehicleComponent.GetMountedSlotName(scriptInterface.GetGame(), scriptInterface.executionOwner, slotName);
+    switchExitRequest = stateContext.GetPermanentBoolParameter(n"validSwitchSeatExitRequest");
+    exitAfterRequest = stateContext.GetPermanentBoolParameter(n"validExitAfterSwitchRequest");
+    if switchExitRequest.value && exitAfterRequest.value {
+      return true;
+    };
+    if exitAfterRequest.value {
+      return false;
+    };
+    if Equals(slotName, n"seat_front_right") {
+      vehicle = scriptInterface.owner as VehicleObject;
+      seatInteractionAvailable = NotEquals(vehicle.GetVehiclePS().GetDoorInteractionState(EVehicleDoor.seat_front_left), VehicleDoorInteractionState.Disabled);
+      if seatInteractionAvailable {
+        if VehicleComponent.IsSlotAvailable(scriptInterface.GetGame(), scriptInterface.owner as VehicleObject, n"seat_front_left") && this.GetInStateTime() >= 0.20 {
+          return true;
+        };
+      };
+    };
+    if questForceSwitchSeats.value {
+      if Equals(slotName, n"seat_back_left") {
+        vehicle = scriptInterface.owner as VehicleObject;
+        seatInteractionAvailable = NotEquals(vehicle.GetVehiclePS().GetDoorInteractionState(EVehicleDoor.seat_back_right), VehicleDoorInteractionState.Disabled);
+        if seatInteractionAvailable {
+          if VehicleComponent.IsSlotAvailable(scriptInterface.GetGame(), scriptInterface.owner as VehicleObject, n"seat_back_right") && this.GetInStateTime() >= 0.20 {
+            return true;
+          };
+        };
+      } else {
+        if Equals(slotName, n"seat_back_right") {
+          vehicle = scriptInterface.owner as VehicleObject;
+          seatInteractionAvailable = NotEquals(vehicle.GetVehiclePS().GetDoorInteractionState(EVehicleDoor.seat_back_left), VehicleDoorInteractionState.Disabled);
+          if seatInteractionAvailable {
+            if VehicleComponent.IsSlotAvailable(scriptInterface.GetGame(), scriptInterface.owner as VehicleObject, n"seat_back_left") && this.GetInStateTime() >= 0.20 {
+              return true;
+            };
+          };
+        };
+      };
+    };
+    return false;
+  }
+
+  protected final func PauseStateMachines(stateContext: ref<StateContext>, executionOwner: ref<GameObject>) -> Void {
+    let coverAction: ref<PSMStopStateMachine> = new PSMStopStateMachine();
+    let stamina: ref<PSMStopStateMachine> = new PSMStopStateMachine();
+    let crosshair: ref<PSMStopStateMachine> = new PSMStopStateMachine();
+    let cameraContext: ref<PSMStopStateMachine> = new PSMStopStateMachine();
+    coverAction.stateMachineIdentifier.definitionName = n"CoverAction";
+    executionOwner.QueueEvent(coverAction);
+    if DefaultTransition.GetBlackboardIntVariable(executionOwner, GetAllBlackboardDefs().PlayerStateMachine.Stamina) == 0 {
+      stamina.stateMachineIdentifier.definitionName = n"Stamina";
+      executionOwner.QueueEvent(stamina);
+    };
+    crosshair.stateMachineIdentifier.definitionName = n"Crosshair";
+    executionOwner.QueueEvent(crosshair);
+    cameraContext.stateMachineIdentifier.definitionName = n"CameraContext";
+    executionOwner.QueueEvent(cameraContext);
+  }
+
+  protected final func ResumeStateMachines(executionOwner: ref<GameObject>) -> Void {
+    let upperBody: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let equipmentRightHand: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let equipmentLeftHand: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let coverAction: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let stamina: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let locomotion: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let crosshair: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    let cameraContext: ref<PSMStartStateMachine> = new PSMStartStateMachine();
+    upperBody.stateMachineIdentifier.definitionName = n"UpperBody";
+    executionOwner.QueueEvent(upperBody);
+    equipmentRightHand.stateMachineIdentifier.referenceName = n"RightHand";
+    equipmentRightHand.stateMachineIdentifier.definitionName = n"Equipment";
+    executionOwner.QueueEvent(equipmentRightHand);
+    equipmentLeftHand.stateMachineIdentifier.referenceName = n"LeftHand";
+    equipmentLeftHand.stateMachineIdentifier.definitionName = n"Equipment";
+    executionOwner.QueueEvent(equipmentLeftHand);
+    coverAction.stateMachineIdentifier.definitionName = n"CoverAction";
+    executionOwner.QueueEvent(coverAction);
+    stamina.stateMachineIdentifier.definitionName = n"Stamina";
+    executionOwner.QueueEvent(stamina);
+    locomotion.stateMachineIdentifier.definitionName = n"Locomotion";
+    executionOwner.QueueEvent(locomotion);
+    crosshair.stateMachineIdentifier.definitionName = n"Crosshair";
+    executionOwner.QueueEvent(crosshair);
+    cameraContext.stateMachineIdentifier.definitionName = n"CameraContext";
+    executionOwner.QueueEvent(cameraContext);
+  }
+
+  protected final const func GetVehicleDriverCombatType(vehicle: ref<VehicleObject>) -> gamedataDriverCombatType {
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(vehicle.GetRecordID());
+    if !IsDefined(vehicleRecord.VehDataPackage()) {
+      return gamedataDriverCombatType.Invalid;
+    };
+    return vehicleRecord.VehDataPackage().DriverCombat().Type();
+  }
+
+  protected final const func DoesVehicleSupportFireArms(vehicle: ref<VehicleObject>) -> Bool {
+    let driverCombatType: gamedataDriverCombatType = this.GetVehicleDriverCombatType(vehicle);
+    return Equals(driverCombatType, gamedataDriverCombatType.Doors) || Equals(driverCombatType, gamedataDriverCombatType.Standard);
+  }
+
+  protected final const func GetDriverCombatWeaponManipulationRequest(vehicle: ref<VehicleObject>) -> EquipmentManipulationAction {
+    if !IsDefined(vehicle) {
+      return EquipmentManipulationAction.Undefined;
+    };
+    if IsDefined(vehicle as BikeObject) {
+      return EquipmentManipulationAction.RequestLastUsedOrFirstAvailableDriverCombatBikeWeapon;
+    };
+    return EquipmentManipulationAction.RequestLastUsedOrFirstAvailableDriverCombatRangedWeapon;
+  }
+
+  protected final const func GetDriverCombatWeaponTag(vehicle: ref<VehicleObject>) -> CName {
+    if !IsDefined(vehicle) {
+      return n"None";
+    };
+    if IsDefined(vehicle as BikeObject) {
+      return n"DriverCombatBikeWeapon";
+    };
+    return n"DriverCombatRangedWeapon";
+  }
+}
+
+public abstract class VehicleEventsTransition extends VehicleTransition {
+
+  protected let isCameraTogglePressed: Bool;
+
+  @default(VehicleEventsTransition, 0.35f)
+  private let cameraToggleHoldToResetTimeSeconds: Float;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let exitActionPressCount: Uint32;
+    let animFeature: ref<AnimFeature_Mounting> = new AnimFeature_Mounting();
+    animFeature.mountingState = 1;
+    scriptInterface.SetAnimationParameterFeature(n"Mounting", animFeature);
+    exitActionPressCount = scriptInterface.GetActionPressCount(n"Exit");
+    stateContext.SetPermanentIntParameter(n"exitPressCountOnEnter", Cast<Int32>(exitActionPressCount), true);
+    this.SetupVehicleDataPackage(stateContext, scriptInterface);
+    this.SetVehicleCameraParameters(stateContext, scriptInterface);
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animFeatureMounting: ref<AnimFeature_Mounting>;
+    let workspotSystem: ref<WorkspotGameSystem>;
+    this.isCameraTogglePressed = false;
+    let wasSwitchingSeat: StateResultBool = stateContext.GetPermanentBoolParameter(n"wasSwitching");
+    if wasSwitchingSeat.value {
+      return;
+    };
+    animFeatureMounting = new AnimFeature_Mounting();
+    animFeatureMounting.mountingState = 0;
+    scriptInterface.SetAnimationParameterFeature(n"Mounting", animFeatureMounting);
+    this.ResetVehParams(stateContext, scriptInterface);
+    this.ResetAnimFeature(stateContext, scriptInterface);
+    this.ResetForceFlags(stateContext);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 0);
+    workspotSystem = scriptInterface.GetWorkspotSystem();
+    workspotSystem.UnmountFromVehicle(scriptInterface.owner, scriptInterface.executionOwner, true);
+    this.SetVehicleStatusEffects(stateContext, scriptInterface, false);
+    this.DisableCameraBobbing(stateContext, scriptInterface, false);
+    this.SetWasStolen(stateContext, false);
+    this.SetWasCombatForced(stateContext, false);
+    this.SetRequestedTPPCamera(stateContext, false);
+    stateContext.SetPermanentBoolParameter(n"teleportExitActive", false, true);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    this.SetVehicleCameraParameters(stateContext, scriptInterface);
+    stateContext.SetPermanentIntParameter(n"driverCombatType", 6, true);
+    GameInstance.GetTelemetrySystem(scriptInterface.GetGame()).LogEnteringOrExitingVehicle(true);
+  }
+
+  protected final func HandleCameraInput(const stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if scriptInterface.IsActionJustReleased(n"ToggleVehCamera") && !this.IsVehicleCameraChangeBlocked(scriptInterface) {
+      this.RequestToggleVehicleCamera(scriptInterface);
+    };
+    if scriptInterface.IsActionJustHeld(n"HoldCinematicCamera") && !this.IsInItemWheelState(stateContext) && !this.IsVehicleCameraChangeBlocked(scriptInterface) {
+      this.RequestVehicleCinematicCamera(scriptInterface);
+    };
+  }
+
+  protected final func HandleExitRequest(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let adjacentSeat: CName;
+    let coolExitImpulseLevel: vehicleCoolExitImpulseLevel;
+    let currentTime: Float;
+    let exitActionPressCount: Uint32;
+    let exitPressCountResult: StateResultInt;
+    let inputStateTime: Float;
+    let isSlotOccupied: Bool;
+    let isValidExitAlreadyRequested: StateResultBool;
+    let mountingInfo: MountingInfo;
+    let onDifferentExitPress: Bool;
+    let stateTime: Float;
+    let validUnmount: vehicleUnmountPosition;
+    let vehicle: wref<VehicleObject>;
+    let vehiclePS: ref<VehicleComponentPS>;
+    let vehicleSubmergedTime: Float;
+    let shouldExitOnSubmerged: Bool = false;
+    let shouldForceExitDelamain: Bool = false;
+    let coolExit: Bool = false;
+    let isTeleportExiting: StateResultBool = stateContext.GetPermanentBoolParameter(n"teleportExitActive");
+    let isScheduledExit: StateResultBool = stateContext.GetPermanentBoolParameter(n"validExitAfterSwitchRequest");
+    let isSwitchingSeats: StateResultBool = stateContext.GetPermanentBoolParameter(n"validSwitchSeatExitRequest");
+    if isTeleportExiting.value || isScheduledExit.value || isSwitchingSeats.value {
+      return false;
+    };
+    vehicle = scriptInterface.owner as VehicleObject;
+    vehiclePS = vehicle.GetVehiclePS();
+    if vehiclePS.GetIsSubmerged() && !GameInstance.GetRacingSystem(scriptInterface.GetGame()).IsRaceInProgress() {
+      vehicleSubmergedTime = vehiclePS.GetSubmergedTimestamp();
+      currentTime = EngineTime.ToFloat(scriptInterface.GetTimeSystem().GetSimTime());
+      shouldExitOnSubmerged = currentTime - vehicleSubmergedTime > 0.50;
+    };
+    shouldForceExitDelamain = vehiclePS.ShouldForceExitDelamain();
+    vehiclePS.SetShouldForceExitDelamain(false);
+    if shouldForceExitDelamain || !this.IsExitVehicleBlocked(scriptInterface) {
+      stateTime = this.GetInStateTime();
+      exitActionPressCount = scriptInterface.GetActionPressCount(n"Exit");
+      exitPressCountResult = stateContext.GetPermanentIntParameter(n"exitPressCountOnEnter");
+      onDifferentExitPress = !exitPressCountResult.valid || exitPressCountResult.value != Cast<Int32>(exitActionPressCount);
+      if scriptInterface.IsActionJustPressed(n"QuickExit") {
+        coolExit = true;
+        coolExitImpulseLevel = vehicle.DetermineCoolExitImpulseLevel(scriptInterface.executionOwner, this.GetStaticFloatParameterDefault("coolExitMaxImpulseHeightThreshold", 3.60), this.GetStaticFloatParameterDefault("coolExitLowImpulseHeightThreshold", 1.80));
+        if NotEquals(coolExitImpulseLevel, vehicleCoolExitImpulseLevel.NoExit) {
+          this.SetSide(stateContext, scriptInterface);
+          stateContext.SetPermanentIntParameter(n"vehUnmountDir", 0, true);
+          stateContext.SetPermanentBoolParameter(n"coolExitRequest", true, true);
+          this.DeactivateTimeDilationCW(stateContext, scriptInterface);
+          return true;
+        };
+      };
+      if shouldExitOnSubmerged || coolExit || shouldForceExitDelamain || onDifferentExitPress && stateTime >= 0.30 && scriptInterface.GetActionValue(n"Exit") > 0.00 {
+        inputStateTime = scriptInterface.GetActionStateTime(n"Exit");
+        isValidExitAlreadyRequested = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+        validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner);
+        stateContext.SetPermanentIntParameter(n"vehUnmountDir", EnumInt(validUnmount.direction), true);
+        this.DeactivateTimeDilationCW(stateContext, scriptInterface);
+        if shouldExitOnSubmerged || coolExit || shouldForceExitDelamain || inputStateTime >= 0.30 && !isValidExitAlreadyRequested.value {
+          if vehicle != (vehicle as CarObject) && vehicle != (vehicle as BikeObject) {
+            stateContext.SetPermanentBoolParameter(n"validExitRequest", true, true);
+            return true;
+          };
+          this.SetSide(stateContext, scriptInterface);
+          if this.IsUnmountDirectionClosest(stateContext, validUnmount.direction) || vehicle == (vehicle as BikeObject) && this.IsUnmountDirectionOpposite(stateContext, validUnmount.direction) {
+            if shouldExitOnSubmerged {
+              stateContext.SetPermanentBoolParameter(n"submergedExitRequest", true, true);
+            } else {
+              stateContext.SetPermanentBoolParameter(n"validExitRequest", true, true);
+            };
+            return true;
+          };
+        };
+        if shouldExitOnSubmerged || scriptInterface.GetActionValue(n"Exit") > 0.00 {
+          if inputStateTime >= 0.50 && vehicle == (vehicle as CarObject) {
+            this.SetSide(stateContext, scriptInterface);
+            if this.IsUnmountDirectionOpposite(stateContext, validUnmount.direction) {
+              mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+              this.GetAdjacentSeat(mountingInfo.slotId.id, adjacentSeat);
+              isSlotOccupied = VehicleComponent.IsSlotOccupied(scriptInterface.GetGame(), scriptInterface.ownerEntityID, adjacentSeat);
+              this.TryToStopVehicle(stateContext, scriptInterface, true);
+              if !isSlotOccupied {
+                stateContext.SetPermanentBoolParameter(n"validSwitchSeatExitRequest", true, true);
+                stateContext.SetPermanentBoolParameter(n"validExitAfterSwitchRequest", true, true);
+              } else {
+                this.ExitWithTeleport(stateContext, scriptInterface, validUnmount, true);
+              };
+              return true;
+            };
+          };
+          if shouldExitOnSubmerged || scriptInterface.IsActionJustHeld(n"Exit") {
+            if Equals(validUnmount.direction, vehicleExitDirection.Front) || Equals(validUnmount.direction, vehicleExitDirection.Back) || Equals(validUnmount.direction, vehicleExitDirection.Top) || Equals(validUnmount.direction, vehicleExitDirection.NoDirection) {
+              this.TryToStopVehicle(stateContext, scriptInterface, true);
+              this.ExitWithTeleport(stateContext, scriptInterface, validUnmount);
+              return true;
+            };
+          };
+        };
+      };
+    };
+    return false;
+  }
+
+  protected final func ExitWithTeleport(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, validUnmountDirection: vehicleUnmountPosition, opt moveVehicle: Bool, opt skipUnmount: Bool) -> Void {
+    let mountingInfo: MountingInfo;
+    let teleportPosition: Vector4;
+    let unmountEvent: ref<UnmountingRequest>;
+    let vehicleTeleportPosition: Vector4;
+    let worldPos: Vector4;
+    stateContext.SetPermanentBoolParameter(n"teleportExitActive", true, true);
+    this.DeactivateTimeDilationCW(stateContext, scriptInterface);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    unmountEvent = new UnmountingRequest();
+    unmountEvent.lowLevelMountingInfo = mountingInfo;
+    unmountEvent.mountData = new MountEventData();
+    unmountEvent.mountData.isInstant = true;
+    scriptInterface.GetMountingFacility().Unmount(unmountEvent);
+    if Equals(validUnmountDirection.direction, vehicleExitDirection.NoDirection) {
+      worldPos = scriptInterface.executionOwner.GetWorldPosition();
+      worldPos.Z = worldPos.Z + 2.00;
+      teleportPosition = worldPos;
+    } else {
+      teleportPosition = WorldPosition.ToVector4(validUnmountDirection.position);
+    };
+    if moveVehicle {
+      vehicleTeleportPosition = scriptInterface.owner.GetWorldPosition();
+      vehicleTeleportPosition.Z = vehicleTeleportPosition.Z + 0.25;
+      WorldTransform.GetRight(scriptInterface.owner.GetWorldTransform());
+      teleportPosition = teleportPosition + WorldTransform.GetRight(scriptInterface.owner.GetWorldTransform());
+      vehicleTeleportPosition = vehicleTeleportPosition + WorldTransform.GetRight(scriptInterface.owner.GetWorldTransform());
+      GameInstance.GetTeleportationFacility(scriptInterface.GetGame()).Teleport(scriptInterface.owner, vehicleTeleportPosition, Quaternion.ToEulerAngles(scriptInterface.owner.GetWorldOrientation()));
+    };
+    GameInstance.GetTeleportationFacility(scriptInterface.GetGame()).Teleport(scriptInterface.executionOwner, teleportPosition, Quaternion.ToEulerAngles(scriptInterface.owner.GetWorldOrientation()));
+  }
+}
+
+public class IdleDecisions extends VehicleTransition {
+
+  public final const func ToExit(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class IdleEvents extends VehicleEventsTransition {
+
+  protected final func SetVehicleCombatType(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let driverCombatType: gamedataDriverCombatType = gamedataDriverCombatType.Invalid;
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord((scriptInterface.owner as VehicleObject).GetRecordID());
+    if IsDefined(vehicleRecord.VehDataPackage()) {
+      driverCombatType = vehicleRecord.VehDataPackage().DriverCombat().Type();
+    };
+    stateContext.SetPermanentIntParameter(n"driverCombatType", EnumInt(driverCombatType), true);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let vehClass: Int32;
+    let vehType: Int32;
+    super.OnEnter(stateContext, scriptInterface);
+    vehType = this.GetVehType(stateContext, scriptInterface);
+    this.SetVehicleType(stateContext, vehType);
+    vehClass = this.GetVehClass(stateContext, scriptInterface);
+    this.SetVehicleClass(stateContext, vehClass);
+    this.SetVehicleCombatType(stateContext, scriptInterface);
+    VehicleComponent.SetAnimsetOverrideForPassenger(scriptInterface.executionOwner, 1.00);
+    if !DefaultTransition.IsInRpgContext(scriptInterface) {
+      stateContext.SetPermanentBoolParameter(n"VisionToggled", false, true);
+      this.ForceDisableVisionMode(stateContext);
+    };
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.PlayerStateChange(scriptInterface, 4);
+    this.DisableCameraBobbing(stateContext, scriptInterface, true);
+    stateContext.SetPermanentBoolParameter(n"coolExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"submergedExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validSwitchSeatExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"teleportExitActive", false, true);
+    stateContext.RemoveConditionBoolParameter(n"CrouchToggled");
+  }
+}
+
+public class EnteringDecisions extends VehicleTransition {
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let combatEnter: StateResultBool;
+    let targetTime: Float;
+    let wasStolen: StateResultBool = stateContext.GetPermanentBoolParameter(n"wasStolen");
+    let currentTime: Float = this.GetInStateTime();
+    if wasStolen.value {
+      targetTime = 3.70;
+      return currentTime > targetTime || this.stateMachineInitData.instant && stateContext.IsStateActive(n"Locomotion", n"workspot");
+    };
+    combatEnter = stateContext.GetPermanentBoolParameter(n"combatEnter");
+    if combatEnter.value {
+      targetTime = this.GetVehicleDataPackage(stateContext).CombatEntering();
+    } else {
+      targetTime = this.GetVehicleDataPackage(stateContext).Entering();
+    };
+    return currentTime > targetTime || this.stateMachineInitData.instant && stateContext.IsStateActive(n"Locomotion", n"workspot");
+  }
+
+  public final const func ToExiting(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToSwitchSeats(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsDriverInVehicle(scriptInterface) {
+      return this.DriverSwitchSeatsCondition(stateContext, scriptInterface);
+    };
+    if this.IsPassengerInVehicle(scriptInterface) {
+      return this.PassangerSwitchSeatsCondition(stateContext, scriptInterface);
+    };
+    return false;
+  }
+}
+
+public class EnteringEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animVariables: array<CName>;
+    let mountingInfo: MountingInfo;
+    let playerOwner: ref<PlayerPuppet>;
+    let shouldEnterDriverCombat: Bool;
+    let slideDuration: Float;
+    let syncObjects: array<EntityID>;
+    let vehicle: ref<VehicleObject>;
+    let workspotSystem: ref<WorkspotGameSystem>;
+    let entrySlotName: CName = n"default";
+    super.OnEnter(stateContext, scriptInterface);
+    shouldEnterDriverCombat = this.IsPlayerInCombat(scriptInterface) && UpperBodyTransition.HasAnyWeaponEquipped(scriptInterface);
+    playerOwner = scriptInterface.executionOwner as PlayerPuppet;
+    if IsDefined(playerOwner) {
+      shouldEnterDriverCombat = shouldEnterDriverCombat || playerOwner.PSIsInDriverCombat();
+    };
+    stateContext.SetPermanentBoolParameter(n"drawnWeapon", shouldEnterDriverCombat, true);
+    stateContext.SetPermanentBoolParameter(n"vehicleStatusEffectsApplied", false, false);
+    stateContext.SetPermanentBoolParameter(n"VisionToggled", false, true);
+    this.ForceDisableVisionMode(stateContext);
+    this.ForceDisableRadialWheel(scriptInterface);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+    this.ForceIdleVehicle(stateContext);
+    slideDuration = this.GetVehicleDataPackage(stateContext).SlideDuration();
+    if this.stateMachineInitData.instant {
+      slideDuration = 0.00;
+    };
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    workspotSystem = scriptInterface.GetWorkspotSystem();
+    animVariables = VehicleComponent.SetAnimsetOverrideForPassenger(scriptInterface.executionOwner, 1.00);
+    vehicle = scriptInterface.owner as VehicleObject;
+    if EntityID.IsDefined(this.stateMachineInitData.entityID) && vehicle.GetVehiclePS().IsSlotOccupiedByNPC(mountingInfo.slotId.id) {
+      ArrayPush(syncObjects, this.stateMachineInitData.entityID);
+      workspotSystem.StopNpcInWorkspot(scriptInterface.executionOwner);
+      if this.stateMachineInitData.alive {
+        entrySlotName = n"stealing";
+      } else {
+        entrySlotName = n"deadstealing";
+      };
+      workspotSystem.MountToVehicle(scriptInterface.owner, scriptInterface.executionOwner, slideDuration, slideDuration, n"OccupantSlots", mountingInfo.slotId.id, syncObjects, entrySlotName, animVariables);
+      this.SetWasStolen(stateContext, true);
+    } else {
+      if !this.stateMachineInitData.instant && this.IsPlayerInCombat(scriptInterface) && this.GetVehClass(stateContext, scriptInterface) == 0 && VehicleComponent.IsDriverSlot(mountingInfo.slotId.id) {
+        entrySlotName = n"enter_fast";
+        slideDuration = 0.50;
+        stateContext.SetPermanentBoolParameter(n"combatEnter", true, true);
+      };
+      workspotSystem.StopNpcInWorkspot(scriptInterface.executionOwner);
+      workspotSystem.MountToVehicle(scriptInterface.owner, scriptInterface.executionOwner, slideDuration, slideDuration, n"OccupantSlots", mountingInfo.slotId.id, entrySlotName, animVariables);
+    };
+    if this.stateMachineInitData.occupiedByNonFriendly {
+      VehicleComponent.QueueExitEventToAllNonFriendlyActivePassengers(scriptInterface.GetGame(), scriptInterface.ownerEntityID, scriptInterface.executionOwner, true);
+    };
+    if !VehicleComponent.IsDriverSlot(mountingInfo.slotId.id) {
+      VehicleComponent.QueueHijackExitEventToInactiveDriver(scriptInterface.owner.GetGame(), scriptInterface.owner as VehicleObject);
+    };
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.PlayerStateChange(scriptInterface, 4);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    stateContext.SetPermanentBoolParameter(n"combatEnter", false, true);
+    GameInstance.GetTelemetrySystem(scriptInterface.GetGame()).LogEnteringOrExitingVehicle(false);
+  }
+}
+
+public class PassengerDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsPassengerInVehicle(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToCombat(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.CombatSeated) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToSwitchSeats(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.PassangerSwitchSeatsCondition(stateContext, scriptInterface);
+  }
+}
+
+public class PassengerEvents extends VehicleEventsTransition {
+
+  private let noWeaponsRestrictionApplied: Bool;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let audioEvt: ref<VehicleAudioEvent>;
+    let camEvent: ref<vehicleRequestCameraPerspectiveEvent>;
+    let fppCamParamsSide: Bool;
+    let mountingInfo: MountingInfo;
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetVehicleStatusEffects(stateContext, scriptInterface, true);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    this.SetSide(stateContext, scriptInterface);
+    this.ForceIdleVehicle(stateContext);
+    this.SetIsInVehicle(stateContext, true);
+    this.SetIsCar(stateContext, true);
+    if Equals(mountingInfo.slotId.id, n"seat_back_left") {
+      fppCamParamsSide = true;
+    };
+    this.SetVehFppCameraParams(stateContext, scriptInterface, true, fppCamParamsSide);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.SendIsCar(stateContext, scriptInterface);
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerPassenger;
+    scriptInterface.owner.QueueEvent(audioEvt);
+    if stateContext.GetBoolParameter(n"requestedTPPCamera", true) {
+      this.RequestVehicleCameraPerspective(scriptInterface, vehicleCameraPerspective.TPPClose);
+      this.SetRequestedTPPCamera(stateContext, false);
+    };
+    this.noWeaponsRestrictionApplied = false;
+    if this.stateMachineInitData.occupiedByNonFriendly {
+      if Equals(mountingInfo.slotId.id, n"seat_front_right") {
+        this.noWeaponsRestrictionApplied = true;
+        StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons");
+      };
+    };
+    this.RemoveMountingRequest(stateContext);
+    this.PlayerStateChange(scriptInterface, 3);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 3);
+    camEvent = new vehicleRequestCameraPerspectiveEvent();
+    if this.IsVehicleRemoteControlled(scriptInterface) {
+      camEvent.cameraPerspective = vehicleCameraPerspective.TPPMedium;
+    } else {
+      camEvent.cameraPerspective = vehicleCameraPerspective.FPP;
+    };
+    scriptInterface.executionOwner.QueueEvent(camEvent);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.isCameraTogglePressed = false;
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    if Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.CombatSeated) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon);
+      stateContext.SetTemporaryBoolParameter(n"vehicleWindowedCombat", false, true);
+    };
+    if this.noWeaponsRestrictionApplied {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons", 1u);
+    };
+  }
+
+  public final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetSide(stateContext, scriptInterface);
+    this.HandleCameraInput(stateContext, scriptInterface);
+    this.HandleExitRequest(timeDelta, stateContext, scriptInterface);
+  }
+}
+
+public class GunnerDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let lowLevelMountingInfo: MountingInfo = scriptInterface.GetMountingFacility().GetMountingInfoSingleWithObjects(scriptInterface.executionOwner);
+    let currentSlot: CName = lowLevelMountingInfo.slotId.id;
+    if Equals(currentSlot, n"gunner_back_left") || Equals(currentSlot, n"gunner_back_right") {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToExiting(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class GunnerEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let audioEvt: ref<VehicleAudioEvent>;
+    super.OnEnter(stateContext, scriptInterface);
+    stateContext.SetPermanentIntParameter(n"vehSlot", 3, true);
+    this.ForceIdleVehicle(stateContext);
+    this.SetIsInVehicle(stateContext, true);
+    this.SetIsCar(stateContext, true);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    this.SendIsCar(stateContext, scriptInterface);
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerPassenger;
+    scriptInterface.owner.QueueEvent(audioEvt);
+    this.RemoveMountingRequest(stateContext);
+    this.PlayerStateChange(scriptInterface, 3);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 2);
+    this.SetIsInVehicleCombat(stateContext, true);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableRangedWeapon);
+    this.SendAnimFeature(stateContext, scriptInterface);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    if Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.CombatSeated) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon);
+      stateContext.SetTemporaryBoolParameter(n"vehicleWindowedCombat", false, true);
+    };
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnForcedExit(stateContext, scriptInterface);
+  }
+}
+
+public class DriveDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsDriverInVehicle(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToDriverCombatFirearms(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let drawnWeapon: StateResultBool;
+    let equipWeaponActionTapped: Bool;
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    let questForceEnableCombat: StateResultBool;
+    if this.DoesVehicleSupportFireArms(scriptInterface.owner as VehicleObject) {
+      equipWeaponActionTapped = (scriptInterface.IsActionJustTapped(n"SwitchItem") || scriptInterface.IsActionJustTapped(n"HolsterWeapon") || scriptInterface.IsActionJustTapped(n"NextWeapon") || scriptInterface.IsActionJustTapped(n"PreviousWeapon")) && EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableDriverCombatWeapon(this.GetDriverCombatWeaponTag(scriptInterface.owner as VehicleObject)) == ItemID.None() && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vision) != 1;
+      if !this.IsPlayerAllowedToEnterDriverCombat(stateContext, scriptInterface) {
+        if equipWeaponActionTapped {
+          notificationEvent = new UIInGameNotificationEvent();
+          notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+          scriptInterface.GetUISystem().QueueEvent(notificationEvent);
+          return false;
+        };
+      } else {
+        if equipWeaponActionTapped || UpperBodyTransition.HasAnyWeaponEquipped(scriptInterface) {
+          return true;
+        };
+        if Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.CombatSeated) {
+          return true;
+        };
+        drawnWeapon = stateContext.GetPermanentBoolParameter(n"drawnWeapon");
+        if drawnWeapon.value && EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableDriverCombatWeapon(this.GetDriverCombatWeaponTag(scriptInterface.owner as VehicleObject)) == ItemID.None() {
+          return true;
+        };
+        questForceEnableCombat = stateContext.GetTemporaryBoolParameter(n"startVehicleCombat");
+        if questForceEnableCombat.value {
+          return true;
+        };
+      };
+    };
+    return false;
+  }
+
+  public final const func ToDriverCombatMountedWeapons(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let drawnWeapon: StateResultBool;
+    let equipWeaponActionTapped: Bool;
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    let questForceEnableCombat: StateResultBool;
+    if Equals(this.GetVehicleDriverCombatType(scriptInterface.owner as VehicleObject), gamedataDriverCombatType.MountedWeapons) {
+      equipWeaponActionTapped = (scriptInterface.IsActionJustTapped(n"MountedWeapons_SwitchWeapons") || scriptInterface.IsActionJustTapped(n"MountedWeapons_HolsterWeapon") || scriptInterface.IsActionJustTapped(n"MountedWeapons_NextWeapon") || scriptInterface.IsActionJustTapped(n"MountedWeapons_PreviousWeapon") || scriptInterface.IsActionJustTapped(n"MountedWeapons_WeaponSlot1") || scriptInterface.IsActionJustTapped(n"MountedWeapons_WeaponSlot2") && (scriptInterface.owner as VehicleObject).CanSwitchWeapons()) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vision) != 1;
+      if !this.IsPlayerAllowedToEnterDriverCombat(stateContext, scriptInterface) || (scriptInterface.owner as VehicleObject).GetVehicleComponent().IsVehicleInDecay() {
+        if equipWeaponActionTapped {
+          notificationEvent = new UIInGameNotificationEvent();
+          notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+          scriptInterface.GetUISystem().QueueEvent(notificationEvent);
+          return false;
+        };
+      } else {
+        if equipWeaponActionTapped {
+          return true;
+        };
+        if Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.CombatSeated) {
+          return true;
+        };
+        drawnWeapon = stateContext.GetPermanentBoolParameter(n"drawnWeapon");
+        if drawnWeapon.value {
+          return true;
+        };
+        questForceEnableCombat = stateContext.GetTemporaryBoolParameter(n"startVehicleCombat");
+        if questForceEnableCombat.value {
+          return true;
+        };
+      };
+    };
+    return false;
+  }
+
+  public final const func ToSwitchSeats(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.DriverSwitchSeatsCondition(stateContext, scriptInterface);
+  }
+}
+
+public class DriveEvents extends VehicleEventsTransition {
+
+  private let m_inCombatBlockingForbiddenZone: Bool;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let audioEvt: ref<VehicleAudioEvent>;
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetVehicleStatusEffects(stateContext, scriptInterface, true);
+    this.SetSide(stateContext, scriptInterface);
+    this.SetIsInVehicle(stateContext, true);
+    this.SetIsVehicleDriver(stateContext, true);
+    this.ForceIdleVehicle(stateContext);
+    this.PlayerStateChange(scriptInterface, 1);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 1);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.SetVehFppCameraParams(stateContext, scriptInterface, false);
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerDriving;
+    scriptInterface.owner.QueueEvent(audioEvt);
+    if stateContext.GetBoolParameter(n"requestedTPPCamera", true) {
+      this.RequestVehicleCameraPerspective(scriptInterface, vehicleCameraPerspective.TPPClose);
+      this.SetRequestedTPPCamera(stateContext, false);
+    };
+    this.RemoveMountingRequest(stateContext);
+    this.PauseStateMachines(stateContext, scriptInterface.executionOwner);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.executionOwner.GetGame()).SetIdleAnimation(n"Driving", true);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let transition: PuppetVehicleState = this.GetPuppetVehicleSceneTransition(stateContext);
+    if Equals(transition, PuppetVehicleState.CombatSeated) || Equals(transition, PuppetVehicleState.CombatWindowed) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon);
+    };
+    this.SetIsVehicleDriver(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    this.isCameraTogglePressed = false;
+    this.ResumeStateMachines(scriptInterface.executionOwner);
+    GameInstance.GetRazerChromaEffectsSystem(scriptInterface.executionOwner.GetGame()).SetHotKeysIdleAnimation();
+    if this.m_inCombatBlockingForbiddenZone {
+      this.m_inCombatBlockingForbiddenZone = false;
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons", 1u);
+    };
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnForcedExit(stateContext, scriptInterface);
+    this.ResumeStateMachines(scriptInterface.executionOwner);
+    if this.m_inCombatBlockingForbiddenZone {
+      this.m_inCombatBlockingForbiddenZone = false;
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons", 1u);
+    };
+  }
+
+  public final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let drawnWeapon: StateResultBool;
+    let driverCombatForbiddenZone: StateResultBool;
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.HandleCameraInput(stateContext, scriptInterface);
+    this.HandleExitRequest(timeDelta, stateContext, scriptInterface);
+    drawnWeapon = stateContext.GetPermanentBoolParameter(n"drawnWeapon");
+    if drawnWeapon.value && EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableDriverCombatWeapon(this.GetDriverCombatWeaponTag(scriptInterface.owner as VehicleObject)) != ItemID.None() && this.DoesVehicleSupportFireArms(scriptInterface.owner as VehicleObject) {
+      stateContext.SetPermanentBoolParameter(n"drawnWeapon", false, true);
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, this.GetDriverCombatWeaponManipulationRequest(scriptInterface.owner as VehicleObject), gameEquipAnimationType.Instant);
+    };
+    driverCombatForbiddenZone = stateContext.GetPermanentBoolParameter(n"driverCombatForbiddenZone");
+    if NotEquals(driverCombatForbiddenZone.value, this.m_inCombatBlockingForbiddenZone) {
+      this.m_inCombatBlockingForbiddenZone = driverCombatForbiddenZone.value;
+      if this.m_inCombatBlockingForbiddenZone {
+        StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons");
+      } else {
+        StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.NoWeapons", 1u);
+      };
+    };
+  }
+}
+
+public class SwitchSeatsDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return true;
+  }
+
+  public final const func ToDrive(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let mountData: ref<MountEventData>;
+    let mountOptions: ref<MountEventOptions>;
+    let mountingRequest: ref<MountingRequest>;
+    let lowLevelMountingInfo: MountingInfo = scriptInterface.GetMountingFacility().GetMountingInfoSingleWithIds(scriptInterface.executionOwnerEntityID);
+    let currentSlot: CName = lowLevelMountingInfo.slotId.id;
+    if this.GetInStateTime() >= this.GetVehicleDataPackage(stateContext).SwitchSeats() {
+      mountingRequest = new MountingRequest();
+      mountData = new MountEventData();
+      mountOptions = new MountEventOptions();
+      lowLevelMountingInfo.parentId = scriptInterface.ownerEntityID;
+      lowLevelMountingInfo.childId = scriptInterface.executionOwnerEntityID;
+      mountData.isInstant = true;
+      mountOptions.silentUnmount = true;
+      if Equals(currentSlot, n"seat_front_right") {
+        lowLevelMountingInfo.slotId.id = n"seat_front_left";
+        mountingRequest.lowLevelMountingInfo = lowLevelMountingInfo;
+        mountingRequest.mountData = mountData;
+        mountingRequest.mountData.mountEventOptions = mountOptions;
+        scriptInterface.GetMountingFacility().Mount(mountingRequest);
+        VehicleComponent.CloseDoor(scriptInterface.owner as VehicleObject, lowLevelMountingInfo.slotId);
+        return true;
+      };
+    };
+    return false;
+  }
+
+  public final const func ToPassenger(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let mountData: ref<MountEventData>;
+    let mountOptions: ref<MountEventOptions>;
+    let mountingRequest: ref<MountingRequest>;
+    let lowLevelMountingInfo: MountingInfo = scriptInterface.GetMountingFacility().GetMountingInfoSingleWithIds(scriptInterface.executionOwnerEntityID);
+    let currentSlot: CName = lowLevelMountingInfo.slotId.id;
+    if this.GetInStateTime() >= this.GetVehicleDataPackage(stateContext).SwitchSeats() {
+      mountingRequest = new MountingRequest();
+      mountData = new MountEventData();
+      mountOptions = new MountEventOptions();
+      lowLevelMountingInfo.parentId = scriptInterface.ownerEntityID;
+      lowLevelMountingInfo.childId = scriptInterface.executionOwnerEntityID;
+      mountData.isInstant = true;
+      mountOptions.silentUnmount = true;
+      if Equals(currentSlot, n"seat_back_left") {
+        lowLevelMountingInfo.slotId.id = n"seat_back_right";
+        mountingRequest.lowLevelMountingInfo = lowLevelMountingInfo;
+        mountingRequest.mountData = mountData;
+        mountingRequest.mountData.mountEventOptions = mountOptions;
+        scriptInterface.GetMountingFacility().Mount(mountingRequest);
+        return true;
+      };
+      if Equals(currentSlot, n"seat_back_right") {
+        lowLevelMountingInfo.slotId.id = n"seat_back_left";
+        mountingRequest.lowLevelMountingInfo = lowLevelMountingInfo;
+        mountingRequest.mountData = mountData;
+        mountingRequest.mountData.mountEventOptions = mountOptions;
+        scriptInterface.GetMountingFacility().Mount(mountingRequest);
+        return true;
+      };
+      if Equals(currentSlot, n"seat_front_left") {
+        lowLevelMountingInfo.slotId.id = n"seat_front_right";
+        mountingRequest.lowLevelMountingInfo = lowLevelMountingInfo;
+        mountingRequest.mountData = mountData;
+        mountingRequest.mountData.mountEventOptions = mountOptions;
+        scriptInterface.GetMountingFacility().Mount(mountingRequest);
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class SwitchSeatsEvents extends VehicleEventsTransition {
+
+  public let workspotSystem: ref<WorkspotGameSystem>;
+
+  public let enabledSceneMode: Bool;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let animVariablesActivate: array<CName>;
+    let animVariablesDeactivate: array<CName>;
+    let curSlotName: CName;
+    let evtNextSeat: ref<AnimWrapperWeightSetter>;
+    let evtNextSlot: ref<AnimWrapperWeightSetter>;
+    let evtPrevSeat: ref<AnimWrapperWeightSetter>;
+    let evtPrevSlot: ref<AnimWrapperWeightSetter>;
+    let mountingInfo: MountingInfo;
+    let nextSlotName: CName;
+    let vehicle: wref<VehicleObject>;
+    stateContext.SetPermanentBoolParameter(n"validSwitchSeatExitRequest", false, true);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.DeactivateTimeDilationCW(stateContext, scriptInterface);
+    vehicle = this.GetVehicleObject(scriptInterface);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    curSlotName = mountingInfo.slotId.id;
+    this.GetAdjacentSeat(curSlotName, nextSlotName);
+    this.SetRequestedTPPCamera(stateContext, false);
+    evtNextSeat = new AnimWrapperWeightSetter();
+    evtNextSeat.key = vehicle.GetAnimsetOverrideForPassenger(nextSlotName);
+    evtNextSeat.value = 1.00;
+    ArrayPush(animVariablesActivate, evtNextSeat.key);
+    scriptInterface.executionOwner.QueueEvent(evtNextSeat);
+    evtNextSlot = new AnimWrapperWeightSetter();
+    evtNextSlot.key = nextSlotName;
+    evtNextSlot.value = 1.00;
+    ArrayPush(animVariablesActivate, evtNextSlot.key);
+    scriptInterface.executionOwner.QueueEvent(evtNextSlot);
+    evtPrevSeat = new AnimWrapperWeightSetter();
+    evtPrevSeat.key = vehicle.GetAnimsetOverrideForPassenger(curSlotName);
+    evtPrevSeat.value = 0.00;
+    ArrayPush(animVariablesDeactivate, evtPrevSeat.key);
+    scriptInterface.executionOwner.QueueEvent(evtPrevSeat);
+    evtPrevSlot = new AnimWrapperWeightSetter();
+    evtPrevSlot.key = curSlotName;
+    evtPrevSlot.value = 0.00;
+    ArrayPush(animVariablesDeactivate, evtPrevSlot.key);
+    scriptInterface.executionOwner.QueueEvent(evtPrevSlot);
+    this.workspotSystem = scriptInterface.GetWorkspotSystem();
+    this.workspotSystem.SwitchSeatVehicle(scriptInterface.owner, scriptInterface.executionOwner, n"OccupantSlots", nextSlotName, n"switch_seat", animVariablesActivate, animVariablesDeactivate);
+    this.SetVehicleCameraSceneMode(scriptInterface, true);
+    this.enabledSceneMode = true;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.DeactivateTimeDilationCW(stateContext, scriptInterface);
+    if this.enabledSceneMode {
+      this.SetVehicleCameraSceneMode(scriptInterface, false);
+      this.enabledSceneMode = false;
+    };
+  }
+
+  public final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class EnteringCombatDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let audioEvt: ref<VehicleAudioEvent>;
+    let hasTurret: Bool;
+    let questForceEnableCombat: StateResultBool;
+    let scenePuppetVehicleTransition: PuppetVehicleState;
+    if !this.IsPlayerAllowedToEnterCombat(scriptInterface) {
+      return false;
+    };
+    questForceEnableCombat = stateContext.GetTemporaryBoolParameter(n"startVehicleCombat");
+    hasTurret = VehicleTransition.CheckVehicleDesiredTag(scriptInterface, n"Turret");
+    scenePuppetVehicleTransition = this.GetPuppetVehicleSceneTransition(stateContext);
+    if hasTurret {
+      return false;
+    };
+    if questForceEnableCombat.value && !hasTurret {
+      this.SetWasCombatForced(stateContext, true);
+      return true;
+    };
+    if Equals(scenePuppetVehicleTransition, PuppetVehicleState.CombatWindowed) {
+      this.SetWasCombatForced(stateContext, true);
+      return true;
+    };
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerExitCombat;
+    scriptInterface.owner.QueueEvent(audioEvt);
+    if UpperBodyTransition.HasAnyWeaponEquipped(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetVehicleDataPackage(stateContext).ToCombat();
+  }
+}
+
+public class EnteringCombatEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let drawItemRequest: ref<DrawItemRequest>;
+    let equipmentManipulationAction: EquipmentManipulationAction;
+    let equipmentSystem: ref<EquipmentSystem>;
+    let weaponID: ItemID;
+    super.OnEnter(stateContext, scriptInterface);
+    if stateContext.GetBoolParameter(n"wasCombatForced", true) && !UpperBodyTransition.HasRangedWeaponEquipped(scriptInterface.executionOwner) {
+      if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"DriverCombatFirearms") {
+        weaponID = EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableDriverCombatWeapon(this.GetDriverCombatWeaponTag(scriptInterface.owner as VehicleObject));
+        equipmentManipulationAction = this.GetDriverCombatWeaponManipulationRequest(scriptInterface.owner as VehicleObject);
+      } else {
+        weaponID = EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableRangedWeapon();
+        equipmentManipulationAction = EquipmentManipulationAction.RequestLastUsedOrFirstAvailableRangedWeapon;
+      };
+      if ItemID.IsValid(weaponID) {
+        this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, equipmentManipulationAction);
+      } else {
+        equipmentSystem = scriptInterface.GetScriptableSystem(n"EquipmentSystem") as EquipmentSystem;
+        drawItemRequest = new DrawItemRequest();
+        drawItemRequest.owner = scriptInterface.executionOwner;
+        drawItemRequest.itemID = ItemID.CreateQuery(t"Items.Preset_V_Unity_Cutscene");
+        equipmentSystem.QueueRequest(drawItemRequest);
+      };
+    };
+    this.SetIsEnteringCombat(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.PlayerStateChange(scriptInterface, 2);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.SetVehicleCameraSceneMode(scriptInterface, true);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetIsEnteringCombat(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    if !stateContext.GetBoolParameter(n"wasCombatForced", true) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon);
+    };
+    stateContext.SetTemporaryBoolParameter(n"vehicleWindowedCombat", true, true);
+    this.SetWasCombatForced(stateContext, false);
+    this.SetVehicleCameraSceneMode(scriptInterface, false);
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class ExitingCombatDecisions extends VehicleTransition {
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetVehicleDataPackage(stateContext).FromCombat();
+  }
+}
+
+public class ExitingCombatEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let audioEvt: ref<VehicleAudioEvent>;
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+    this.SetVehicleCameraSceneMode(scriptInterface, true);
+    this.SetIsExitingCombat(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerExitCombat;
+    scriptInterface.owner.QueueEvent(audioEvt);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetVehicleCameraSceneMode(scriptInterface, false);
+    this.SetIsExitingCombat(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class SceneExitingCombatDecisions extends VehicleTransition {
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.GetInStateTime() >= 0.50 || !scriptInterface.IsSceneAnimationActive() {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class SceneExitingCombatEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mountingInfo: MountingInfo;
+    let slotName: CName;
+    super.OnEnter(stateContext, scriptInterface);
+    this.SetVehicleCameraSceneMode(scriptInterface, true);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    slotName = mountingInfo.slotId.id;
+    this.SetIsInVehicleCombat(stateContext, true);
+    this.SetIsInVehicleWindowCombat(stateContext, true);
+    this.SetIsWorldRenderPlane(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.ToggleWindowForOccupiedSeat(scriptInterface, slotName, true);
+    this.SetFirearmsGameplayRestriction(scriptInterface, true);
+    this.SetVehFppCameraParams(stateContext, scriptInterface, true, false, true);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mountingInfo: MountingInfo;
+    let slotName: CName;
+    this.SetIsInVehicleCombat(stateContext, false);
+    this.SetIsInVehicleWindowCombat(stateContext, false);
+    this.SetIsWorldRenderPlane(stateContext, true);
+    this.SetVehicleCameraSceneMode(scriptInterface, false);
+    this.SetIsExitingCombat(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    slotName = mountingInfo.slotId.id;
+    this.ToggleWindowForOccupiedSeat(scriptInterface, slotName, false);
+    this.SetFirearmsGameplayRestriction(scriptInterface, false);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"FirearmsNoUnequip") {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+    };
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+}
+
+public class CombatDecisions extends VehicleTransition {
+
+  public final const func ToExitingCombat(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let questForceDisableCombat: StateResultBool = stateContext.GetTemporaryBoolParameter(n"stopVehicleCombat");
+    if questForceDisableCombat.value {
+      return true;
+    };
+    if !this.IsPlayerAllowedToExitCombat(scriptInterface) {
+      return false;
+    };
+    if this.IsInEmptyHandsState(stateContext) && this.GetInStateTime() >= 0.50 {
+      return true;
+    };
+    if scriptInterface.IsActionJustPressed(n"Exit") {
+      return true;
+    };
+    if scriptInterface.IsActionJustReleased(n"ToggleVehCamera") {
+      this.SetRequestedTPPCamera(stateContext, true);
+      return true;
+    };
+    if !this.IsPlayerAllowedToEnterCombat(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToSceneExitingCombat(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsPlayerAllowedToExitCombat(scriptInterface) {
+      return false;
+    };
+    if !this.IsInScene(stateContext, scriptInterface) {
+      return false;
+    };
+    if !scriptInterface.IsSceneAnimationActive() {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class CombatEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let fppCamParamsSide: Bool;
+    let mountingInfo: MountingInfo;
+    let slotName: CName;
+    super.OnEnter(stateContext, scriptInterface);
+    mountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    slotName = mountingInfo.slotId.id;
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 2);
+    this.SetIsWorldRenderPlane(stateContext, false);
+    this.SetIsInVehicleCombat(stateContext, true);
+    this.SetIsInVehicleWindowCombat(stateContext, stateContext.GetBoolParameter(n"vehicleWindowedCombat", false));
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.ToggleWindowForOccupiedSeat(scriptInterface, slotName, true);
+    this.SetFirearmsGameplayRestriction(scriptInterface, true);
+    if Equals(mountingInfo.slotId.id, n"seat_back_left") {
+      fppCamParamsSide = true;
+    };
+    this.SetVehFppCameraParams(stateContext, scriptInterface, true, fppCamParamsSide, true);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mountingInfo: MountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    let slotName: CName = mountingInfo.slotId.id;
+    this.SetIsInVehicleCombat(stateContext, false);
+    this.SetIsInVehicleWindowCombat(stateContext, false);
+    this.SetIsWorldRenderPlane(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.ToggleWindowForOccupiedSeat(scriptInterface, slotName, false);
+    this.SetFirearmsGameplayRestriction(scriptInterface, false);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+  }
+}
+
+public class DriverCombatDecisions extends VehicleTransition {
+
+  public final const func ToDriveCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !this.IsPlayerAllowedToEnterCombat(scriptInterface) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToCombatExiting(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitRequest: StateResultBool;
+    if this.GetVehClass(stateContext, scriptInterface) == 2 {
+      return false;
+    };
+    exitRequest = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+    return exitRequest.value;
+  }
+
+  public final const func ToSwitchSeats(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.DriverSwitchSeatsCondition(stateContext, scriptInterface);
+  }
+}
+
+public class DriverCombatFirearmsDecisions extends DriverCombatDecisions {
+
+  public final const func ToDrive(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.ToDriveCondition(stateContext, scriptInterface) {
+      return true;
+    };
+    if stateContext.IsStateActive(n"UpperBody", n"emptyHands") && this.GetInStateTime() >= 0.50 && (stateContext.IsStateActive(n"Equipment", n"selfRemoval") || !stateContext.IsStateMachineActive(n"Equipment")) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class DriverCombatMountedWeaponsDecisions extends DriverCombatDecisions {
+
+  public final const func ToDrive(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let driverCombatForbiddenZone: StateResultBool;
+    let questForceEnableCombat: StateResultBool;
+    if this.ToDriveCondition(stateContext, scriptInterface) {
+      return true;
+    };
+    if (scriptInterface.owner as VehicleObject).GetVehicleComponent().IsVehicleInDecay() {
+      return true;
+    };
+    if scriptInterface.IsActionJustReleased(n"Exit") || scriptInterface.IsActionJustTapped(n"MountedWeapons_HolsterWeapon") {
+      return true;
+    };
+    questForceEnableCombat = stateContext.GetTemporaryBoolParameter(n"stopVehicleCombat");
+    if questForceEnableCombat.value {
+      return true;
+    };
+    driverCombatForbiddenZone = stateContext.GetPermanentBoolParameter(n"driverCombatForbiddenZone");
+    if driverCombatForbiddenZone.value {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class DriverCombatEvents extends VehicleEventsTransition {
+
+  protected let m_executionOwner: wref<GameObject>;
+
+  protected let m_owner: wref<GameObject>;
+
+  protected let m_newTargetComponent: Bool;
+
+  protected let m_targetComponent: wref<IPlacedComponent>;
+
+  protected let m_vehicleInTPP: Bool;
+
+  protected let m_driverCombatInTPP: Bool;
+
+  protected let m_targetComponentCallback: ref<CallbackHandle>;
+
+  protected let m_vehicleInTPPCallback: ref<CallbackHandle>;
+
+  protected let m_driverCombatInTPPCallback: ref<CallbackHandle>;
+
+  protected let m_curTarget: wref<GameObject>;
+
+  protected let m_curTargetHostile: Bool;
+
+  protected let m_highlightData: ref<FocusForcedHighlightData>;
+
+  protected let m_requirePerspectiveUpdate: Bool;
+
+  protected let m_aimPressed: Bool;
+
+  protected let m_vehicleManeuversTime: Float;
+
+  protected let m_exitReleasedTime: Float;
+
+  private final func RequestToggleVehicleDriverCombatCamera(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let camEvent: ref<vehicleRequestCameraPerspectiveEvent> = new vehicleRequestCameraPerspectiveEvent();
+    switch (scriptInterface.owner as VehicleObject).GetCameraManager().GetActivePerspective() {
+      case vehicleCameraPerspective.FPP:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatClose;
+        break;
+      case vehicleCameraPerspective.TPPClose:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatClose;
+        break;
+      case vehicleCameraPerspective.TPPMedium:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatMedium;
+        break;
+      case vehicleCameraPerspective.TPPFar:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatFar;
+        break;
+      case vehicleCameraPerspective.DriverCombatClose:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatMedium;
+        break;
+      case vehicleCameraPerspective.DriverCombatMedium:
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatFar;
+        break;
+      case vehicleCameraPerspective.DriverCombatFar:
+        if !scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsDriverCombatInTPP) {
+          camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatClose;
+        } else {
+          camEvent.cameraPerspective = vehicleCameraPerspective.FPP;
+        };
+    };
+    scriptInterface.executionOwner.QueueEvent(camEvent);
+  }
+
+  private final func ClearTarget(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let highlightEvt: ref<ForceVisionApperanceEvent>;
+    if IsDefined(this.m_curTarget) {
+      highlightEvt = new ForceVisionApperanceEvent();
+      highlightEvt.forcedHighlight = this.m_highlightData;
+      highlightEvt.apply = false;
+      this.m_curTarget.QueueEvent(highlightEvt);
+      this.m_curTarget = null;
+    };
+  }
+
+  private final func SetTargetHighlight(attitude: EAIAttitude, highlight: ref<FocusForcedHighlightData>) -> Void {
+    if Equals(attitude, EAIAttitude.AIA_Hostile) {
+      this.m_highlightData.highlightType = EFocusForcedHighlightType.INVALID;
+      this.m_highlightData.outlineType = EFocusOutlineType.INVALID;
+    } else {
+      this.m_highlightData.highlightType = EFocusForcedHighlightType.INVALID;
+      this.m_highlightData.outlineType = EFocusOutlineType.INVALID;
+    };
+  }
+
+  private final func UpdateTargetHighlight(playerOwner: ref<PlayerPuppet>) -> Void {
+    let attitude: EAIAttitude;
+    let highlightEvt: ref<ForceVisionApperanceEvent>;
+    if IsDefined(this.m_curTarget) {
+      attitude = GameObject.GetAttitudeTowards(playerOwner, this.m_curTarget);
+      if !this.m_curTargetHostile {
+        if Equals(attitude, EAIAttitude.AIA_Hostile) {
+          this.m_curTargetHostile = true;
+          highlightEvt = new ForceVisionApperanceEvent();
+          highlightEvt.forcedHighlight = this.m_highlightData;
+          highlightEvt.apply = false;
+          this.m_curTarget.QueueEvent(highlightEvt);
+          highlightEvt = new ForceVisionApperanceEvent();
+          highlightEvt.forcedHighlight = this.m_highlightData;
+          highlightEvt.apply = true;
+          this.SetTargetHighlight(attitude, this.m_highlightData);
+          this.m_curTarget.QueueEvent(highlightEvt);
+        };
+      } else {
+        if Equals(attitude, EAIAttitude.AIA_Neutral) {
+          this.m_curTargetHostile = true;
+          highlightEvt = new ForceVisionApperanceEvent();
+          highlightEvt.forcedHighlight = this.m_highlightData;
+          highlightEvt.apply = false;
+          this.m_curTarget.QueueEvent(highlightEvt);
+          highlightEvt = new ForceVisionApperanceEvent();
+          highlightEvt.forcedHighlight = this.m_highlightData;
+          highlightEvt.apply = true;
+          this.SetTargetHighlight(attitude, this.m_highlightData);
+          this.m_curTarget.QueueEvent(highlightEvt);
+        };
+      };
+    };
+  }
+
+  private final func OnNewTargetAcquired(playerOwner: ref<PlayerPuppet>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let highlightEvt: ref<ForceVisionApperanceEvent>;
+    this.m_newTargetComponent = false;
+    let target: wref<GameObject> = GameInstance.GetTargetingSystem(playerOwner.GetGame()).GetTrackedTargetObject(playerOwner);
+    if this.m_curTarget == target && this.m_curTarget != null {
+      return;
+    };
+    this.ClearTarget(scriptInterface);
+    if IsDefined(target) {
+      this.m_curTarget = target;
+      highlightEvt = new ForceVisionApperanceEvent();
+      this.m_highlightData = new FocusForcedHighlightData();
+      this.m_highlightData.sourceID = playerOwner.GetEntityID();
+      this.m_highlightData.sourceName = playerOwner.GetClassName();
+      if Equals(GameObject.GetAttitudeTowards(playerOwner, this.m_curTarget), EAIAttitude.AIA_Hostile) {
+        this.m_curTargetHostile = true;
+        this.SetTargetHighlight(EAIAttitude.AIA_Hostile, this.m_highlightData);
+      } else {
+        this.m_curTargetHostile = false;
+        this.SetTargetHighlight(EAIAttitude.AIA_Neutral, this.m_highlightData);
+      };
+      this.m_highlightData.inTransitionTime = 0.00;
+      this.m_highlightData.outTransitionTime = 0.00;
+      this.m_highlightData.priority = EPriority.High;
+      this.m_highlightData.isRevealed = true;
+      highlightEvt.forcedHighlight = this.m_highlightData;
+      highlightEvt.apply = true;
+      this.m_curTarget.QueueEvent(highlightEvt);
+    };
+  }
+
+  protected final func UpdateWeaponData(scriptInterface: ref<StateGameScriptInterface>, itemType: gamedataItemType) -> Void {
+    let animFeature: ref<AnimFeature_DriverCombatWeaponData> = new AnimFeature_DriverCombatWeaponData();
+    animFeature.weaponType = -1;
+    if Equals(itemType, gamedataItemType.Wea_Handgun) || Equals(itemType, gamedataItemType.Wea_Revolver) {
+      animFeature.weaponType = 0;
+    } else {
+      if Equals(itemType, gamedataItemType.Wea_SubmachineGun) {
+        animFeature.weaponType = 1;
+      } else {
+        if Equals(itemType, gamedataItemType.Wea_VehiclePowerWeapon) || Equals(itemType, gamedataItemType.Wea_VehicleMissileLauncher) {
+          animFeature.weaponType = 2;
+        } else {
+          if Equals(itemType, gamedataItemType.Wea_Katana) || Equals(itemType, gamedataItemType.Wea_Sword) || Equals(itemType, gamedataItemType.Wea_OneHandedClub) || Equals(itemType, gamedataItemType.Wea_Machete) || Equals(itemType, gamedataItemType.Wea_LongBlade) || Equals(itemType, gamedataItemType.Wea_ShortBlade) || Equals(itemType, gamedataItemType.Wea_TwoHandedClub) || Equals(itemType, gamedataItemType.Wea_Chainsword) {
+            animFeature.weaponType = 3;
+          } else {
+            if Equals(itemType, gamedataItemType.Wea_Axe) || Equals(itemType, gamedataItemType.Wea_Knife) {
+              animFeature.weaponType = 4;
+            };
+          };
+        };
+      };
+    };
+    AnimationControllerComponent.ApplyFeature(this.m_executionOwner, n"DriverCombatWeaponData", animFeature);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.DriverCombatWeaponType, EnumInt(itemType));
+  }
+
+  private final func IsPerformingAWheelieOrEndo(vehicleObject: ref<VehicleObject>) -> Bool {
+    let bikeObject: ref<BikeObject> = vehicleObject as BikeObject;
+    if !IsDefined(bikeObject) {
+      return false;
+    };
+    return bikeObject.IsPerformingAWheelieOrEndo(this.GetStaticFloatParameterDefault("wheelieMinCenterOfMassOffset", 0.25), this.GetStaticFloatParameterDefault("wheelieMinPitch", 30.00));
+  }
+
+  private final func UpdateVehicleManeuversPerk(scriptInterface: ref<StateGameScriptInterface>, timeDelta: Float) -> Void {
+    let vehicleObject: ref<VehicleObject>;
+    let hasVehicleManeuvers: Bool = this.m_vehicleManeuversTime > 0.00;
+    this.m_vehicleManeuversTime -= timeDelta;
+    vehicleObject = scriptInterface.owner as VehicleObject;
+    if vehicleObject.IsInAir() || vehicleObject.IsSkidding(2.50) || this.IsPerformingAWheelieOrEndo(vehicleObject) {
+      this.m_vehicleManeuversTime = 0.50;
+    };
+    if !hasVehicleManeuvers && this.m_vehicleManeuversTime > 0.00 {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.DriverCombatVehicleManeuvers");
+    };
+    if hasVehicleManeuvers && this.m_vehicleManeuversTime <= 0.00 {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.DriverCombatVehicleManeuvers");
+    };
+  }
+
+  protected func OnAimChange() -> Void;
+
+  protected func OnPerspectiveUpdate(scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected cb func OnDriverCombatTargetChange(value: Variant) -> Bool {
+    this.m_newTargetComponent = true;
+    if IsDefined(value) {
+      this.m_targetComponent = FromVariant<wref<IPlacedComponent>>(value);
+    } else {
+      this.m_targetComponent = null;
+    };
+  }
+
+  protected cb func OnDriverCombatInTPPChange(value: Bool) -> Bool {
+    this.m_driverCombatInTPP = value;
+  }
+
+  protected cb func OnVehicleInTPPChange(value: Bool) -> Bool {
+    this.m_vehicleInTPP = value;
+    this.m_requirePerspectiveUpdate = true;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let camEvent: ref<vehicleRequestCameraPerspectiveEvent>;
+    let camPerspective: vehicleCameraPerspective;
+    let playerOwner: ref<PlayerPuppet>;
+    super.OnEnter(stateContext, scriptInterface);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.InfiniteAmmo");
+    this.m_executionOwner = scriptInterface.executionOwner;
+    this.m_owner = scriptInterface.owner;
+    this.m_exitReleasedTime = 0.00;
+    playerOwner = this.m_executionOwner as PlayerPuppet;
+    if IsDefined(playerOwner) {
+      playerOwner.SetPSIsInDriverCombat(true);
+    };
+    stateContext.SetPermanentBoolParameter(n"drawnWeapon", false, true);
+    this.m_targetComponentCallback = scriptInterface.localBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().PlayerStateMachine.TrackedTarget, this, n"OnDriverCombatTargetChange");
+    this.m_driverCombatInTPPCallback = scriptInterface.localBlackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsDriverCombatInTPP, this, n"OnDriverCombatInTPPChange", true);
+    this.m_vehicleInTPPCallback = scriptInterface.localBlackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP, this, n"OnVehicleInTPPChange", true);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.DriverCombat");
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 6);
+    this.SetIsInVehicleDriverCombat(stateContext, true);
+    this.SetVehFppCameraParams(stateContext, scriptInterface, false, true);
+    this.SetIsWorldRenderPlane(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    camPerspective = (scriptInterface.owner as VehicleObject).GetCameraManager().GetPersistentPerspective();
+    if Equals(camPerspective, vehicleCameraPerspective.TPPClose) {
+      camEvent = new vehicleRequestCameraPerspectiveEvent();
+      camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatClose;
+      scriptInterface.executionOwner.QueueEvent(camEvent);
+    } else {
+      if Equals(camPerspective, vehicleCameraPerspective.TPPMedium) {
+        camEvent = new vehicleRequestCameraPerspectiveEvent();
+        camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatMedium;
+        scriptInterface.executionOwner.QueueEvent(camEvent);
+      } else {
+        if Equals(camPerspective, vehicleCameraPerspective.TPPFar) {
+          camEvent = new vehicleRequestCameraPerspectiveEvent();
+          camEvent.cameraPerspective = vehicleCameraPerspective.DriverCombatFar;
+          scriptInterface.executionOwner.QueueEvent(camEvent);
+        };
+      };
+    };
+    this.m_vehicleManeuversTime = 0.00;
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let playerOwner: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    this.m_aimPressed = scriptInterface.GetActionValue(n"CameraAim") > 0.00;
+    if scriptInterface.IsActionJustPressed(n"CameraAim") || scriptInterface.IsActionJustReleased(n"CameraAim") {
+      this.OnAimChange();
+    };
+    if this.m_requirePerspectiveUpdate {
+      this.m_requirePerspectiveUpdate = false;
+      this.OnPerspectiveUpdate(scriptInterface);
+    };
+    if this.m_newTargetComponent {
+      this.OnNewTargetAcquired(playerOwner, scriptInterface);
+    };
+    if IsDefined(this.m_targetComponent) {
+      this.UpdateTargetHighlight(playerOwner);
+    };
+    if scriptInterface.IsActionJustReleased(n"ToggleVehCamera") && !this.IsVehicleCameraChangeBlocked(scriptInterface) {
+      this.RequestToggleVehicleDriverCombatCamera(scriptInterface);
+    };
+    if scriptInterface.IsActionJustHeld(n"HoldCinematicCamera") && !this.IsVehicleCameraChangeBlocked(scriptInterface) {
+      this.RequestVehicleCinematicCamera(scriptInterface);
+    };
+    this.UpdateVehicleManeuversPerk(scriptInterface, timeDelta);
+    if scriptInterface.IsActionJustReleased(n"Exit") {
+      this.m_exitReleasedTime = this.GetInStateTime();
+    };
+    if this.HandleExitRequest(timeDelta, stateContext, scriptInterface) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll, gameEquipAnimationType.Instant);
+    } else {
+      if this.m_exitReleasedTime != 0.00 && this.m_exitReleasedTime < this.GetInStateTime() - 0.20 {
+        this.m_exitReleasedTime = 0.00;
+        stateContext.SetPermanentBoolParameter(n"ForceSafeState", false);
+        this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let camEvent: ref<vehicleRequestCameraPerspectiveEvent>;
+    let playerOwner: ref<PlayerPuppet> = this.m_executionOwner as PlayerPuppet;
+    if IsDefined(playerOwner) {
+      playerOwner.SetPSIsInDriverCombat(false);
+    };
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.InfiniteAmmo");
+    if this.m_vehicleManeuversTime > 0.00 {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.DriverCombatVehicleManeuvers");
+    };
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.DriverCombat", 1u);
+    StatusEffectHelper.RemoveStatusEffectsWithTag(this.m_executionOwner, n"DriverCombatWeaponVFXScaling");
+    scriptInterface.localBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().PlayerStateMachine.TrackedTarget, this.m_targetComponentCallback);
+    scriptInterface.localBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP, this.m_vehicleInTPPCallback);
+    scriptInterface.localBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsDriverCombatInTPP, this.m_driverCombatInTPPCallback);
+    this.ClearTarget(scriptInterface);
+    this.m_targetComponent = null;
+    this.m_newTargetComponent = false;
+    stateContext.SetPermanentBoolParameter(n"ForceSafeState", false);
+    this.SetIsInVehicleDriverCombat(stateContext, false);
+    this.ResetVehFppCameraParams(stateContext, scriptInterface);
+    this.SetIsWorldRenderPlane(stateContext, true);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.UpdateWeaponData(scriptInterface, gamedataItemType.Invalid);
+    if Equals((scriptInterface.owner as VehicleObject).GetCameraManager().GetActivePerspective(), vehicleCameraPerspective.DriverCombatClose) {
+      camEvent = new vehicleRequestCameraPerspectiveEvent();
+      camEvent.cameraPerspective = vehicleCameraPerspective.TPPClose;
+      scriptInterface.executionOwner.QueueEvent(camEvent);
+    } else {
+      if Equals((scriptInterface.owner as VehicleObject).GetCameraManager().GetActivePerspective(), vehicleCameraPerspective.DriverCombatMedium) {
+        camEvent = new vehicleRequestCameraPerspectiveEvent();
+        camEvent.cameraPerspective = vehicleCameraPerspective.TPPMedium;
+        scriptInterface.executionOwner.QueueEvent(camEvent);
+      } else {
+        if Equals((scriptInterface.owner as VehicleObject).GetCameraManager().GetActivePerspective(), vehicleCameraPerspective.DriverCombatFar) {
+          camEvent = new vehicleRequestCameraPerspectiveEvent();
+          camEvent.cameraPerspective = vehicleCameraPerspective.TPPFar;
+          scriptInterface.executionOwner.QueueEvent(camEvent);
+        };
+      };
+    };
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    super.OnForcedExit(stateContext, scriptInterface);
+  }
+}
+
+public class DriverCombatFirearmsEvents extends DriverCombatEvents {
+
+  protected let m_attachmentSlotListener: ref<AttachmentSlotsScriptListener>;
+
+  protected let m_posAnimFeature: ref<AnimFeature_ProceduralDriverCombatData>;
+
+  protected let m_vehicleRecord: ref<Vehicle_Record>;
+
+  protected let m_angleDelta: EulerAngles;
+
+  protected let m_localOrientation: EulerAngles;
+
+  protected let m_updateItemType: gamedataItemType;
+
+  protected let m_photoModeActiveListener: ref<CallbackHandle>;
+
+  protected let m_isPhotoModeActive: Bool;
+
+  @default(DriverCombatFirearmsEvents, 0.1f)
+  protected const let m_minSwaySpeed: Float;
+
+  protected let m_prevSpeed: Float;
+
+  private final func UpdateOrientations(scriptInterface: ref<StateGameScriptInterface>, playerOwner: ref<PlayerPuppet>) -> Void {
+    let blackboard: ref<IBlackboard>;
+    let newForward: Vector4;
+    let newForwardAngles: EulerAngles;
+    let oldForward: Vector4;
+    let oldForwardAngles: EulerAngles;
+    let playerPosition: Vector4;
+    let targetPosition: Vector4;
+    let playerForward: Vector4 = playerOwner.GetWorldForward();
+    let playerForwardAngle: EulerAngles = Vector4.ToRotation(playerForward);
+    if this.m_vehicleInTPP {
+      playerPosition = playerOwner.GetWorldPosition();
+      playerPosition.Z += 0.75;
+      newForward = Vector4.Normalize(targetPosition - playerPosition);
+      oldForward = playerOwner.GetWorldForward();
+    } else {
+      playerPosition = Matrix.GetTranslation(playerOwner.GetFPPCameraComponent().GetLocalToWorld());
+      oldForward = Vector4.Normalize(Matrix.GetDirectionVector(playerOwner.GetFPPCameraComponent().GetLocalToWorld()));
+    };
+    if IsDefined(this.m_targetComponent) {
+      targetPosition = Matrix.GetTranslation(this.m_targetComponent.GetLocalToWorld());
+      newForward = Vector4.Normalize(targetPosition - playerPosition);
+    } else {
+      blackboard = GameInstance.GetBlackboardSystem(playerOwner.GetGame()).GetLocalInstanced(playerOwner.GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      targetPosition = blackboard.GetVector4(GetAllBlackboardDefs().PlayerStateMachine.TPPAimPosition);
+      newForward = Vector4.Normalize(targetPosition - playerPosition);
+    };
+    newForward = Vector4.Normalize(newForward);
+    oldForward = Vector4.Normalize(oldForward);
+    GameInstance.GetDebugDrawHistorySystem(playerOwner.GetGame()).DrawArrow(playerPosition, newForward, new Color(0u, 0u, 255u, 255u), "TPPCarOrientationNewForward");
+    GameInstance.GetDebugDrawHistorySystem(playerOwner.GetGame()).DrawWireSphere(targetPosition, 0.25, new Color(255u, 0u, 0u, 255u), "TPPCarOrientationTargetPos");
+    GameInstance.GetDebugDrawHistorySystem(playerOwner.GetGame()).DrawArrow(playerPosition, oldForward, new Color(0u, 255u, 0u, 255u), "TPPCarOrientationOldForward");
+    newForwardAngles = Vector4.ToRotation(newForward);
+    oldForwardAngles = Vector4.ToRotation(oldForward);
+    this.m_angleDelta.Yaw = -AngleDistance(oldForwardAngles.Yaw, newForwardAngles.Yaw);
+    this.m_angleDelta.Pitch = AngleDistance(oldForwardAngles.Pitch, newForwardAngles.Pitch);
+    this.m_angleDelta.Roll = AngleDistance(oldForwardAngles.Roll, newForwardAngles.Roll);
+    this.m_localOrientation.Yaw = AngleDistance(newForwardAngles.Yaw, playerForwardAngle.Yaw);
+    this.m_localOrientation.Pitch = AngleDistance(newForwardAngles.Pitch, playerForwardAngle.Pitch);
+  }
+
+  private final func UpdateAimingDirectionAnimFeature(playerOwner: ref<PlayerPuppet>) -> Void {
+    let animFeatureYawDelta: Float;
+    if !this.m_vehicleInTPP && !IsDefined(this.m_targetComponent) {
+      this.m_posAnimFeature.isEnabled = false;
+      this.m_posAnimFeature.yaw = 0.00;
+      this.m_posAnimFeature.pitch = 0.00;
+      this.m_posAnimFeature.roll = 0.00;
+      return;
+    };
+    this.m_posAnimFeature.isEnabled = true;
+    if AbsF(this.m_angleDelta.Yaw) > 167.00 && SgnF(this.m_angleDelta.Yaw) != SgnF(this.m_posAnimFeature.yaw) {
+      animFeatureYawDelta = 180.00 * SgnF(this.m_posAnimFeature.yaw);
+    } else {
+      animFeatureYawDelta = this.m_angleDelta.Yaw;
+    };
+    animFeatureYawDelta = ClampF(animFeatureYawDelta, -167.00, 167.00);
+    if SgnF(this.m_posAnimFeature.yaw) != SgnF(animFeatureYawDelta) && AbsF(animFeatureYawDelta) > 90.00 && AbsF(this.m_posAnimFeature.yaw) > 90.00 {
+      this.m_posAnimFeature.yawDirectionFlipped = true;
+    } else {
+      this.m_posAnimFeature.yawDirectionFlipped = false;
+    };
+    this.m_posAnimFeature.yaw = animFeatureYawDelta;
+    this.m_posAnimFeature.pitch = this.m_angleDelta.Pitch;
+    this.m_posAnimFeature.roll = this.m_angleDelta.Roll;
+  }
+
+  private final func UpdateSafeMode(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>, yaw: Float) -> Void {
+    let backBound: wref<WeaponSafeModeBound_Record>;
+    let forceSafeState: StateResultBool;
+    let lookingAtWindshield: Bool;
+    let lookingBehind: Bool;
+    let windshieldBound: wref<WeaponSafeModeBound_Record>;
+    let weaponBounds: wref<WeaponSafeModeBounds_Record> = this.m_vehicleRecord.WeaponSafeModeBounds();
+    if !weaponBounds.EnableSafeModeBounds() {
+      return;
+    };
+    windshieldBound = weaponBounds.WindshieldBound();
+    backBound = weaponBounds.BackBound();
+    lookingAtWindshield = yaw < windshieldBound.YawMax() && yaw > windshieldBound.YawMin();
+    lookingBehind = yaw > backBound.YawMax() || yaw < backBound.YawMin();
+    forceSafeState = stateContext.GetTemporaryBoolParameter(n"ForceWeaponSafeState");
+    if lookingAtWindshield || lookingBehind && !this.m_vehicleInTPP {
+      if !forceSafeState.value {
+        stateContext.SetTemporaryBoolParameter(n"ForceWeaponSafeState", true, true);
+      };
+    } else {
+      if forceSafeState.value {
+        stateContext.SetTemporaryBoolParameter(n"ForceWeaponSafeState", false);
+      };
+    };
+  }
+
+  protected final func ApplyWeaponFxScalings(itemType: gamedataItemType) -> Void {
+    let statusEffect: TweakDBID;
+    if Equals(itemType, gamedataItemType.Wea_Handgun) {
+      statusEffect = this.m_driverCombatInTPP ? t"BaseStatusEffect.DriverCombatHandgunVFXScale" : t"BaseStatusEffect.DriverCombatHandgunFPPVFXScale";
+    } else {
+      if Equals(itemType, gamedataItemType.Wea_Revolver) {
+        if this.m_driverCombatInTPP {
+          statusEffect = t"BaseStatusEffect.DriverCombatRevolverVFXScale";
+        } else {
+          statusEffect = t"BaseStatusEffect.DriverCombatRevolverFPPVFXScale";
+        };
+      } else {
+        if Equals(itemType, gamedataItemType.Wea_SubmachineGun) {
+          if this.m_driverCombatInTPP {
+            statusEffect = t"BaseStatusEffect.DriverCombatSMGVFXScale";
+          } else {
+            statusEffect = t"BaseStatusEffect.DriverCombatSMGFPPVFXScale";
+          };
+        };
+      };
+    };
+    StatusEffectHelper.RemoveStatusEffectsWithTag(this.m_executionOwner, n"DriverCombatWeaponVFXScaling");
+    if TDBID.IsValid(statusEffect) {
+      StatusEffectHelper.ApplyStatusEffect(this.m_executionOwner, statusEffect);
+    };
+  }
+
+  protected func OnPerspectiveUpdate(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.ApplyWeaponFxScalings(WeaponObject.GetWeaponType(scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponRight").GetItemID()));
+    this.UpdateWeaponSwayRemoval(this.m_vehicleInTPP);
+    this.UpdateWeaponSwayPause(!this.m_vehicleInTPP && AbsF((this.m_owner as VehicleObject).GetCurrentSpeed()) > this.m_minSwaySpeed);
+    if this.m_vehicleInTPP {
+      StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.PhotoModeForceFPPCamera");
+    } else {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.PhotoModeForceFPPCamera");
+    };
+  }
+
+  private func OnItemEquipped(slot: TweakDBID, item: ItemID) -> Void {
+    if slot == t"AttachmentSlots.WeaponRight" {
+      this.m_updateItemType = WeaponObject.GetWeaponType(item);
+    };
+  }
+
+  private final func UpdateItemEquipped(scriptInterface: ref<StateGameScriptInterface>, itemType: gamedataItemType) -> Void {
+    this.UpdateWeaponData(scriptInterface, itemType);
+    this.ApplyWeaponFxScalings(itemType);
+    this.EnableSmartGunHandler(false);
+    this.UpdatePistolADSSpread(Equals(itemType, gamedataItemType.Wea_Handgun) || Equals(itemType, gamedataItemType.Wea_Revolver));
+  }
+
+  private final func EnableSmartGunHandler(enable: Bool) -> Void {
+    let evt: ref<EnableSmartGunHandlerEvent>;
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(this.m_executionOwner.GetGame());
+    let weapon: ref<WeaponObject> = transactionSystem.GetItemInSlot(this.m_executionOwner, t"AttachmentSlots.WeaponRight") as WeaponObject;
+    let weaponRecData: ref<WeaponItem_Record> = weapon.GetWeaponRecord();
+    if Equals(weaponRecData.Evolution().Type(), gamedataWeaponEvolution.Smart) {
+      evt = new EnableSmartGunHandlerEvent();
+      evt.owner = this.m_executionOwner;
+      evt.enable = enable;
+      weapon.QueueEvent(evt);
+    };
+  }
+
+  protected func OnAimChange() -> Void {
+    super.OnAimChange();
+    this.EnableSmartGunHandler(this.m_aimPressed);
+  }
+
+  private final func RollDownWindowsForCombat(scriptInterface: ref<StateGameScriptInterface>, value: Bool) -> Void {
+    this.ToggleWindowForOccupiedSeat(scriptInterface, n"seat_front_right", value);
+    this.ToggleWindowForOccupiedSeat(scriptInterface, n"seat_front_left", value);
+  }
+
+  private final func UpdatePistolADSSpread(applyEffect: Bool) -> Void {
+    if applyEffect {
+      StatusEffectHelper.ApplyStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatPistol");
+    } else {
+      StatusEffectHelper.RemoveStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatPistol");
+    };
+  }
+
+  private final func UpdateWeaponSwayRemoval(applyEffect: Bool) -> Void {
+    if applyEffect {
+      StatusEffectHelper.ApplyStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatSwayRemoval");
+    } else {
+      StatusEffectHelper.RemoveStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatSwayRemoval");
+    };
+  }
+
+  private final func UpdateWeaponSwayPause(applyEffect: Bool) -> Void {
+    if applyEffect {
+      StatusEffectHelper.ApplyStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatSwayPause");
+    } else {
+      StatusEffectHelper.RemoveStatusEffect(this.m_executionOwner, t"BaseStatusEffect.DriverCombatSwayPause");
+    };
+  }
+
+  protected cb func OnPhotomodeUpdate(isInPhotoMode: Bool) -> Bool {
+    this.m_isPhotoModeActive = isInPhotoMode;
+  }
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_photoModeActiveListener = GameInstance.GetBlackboardSystem(scriptInterface.executionOwner.GetGame()).Get(GetAllBlackboardDefs().PhotoMode).RegisterListenerBool(GetAllBlackboardDefs().PhotoMode.IsActive, this, n"OnPhotomodeUpdate");
+    this.m_isPhotoModeActive = false;
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    GameInstance.GetBlackboardSystem(scriptInterface.executionOwner.GetGame()).Get(GetAllBlackboardDefs().PhotoMode).UnregisterListenerBool(GetAllBlackboardDefs().PhotoMode.IsActive, this.m_photoModeActiveListener);
+    this.m_photoModeActiveListener = null;
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let attachmentSlotCallback: ref<DefaultTransitionAttachmentSlotsCallback>;
+    let drawItemRequest: ref<DrawItemRequest>;
+    super.OnEnter(stateContext, scriptInterface);
+    this.m_prevSpeed = (this.m_owner as VehicleObject).GetCurrentSpeed();
+    this.m_posAnimFeature = new AnimFeature_ProceduralDriverCombatData();
+    attachmentSlotCallback = new DefaultTransitionAttachmentSlotsCallback();
+    attachmentSlotCallback.m_transitionOwner = this;
+    attachmentSlotCallback.slotID = t"AttachmentSlots.WeaponRight";
+    this.m_attachmentSlotListener = scriptInterface.GetTransactionSystem().RegisterAttachmentSlotListener(scriptInterface.executionOwner, attachmentSlotCallback);
+    this.RollDownWindowsForCombat(scriptInterface, true);
+    this.m_vehicleRecord = TweakDBInterface.GetVehicleRecord((scriptInterface.owner as VehicleObject).GetRecordID());
+    if !UpperBodyTransition.HasAnyWeaponEquipped(scriptInterface) {
+      drawItemRequest = new DrawItemRequest();
+      drawItemRequest.owner = scriptInterface.executionOwner;
+      drawItemRequest.itemID = ItemID.CreateQuery(t"Items.Preset_V_Unity_Cutscene");
+      (scriptInterface.GetScriptableSystem(n"EquipmentSystem") as EquipmentSystem).QueueRequest(drawItemRequest);
+    } else {
+      this.OnItemEquipped(t"AttachmentSlots.WeaponRight", scriptInterface.GetTransactionSystem().GetItemInSlot(scriptInterface.executionOwner, t"AttachmentSlots.WeaponRight").GetItemID());
+    };
+    SetFactValue(scriptInterface.executionOwner.GetGame(), n"player_tried_veh_combat_firearms", 1);
+    if !this.m_vehicleInTPP {
+      StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.PhotoModeForceFPPCamera");
+    };
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let ammoCount: Int32;
+    let ammoDiff: Int32;
+    let ammoType: ItemID;
+    let driverCombatForbiddenZone: StateResultBool;
+    let magazineCapacity: Uint32;
+    let questForceEnableCombat: StateResultBool;
+    let vehicleSpeed: Float;
+    let weaponObject: ref<WeaponObject>;
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+    if !this.m_isPhotoModeActive {
+      this.UpdateOrientations(scriptInterface, this.m_executionOwner as PlayerPuppet);
+      this.UpdateAimingDirectionAnimFeature(this.m_executionOwner as PlayerPuppet);
+      this.UpdateSafeMode(scriptInterface, stateContext, this.m_localOrientation.Yaw);
+      stateContext.SetPermanentFloatParameter(n"TPPVehiclePlayerYaw", this.m_posAnimFeature.yaw, true);
+    };
+    if NotEquals(this.m_updateItemType, gamedataItemType.Invalid) {
+      this.UpdateItemEquipped(scriptInterface, this.m_updateItemType);
+      this.m_updateItemType = gamedataItemType.Invalid;
+      weaponObject = DefaultTransition.GetRightActiveWeapon(scriptInterface);
+      if IsDefined(weaponObject) {
+        ammoType = WeaponObject.GetAmmoType(weaponObject);
+        ammoCount = scriptInterface.GetTransactionSystem().GetItemQuantity(scriptInterface.executionOwner, ammoType);
+        magazineCapacity = WeaponObject.GetMagazineCapacity(weaponObject);
+        ammoDiff = Cast<Int32>(magazineCapacity * 2u) - ammoCount;
+        if ammoDiff > 0 {
+          scriptInterface.GetTransactionSystem().GiveItem(scriptInterface.executionOwner, ammoType, ammoDiff);
+        };
+      };
+    };
+    questForceEnableCombat = stateContext.GetTemporaryBoolParameter(n"stopVehicleCombat");
+    driverCombatForbiddenZone = stateContext.GetPermanentBoolParameter(n"driverCombatForbiddenZone");
+    if questForceEnableCombat.valid && questForceEnableCombat.value || driverCombatForbiddenZone.valid && driverCombatForbiddenZone.value {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+    };
+    vehicleSpeed = (this.m_owner as VehicleObject).GetCurrentSpeed();
+    if !this.m_vehicleInTPP && NotEquals(AbsF(vehicleSpeed) > this.m_minSwaySpeed, AbsF(this.m_prevSpeed) > this.m_minSwaySpeed) {
+      this.UpdateWeaponSwayPause(AbsF(vehicleSpeed) > this.m_minSwaySpeed);
+    };
+    this.m_prevSpeed = vehicleSpeed;
+    if !this.m_isPhotoModeActive {
+      scriptInterface.SetAnimationParameterFeature(n"ProceduralDriverCombatData", this.m_posAnimFeature, scriptInterface.executionOwner);
+    };
+  }
+
+  protected func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnForcedExit(stateContext, scriptInterface);
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.PhotoModeForceFPPCamera");
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    scriptInterface.GetTransactionSystem().UnregisterAttachmentSlotListener(scriptInterface.executionOwner, this.m_attachmentSlotListener);
+    this.UpdateWeaponSwayRemoval(false);
+    this.UpdateWeaponSwayPause(false);
+    this.UpdatePistolADSSpread(false);
+    this.m_posAnimFeature.yaw = 0.00;
+    this.m_posAnimFeature.pitch = 0.00;
+    this.m_posAnimFeature.roll = 0.00;
+    scriptInterface.SetAnimationParameterFeature(n"ProceduralDriverCombatData", this.m_posAnimFeature, scriptInterface.executionOwner);
+    stateContext.SetTemporaryBoolParameter(n"ForceWeaponSafeState", false);
+    this.RollDownWindowsForCombat(scriptInterface, false);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.UnequipAll);
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.PhotoModeForceFPPCamera");
+  }
+}
+
+public class DriverCombatMountedWeaponsEvents extends DriverCombatEvents {
+
+  private let m_activeWeapons: [wref<WeaponObject>];
+
+  protected final func GetVehicleWeaponType(vehicle: ref<VehicleObject>) -> gamedataItemType {
+    let weapons: array<wref<WeaponObject>>;
+    vehicle.GetActiveWeapons(weapons);
+    if ArraySize(weapons) > 0 && IsDefined(weapons[0]) {
+      return WeaponObject.GetWeaponType(weapons[0].GetItemID());
+    };
+    return gamedataItemType.Invalid;
+  }
+
+  protected final func ApplyWeaponFxScalings() -> Void {
+    let statusEffect: TweakDBID = t"BaseStatusEffect.DriverCombatMountedWeaponVFXScale";
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_activeWeapons) {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(this.m_activeWeapons[i], n"DriverCombatWeaponVFXScaling");
+      StatusEffectHelper.ApplyStatusEffect(this.m_activeWeapons[i], statusEffect);
+      i += 1;
+    };
+  }
+
+  protected func OnPerspectiveUpdate(scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    if ArraySize(this.m_activeWeapons) <= 0 {
+      return;
+    };
+    this.ApplyWeaponFxScalings();
+    if Equals(WeaponObject.GetWeaponType(this.m_activeWeapons[0].GetItemID()), gamedataItemType.Wea_VehiclePowerWeapon) {
+      this.SetWeaponPreviews(false, scriptInterface);
+      this.SetWeaponPreviews(true, scriptInterface);
+    };
+  }
+
+  protected final func SetWeaponPreviews(active: Bool, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let tppEffectScale: Float;
+    let weapon: ref<WeaponObject>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_activeWeapons) {
+      if active {
+        tppEffectScale = 1.00;
+        if this.m_vehicleInTPP {
+          weapon = this.m_activeWeapons[i];
+          if IsDefined(weapon) && weapon.IsVehiclePowerWeaponRear(this.m_owner) {
+            tppEffectScale = 2.00;
+          };
+        };
+        this.m_activeWeapons[i].GetCurrentAttack().SetVehicleWeaponPreviewActive(true, IPositionProvider.CreateEntityPositionProvider(this.m_activeWeapons[i]), IOrientationProvider.CreateEntityOrientationProvider(null, n"None", this.m_activeWeapons[i]), 200.00, 0.00, Cast<Uint32>(i), this.m_vehicleInTPP, tppEffectScale);
+      } else {
+        this.m_activeWeapons[i].GetCurrentAttack().SetPreviewActive(false);
+      };
+      i += 1;
+    };
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.InfiniteAmmo");
+    SetFactValue(scriptInterface.executionOwner.GetGame(), n"player_tried_veh_combat_mounted_weapons", 1);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let weapons: array<wref<WeaponObject>>;
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+    (scriptInterface.owner as VehicleObject).GetActiveWeapons(weapons);
+    if ArraySize(weapons) > 0 && ArraySize(this.m_activeWeapons) != ArraySize(weapons) && weapons[0] != this.m_activeWeapons[0] {
+      if Equals(WeaponObject.GetWeaponType(this.m_activeWeapons[0].GetItemID()), gamedataItemType.Wea_VehiclePowerWeapon) {
+        this.SetWeaponPreviews(false, scriptInterface);
+      };
+      this.m_activeWeapons = weapons;
+      this.UpdateWeaponData(scriptInterface, WeaponObject.GetWeaponType(this.m_activeWeapons[0].GetItemID()));
+      this.ApplyWeaponFxScalings();
+      if Equals(WeaponObject.GetWeaponType(this.m_activeWeapons[0].GetItemID()), gamedataItemType.Wea_VehiclePowerWeapon) {
+        this.SetWeaponPreviews(true, scriptInterface);
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    StatusEffectHelper.RemoveStatusEffect(scriptInterface.executionOwner, t"GameplayRestriction.InfiniteAmmo");
+    this.SetWeaponPreviews(false, scriptInterface);
+    ArrayClear(this.m_activeWeapons);
+  }
+}
+
+public class ExitingDecisions extends VehicleTransition {
+
+  public const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+    let submergedExitRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"submergedExitRequest");
+    let switchExitRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"validSwitchSeatExitRequest");
+    let exitAfterRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"validExitAfterSwitchRequest");
+    if this.IsVehicleExitBlocked1Frame(stateContext, scriptInterface) {
+      return false;
+    };
+    if submergedExitRequest.value {
+      return true;
+    };
+    if exitRequest.value {
+      return true;
+    };
+    if !switchExitRequest.value && exitAfterRequest.value && this.GetInStateTime() >= 0.05 {
+      return true;
+    };
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let unmountData: ref<MountEventData>;
+    if this.IsExitForced(stateContext) {
+      unmountData = this.GetUnmountingEvent(stateContext);
+      return !this.IsInVehicleWorkspot(scriptInterface, unmountData.slotName);
+    };
+    return !scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner);
+  }
+
+  protected final const func IsCoolExitAllowed(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if stateContext.GetIntParameter(n"vehClass", true) == 2 {
+      return false;
+    };
+    if !PlayerDevelopmentSystem.GetData(scriptInterface.executionOwner).IsNewPerkBoughtAnyLevel(gamedataNewPerkType.Reflexes_Left_Milestone_1) {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class ExitingEventsBase extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    stateContext.SetPermanentBoolParameter(n"coolExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"submergedExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validExitAfterSwitchRequest", false, true);
+    stateContext.SetConditionBoolParameter(n"VisionToggled", false, true);
+    this.ForceDisableVisionMode(stateContext);
+    this.TryToStopVehicle(stateContext, scriptInterface);
+    this.PlayVehicleExitDoorAnimation(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 4);
+    this.PlayerStateChange(scriptInterface, 4);
+    this.SetVehicleStatusEffects(stateContext, scriptInterface, false);
+  }
+
+  public func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SendAnimFeature(stateContext, scriptInterface);
+    if this.IsPlayerInCombat(scriptInterface) {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedWeapon);
+    };
+  }
+
+  protected final func StartExiting(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let audioEvt: ref<VehicleAudioEvent>;
+    this.StartLeavingVehicle(stateContext, scriptInterface);
+    audioEvt = new VehicleAudioEvent();
+    audioEvt.action = vehicleAudioEventAction.OnPlayerExitVehicle;
+    scriptInterface.owner.QueueEvent(audioEvt);
+    stateContext.SetPermanentBoolParameter(n"startedExiting", true, true);
+  }
+}
+
+public class ExitingEvents extends ExitingEventsBase {
+
+  @default(ExitingEvents, false)
+  public let m_fromDriverCombat: Bool;
+
+  public final func OnEnterFromDriverCombatFirearms(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_fromDriverCombat = true;
+    this.OnEnter(stateContext, scriptInterface);
+  }
+
+  public final func OnEnterFromDriverCombatMountedWeapons(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_fromDriverCombat = true;
+    this.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let exitDelay: Float;
+    super.OnEnter(stateContext, scriptInterface);
+    exitDelay = this.GetVehicleDataPackage(stateContext).ExitDelay();
+    if exitDelay == 0.00 {
+      this.StartExiting(stateContext, scriptInterface);
+    };
+  }
+
+  public func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let oldExitDirection: vehicleExitDirection;
+    let unmountDirResult: StateResultInt;
+    let validUnmount: vehicleUnmountPosition;
+    let vehicle: wref<VehicleObject>;
+    let exitDelay: Float = this.GetVehicleDataPackage(stateContext).ExitDelay();
+    let startedExiting: StateResultBool = stateContext.GetPermanentBoolParameter(n"startedExiting");
+    let isTeleportExiting: StateResultBool = stateContext.GetPermanentBoolParameter(n"teleportExitActive");
+    if exitDelay > 0.00 {
+      if this.GetInStateTime() >= exitDelay && !startedExiting.value {
+        this.StartExiting(stateContext, scriptInterface);
+      };
+    };
+    if startedExiting.value && !isTeleportExiting.value && this.GetInStateTime() >= 1.00 {
+      vehicle = scriptInterface.owner as VehicleObject;
+      unmountDirResult = stateContext.GetPermanentIntParameter(n"vehUnmountDir");
+      if unmountDirResult.valid {
+        oldExitDirection = IntEnum<vehicleExitDirection>(unmountDirResult.value);
+        validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner, oldExitDirection);
+        if NotEquals(validUnmount.direction, oldExitDirection) {
+          validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner, vehicleExitDirection.Back);
+          validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner, vehicleExitDirection.Back);
+          if Equals(validUnmount.direction, vehicleExitDirection.NoDirection) {
+            validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner);
+          };
+          if NotEquals(validUnmount.direction, vehicleExitDirection.NoDirection) {
+            scriptInterface.GetWorkspotSystem().StopNpcInWorkspot(scriptInterface.executionOwner);
+            this.ExitWithTeleport(stateContext, scriptInterface, validUnmount, false, true);
+          };
+        };
+      };
+    };
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnForcedExit(stateContext, scriptInterface);
+  }
+
+  public func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    stateContext.SetTemporaryFloatParameter(n"unmountDelay", this.GetStaticFloatParameterDefault("brakingDelay", 0.00), true);
+    if this.m_fromDriverCombat {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.Instant);
+    };
+  }
+}
+
+public class ImmediateExitWithForceEvents extends ExitingEventsBase {
+
+  public let exitForce: StateResultVector;
+
+  public let bikeForce: StateResultVector;
+
+  public let knockOverBike: ref<KnockOverBikeEvent>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    this.knockOverBike = new KnockOverBikeEvent();
+    this.knockOverBike.forceKnockdown = true;
+    this.Unmount(scriptInterface, stateContext);
+    scriptInterface.owner.QueueEvent(this.knockOverBike);
+    this.exitForce = stateContext.GetTemporaryVectorParameter(n"ExitForce");
+    this.bikeForce = stateContext.GetTemporaryVectorParameter(n"BikeForce");
+  }
+
+  public func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnForcedExit(stateContext, scriptInterface);
+    this.ApplyCounterForce(scriptInterface, stateContext);
+  }
+
+  public func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.ApplyCounterForce(scriptInterface, stateContext);
+  }
+
+  protected func ExitWorkspot(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, isInstant: Bool, opt isUpsidedown: Bool) -> Void {
+    let workspotSystem: ref<WorkspotGameSystem> = scriptInterface.GetWorkspotSystem();
+    workspotSystem.StopNpcInWorkspot(scriptInterface.executionOwner);
+  }
+
+  protected final func Unmount(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>) -> Void {
+    let mountingInfo: MountingInfo;
+    let unmountEvent: ref<UnmountingRequest> = new UnmountingRequest();
+    mountingInfo.childId = scriptInterface.executionOwnerEntityID;
+    unmountEvent.lowLevelMountingInfo = mountingInfo;
+    unmountEvent.mountData = new MountEventData();
+    unmountEvent.mountData.isInstant = true;
+    scriptInterface.GetMountingFacility().Unmount(unmountEvent);
+  }
+
+  protected final func ApplyCounterForce(scriptInterface: ref<StateGameScriptInterface>, stateContext: ref<StateContext>) -> Void {
+    let bikeImpulseEvent: ref<PhysicalImpulseEvent>;
+    let impulseEvent: ref<PSMImpulse>;
+    let tempVec4: Vector4;
+    let vehicle: wref<VehicleObject>;
+    if this.exitForce.valid {
+      impulseEvent = new PSMImpulse();
+      impulseEvent.id = n"impulse";
+      impulseEvent.impulse = this.exitForce.value;
+      scriptInterface.executionOwner.QueueEvent(impulseEvent);
+    };
+    if this.bikeForce.valid {
+      vehicle = scriptInterface.owner as VehicleObject;
+      bikeImpulseEvent = new PhysicalImpulseEvent();
+      tempVec4 = vehicle.GetWorldPosition();
+      bikeImpulseEvent.worldPosition.X = tempVec4.X;
+      bikeImpulseEvent.worldPosition.Y = tempVec4.Y;
+      bikeImpulseEvent.worldPosition.Z = tempVec4.Z;
+      tempVec4 = this.bikeForce.value;
+      bikeImpulseEvent.worldImpulse.X = tempVec4.X;
+      bikeImpulseEvent.worldImpulse.Y = tempVec4.Y;
+      bikeImpulseEvent.worldImpulse.Z = tempVec4.Z;
+      vehicle.QueueEvent(bikeImpulseEvent);
+    };
+  }
+}
+
+public class CollisionExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let collForceSqr: Float;
+    let collisionForce: Vector4;
+    let collisionUp: Vector4;
+    let impulse: Vector4;
+    let knockOffForceSqr: Float;
+    let recordID: TweakDBID;
+    let vehicleDataPackage: wref<VehicleDataPackage_Record>;
+    let vehicleRecord: ref<Vehicle_Record>;
+    let vehicleUp: Vector4;
+    let bike: ref<BikeObject> = scriptInterface.owner as BikeObject;
+    if IsDefined(bike) {
+      collisionForce = bike.GetCollisionForce();
+      collForceSqr = Vector4.LengthSquared(collisionForce);
+      if collForceSqr > 0.10 {
+        recordID = (scriptInterface.owner as VehicleObject).GetRecordID();
+        vehicleRecord = TweakDBInterface.GetVehicleRecord(recordID);
+        vehicleDataPackage = vehicleRecord.VehDataPackage();
+        knockOffForceSqr = vehicleDataPackage.KnockOffForce();
+        knockOffForceSqr *= knockOffForceSqr;
+        if collForceSqr > knockOffForceSqr || bike.ComputeIsVehicleUpsideDown() && collForceSqr > 25.00 {
+          if bike.IsAirControlEnabled() {
+            vehicleUp = bike.GetWorldUp();
+            collisionUp = vehicleUp * Vector4.Dot(collisionForce, vehicleUp);
+            collisionForce -= collisionUp;
+          };
+          impulse = -collisionForce;
+          impulse += 4.00 * bike.GetWorldUp();
+          stateContext.SetTemporaryVectorParameter(n"ExitForce", impulse, true);
+          this.SetBikeForce(stateContext, bike, collisionForce);
+          return true;
+        };
+        bike.EnableAirControl(true);
+        bike.EnableTiltControl(true);
+      };
+    };
+    return false;
+  }
+
+  public final const func SetBikeForce(stateContext: ref<StateContext>, vehicle: ref<VehicleObject>, collisionForce: Vector4) -> Void {
+    let bikeImpulse: Vector4 = collisionForce;
+    bikeImpulse = Vector4.Normalize(bikeImpulse);
+    let bikeMass: Float = vehicle.GetTotalMass();
+    bikeImpulse *= bikeMass * 3.80;
+    stateContext.SetTemporaryVectorParameter(n"BikeForce", bikeImpulse, true);
+  }
+}
+
+public class CollisionExitingEvents extends ImmediateExitWithForceEvents {
+
+  public let m_animFeatureStatusEffect: ref<AnimFeature_StatusEffect>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let impulse: StateResultVector;
+    let statusEffectRecord: wref<StatusEffect_Record>;
+    let collisionDirection: Vector4 = new Vector4(0.00, 0.00, 0.00, 0.00);
+    let stackcount: Uint32 = 1u;
+    super.OnEnter(stateContext, scriptInterface);
+    impulse = stateContext.GetTemporaryVectorParameter(n"ExitForce");
+    if impulse.valid {
+      collisionDirection = -impulse.value;
+    };
+    statusEffectRecord = TweakDBInterface.GetStatusEffectRecord(t"BaseStatusEffect.BikeKnockdown");
+    GameInstance.GetStatusEffectSystem(scriptInterface.GetGame()).ApplyStatusEffect(scriptInterface.executionOwnerEntityID, statusEffectRecord.GetID(), GameObject.GetTDBID(scriptInterface.owner), scriptInterface.ownerEntityID, stackcount, collisionDirection);
+    this.m_animFeatureStatusEffect = new AnimFeature_StatusEffect();
+    StatusEffectHelper.PopulateStatusEffectAnimData(scriptInterface.executionOwner, statusEffectRecord, EKnockdownStates.Start, collisionDirection, this.m_animFeatureStatusEffect);
+    scriptInterface.SetAnimationParameterFeature(n"StatusEffect", this.m_animFeatureStatusEffect, scriptInterface.executionOwner);
+    stateContext.SetPermanentFloatParameter(n"SatusEffectStateStartTime", EngineTime.ToFloat(scriptInterface.GetTimeSystem().GetSimTime()), true);
+    stateContext.SetPermanentScriptableParameter(n"StatusEffect_ForceKnockdown", statusEffectRecord, true);
+    if this.exitForce.valid {
+      stateContext.SetPermanentVectorParameter(n"StatusEffect_ForceKnockdownImpulse", this.exitForce.value, true);
+    };
+    this.PlaySound(n"v_mbike_dst_crash_fall", scriptInterface);
+  }
+}
+
+public class DeathExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let impulse: Vector4;
+    let playerOwner: ref<PlayerPuppet>;
+    let vehicle: ref<VehicleObject>;
+    let vehicleVelocity: Vector4;
+    if stateContext.GetIntParameter(n"vehClass", true) != 1 {
+      return false;
+    };
+    playerOwner = scriptInterface.executionOwner as PlayerPuppet;
+    if !IsDefined(playerOwner) {
+      return false;
+    };
+    if !playerOwner.IsDead() && !scriptInterface.owner.IsDead() {
+      return false;
+    };
+    if scriptInterface.owner.IsDead() {
+      impulse = playerOwner.GetWorldForward();
+    } else {
+      vehicle = scriptInterface.owner as VehicleObject;
+      vehicleVelocity = vehicle.GetLinearVelocity();
+      if Vector4.LengthSquared(vehicleVelocity) < 0.10 {
+        impulse = playerOwner.GetWorldForward();
+      } else {
+        impulse = Vector4.Normalize(vehicleVelocity);
+      };
+    };
+    impulse *= -9.00;
+    stateContext.SetTemporaryVectorParameter(n"ExitForce", impulse, true);
+    return true;
+  }
+}
+
+public class CombatExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitRequest: StateResultBool;
+    let vehicleObject: wref<VehicleObject>;
+    if this.GetVehClass(stateContext, scriptInterface) == 2 {
+      return false;
+    };
+    if this.IsVehicleExitBlocked1Frame(stateContext, scriptInterface) {
+      return false;
+    };
+    exitRequest = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+    if exitRequest.value {
+      if this.IsPlayerInCombat(scriptInterface) {
+        return true;
+      };
+      if VehicleComponent.GetVehicle(scriptInterface.GetGame(), scriptInterface.executionOwnerEntityID, vehicleObject) {
+        if vehicleObject.GetVehicleComponent().IsVehicleInDecay() {
+          return true;
+        };
+      };
+    };
+    return false;
+  }
+}
+
+public class CombatExitingEvents extends ExitingEvents {
+
+  public func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.Instant);
+  }
+}
+
+public class SpeedExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitDirection: vehicleUnmountPosition;
+    let exitRequest: StateResultBool;
+    let vehicle: ref<VehicleObject>;
+    let vehClass: Int32 = stateContext.GetIntParameter(n"vehClass", true);
+    if vehClass == 2 {
+      return false;
+    };
+    if this.IsVehicleExitBlocked1Frame(stateContext, scriptInterface) {
+      return false;
+    };
+    exitRequest = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+    if exitRequest.value {
+      vehicle = scriptInterface.owner as VehicleObject;
+      if vehClass == 1 {
+        exitDirection = vehicle.CanUnmount(true, scriptInterface.executionOwner, vehicleExitDirection.Left);
+        if Equals(exitDirection.direction, vehicleExitDirection.NoDirection) {
+          return false;
+        };
+      };
+      return vehicle.GetCurrentSpeed() > this.GetStaticFloatParameterDefault("highSpeedThreshold", 20.00);
+    };
+    return false;
+  }
+}
+
+public class SpeedExitingEvents extends ExitingEvents {
+
+  public let m_exitForce: Vector4;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let vehicle: ref<VehicleObject>;
+    stateContext.SetPermanentIntParameter(n"vehUnmountDir", 0, true);
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.VehicleExitKnockdownProtection", scriptInterface.executionOwnerEntityID);
+    super.OnEnter(stateContext, scriptInterface);
+    this.m_exitForce = new Vector4(0.00, 0.00, 0.00, 0.00);
+    vehicle = scriptInterface.owner as VehicleObject;
+    if IsDefined(vehicle) {
+      this.m_exitForce = vehicle.GetLinearVelocity() / 2.00;
+      if this.m_exitForce.Z < 0.00 {
+        this.m_exitForce.Z = 0.00;
+      };
+      this.m_exitForce += vehicle.GetWorldUp() * 4.00;
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let statusEffectRecord: wref<StatusEffect_Record>;
+    let stackcount: Uint32 = 1u;
+    super.OnExit(stateContext, scriptInterface);
+    statusEffectRecord = TweakDBInterface.GetStatusEffectRecord(t"BaseStatusEffect.BikeKnockdown");
+    GameInstance.GetStatusEffectSystem(scriptInterface.GetGame()).ApplyStatusEffect(scriptInterface.executionOwnerEntityID, statusEffectRecord.GetID(), GameObject.GetTDBID(scriptInterface.owner), scriptInterface.ownerEntityID, stackcount, -this.m_exitForce);
+    stateContext.SetTemporaryVectorParameter(n"impulse", this.m_exitForce, true);
+  }
+}
+
+public class SlideExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitDirection: vehicleUnmountPosition;
+    let exitRequest: StateResultBool;
+    let vehicle: ref<VehicleObject>;
+    if !this.IsCoolExitAllowed(stateContext, scriptInterface) {
+      return false;
+    };
+    if this.IsVehicleExitBlocked1Frame(stateContext, scriptInterface) {
+      return false;
+    };
+    vehicle = scriptInterface.owner as VehicleObject;
+    if vehicle.GetCurrentSpeed() <= this.GetStaticFloatParameterDefault("highSpeedThreshold", 20.00) {
+      return false;
+    };
+    exitRequest = stateContext.GetPermanentBoolParameter(n"validExitRequest");
+    if !exitRequest.value {
+      return false;
+    };
+    if stateContext.GetIntParameter(n"vehClass", true) == 1 {
+      exitDirection = vehicle.CanUnmount(true, scriptInterface.executionOwner, vehicleExitDirection.Left);
+      if Equals(exitDirection.direction, vehicleExitDirection.NoDirection) {
+        return false;
+      };
+    };
+    return true;
+  }
+}
+
+public class SlideExitingEvents extends ExitingEvents {
+
+  public let m_exitMomentum: Vector4;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let vehicle: ref<VehicleObject>;
+    stateContext.SetPermanentIntParameter(n"vehUnmountDir", 0, true);
+    super.OnEnter(stateContext, scriptInterface);
+    vehicle = scriptInterface.owner as VehicleObject;
+    this.m_exitMomentum = vehicle.GetLinearVelocity();
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.VehicleExitKnockdownProtection", scriptInterface.executionOwnerEntityID);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    stateContext.SetTemporaryBoolParameter(n"forceSlide", true, true);
+    stateContext.SetTemporaryVectorParameter(n"impulse", this.m_exitMomentum, true);
+    if this.m_fromDriverCombat {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.Instant);
+    };
+    this.BlockAimingForTime(stateContext, scriptInterface, 0.10);
+  }
+}
+
+public class CoolExitingDecisions extends ExitingDecisions {
+
+  public const func EnterCondition(stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let exitRequest: StateResultBool = stateContext.GetPermanentBoolParameter(n"coolExitRequest");
+    if this.IsVehicleExitBlocked1Frame(stateContext, scriptInterface) {
+      return false;
+    };
+    if !exitRequest.value {
+      return false;
+    };
+    stateContext.SetPermanentBoolParameter(n"coolExitRequest", false, true);
+    if !this.IsCoolExitAllowed(stateContext, scriptInterface) {
+      return false;
+    };
+    return true;
+  }
+}
+
+public class CoolExitingEvents extends ExitingEvents {
+
+  public let m_exitMomentum: Vector4;
+
+  public let m_coolExitMagnitude: vehicleCoolExitImpulseLevel;
+
+  public let m_willEquipMeleeWeapon: Bool;
+
+  public let m_cwArmsEquipRequested: Bool;
+
+  public let m_cwArmsEquipCompleted: Bool;
+
+  public let m_vehicleInTPP: Bool;
+
+  public let m_vehicleInTPPCallback: ref<CallbackHandle>;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let lastUsedWeapon: ItemID;
+    let vehicle: ref<VehicleObject>;
+    stateContext.SetPermanentIntParameter(n"vehUnmountDir", 0, true);
+    super.OnEnter(stateContext, scriptInterface);
+    vehicle = scriptInterface.owner as VehicleObject;
+    this.m_exitMomentum = vehicle.GetLinearVelocity() / 2.00;
+    this.m_coolExitMagnitude = vehicleCoolExitImpulseLevel.MaxImpulse;
+    StatusEffectHelper.ApplyStatusEffect(scriptInterface.executionOwner, t"BaseStatusEffect.VehicleExitKnockdownProtection", scriptInterface.executionOwnerEntityID);
+    if this.m_exitMomentum.Z < 0.00 {
+      this.m_exitMomentum.Z = 0.00;
+    };
+    this.m_vehicleInTPPCallback = scriptInterface.localBlackboard.RegisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP, this, n"OnVehicleInTPPChange", true);
+    this.m_vehicleInTPP = scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP);
+    lastUsedWeapon = EquipmentSystem.GetLastUsedItemByType(scriptInterface.executionOwner, ELastUsed.Weapon);
+    if ItemID.IsValid(lastUsedWeapon) {
+      if WeaponObject.IsCyberwareWeapon(lastUsedWeapon) {
+        this.m_cwArmsEquipRequested = true;
+      } else {
+        this.m_willEquipMeleeWeapon = WeaponObject.IsMelee(lastUsedWeapon);
+      };
+    };
+  }
+
+  protected cb func OnVehicleInTPPChange(value: Bool) -> Bool {
+    this.m_vehicleInTPP = value;
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let validUnmount: vehicleUnmountPosition;
+    let vehicle: wref<VehicleObject>;
+    let exitDelay: Float = this.GetVehicleDataPackage(stateContext).ExitDelay();
+    let startedExiting: StateResultBool = stateContext.GetPermanentBoolParameter(n"startedExiting");
+    let isTeleportExiting: StateResultBool = stateContext.GetPermanentBoolParameter(n"teleportExitActive");
+    if this.m_cwArmsEquipRequested && !this.m_cwArmsEquipCompleted && !this.m_vehicleInTPP {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.HACK_ForceInstantEquip);
+      this.m_cwArmsEquipCompleted = true;
+    };
+    if exitDelay > 0.00 {
+      if this.GetInStateTime() >= exitDelay && !startedExiting.value {
+        this.StartExiting(stateContext, scriptInterface);
+      };
+    };
+    if startedExiting.value && !isTeleportExiting.value && this.GetInStateTime() >= 1.00 {
+      vehicle = scriptInterface.owner as VehicleObject;
+      this.m_coolExitMagnitude = vehicle.DetermineCoolExitImpulseLevel(scriptInterface.executionOwner, this.GetStaticFloatParameterDefault("coolExitMaxImpulseHeightThreshold", 3.60), this.GetStaticFloatParameterDefault("coolExitLowImpulseHeightThreshold", 1.80));
+      if Equals(this.m_coolExitMagnitude, vehicleCoolExitImpulseLevel.NoExit) {
+        validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner, vehicleExitDirection.Back);
+        if Equals(validUnmount.direction, vehicleExitDirection.NoDirection) {
+          validUnmount = vehicle.CanUnmount(true, scriptInterface.executionOwner);
+        };
+        if NotEquals(validUnmount.direction, vehicleExitDirection.NoDirection) {
+          scriptInterface.GetWorkspotSystem().StopNpcInWorkspot(scriptInterface.executionOwner);
+          this.ExitWithTeleport(stateContext, scriptInterface, validUnmount, false, true);
+        };
+      };
+    };
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    stateContext.SetTemporaryVectorParameter(n"exitMomentum", this.m_exitMomentum, true);
+    stateContext.SetTemporaryBoolParameter(n"requestCoolExitJump", true, true);
+    stateContext.SetTemporaryIntParameter(n"coolExitMagnitude", EnumInt(this.m_coolExitMagnitude), true);
+    scriptInterface.localBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().PlayerStateMachine.IsVehicleInTPP, this.m_vehicleInTPPCallback);
+    if this.m_cwArmsEquipRequested && this.m_cwArmsEquipCompleted {
+      return;
+    };
+    if this.m_willEquipMeleeWeapon || this.m_cwArmsEquipRequested && !this.m_cwArmsEquipCompleted {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.HACK_ForceInstantEquip);
+    } else {
+      this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon, gameEquipAnimationType.Instant);
+    };
+  }
+}
+
+public class ExitEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mountingInfo: MountingInfo;
+    let startedExiting: Bool;
+    let startedExitingResult: StateResultBool;
+    let unmountDelay: StateResultFloat;
+    let unmountEvent: ref<UnmountingRequest>;
+    super.OnEnter(stateContext, scriptInterface);
+    startedExitingResult = stateContext.GetPermanentBoolParameter(n"startedExiting");
+    startedExiting = startedExitingResult.valid && startedExitingResult.value;
+    stateContext.SetPermanentBoolParameter(n"startedExiting", false, true);
+    VehicleComponent.SetAnimsetOverrideForPassenger(scriptInterface.executionOwner, 0.00);
+    this.RemoveUnmountingRequest(stateContext);
+    unmountEvent = new UnmountingRequest();
+    mountingInfo.childId = scriptInterface.executionOwnerEntityID;
+    unmountEvent.lowLevelMountingInfo = mountingInfo;
+    unmountEvent.delay = 0.00;
+    unmountDelay = stateContext.GetTemporaryFloatParameter(n"unmountDelay");
+    if unmountDelay.valid {
+      unmountEvent.delay = unmountDelay.value;
+    };
+    if !startedExiting {
+      unmountEvent.mountData = new MountEventData();
+      unmountEvent.mountData.isInstant = true;
+    };
+    scriptInterface.GetMountingFacility().Unmount(unmountEvent);
+    this.ResetAnimFeature(stateContext, scriptInterface);
+    this.ResetIsCar(stateContext, scriptInterface);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 0);
+    this.PlayerStateChange(scriptInterface, 0);
+    this.DisableCameraBobbing(stateContext, scriptInterface, false);
+    this.SetWasStolen(stateContext, false);
+    this.SetWasCombatForced(stateContext, false);
+    this.SetRequestedTPPCamera(stateContext, false);
+    stateContext.SetPermanentBoolParameter(n"coolExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"submergedExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validExitAfterSwitchRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"validSwitchSeatExitRequest", false, true);
+    stateContext.SetPermanentBoolParameter(n"teleportExitActive", false, true);
+    stateContext.SetPermanentIntParameter(n"driverCombatType", 6, true);
+    GameInstance.GetTelemetrySystem(scriptInterface.GetGame()).LogEnteringOrExitingVehicle(true);
+  }
+
+  protected func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+}
+
+public class WaitingForSceneDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if stateContext.GetBoolParameter(n"sceneActionInProgress", false) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToExit(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToEntering(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if stateContext.GetBoolParameter(n"sceneActionFinished", false) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class SceneDecisions extends VehicleTransition {
+
+  public let m_sceneTierCallback: ref<CallbackHandle>;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_sceneTierCallback = scriptInterface.localBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.SceneTier, this, n"OnSceneTierChanged", true);
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.localBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.SceneTier, this.m_sceneTierCallback);
+  }
+
+  protected final func OnSceneTierChanged(sceneTier: Int32) -> Void {
+    this.EnableOnEnterCondition(sceneTier >= 3 && sceneTier <= 5);
+  }
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !this.IsInScene(stateContext, scriptInterface) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToVehicleTurret(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return Equals(this.GetPuppetVehicleSceneTransition(stateContext), PuppetVehicleState.Turret);
+  }
+
+  public final const func ToCombat(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsPassengerInVehicle(scriptInterface) {
+      if this.CanTransitionToCombat(stateContext) {
+        return true;
+      };
+    };
+    return false;
+  }
+
+  public final const func ToDriverCombatFirearms(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsDriverInVehicle(scriptInterface) && VehicleTransition.CanEnterDriverCombat() && this.CanTransitionToCombat(stateContext) && this.DoesVehicleSupportFireArms(scriptInterface.owner as VehicleObject) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ToDriverCombatMountedWeapons(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsDriverInVehicle(scriptInterface) && VehicleTransition.CanEnterDriverCombat() && this.CanTransitionToCombat(stateContext) && Equals(this.GetVehicleDriverCombatType(scriptInterface.owner as VehicleObject), gamedataDriverCombatType.MountedWeapons) {
+      return true;
+    };
+    return false;
+  }
+
+  protected final const func CanTransitionToCombat(const stateContext: ref<StateContext>) -> Bool {
+    let puppetVehicleState: PuppetVehicleState = this.GetPuppetVehicleSceneTransition(stateContext);
+    if Equals(puppetVehicleState, PuppetVehicleState.CombatSeated) || Equals(puppetVehicleState, PuppetVehicleState.CombatWindowed) {
+      if !this.IsInEmptyHandsState(stateContext) {
+        return true;
+      };
+    };
+    return false;
+  }
+}
+
+public class SceneEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let mountingInfo: MountingInfo = scriptInterface.GetMountingInfo(scriptInterface.executionOwner);
+    this.SetSide(stateContext, scriptInterface);
+    this.ForceIdleVehicle(stateContext);
+    this.SetIsCar(stateContext, true);
+    this.SendIsCar(stateContext, scriptInterface);
+    this.PlayerStateChange(scriptInterface, 3);
+    this.SetVehicleCameraSceneMode(scriptInterface, true);
+    this.SetBlackboardIntVariable(scriptInterface, GetAllBlackboardDefs().PlayerStateMachine.Vehicle, 7);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    if !scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) && !scriptInterface.IsSceneAnimationActive() {
+      this.MountToWorkspot(scriptInterface, mountingInfo);
+    };
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let sceneGameplayTransition: PuppetVehicleState;
+    let weaponItemID: ItemID;
+    let isInVehicleCombat: Bool = false;
+    let puppetVehicleState: StateResultInt = stateContext.GetTemporaryIntParameter(n"scenePuppetVehicleState");
+    if puppetVehicleState.valid {
+      stateContext.SetPermanentIntParameter(n"scenePuppetVehicleState", puppetVehicleState.value, true);
+      sceneGameplayTransition = this.GetPuppetVehicleSceneTransition(stateContext);
+      if Equals(sceneGameplayTransition, PuppetVehicleState.GunnerSlot) {
+        stateContext.SetPermanentIntParameter(n"vehSlot", 3, true);
+        isInVehicleCombat = true;
+      } else {
+        if Equals(sceneGameplayTransition, PuppetVehicleState.CombatWindowed) || Equals(sceneGameplayTransition, PuppetVehicleState.CombatSeated) {
+          isInVehicleCombat = true;
+        };
+      };
+      if Equals(sceneGameplayTransition, PuppetVehicleState.IdleMounted) || Equals(sceneGameplayTransition, PuppetVehicleState.CombatWindowed) || Equals(sceneGameplayTransition, PuppetVehicleState.CombatSeated) {
+        this.SetSide(stateContext, scriptInterface);
+      };
+      if NotEquals(sceneGameplayTransition, PuppetVehicleState.IdleStand) {
+        if !scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) && !scriptInterface.IsSceneAnimationActive() {
+          this.MountToWorkspot(scriptInterface, scriptInterface.GetMountingInfo(scriptInterface.executionOwner));
+        };
+      };
+      if isInVehicleCombat {
+        weaponItemID = EquipmentSystem.GetData(scriptInterface.executionOwner).GetLastUsedOrFirstAvailableWeapon();
+        if WeaponObject.IsRanged(weaponItemID) {
+          this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableWeapon);
+        } else {
+          weaponItemID = EquipmentSystem.GetData(scriptInterface.executionOwner).GetSlotActiveWeapon();
+          if WeaponObject.IsRanged(weaponItemID) {
+            this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestSlotActiveWeapon);
+          } else {
+            this.SendEquipmentSystemWeaponManipulationRequest(scriptInterface, EquipmentManipulationAction.RequestLastUsedOrFirstAvailableRangedWeapon);
+          };
+        };
+      };
+      this.SetIsInVehicleWindowCombat(stateContext, Equals(sceneGameplayTransition, PuppetVehicleState.CombatWindowed));
+      this.SetIsInVehicle(stateContext, NotEquals(sceneGameplayTransition, PuppetVehicleState.IdleStand));
+      this.SetIsInVehicleCombat(stateContext, isInVehicleCombat);
+      this.SetIsExitingVehicle(stateContext, Equals(sceneGameplayTransition, PuppetVehicleState.IdleStand));
+    };
+    this.SendAnimFeature(stateContext, scriptInterface);
+  }
+
+  public final func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let sceneGameplayTransition: PuppetVehicleState = this.GetPuppetVehicleSceneTransition(stateContext);
+    stateContext.RemovePermanentIntParameter(n"scenePuppetVehicleState");
+    stateContext.SetTemporaryBoolParameter(n"vehicleWindowedCombat", Equals(sceneGameplayTransition, PuppetVehicleState.CombatWindowed), true);
+    stateContext.SetTemporaryIntParameter(n"scenePuppetVehicleState", EnumInt(sceneGameplayTransition), true);
+    this.SetIsExitingVehicle(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.SetVehicleCameraSceneMode(scriptInterface, false);
+    this.SetVehicleStatusEffects(stateContext, scriptInterface, false);
+    if NotEquals(sceneGameplayTransition, PuppetVehicleState.IdleStand) {
+      if !this.IsExitForced(stateContext) && !scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) {
+        this.MountToWorkspot(scriptInterface, scriptInterface.GetMountingInfo(scriptInterface.executionOwner));
+      };
+    };
+  }
+
+  protected func OnForcedExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+  }
+
+  public final func MountToWorkspot(scriptInterface: ref<StateGameScriptInterface>, mountingInfo: MountingInfo) -> Void {
+    let workspotSystem: ref<WorkspotGameSystem> = scriptInterface.GetWorkspotSystem();
+    workspotSystem.MountToVehicle(scriptInterface.owner, scriptInterface.executionOwner, 0.00, 0.00, n"OccupantSlots", mountingInfo.slotId.id);
+  }
+}
+
+public class SceneExitingDecisions extends VehicleTransition {
+
+  public final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if this.IsExitForced(stateContext) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+
+  public final const func ExitCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) || !IsDefined(scriptInterface.owner) {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class SceneExitingEvents extends VehicleEventsTransition {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let startedMountingEvent: ref<VehicleStartedMountingEvent>;
+    let unmountEvent: ref<MountEventData>;
+    super.OnEnter(stateContext, scriptInterface);
+    unmountEvent = this.GetUnmountingEvent(stateContext);
+    if unmountEvent != null {
+      startedMountingEvent = new VehicleStartedMountingEvent();
+      startedMountingEvent.slotID = unmountEvent.slotName;
+      startedMountingEvent.isMounting = false;
+      startedMountingEvent.character = scriptInterface.executionOwner;
+      startedMountingEvent.instant = false;
+      scriptInterface.owner.QueueEvent(startedMountingEvent);
+      stateContext.SetPermanentBoolParameter(n"startedExiting", true, true);
+    };
+    if this.IsExitForced(stateContext) && scriptInterface.GetWorkspotSystem().IsActorInWorkspot(scriptInterface.executionOwner) {
+      if !scriptInterface.IsSceneAnimationActive() {
+        this.ExitWorkspot(stateContext, scriptInterface, unmountEvent.isInstant);
+        this.PlayVehicleExitDoorAnimation(stateContext, scriptInterface);
+      };
+    };
+    this.SetIsInVehicle(stateContext, false);
+    this.SendAnimFeature(stateContext, scriptInterface);
+    this.RemoveUnmountingRequest(stateContext);
+  }
+}

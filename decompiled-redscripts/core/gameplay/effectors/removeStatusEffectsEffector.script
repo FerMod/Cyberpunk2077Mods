@@ -1,0 +1,117 @@
+
+public class RemoveStatusEffectsEffector extends Effector {
+
+  private let m_effectTypes: [String];
+
+  private let m_effectString: [String];
+
+  private let m_effectTags: [CName];
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_effectString = TDB.GetStringArray(record + t".statusEffects");
+    this.m_effectTypes = TDB.GetStringArray(record + t".effectTypes");
+    this.m_effectTags = TDB.GetCNameArray(record + t".effectTags");
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  private final func ProcessAction(owner: ref<GameObject>) -> Void {
+    let type: gamedataStatusEffectType;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_effectString) {
+      StatusEffectHelper.RemoveStatusEffect(owner, TDBID.Create(this.m_effectString[i]));
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_effectTypes) {
+      type = IntEnum<gamedataStatusEffectType>(Cast<Int32>(EnumValueFromString("gamedataStatusEffectType", this.m_effectTypes[i])));
+      if NotEquals(type, gamedataStatusEffectType.Invalid) {
+        StatusEffectHelper.RemoveAllStatusEffectsByType(owner, type);
+      };
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_effectTags) {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(owner, this.m_effectTags[i]);
+      i += 1;
+    };
+  }
+}
+
+public class RemoveStatusEffectOnAttackEffector extends ModifyAttackEffector {
+
+  private let m_effectTypes: [String];
+
+  private let m_effectString: [String];
+
+  private let m_effectTags: [CName];
+
+  public let m_owner: wref<GameObject>;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_effectString = TDB.GetStringArray(record + t".statusEffects");
+    this.m_effectTypes = TDB.GetStringArray(record + t".effectTypes");
+    this.m_effectTags = TDB.GetCNameArray(record + t".effectTags");
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  private final func ProcessAction(owner: ref<GameObject>) -> Void {
+    let type: gamedataStatusEffectType;
+    let hitEvent: ref<gameHitEvent> = this.GetHitEvent();
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_effectString) {
+      StatusEffectHelper.RemoveStatusEffect(hitEvent.target, TDBID.Create(this.m_effectString[i]));
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_effectTypes) {
+      type = IntEnum<gamedataStatusEffectType>(Cast<Int32>(EnumValueFromString("gamedataStatusEffectType", this.m_effectTypes[i])));
+      if NotEquals(type, gamedataStatusEffectType.Invalid) {
+        StatusEffectHelper.RemoveAllStatusEffectsByType(hitEvent.target, type);
+      };
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(this.m_effectTags) {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(hitEvent.target, this.m_effectTags[i]);
+      i += 1;
+    };
+  }
+}
+
+public class RemoveDOTStatusEffectsEffector extends Effector {
+
+  protected let m_ownerEntityID: EntityID;
+
+  protected let m_delay: Float;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_delay = TDB.GetFloat(record + t".delay");
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.m_ownerEntityID = owner.GetEntityID();
+    if IsDefined(owner) && this.m_delay >= 0.00 {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(owner, n"DoT", this.m_delay);
+    };
+  }
+
+  protected func Uninitialize(game: GameInstance) -> Void {
+    if EntityID.IsDefined(this.m_ownerEntityID) && this.m_delay < 0.00 {
+      StatusEffectHelper.RemoveStatusEffectsWithTag(game, this.m_ownerEntityID, n"DoT");
+    };
+  }
+}

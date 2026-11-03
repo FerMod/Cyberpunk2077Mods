@@ -1,0 +1,129 @@
+
+public abstract native class gameuiICharacterCustomizationSystem extends IGameSystem {
+
+  private let m_puppetPreviewGameController: wref<inkCharacterCreationPuppetPreviewGameController>;
+
+  public final native func IsTransgenderAllowed() -> Bool;
+
+  public final native func IsNudityAllowed() -> Bool;
+
+  public final native func InitializeState() -> Bool;
+
+  public final native func FinalizeState() -> Bool;
+
+  public final native func ReFinalizeState() -> Bool;
+
+  public final native func ClearState() -> Bool;
+
+  public final native func CancelFinalizedStateUpdate() -> Bool;
+
+  public final native func GetState() -> ref<gameuiICharacterCustomizationState>;
+
+  public final native func GetHeadOptions(opt presetName: CName) -> [ref<CharacterCustomizationOption>];
+
+  public final native func GetBodyOptions(opt presetName: CName) -> [ref<CharacterCustomizationOption>];
+
+  public final native func GetArmsOptions(opt presetName: CName) -> [ref<CharacterCustomizationOption>];
+
+  public final native func InitializeOptionsFromFinalizedState() -> Void;
+
+  public final native func GetUnitedOptions(head: Bool, body: Bool, arms: Bool, opt headPreset: CName, opt bodyPreset: CName, opt armsPreset: CName) -> [ref<CharacterCustomizationOption>];
+
+  public final native func RandomizeOptions(randomizeData: ref<gameuiCharacterRandomizationParametersData>) -> Void;
+
+  public final native func SetRandomizationParameters(data: ref<gameuiCharacterRandomizationParametersData>) -> Void;
+
+  public final native func GetRandomizationParameters() -> ref<gameuiCharacterRandomizationParametersData>;
+
+  public final native func ApplyEditTag(editTag: gameuiCharacterCustomizationEditTag) -> Void;
+
+  public final native func ApplyUIPreset(presetName: CName) -> Void;
+
+  public final native func ApplyChangeToOption(const option: ref<CharacterCustomizationOption>, newValue: Uint32, opt isInstant: Bool) -> Void;
+
+  public final native func TriggerVoiceToneSample() -> Void;
+
+  public final native func HasCharacterCustomizationComponent(entity: ref<Entity>) -> Bool;
+
+  public final native func SetCustomizationOptionsResource(puppet: ref<PlayerPuppet>, isMale: Bool) -> Void;
+
+  public final native func ResetCustomizationOptionsResource() -> Void;
+
+  public final func RegisterPuppetPreviewGameController(puppetPreviewGameController: wref<inkCharacterCreationPuppetPreviewGameController>) -> Void {
+    this.m_puppetPreviewGameController = puppetPreviewGameController;
+  }
+
+  public final func UnregisterPuppetPreviewGameController() -> Void {
+    this.m_puppetPreviewGameController = null;
+  }
+
+  public final func GetPuppetPreviewGameController() -> wref<inkCharacterCreationPuppetPreviewGameController> {
+    return this.m_puppetPreviewGameController;
+  }
+}
+
+public native class BaseCharacterCreationController extends gameuiMenuGameController {
+
+  protected let m_eventDispatcher: wref<inkMenuEventDispatcher>;
+
+  protected let m_characterCustomizationState: ref<gameuiICharacterCustomizationState>;
+
+  protected edit let m_nextPageHitArea: inkWidgetRef;
+
+  protected final native func GetCharacterCustomizationSystem() -> ref<gameuiICharacterCustomizationSystem>;
+
+  protected final native func WaitForRunningInstalations() -> Bool;
+
+  protected final native func RequestCameraChange(slotName: CName, opt delayed: Bool) -> Void;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_characterCustomizationState = this.GetCharacterCustomizationSystem().GetState();
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.ForceResetCursorType();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonRelease");
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnRelease");
+  }
+
+  protected cb func OnSetMenuEventDispatcher(d: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_eventDispatcher = d;
+  }
+
+  protected cb func OnShowEngagementScreen(evt: ref<ShowEngagementScreen>) -> Bool {
+    this.m_eventDispatcher.SpawnEvent(n"OnHandleEngagementScreen", evt);
+  }
+
+  protected cb func OnRelease(e: ref<inkPointerEvent>) -> Bool {
+    let target: wref<inkWidget> = e.GetTarget();
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      if target == inkWidgetRef.Get(this.m_nextPageHitArea) {
+        this.NextMenu();
+      };
+    };
+  }
+
+  protected cb func OnButtonRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if !evt.IsHandled() {
+      if evt.IsAction(n"back") {
+        this.PlaySound(n"Button", n"OnPress");
+        evt.Handle();
+        this.PriorMenu();
+      } else {
+        return false;
+      };
+      evt.Handle();
+    };
+  }
+
+  protected func PriorMenu() -> Void {
+    this.m_eventDispatcher.SpawnEvent(n"OnBack");
+  }
+
+  protected func NextMenu() -> Void {
+    this.m_eventDispatcher.SpawnEvent(n"OnAccept");
+  }
+}

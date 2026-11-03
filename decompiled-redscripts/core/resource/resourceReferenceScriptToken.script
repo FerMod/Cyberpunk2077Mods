@@ -1,0 +1,45 @@
+
+public final native struct redResourceRefWrapper {
+
+  public final static native func LoadPath(self: script_ref<redResourceRefWrapper>, path: ResRef) -> Void;
+
+  public final static native func GetPath(self: script_ref<redResourceRefWrapper>) -> ResRef;
+
+  public final static native func GetHash(self: script_ref<redResourceRefWrapper>) -> Uint64;
+
+  public final static native func GetToken(self: script_ref<redResourceRefWrapper>) -> ref<redResourceTokenWrapper>;
+
+  public final static native func GetResource(self: script_ref<redResourceRefWrapper>) -> CResourceWrapper;
+
+  public final static native func IsEmpty(self: script_ref<redResourceRefWrapper>) -> Bool;
+
+  public final static native func IsLoaded(self: script_ref<redResourceRefWrapper>) -> Bool;
+
+  public final static native func IsFailed(self: script_ref<redResourceRefWrapper>) -> Bool;
+
+  public final static native func ToVariant(self: script_ref<redResourceRefWrapper>, type: CName) -> Variant;
+
+  public final static native func FromVariant(variant: Variant) -> redResourceRefWrapper;
+
+  public final static func FromPath(path: ResRef) -> redResourceRefWrapper {
+    let reference: redResourceRefWrapper;
+    redResourceRefWrapper.LoadPath(reference, path);
+    return reference;
+  }
+}
+
+public static func OperatorEqual(lhs: redResourceAsyncRefWrapper, rhs: ResRef) -> Bool {
+  return Equals(redResourceAsyncRefWrapper.GetPath(lhs), rhs);
+}
+
+public static func OperatorNotEqual(lhs: redResourceAsyncRefWrapper, rhs: ResRef) -> Bool {
+  return NotEquals(redResourceAsyncRefWrapper.GetPath(lhs), rhs);
+}
+
+public static func OperatorEqual(x: redResourceReferenceScriptToken, y: ResRef) -> Bool {
+  return Equals(y, x);
+}
+
+public static func OperatorEqual(x: ResRef, y: redResourceReferenceScriptToken) -> Bool {
+  return Equals(x, y);
+}

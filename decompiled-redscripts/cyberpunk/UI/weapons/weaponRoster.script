@@ -1,0 +1,728 @@
+
+public native class WeaponRosterGameController extends inkHUDGameController {
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponName: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponIcon: inkImageRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponCurrentAmmo: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponTotalAmmo: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponAmmoWrapper: inkWidgetRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_leftWeaponName: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_leftWeaponIcon: inkImageRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_leftWeaponCurrentAmmo: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_leftWeaponTotalAmmo: inkTextRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit const let m_widgetsToActivateWithLeftWeapon: [inkWidgetRef];
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponHolder: inkWidgetRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_leftWeaponHolder: inkWidgetRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_weaponIconsScaleWhenDualWielding: Vector2;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_weaponIconsTopMarginWhenSingleWielding: Float;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_weaponIconsTopMarginWhenDualWielding: Float;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_rightWeaponWrapper: inkHorizontalPanelRef;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_childMarginWhenSingleWielding: Float;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_childMarginWhenDualWielding: Float;
+
+  @runtimeProperty("category", "on foot weapon roster")
+  public edit let m_onFootContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_weaponizedVehicleContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_weaponizedVehicleMissileLauncherContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_weaponizedVehicleMachinegunContainer: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_machinegunAmmo: inkTextRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_machinegunReloadingProgressBar: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_machinegunReloadingProgressBarFill: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_missileLauncherAmmo: inkTextRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_missileLauncherReloadingProgressBar: inkWidgetRef;
+
+  @runtimeProperty("category", "Weaponized Vehicle Roster")
+  public edit let m_missileLauncherReloadingProgressBarFill: inkWidgetRef;
+
+  @runtimeProperty("category", "Smart Weapons")
+  private edit let m_smartLinkFirmwareOnline: inkCompoundRef;
+
+  @runtimeProperty("category", "Smart Weapons")
+  private edit let m_smartLinkFirmwareOffline: inkCompoundRef;
+
+  private let m_uiEquipmentDataBlackboard: wref<IBlackboard>;
+
+  private let m_uiBlackboard: wref<IBlackboard>;
+
+  private let m_ammoHackedListenerId: ref<CallbackHandle>;
+
+  private let m_BBWeaponList: ref<CallbackHandle>;
+
+  private let m_BBAmmoLooted: ref<CallbackHandle>;
+
+  private let m_dataListenerId: ref<CallbackHandle>;
+
+  private let m_onMagazineAmmoCount: ref<CallbackHandle>;
+
+  private let m_remoteControlledVehicleDataCallback: ref<CallbackHandle>;
+
+  private let m_psmWeaponStateChangedCallback: ref<CallbackHandle>;
+
+  private let m_VisionStateBlackboardId: ref<CallbackHandle>;
+
+  private let m_weaponParamsListenerId: ref<CallbackHandle>;
+
+  private let m_weaponizedVehicleMachineGunAmmoChangedCallback: ref<CallbackHandle>;
+
+  private let m_weaponizedVehicleMissileLauncherChargesChangedCallback: ref<CallbackHandle>;
+
+  private let m_rightWeaponRecord: ref<WeaponItem_Record>;
+
+  private let m_activeRightWeapon: SlotWeaponData;
+
+  private let m_leftWeaponRecord: ref<WeaponItem_Record>;
+
+  private let m_activeLeftWeapon: SlotWeaponData;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_PlayerMuppet: wref<Muppet>;
+
+  private let m_transitionAnimProxy: ref<inkAnimProxy>;
+
+  private let m_outOfAmmoAnim: ref<inkAnimProxy>;
+
+  @default(WeaponRosterGameController, true)
+  private let m_folded: Bool;
+
+  private let m_isLeftWeaponVisible: Bool;
+
+  @default(WeaponRosterGameController, false)
+  private let m_isUnholstered: Bool;
+
+  private let m_inVehicle: Bool;
+
+  @default(WeaponRosterGameController, false)
+  private let m_inWeaponizedVehicle: Bool;
+
+  private let m_InventoryManager: ref<InventoryDataManagerV2>;
+
+  private let m_rightWeaponItemData: InventoryItemData;
+
+  private let m_leftWeaponItemData: InventoryItemData;
+
+  @default(WeaponRosterGameController, -1.f)
+  private let m_weaponizedVehiclePowerWeaponReloadTime: Float;
+
+  @default(WeaponRosterGameController, -1.f)
+  private let m_weaponizedVehiclePowerWeaponReloadElapsedTime: Float;
+
+  @default(WeaponRosterGameController, 0)
+  private let m_weaponizedVehicleMissileLauncherMaxCharges: Uint32;
+
+  @default(WeaponRosterGameController, -1.f)
+  private let m_weaponizedVehicleMissileLauncherRechargeTime: Float;
+
+  @default(WeaponRosterGameController, -1.f)
+  private let m_weaponizedVehicleMissileLauncherRechargeElapsedTime: Float;
+
+  protected cb func OnInitialize() -> Bool {
+    this.PlayInitFoldingAnim();
+    inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOffline, false);
+    inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOnline, false);
+    this.ToggleLeftWeaponVisibility(false, true);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.m_InventoryManager.UnInitialize();
+  }
+
+  protected cb func OnPlayerAttach(playerPuppet: ref<GameObject>) -> Bool {
+    this.m_player = playerPuppet as PlayerPuppet;
+    this.m_PlayerMuppet = playerPuppet as Muppet;
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.RegisterBlackboards();
+    this.UpdateVehicleRoster(GameInstance.GetMountingFacility(this.m_player.GetGame()).GetMountingInfoSingleWithObjects(this.m_player));
+  }
+
+  protected cb func OnPlayerDetach(playerPuppet: ref<GameObject>) -> Bool {
+    this.UnregisterBlackboards();
+    this.m_player = null;
+    this.m_PlayerMuppet = null;
+  }
+
+  protected cb func OnMountingEvent(evt: ref<MountingEvent>) -> Bool {
+    if Equals(evt.relationship.relationshipType, gameMountingRelationshipType.Parent) && Equals(evt.relationship.otherMountableType, gameMountingObjectType.Vehicle) {
+      this.UpdateVehicleRoster(evt.request.lowLevelMountingInfo);
+    };
+  }
+
+  protected cb func OnUnmountingEvent(evt: ref<UnmountingEvent>) -> Bool {
+    this.Fold();
+    this.m_inVehicle = false;
+    this.m_inWeaponizedVehicle = false;
+    this.ResetWeaponizedVehiclePowerWeaponProgressBar();
+    this.ResetWeaponizedVehicleMissileLauncherProgressBar();
+  }
+
+  protected cb func OnUpdate(dT: Float) -> Bool {
+    let progress: Float;
+    if this.m_weaponizedVehiclePowerWeaponReloadTime > 0.00 && this.m_weaponizedVehiclePowerWeaponReloadElapsedTime != -1.00 {
+      this.m_weaponizedVehiclePowerWeaponReloadElapsedTime += dT;
+      progress = MinF(this.m_weaponizedVehiclePowerWeaponReloadElapsedTime / this.m_weaponizedVehiclePowerWeaponReloadTime, 1.00);
+      inkWidgetRef.SetScale(this.m_machinegunReloadingProgressBarFill, new Vector2(progress, 1.00));
+      if progress >= 1.00 {
+        this.ResetWeaponizedVehiclePowerWeaponProgressBar();
+      };
+    };
+    if this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime != -1.00 {
+      this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime += dT;
+      progress = MinF(this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime / this.m_weaponizedVehicleMissileLauncherRechargeTime, 1.00);
+      inkWidgetRef.SetScale(this.m_missileLauncherReloadingProgressBarFill, new Vector2(progress, 1.00));
+      if progress >= 1.00 {
+        this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime -= this.m_weaponizedVehicleMissileLauncherRechargeTime;
+      };
+    };
+  }
+
+  private final func RegisterBlackboards() -> Void {
+    let psmBlackboard: wref<IBlackboard>;
+    let blackboardSystem: ref<BlackboardSystem> = this.GetBlackboardSystem();
+    let uiActiveWeaponDataBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+    let uiActiveVehicleBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+    let uiInteractionsBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIInteractions);
+    let uiHackingBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_Hacking);
+    this.m_uiEquipmentDataBlackboard = blackboardSystem.Get(GetAllBlackboardDefs().UI_EquipmentData);
+    this.m_uiBlackboard = this.GetUIBlackboard();
+    this.m_dataListenerId = uiInteractionsBlackboard.RegisterDelayedListenerVariant(GetAllBlackboardDefs().UIInteractions.LootData, this, n"OnUpdateData");
+    if this.IsPlayingMultiplayer() {
+      this.m_BBWeaponList = this.m_uiEquipmentDataBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().UI_EquipmentData.EquipmentData, this, n"OnWeaponDataChanged_MP");
+    } else {
+      this.m_BBWeaponList = this.m_uiEquipmentDataBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().UI_EquipmentData.EquipmentData, this, n"OnWeaponDataChanged");
+    };
+    this.m_remoteControlledVehicleDataCallback = uiActiveVehicleBlackboard.RegisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this, n"OnRemoteControlledVehicleChanged", true);
+    this.m_BBAmmoLooted = this.m_uiEquipmentDataBlackboard.RegisterListenerBool(GetAllBlackboardDefs().UI_EquipmentData.ammoLooted, this, n"OnAmmoLooted");
+    this.m_uiEquipmentDataBlackboard.SignalVariant(GetAllBlackboardDefs().UI_EquipmentData.EquipmentData);
+    this.m_uiEquipmentDataBlackboard.SignalBool(GetAllBlackboardDefs().UI_EquipmentData.ammoLooted);
+    this.m_onMagazineAmmoCount = uiInteractionsBlackboard.RegisterListenerUint(GetAllBlackboardDefs().Weapon.MagazineAmmoCount, this, n"OnMagazineAmmoCount");
+    this.m_weaponParamsListenerId = uiActiveWeaponDataBlackboard.RegisterDelayedListenerVariant(GetAllBlackboardDefs().UI_ActiveWeaponData.SmartGunParams, this, n"OnSmartGunParams");
+    this.m_ammoHackedListenerId = uiHackingBlackboard.RegisterDelayedListenerBool(GetAllBlackboardDefs().UI_Hacking.ammoIndicator, this, n"OnAmmoIndicatorHacked");
+    if this.IsPlayingMultiplayer() {
+      if IsDefined(this.m_PlayerMuppet) {
+        psmBlackboard = this.GetPSMBlackboard(this.m_PlayerMuppet);
+        this.m_VisionStateBlackboardId = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vision, this, n"OnPSMVisionStateChanged");
+      };
+    } else {
+      if IsDefined(this.m_player) && this.m_player.IsControlledByLocalPeer() {
+        psmBlackboard = this.GetPSMBlackboard(this.m_player);
+        this.m_VisionStateBlackboardId = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vision, this, n"OnPSMVisionStateChanged");
+      };
+    };
+    this.m_psmWeaponStateChangedCallback = psmBlackboard.RegisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this, n"OnPSMWeaponStateChanged");
+    this.m_weaponizedVehicleMachineGunAmmoChangedCallback = uiActiveVehicleBlackboard.RegisterListenerUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedPowerWeaponAmmo, this, n"OnWeaponizedVehicleMachineGunAmmoChanged");
+    this.m_weaponizedVehicleMissileLauncherChargesChangedCallback = uiActiveVehicleBlackboard.RegisterListenerUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedMissileLauncherAmmo, this, n"OnWeaponizedVehicleMissileLauncherChargesChanged");
+  }
+
+  private final func UnregisterBlackboards() -> Void {
+    let psmBlackboard: wref<IBlackboard>;
+    let blackboardSystem: ref<BlackboardSystem> = this.GetBlackboardSystem();
+    let uiActiveWeaponDataBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveWeaponData);
+    let uiActiveVehicleBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+    let uiInteractionsBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIInteractions);
+    let uiHackingBlackboard: wref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_Hacking);
+    if IsDefined(this.m_weaponizedVehicleMachineGunAmmoChangedCallback) {
+      uiActiveVehicleBlackboard.UnregisterListenerUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedPowerWeaponAmmo, this.m_weaponizedVehicleMachineGunAmmoChangedCallback);
+    };
+    if IsDefined(this.m_weaponizedVehicleMissileLauncherChargesChangedCallback) {
+      uiActiveVehicleBlackboard.UnregisterListenerUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedMissileLauncherAmmo, this.m_weaponizedVehicleMissileLauncherChargesChangedCallback);
+    };
+    if this.IsPlayingMultiplayer() {
+      if IsDefined(this.m_PlayerMuppet) {
+        psmBlackboard = this.GetPSMBlackboard(this.m_PlayerMuppet);
+        psmBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vision, this.m_VisionStateBlackboardId);
+      };
+    } else {
+      if IsDefined(this.m_player) {
+        psmBlackboard = this.GetPSMBlackboard(this.m_player);
+        psmBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.Vision, this.m_VisionStateBlackboardId);
+      };
+    };
+    if IsDefined(this.m_psmWeaponStateChangedCallback) {
+      psmBlackboard.UnregisterListenerInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon, this.m_psmWeaponStateChangedCallback);
+    };
+    if IsDefined(this.m_remoteControlledVehicleDataCallback) {
+      uiActiveVehicleBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_ActiveVehicleData.RemoteControlledVehicleData, this.m_remoteControlledVehicleDataCallback);
+    };
+    this.m_uiEquipmentDataBlackboard.UnregisterListenerVariant(GetAllBlackboardDefs().UI_EquipmentData.EquipmentData, this.m_BBWeaponList);
+    this.m_uiEquipmentDataBlackboard.UnregisterListenerBool(GetAllBlackboardDefs().UI_EquipmentData.ammoLooted, this.m_BBAmmoLooted);
+    uiInteractionsBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UIInteractions.LootData, this.m_dataListenerId);
+    uiInteractionsBlackboard.UnregisterListenerUint(GetAllBlackboardDefs().Weapon.MagazineAmmoCount, this.m_onMagazineAmmoCount);
+    uiActiveWeaponDataBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_ActiveWeaponData.SmartGunParams, this.m_weaponParamsListenerId);
+    uiHackingBlackboard.UnregisterDelayedListener(GetAllBlackboardDefs().UI_Hacking.ammoIndicator, this.m_ammoHackedListenerId);
+  }
+
+  protected cb func OnUpdateData(value: Variant) -> Bool {
+    if IsDefined(this.m_uiEquipmentDataBlackboard) {
+      this.m_uiEquipmentDataBlackboard.SignalVariant(GetAllBlackboardDefs().UI_EquipmentData.EquipmentData);
+    };
+  }
+
+  protected cb func OnAmmoIndicatorHacked(value: Bool) -> Bool {
+    inkWidgetRef.Get(this.m_onFootContainer).SetEffectEnabled(inkEffectType.Glitch, n"hacking", value);
+    inkWidgetRef.Get(this.m_weaponizedVehicleContainer).SetEffectEnabled(inkEffectType.Glitch, n"hacking", value);
+  }
+
+  protected cb func OnPSMWeaponStateChanged(value: Int32) -> Bool {
+    this.UpdateWeaponizedVehicleMountedPowerWeaponProgressBarVisibility(IntEnum<gamePSMRangedWeaponStates>(value));
+  }
+
+  protected cb func OnPSMVisionStateChanged(value: Int32) -> Bool {
+    switch IntEnum<gamePSMVision>(value) {
+      case gamePSMVision.Default:
+        if this.m_isUnholstered {
+          this.Unfold();
+        };
+        break;
+      case gamePSMVision.Focus:
+        this.Fold();
+    };
+  }
+
+  protected cb func OnRemoteControlledVehicleChanged(value: Variant) -> Bool {
+    let data: RemoteControlDrivingUIData = FromVariant<RemoteControlDrivingUIData>(value);
+    this.GetRootWidget().SetVisible(data.remoteControlledVehicle == null);
+  }
+
+  protected cb func OnSmartGunParams(argParams: Variant) -> Bool {
+    let smartData: ref<smartGunUIParameters> = FromVariant<ref<smartGunUIParameters>>(argParams);
+    if this.m_isUnholstered {
+      if Equals(RPGManager.GetWeaponEvolution(InventoryItemData.GetID(this.m_rightWeaponItemData)), gamedataWeaponEvolution.Smart) && !this.ShouldIgnoreSmartUI() {
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOffline, !smartData.hasRequiredCyberware);
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOnline, smartData.hasRequiredCyberware);
+      } else {
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOffline, false);
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOnline, false);
+      };
+    };
+  }
+
+  private final const func GetAllAmmoCount() -> Int32 {
+    let allAmmoCount: Int32 = RPGManager.GetAmmoCountValue(this.m_player, this.m_activeRightWeapon.weaponID) - this.m_activeRightWeapon.ammoCurrent;
+    if ItemID.IsValid(this.m_activeLeftWeapon.weaponID) && this.m_activeLeftWeapon.ammoId == this.m_activeRightWeapon.ammoId {
+      allAmmoCount -= this.m_activeLeftWeapon.ammoCurrent;
+    };
+    return allAmmoCount;
+  }
+
+  private final const func GetLeftAmmoCount() -> Int32 {
+    let allAmmoCount: Int32 = RPGManager.GetAmmoCountValue(this.m_player, this.m_activeLeftWeapon.weaponID) - this.m_activeLeftWeapon.ammoCurrent;
+    if ItemID.IsValid(this.m_activeRightWeapon.weaponID) && this.m_activeLeftWeapon.ammoId == this.m_activeRightWeapon.ammoId {
+      allAmmoCount -= this.m_activeLeftWeapon.ammoCurrent;
+    };
+    return allAmmoCount;
+  }
+
+  protected cb func OnAmmoLooted(value: Bool) -> Bool {
+    let allAmmoCount: Int32 = this.GetAllAmmoCount();
+    inkTextRef.SetText(this.m_rightWeaponTotalAmmo, this.GetAmmoText(allAmmoCount, 4));
+  }
+
+  protected cb func OnWeaponDataChanged(value: Variant) -> Bool {
+    let rightWeaponData: SlotWeaponData = FromVariant<ref<SlotDataHolder>>(value).rightWeapon;
+    let leftWeaponData: SlotWeaponData = FromVariant<ref<SlotDataHolder>>(value).leftWeapon;
+    this.m_isUnholstered = ItemID.IsValid(rightWeaponData.weaponID);
+    if this.m_isUnholstered {
+      if this.m_activeRightWeapon.weaponID != rightWeaponData.weaponID {
+        this.ChangeWeaponData(rightWeaponData, this.m_rightWeaponItemData, this.m_rightWeaponRecord, this.m_rightWeaponName, false);
+      };
+      if this.m_activeLeftWeapon.weaponID != leftWeaponData.weaponID {
+        if ItemID.IsValid(leftWeaponData.weaponID) {
+          this.ChangeWeaponData(leftWeaponData, this.m_leftWeaponItemData, this.m_leftWeaponRecord, this.m_leftWeaponName, true);
+        };
+        this.ToggleLeftWeaponVisibility(ItemID.IsValid(leftWeaponData.weaponID));
+      };
+      this.m_activeLeftWeapon = leftWeaponData;
+      this.m_activeRightWeapon = rightWeaponData;
+      this.SetRosterSlotData();
+      this.Unfold();
+    } else {
+      this.Fold();
+    };
+  }
+
+  protected cb func OnWeaponizedVehicleMachineGunAmmoChanged(value: Uint32) -> Bool {
+    let ammoText: String = this.GetAmmoText(Cast<Int32>(value), 3);
+    inkTextRef.SetText(this.m_machinegunAmmo, ammoText);
+  }
+
+  protected cb func OnWeaponizedVehicleMissileLauncherChargesChanged(value: Uint32) -> Bool {
+    let ammoText: String = this.GetAmmoText(Cast<Int32>(value), 3);
+    inkTextRef.SetText(this.m_missileLauncherAmmo, ammoText);
+    if value == this.m_weaponizedVehicleMissileLauncherMaxCharges {
+      this.ResetWeaponizedVehicleMissileLauncherProgressBar();
+    } else {
+      if this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime == -1.00 {
+        this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime = 0.00;
+        inkWidgetRef.SetVisible(this.m_missileLauncherReloadingProgressBar, true);
+      };
+    };
+  }
+
+  private final func Fold() -> Void {
+    if this.m_folded {
+      return;
+    };
+    this.m_folded = true;
+    if IsDefined(this.m_transitionAnimProxy) && this.m_transitionAnimProxy.IsValid() {
+      this.m_transitionAnimProxy.GotoEndAndStop();
+      this.m_transitionAnimProxy = null;
+    };
+    this.m_transitionAnimProxy = this.PlayLibraryAnimation(this.m_inWeaponizedVehicle ? n"fold_vehicles" : n"fold");
+  }
+
+  private final func Unfold() -> Void {
+    if !this.m_folded {
+      return;
+    };
+    this.m_folded = false;
+    if IsDefined(this.m_transitionAnimProxy) && this.m_transitionAnimProxy.IsValid() {
+      this.m_transitionAnimProxy.GotoEndAndStop();
+      this.m_transitionAnimProxy = null;
+    };
+    this.m_transitionAnimProxy = this.PlayLibraryAnimation(this.m_inWeaponizedVehicle ? n"unfold_vehicles" : n"unfold");
+    this.UpdateWeaponizedVehicleMountedPowerWeaponProgressBarVisibility(IntEnum<gamePSMRangedWeaponStates>(this.GetPSMBlackboard(this.m_player).GetInt(GetAllBlackboardDefs().PlayerStateMachine.RightWeapon)));
+  }
+
+  private final func ShouldHideAmmoCount() -> Bool {
+    let weaponType: gamedataItemType = this.m_rightWeaponRecord.ItemTypeHandle().Type();
+    return Equals(weaponType, gamedataItemType.Wea_Melee) || Equals(weaponType, gamedataItemType.Wea_Fists) || Equals(weaponType, gamedataItemType.Wea_Hammer) || Equals(weaponType, gamedataItemType.Wea_Katana) || Equals(weaponType, gamedataItemType.Wea_Knife) || Equals(weaponType, gamedataItemType.Wea_OneHandedClub) || Equals(weaponType, gamedataItemType.Wea_ShortBlade) || Equals(weaponType, gamedataItemType.Wea_TwoHandedClub) || Equals(weaponType, gamedataItemType.Wea_LongBlade) || Equals(weaponType, gamedataItemType.Wea_Axe) || Equals(weaponType, gamedataItemType.Wea_Machete) || Equals(weaponType, gamedataItemType.Wea_Chainsword) || Equals(weaponType, gamedataItemType.Wea_Sword) || Equals(weaponType, gamedataItemType.Cyb_NanoWires) || Equals(weaponType, gamedataItemType.Cyb_MantisBlades) || Equals(weaponType, gamedataItemType.Cyb_StrongArms);
+  }
+
+  private final func SetRosterSlotData() -> Void {
+    let diffAmmoLeft: Bool;
+    let iconName: CName;
+    let isFist: Bool;
+    let isWeaponTotalAmmoVisible: Bool;
+    let options: inkAnimOptions;
+    let weaponTotalAmmo: Int32;
+    let weaponType: gamedataItemType = this.m_rightWeaponRecord.ItemTypeHandle().Type();
+    if IsDefined(this.m_outOfAmmoAnim) && this.m_outOfAmmoAnim.IsValid() {
+      this.m_outOfAmmoAnim.Stop();
+    };
+    if Equals(weaponType, gamedataItemType.Wea_VehiclePowerWeapon) {
+      inkWidgetRef.SetState(this.m_weaponizedVehicleMachinegunContainer, n"Default");
+      inkWidgetRef.SetState(this.m_weaponizedVehicleMissileLauncherContainer, n"Disabled");
+      return;
+    };
+    if Equals(weaponType, gamedataItemType.Wea_VehicleMissileLauncher) {
+      inkWidgetRef.SetState(this.m_weaponizedVehicleMachinegunContainer, n"Disabled");
+      inkWidgetRef.SetState(this.m_weaponizedVehicleMissileLauncherContainer, n"Default");
+      return;
+    };
+    if this.ShouldHideAmmoCount() {
+      inkWidgetRef.SetVisible(this.m_rightWeaponAmmoWrapper, false);
+    } else {
+      if GameInstance.GetQuestsSystem(this.m_player.GetGame()).GetFact(n"q001_hide_ammo_counter") == 0 {
+        iconName = this.GetItemTypeIcon();
+        weaponTotalAmmo = this.GetAllAmmoCount();
+        isFist = this.m_activeRightWeapon.ammoCurrent == 0 && weaponTotalAmmo == 0 && Equals(iconName, n"None");
+        if !isFist {
+          inkTextRef.SetText(this.m_rightWeaponCurrentAmmo, this.GetAmmoText(this.m_activeRightWeapon.ammoCurrent, 3));
+          isWeaponTotalAmmoVisible = !this.m_inVehicle && !this.m_player.IsReplacer();
+          if isWeaponTotalAmmoVisible {
+            inkTextRef.SetText(this.m_rightWeaponTotalAmmo, this.GetAmmoText(weaponTotalAmmo, 4));
+          };
+          inkWidgetRef.SetVisible(this.m_rightWeaponTotalAmmo, isWeaponTotalAmmoVisible);
+          if ItemID.IsValid(this.m_activeLeftWeapon.weaponID) {
+            inkTextRef.SetText(this.m_leftWeaponCurrentAmmo, this.GetAmmoText(this.m_activeLeftWeapon.ammoCurrent, 3));
+            diffAmmoLeft = this.m_activeLeftWeapon.ammoId != this.m_activeRightWeapon.ammoId;
+            inkWidgetRef.SetVisible(this.m_leftWeaponTotalAmmo, diffAmmoLeft);
+            if diffAmmoLeft {
+              inkTextRef.SetText(this.m_leftWeaponTotalAmmo, this.GetAmmoText(this.GetLeftAmmoCount(), 4));
+            };
+          } else {
+            inkWidgetRef.SetVisible(this.m_leftWeaponTotalAmmo, false);
+          };
+        };
+        inkWidgetRef.SetVisible(this.m_rightWeaponAmmoWrapper, !isFist);
+      } else {
+        inkWidgetRef.SetVisible(this.m_rightWeaponAmmoWrapper, false);
+      };
+      if this.m_activeRightWeapon.ammoCurrent == 0 && weaponTotalAmmo == 0 && NotEquals(iconName, n"None") {
+        options.loopType = inkanimLoopType.Cycle;
+        options.loopInfinite = true;
+        this.m_outOfAmmoAnim = this.PlayLibraryAnimation(n"out_of_ammo", options);
+      };
+    };
+  }
+
+  private final func UpdateVehicleRoster(mountingInfo: MountingInfo) -> Void {
+    let uiActiveVehicleBlackboard: wref<IBlackboard>;
+    let vehicle: ref<VehicleObject>;
+    let vehicleDataPackageRecord: ref<VehicleDataPackage_Record>;
+    this.m_inVehicle = EntityID.IsDefined(mountingInfo.parentId);
+    this.Fold();
+    if this.m_inVehicle {
+      vehicle = GameInstance.FindEntityByID(this.m_player.GetGame(), mountingInfo.parentId) as VehicleObject;
+      vehicleDataPackageRecord = vehicle.GetRecord().VehDataPackageHandle();
+      if IsDefined(vehicleDataPackageRecord) {
+        this.m_inWeaponizedVehicle = Equals(vehicleDataPackageRecord.DriverCombat().Type(), gamedataDriverCombatType.MountedWeapons);
+        if this.m_inWeaponizedVehicle {
+          uiActiveVehicleBlackboard = this.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_ActiveVehicleData);
+          this.OnWeaponizedVehicleMachineGunAmmoChanged(uiActiveVehicleBlackboard.GetUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedPowerWeaponAmmo));
+          if vehicle.CanSwitchWeapons() {
+            inkWidgetRef.SetVisible(this.m_weaponizedVehicleMissileLauncherContainer, true);
+            this.m_weaponizedVehicleMissileLauncherMaxCharges = Cast<Uint32>(GameInstance.GetStatsSystem(this.m_player.GetGame()).GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.VehicleMissileLauncherMaxCharges));
+            this.m_weaponizedVehicleMissileLauncherRechargeTime = GameInstance.GetStatsSystem(this.m_player.GetGame()).GetStatValue(Cast<StatsObjectID>(this.m_player.GetEntityID()), gamedataStatType.VehicleMissileLauncherRechargeDuration);
+            this.OnWeaponizedVehicleMissileLauncherChargesChanged(uiActiveVehicleBlackboard.GetUint(GetAllBlackboardDefs().UI_ActiveVehicleData.MountedMissileLauncherAmmo));
+          } else {
+            inkWidgetRef.SetVisible(this.m_weaponizedVehicleMissileLauncherContainer, false);
+          };
+        };
+      };
+    };
+  }
+
+  private final func UpdateWeaponizedVehicleMountedPowerWeaponProgressBarVisibility(state: gamePSMRangedWeaponStates) -> Void {
+    let weaponType: gamedataItemType;
+    if this.m_inWeaponizedVehicle {
+      if Equals(state, gamePSMRangedWeaponStates.Reload) {
+        weaponType = this.m_rightWeaponRecord.ItemTypeHandle().Type();
+        if Equals(weaponType, gamedataItemType.Wea_VehiclePowerWeapon) {
+          if this.m_weaponizedVehiclePowerWeaponReloadTime == -1.00 {
+            this.m_weaponizedVehiclePowerWeaponReloadElapsedTime = 0.00;
+            this.m_weaponizedVehiclePowerWeaponReloadTime = this.GetPSMBlackboard(this.m_player).GetFloat(GetAllBlackboardDefs().PlayerStateMachine.LatestWeaponReloadTime);
+            inkWidgetRef.SetVisible(this.m_machinegunReloadingProgressBar, true);
+          };
+          return;
+        };
+      };
+    };
+  }
+
+  private final func ResetWeaponizedVehiclePowerWeaponProgressBar() -> Void {
+    this.m_weaponizedVehiclePowerWeaponReloadElapsedTime = -1.00;
+    this.m_weaponizedVehiclePowerWeaponReloadTime = -1.00;
+    inkWidgetRef.SetVisible(this.m_machinegunReloadingProgressBar, false);
+  }
+
+  private final func ResetWeaponizedVehicleMissileLauncherProgressBar() -> Void {
+    this.m_weaponizedVehicleMissileLauncherRechargeElapsedTime = -1.00;
+    inkWidgetRef.SetVisible(this.m_missileLauncherReloadingProgressBar, false);
+  }
+
+  private final func ChangeWeaponData(data: SlotWeaponData, weaponItemData: script_ref<InventoryItemData>, weaponRecord: script_ref<ref<WeaponItem_Record>>, weaponName: inkTextRef, isLeftWeapon: Bool) -> Void {
+    let item: ref<gameItemData> = this.m_InventoryManager.GetPlayerItemData(data.weaponID);
+    weaponItemData = this.m_InventoryManager.GetInventoryItemData(item);
+    weaponRecord = TweakDBInterface.GetWeaponItemRecord(ItemID.GetTDBID(data.weaponID));
+    let weaponType: gamedataItemType = Deref(weaponRecord).ItemTypeHandle().Type();
+    if NotEquals(weaponType, gamedataItemType.Wea_VehiclePowerWeapon) && NotEquals(weaponType, gamedataItemType.Wea_VehicleMissileLauncher) {
+      inkTextRef.SetText(weaponName, InventoryItemData.GetName(weaponItemData));
+      this.LoadWeaponIcon(isLeftWeapon);
+      if !isLeftWeapon {
+        if NotEquals(Deref(weaponRecord).EvolutionHandle().Type(), gamedataWeaponEvolution.Smart) || this.ShouldIgnoreSmartUI() {
+          inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOffline, false);
+          inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOnline, false);
+        };
+      };
+    };
+  }
+
+  private final func ToggleLeftWeaponVisibility(visible: Bool, opt isSetup: Bool) -> Void {
+    let holdersMargin: inkMargin;
+    let horizontalPanel: ref<inkHorizontalPanel>;
+    let i: Int32;
+    let panelChildMargin: inkMargin;
+    let weaponIconsScale: Vector2;
+    if Equals(this.m_isLeftWeaponVisible, visible) && !isSetup {
+      return;
+    };
+    this.m_isLeftWeaponVisible = visible;
+    i = 0;
+    while i < ArraySize(this.m_widgetsToActivateWithLeftWeapon) {
+      inkWidgetRef.SetVisible(this.m_widgetsToActivateWithLeftWeapon[i], visible);
+      i += 1;
+    };
+    weaponIconsScale = visible ? this.m_weaponIconsScaleWhenDualWielding : new Vector2(1.00, 1.00);
+    inkWidgetRef.SetScale(this.m_leftWeaponHolder, weaponIconsScale);
+    inkWidgetRef.SetScale(this.m_rightWeaponHolder, weaponIconsScale);
+    holdersMargin.top = visible ? this.m_weaponIconsTopMarginWhenDualWielding : this.m_weaponIconsTopMarginWhenSingleWielding;
+    inkWidgetRef.SetMargin(this.m_leftWeaponHolder, holdersMargin);
+    inkWidgetRef.SetMargin(this.m_rightWeaponHolder, holdersMargin);
+    panelChildMargin.left = visible ? this.m_childMarginWhenDualWielding : this.m_childMarginWhenSingleWielding;
+    horizontalPanel = inkWidgetRef.Get(this.m_rightWeaponWrapper) as inkHorizontalPanel;
+    horizontalPanel.SetChildMargin(panelChildMargin);
+    this.m_uiBlackboard.SetBool(GetAllBlackboardDefs().UIGameData.LeftWeaponHUD_IsShown, visible);
+  }
+
+  protected cb func OnWeaponDataChanged_MP(value: Variant) -> Bool {
+    let item: ref<gameItemData>;
+    let weaponItemType: gamedataItemType;
+    let currentData: SlotWeaponData = FromVariant<ref<SlotDataHolder>>(value).rightWeapon;
+    if ItemID.IsValid(currentData.weaponID) {
+      if this.m_activeRightWeapon.weaponID != currentData.weaponID {
+        item = this.m_InventoryManager.GetPlayerItemData(currentData.weaponID);
+        this.m_rightWeaponItemData = this.m_InventoryManager.GetInventoryItemData(item);
+      };
+      this.m_activeRightWeapon = currentData;
+      weaponItemType = InventoryItemData.GetItemType(this.m_rightWeaponItemData);
+      this.SetRosterSlotData_MP(Equals(weaponItemType, gamedataItemType.Wea_Melee) || Equals(weaponItemType, gamedataItemType.Wea_Fists) || Equals(weaponItemType, gamedataItemType.Wea_Hammer) || Equals(weaponItemType, gamedataItemType.Wea_Katana) || Equals(weaponItemType, gamedataItemType.Wea_Knife) || Equals(weaponItemType, gamedataItemType.Wea_OneHandedClub) || Equals(weaponItemType, gamedataItemType.Wea_ShortBlade) || Equals(weaponItemType, gamedataItemType.Wea_TwoHandedClub) || Equals(weaponItemType, gamedataItemType.Wea_LongBlade) || Equals(weaponItemType, gamedataItemType.Wea_Axe) || Equals(weaponItemType, gamedataItemType.Wea_Machete) || Equals(weaponItemType, gamedataItemType.Wea_Chainsword) || Equals(weaponItemType, gamedataItemType.Wea_Sword));
+      this.Unfold();
+      if NotEquals(RPGManager.GetWeaponEvolution(InventoryItemData.GetID(this.m_rightWeaponItemData)), gamedataWeaponEvolution.Smart) || this.ShouldIgnoreSmartUI() {
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOffline, false);
+        inkWidgetRef.SetVisible(this.m_smartLinkFirmwareOnline, false);
+      };
+    } else {
+      this.Fold();
+    };
+  }
+
+  private final func SetRosterSlotData_MP(isMelee: Bool) -> Void {
+    let iconName: CName;
+    let options: inkAnimOptions;
+    let showAmmoCounter: Bool;
+    options.loopType = inkanimLoopType.Cycle;
+    options.loopInfinite = true;
+    let allAmmoCount: Int32 = this.GetAllAmmoCount();
+    inkTextRef.SetText(this.m_rightWeaponCurrentAmmo, this.GetAmmoText(this.m_activeRightWeapon.ammoCurrent, 3));
+    inkTextRef.SetText(this.m_rightWeaponTotalAmmo, this.GetAmmoText(allAmmoCount, 4));
+    showAmmoCounter = GameInstance.GetQuestsSystem(this.m_PlayerMuppet.GetGame()).GetFact(n"q001_hide_ammo_counter") == 0;
+    inkWidgetRef.SetVisible(this.m_rightWeaponCurrentAmmo, showAmmoCounter);
+    inkWidgetRef.SetVisible(this.m_rightWeaponTotalAmmo, showAmmoCounter && !this.m_PlayerMuppet.IsReplacer());
+    inkWidgetRef.SetVisible(this.m_leftWeaponTotalAmmo, showAmmoCounter && ItemID.IsValid(this.m_activeLeftWeapon.weaponID) && this.m_activeLeftWeapon.ammoId != this.m_activeRightWeapon.ammoId);
+    if IsDefined(this.m_outOfAmmoAnim) && this.m_outOfAmmoAnim.IsPlaying() {
+      this.m_outOfAmmoAnim.Stop();
+    };
+    iconName = this.GetItemTypeIcon();
+    this.LoadWeaponIcon(false);
+    if isMelee {
+      inkWidgetRef.SetVisible(this.m_rightWeaponCurrentAmmo, false);
+      inkWidgetRef.SetVisible(this.m_rightWeaponTotalAmmo, false);
+      inkWidgetRef.SetVisible(this.m_leftWeaponTotalAmmo, false);
+    } else {
+      if this.m_activeRightWeapon.ammoCurrent == 0 && allAmmoCount == 0 && NotEquals(iconName, n"None") {
+        this.m_outOfAmmoAnim = this.PlayLibraryAnimation(n"out_of_ammo", options);
+      } else {
+        if IsDefined(this.m_outOfAmmoAnim) {
+          this.m_outOfAmmoAnim.Stop();
+        };
+      };
+      if this.m_activeRightWeapon.ammoCurrent == 0 && allAmmoCount == 0 && Equals(iconName, n"None") {
+        inkWidgetRef.SetVisible(this.m_rightWeaponCurrentAmmo, false);
+        inkWidgetRef.SetVisible(this.m_rightWeaponTotalAmmo, false);
+        inkWidgetRef.SetVisible(this.m_leftWeaponTotalAmmo, false);
+      };
+    };
+    inkTextRef.SetText(this.m_rightWeaponName, InventoryItemData.GetName(this.m_rightWeaponItemData));
+  }
+
+  private final func LoadWeaponIcon(isLeftWeapon: Bool) -> Void {
+    if isLeftWeapon {
+      InkImageUtils.RequestSetImage(this, this.m_leftWeaponIcon, this.m_leftWeaponRecord.HudIcon().GetID());
+    } else {
+      InkImageUtils.RequestSetImage(this, this.m_rightWeaponIcon, this.m_rightWeaponRecord.HudIcon().GetID());
+    };
+  }
+
+  private final func GetItemTypeIcon() -> CName {
+    switch InventoryItemData.GetItemType(this.m_rightWeaponItemData) {
+      case gamedataItemType.Wea_AssaultRifle:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_Handgun:
+        return n"pistol";
+      case gamedataItemType.Wea_Katana:
+        return n"katana";
+      case gamedataItemType.Wea_Sword:
+        return n"katana";
+      case gamedataItemType.Wea_Knife:
+        return n"katana";
+      case gamedataItemType.Wea_LightMachineGun:
+        return n"smart_gun";
+      case gamedataItemType.Wea_LongBlade:
+        return n"katana";
+      case gamedataItemType.Wea_Axe:
+        return n"katana";
+      case gamedataItemType.Wea_Chainsword:
+        return n"katana";
+      case gamedataItemType.Wea_Machete:
+        return n"katana";
+      case gamedataItemType.Wea_Melee:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_OneHandedClub:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_PrecisionRifle:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_Revolver:
+        return n"pistol";
+      case gamedataItemType.Wea_Rifle:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_ShortBlade:
+        return n"katana";
+      case gamedataItemType.Wea_Shotgun:
+        return n"shotgun";
+      case gamedataItemType.Wea_ShotgunDual:
+        return n"shotgun";
+      case gamedataItemType.Wea_SniperRifle:
+        return n"tech_rifle";
+      case gamedataItemType.Wea_SubmachineGun:
+        return n"smart_gun";
+      case gamedataItemType.Wea_TwoHandedClub:
+        return n"katana";
+      case gamedataItemType.Wea_Fists:
+        return n"katana";
+      default:
+        return n"None";
+    };
+    return n"None";
+  }
+
+  private final func GetAmmoText(ammoCount: Int32, textLength: Int32) -> String {
+    return SpaceFill(IntToString(Max(ammoCount, 0)), textLength, ESpaceFillMode.JustifyRight, "0");
+  }
+
+  private final func ShouldIgnoreSmartUI() -> Bool {
+    return TweakDBInterface.GetBool(ItemID.GetTDBID(InventoryItemData.GetID(this.m_rightWeaponItemData)) + t".ignoreSmartCrosshair", false);
+  }
+}

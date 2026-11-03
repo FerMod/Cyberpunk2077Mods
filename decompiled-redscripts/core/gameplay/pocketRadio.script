@@ -1,0 +1,388 @@
+
+public static func PocketRadioRestrictionCount() -> Int32 {
+  return 12;
+}
+
+public class PocketRadioQuestContentLockListener extends ScriptQuestContentLockListener {
+
+  private let m_pocketRadio: ref<PocketRadio>;
+
+  public final func SetPocketRadio(pocketRadio: ref<PocketRadio>) -> Void {
+    this.m_pocketRadio = pocketRadio;
+  }
+
+  protected cb func OnBlocked(source: CName) -> Bool {
+    if Equals(source, n"holo_interrupt") || Equals(source, n"__phonecall__") {
+      return true;
+    };
+    this.m_pocketRadio.HandleRestriction(PocketRadioRestrictions.QuestContentLock, true);
+  }
+
+  protected cb func OnUnblocked(source: CName) -> Bool {
+    this.m_pocketRadio.HandleRestriction(PocketRadioRestrictions.QuestContentLock, false);
+  }
+}
+
+public class PocketRadio extends IScriptable {
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_station: Int32;
+
+  private let m_selectedStation: Int32;
+
+  private let m_toggledStation: Int32;
+
+  private let m_restrictions: [Bool];
+
+  private let m_isConditionRestricted: Bool;
+
+  private let m_isUnlockDelayRestricted: Bool;
+
+  private let m_isRestrictionOverwritten: Bool;
+
+  private let m_isOn: Bool;
+
+  private let m_questContentLockListener: ref<PocketRadioQuestContentLockListener>;
+
+  private let m_radioPressTime: Float;
+
+  private let m_isInMetro: Bool;
+
+  private let m_settings: ref<RadioportSettingsListener>;
+
+  public final static func ConfigEnablePocketRadio() -> Bool {
+    return true;
+  }
+
+  private final func InitializeRestrictions() -> Void {
+    let i: Int32 = 0;
+    while i < 12 {
+      ArrayPush(this.m_restrictions, false);
+      i += 1;
+    };
+  }
+
+  public final func OnPlayerAttach(player: ref<PlayerPuppet>) -> Void {
+    let questsContentSystem: ref<QuestsContentSystem> = GameInstance.GetQuestsContentSystem(player.GetGame());
+    this.m_player = player;
+    this.m_station = -1;
+    this.m_selectedStation = -1;
+    this.m_toggledStation = -1;
+    this.m_settings = new RadioportSettingsListener();
+    this.m_settings.Initialize(this.m_player);
+    GameObject.AudioParameter(this.m_player, n"veh_radio_tier", 0.00, n"pocket_radio_emitter");
+    this.InitializeRestrictions();
+    this.m_questContentLockListener = new PocketRadioQuestContentLockListener();
+    this.m_questContentLockListener.SetPocketRadio(this);
+    questsContentSystem.RegisterLockListener(this.m_questContentLockListener);
+    if questsContentSystem.IsTokensActivationBlocked() {
+      this.HandleRestriction(PocketRadioRestrictions.QuestContentLock, true);
+    };
+    if this.m_settings.GetSaveStation() {
+      this.m_selectedStation = this.m_player.PSGetPocketRadioStation();
+      this.m_station = this.m_selectedStation;
+      this.TurnOn(false);
+    };
+  }
+
+  public final func OnPlayerDetach(player: ref<PlayerPuppet>) -> Void {
+    GameInstance.GetQuestsContentSystem(player.GetGame()).UnregisterLockListener(this.m_questContentLockListener);
+  }
+
+  private final func IsMutedByVolumeSetting() -> Bool {
+    let settingsGroup: ref<ConfigGroup>;
+    let settings: ref<UserSettings> = GameInstance.GetSettingsSystem(this.m_player.GetGame());
+    if settings.HasGroup(n"/audio/volume") {
+      settingsGroup = settings.GetGroup(n"/audio/volume");
+      if settingsGroup.HasVar(n"RadioportVolume") {
+        return (settingsGroup.GetVar(n"RadioportVolume") as ConfigVarInt).GetValue() == 0;
+      };
+    };
+    return false;
+  }
+
+  private final func ShouldIgnoreEvents() -> Bool {
+    return VehicleSystem.IsPlayerInVehicle(this.m_player.GetGame()) && !this.m_settings.GetSyncToCarRadio() || this.IsScannerChangeTargetTooltipVisible(this.m_player.GetGame());
+  }
+
+  private final const func IsScannerChangeTargetTooltipVisible(game: GameInstance) -> Bool {
+    let scannerBB: wref<IBlackboard> = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_Scanner);
+    let scannerModulesBB: wref<IBlackboard> = GameInstance.GetBlackboardSystem(game).Get(GetAllBlackboardDefs().UI_ScannerModules);
+    let scannerObjectType: ScannerObjectType = IntEnum<ScannerObjectType>(scannerModulesBB.GetInt(GetAllBlackboardDefs().UI_ScannerModules.ObjectType));
+    return scannerBB.GetInt(GetAllBlackboardDefs().UI_Scanner.scannerTooltip) == 1 && scannerBB.GetBool(GetAllBlackboardDefs().UI_Scanner.scannerChangeTargetTooltipVisibility) || Equals(scannerObjectType, ScannerObjectType.VEHICLE) && scannerBB.GetBool(GetAllBlackboardDefs().UI_Scanner.twintoneAvailable);
+  }
+
+  private final func TurnOn(playSFX: Bool) -> Void {
+    if false || this.m_isInMetro {
+      return;
+    };
+    if !this.ShouldIgnoreEvents() {
+      GameObject.AudioSwitch(this.m_player, n"radio_port_station", RadioStationDataProvider.GetStationNameByIndex(this.m_station), n"pocket_radio_emitter");
+    };
+    if !this.m_isOn {
+      if playSFX && (this.m_station != -1 && !VehicleSystem.IsPlayerInVehicle(this.m_player.GetGame()) || this.m_isRestrictionOverwritten) && !this.IsMutedByVolumeSetting() {
+        GameInstance.GetAudioSystem(this.m_player.GetGame()).Play(n"dev_pocket_radio_on", this.m_player.GetEntityID(), n"pocket_radio_emitter");
+      };
+      if !this.ShouldIgnoreEvents() {
+        GameObject.AudioSwitch(this.m_player, n"radio_port_on", n"None", n"pocket_radio_emitter");
+        this.m_isOn = true;
+      };
+    };
+    if this.m_settings.GetSaveStation() {
+      this.m_player.PSSetPocketRadioStation(this.m_station);
+    };
+    this.HandleUIUpdate();
+  }
+
+  private final func TurnOff(playSFX: Bool) -> Void {
+    GameObject.AudioSwitch(this.m_player, n"radio_port_station", RadioStationDataProvider.GetStationNameByIndex(-1, true), n"pocket_radio_emitter");
+    if this.m_isOn {
+      if playSFX && (this.m_station != -1 && !VehicleSystem.IsPlayerInVehicle(this.m_player.GetGame()) || this.m_isRestrictionOverwritten) && !this.IsMutedByVolumeSetting() {
+        GameInstance.GetAudioSystem(this.m_player.GetGame()).Play(n"dev_pocket_radio_off", this.m_player.GetEntityID(), n"pocket_radio_emitter");
+      };
+      GameObject.AudioSwitch(this.m_player, n"radio_port_off", n"None", n"pocket_radio_emitter");
+      this.m_isOn = false;
+      this.m_station = -1;
+    };
+    if this.m_settings.GetSaveStation() {
+      this.m_player.PSSetPocketRadioStation(this.m_station);
+    };
+    this.HandleUIUpdate();
+  }
+
+  private final func UpdateConditionRestricted() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_restrictions) {
+      if this.m_restrictions[i] {
+        this.m_isConditionRestricted = true;
+        return;
+      };
+      i += 1;
+    };
+    if this.m_isConditionRestricted {
+      this.m_isUnlockDelayRestricted = true;
+      GameInstance.GetStatusEffectSystem(this.m_player.GetGame()).ApplyStatusEffect(this.m_player.GetEntityID(), t"BaseStatusEffect.PocketRadioRestrictionUnlockDelay");
+    };
+    this.m_isConditionRestricted = false;
+    return;
+  }
+
+  public final func IsRestricted() -> Bool {
+    if this.m_isRestrictionOverwritten {
+      return false;
+    };
+    return this.m_isConditionRestricted || this.m_isUnlockDelayRestricted;
+  }
+
+  public final func IsRestrictionOverwritten() -> Bool {
+    return this.m_isRestrictionOverwritten;
+  }
+
+  public final func HandleRestrictionStateChanged() -> Void {
+    if this.IsRestricted() {
+      this.TurnOff(true);
+    } else {
+      this.m_station = this.m_selectedStation;
+      if this.m_station != -1 {
+        this.TurnOn(true);
+      } else {
+        this.TurnOff(true);
+      };
+    };
+  }
+
+  public final func HandleRestriction(restriction: PocketRadioRestrictions, restricted: Bool) -> Void {
+    this.m_restrictions[EnumInt(restriction)] = restricted;
+    if !this.m_isRestrictionOverwritten {
+      this.UpdateConditionRestricted();
+      this.HandleRestrictionStateChanged();
+    };
+  }
+
+  private final func HandleStatusEffectApplied(gameplayTags: script_ref<[CName]>, tag: CName, type: PocketRadioRestrictions) -> Void {
+    if ArrayContains(Deref(gameplayTags), tag) {
+      this.HandleRestriction(type, true);
+    };
+  }
+
+  public final func OnStatusEffectApplied(evt: ref<ApplyStatusEffectEvent>, gameplayTags: script_ref<[CName]>) -> Void {
+    this.HandleStatusEffectApplied(gameplayTags, n"InDaClub", PocketRadioRestrictions.InDaClub);
+    this.HandleStatusEffectApplied(gameplayTags, n"BlockFastTravel", PocketRadioRestrictions.BlockFastTravel);
+    this.HandleStatusEffectApplied(gameplayTags, n"VehicleScene", PocketRadioRestrictions.VehicleScene);
+    this.HandleStatusEffectApplied(gameplayTags, n"VehicleBlockPocketRadio", PocketRadioRestrictions.VehicleBlockPocketRadio);
+    this.HandleStatusEffectApplied(gameplayTags, n"PhoneCall", PocketRadioRestrictions.PhoneCall);
+    this.HandleStatusEffectApplied(gameplayTags, n"PhoneNoTexting", PocketRadioRestrictions.PhoneNoTexting);
+    this.HandleStatusEffectApplied(gameplayTags, n"PhoneNoCalling", PocketRadioRestrictions.PhoneNoCalling);
+    this.HandleStatusEffectApplied(gameplayTags, n"FastForward", PocketRadioRestrictions.FastForward);
+    this.HandleStatusEffectApplied(gameplayTags, n"FastForwardHintActive", PocketRadioRestrictions.FastForwardHintActive);
+    if ArrayContains(Deref(gameplayTags), n"MetroRide") || ArrayContains(Deref(gameplayTags), n"BinocularView") {
+      this.m_isRestrictionOverwritten = true;
+      this.m_isConditionRestricted = false;
+      this.HandleRestrictionStateChanged();
+    };
+    if ArrayContains(Deref(gameplayTags), n"MetroRide") {
+      this.m_isInMetro = true;
+      this.TurnOff(false);
+    };
+  }
+
+  private final func HandleStatusEffectRemoved(gameplayTags: script_ref<[CName]>, tag: CName, type: PocketRadioRestrictions) -> Void {
+    if ArrayContains(Deref(gameplayTags), tag) {
+      this.HandleRestriction(type, false);
+    };
+  }
+
+  public final func OnStatusEffectRemoved(evt: ref<RemoveStatusEffect>, gameplayTags: script_ref<[CName]>) -> Void {
+    this.HandleStatusEffectRemoved(gameplayTags, n"InDaClub", PocketRadioRestrictions.InDaClub);
+    this.HandleStatusEffectRemoved(gameplayTags, n"BlockFastTravel", PocketRadioRestrictions.BlockFastTravel);
+    this.HandleStatusEffectRemoved(gameplayTags, n"VehicleScene", PocketRadioRestrictions.VehicleScene);
+    this.HandleStatusEffectRemoved(gameplayTags, n"VehicleBlockPocketRadio", PocketRadioRestrictions.VehicleBlockPocketRadio);
+    this.HandleStatusEffectRemoved(gameplayTags, n"PhoneCall", PocketRadioRestrictions.PhoneCall);
+    this.HandleStatusEffectRemoved(gameplayTags, n"PhoneNoTexting", PocketRadioRestrictions.PhoneNoTexting);
+    this.HandleStatusEffectRemoved(gameplayTags, n"PhoneNoCalling", PocketRadioRestrictions.PhoneNoCalling);
+    this.HandleStatusEffectRemoved(gameplayTags, n"FastForward", PocketRadioRestrictions.FastForward);
+    this.HandleStatusEffectRemoved(gameplayTags, n"FastForwardHintActive", PocketRadioRestrictions.FastForwardHintActive);
+    if ArrayContains(Deref(gameplayTags), n"PocketRadioRestrictionUnlockDelay") {
+      this.m_isUnlockDelayRestricted = false;
+      this.HandleRestrictionStateChanged();
+    };
+    if ArrayContains(Deref(gameplayTags), n"MetroRide") || ArrayContains(Deref(gameplayTags), n"BinocularView") {
+      this.m_isRestrictionOverwritten = false;
+    };
+    if ArrayContains(Deref(gameplayTags), n"MetroRide") {
+      this.m_isInMetro = false;
+    };
+  }
+
+  public final func HandleVehicleRadioEvent(evt: ref<VehicleRadioEvent>) -> Void {
+    let uiRadioEvent: ref<UIVehicleRadioEvent> = new UIVehicleRadioEvent();
+    if false || this.IsRestricted() || this.ShouldIgnoreEvents() {
+      return;
+    };
+    if evt.setStation || !evt.toggle {
+      this.m_station = evt.station;
+      this.m_selectedStation = this.m_station;
+      if this.m_station != -1 {
+        this.TurnOn(false);
+      } else {
+        this.TurnOff(false);
+      };
+      GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(uiRadioEvent);
+    };
+  }
+
+  public final func HandleRadioToggleEvent(evt: ref<RadioToggleEvent>) -> Void {
+    let cycleEvent: ref<UIVehicleRadioCycleEvent>;
+    if false || this.IsRestricted() || this.ShouldIgnoreEvents() {
+      return;
+    };
+    if this.m_settings.GetCycleButtonPress() {
+      this.m_selectedStation = EnumInt(RadioStationDataProvider.GetNextStationPocketRadio(this.m_station));
+      this.m_station = this.m_selectedStation;
+      if this.m_isOn {
+        cycleEvent = new UIVehicleRadioCycleEvent();
+        GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(cycleEvent);
+      };
+      this.TurnOn(true);
+      return;
+    };
+    if this.m_isOn {
+      this.m_toggledStation = this.m_selectedStation;
+      this.m_selectedStation = -1;
+      this.TurnOff(true);
+    } else {
+      if this.m_toggledStation == -1 {
+        this.m_station = 0;
+        this.m_toggledStation = this.m_station;
+        this.m_selectedStation = this.m_station;
+      } else {
+        this.m_station = this.m_toggledStation;
+        this.m_selectedStation = this.m_station;
+      };
+      this.TurnOn(true);
+    };
+  }
+
+  public final func HandleVehicleRadioStationChanged(evt: ref<VehicleRadioStationChanged>) -> Void {
+    if evt.isActive && !this.ShouldIgnoreEvents() {
+      this.m_station = Cast<Int32>(evt.radioIndex);
+      this.m_selectedStation = this.m_station;
+      this.TurnOn(false);
+      return;
+    };
+  }
+
+  public final func HandleVehicleMounted(vehicle: wref<VehicleObject>) -> Void {
+    if this.m_station != -1 {
+      vehicle.SetRadioReceiverStation(Cast<Uint32>(this.m_station));
+    };
+  }
+
+  public final func HandleVehicleUnmounted(vehicle: wref<VehicleObject>) -> Void {
+    if false || this.IsRestricted() {
+      this.TurnOff(true);
+      return;
+    };
+    if !this.m_settings.GetSyncToCarRadio() {
+      this.HandleUIUpdate();
+      return;
+    };
+    if vehicle.WasRadioReceiverPlaying() {
+      this.m_station = Cast<Int32>(vehicle.GetCurrentRadioIndex());
+    } else {
+      this.m_station = -1;
+    };
+    this.m_selectedStation = this.m_station;
+    if this.m_station != -1 {
+      this.TurnOn(true);
+    } else {
+      this.TurnOff(true);
+    };
+  }
+
+  public final func HandleInputAction(action: ListenerAction) -> Void {
+    let radioEvent: ref<RadioToggleEvent>;
+    let releaseTime: Float;
+    if this.m_player.GetPlayerStateMachineBlackboard().GetBool(GetAllBlackboardDefs().PlayerStateMachine.MountedToVehicle) && !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_player, n"MetroRide") {
+      return;
+    };
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.m_radioPressTime = EngineTime.ToFloat(GameInstance.GetEngineTime(this.m_player.GetGame()));
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      releaseTime = EngineTime.ToFloat(GameInstance.GetEngineTime(this.m_player.GetGame()));
+      if releaseTime <= this.m_radioPressTime + 0.20 {
+        radioEvent = new RadioToggleEvent();
+        this.m_player.QueueEvent(radioEvent);
+        if StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_player, n"MetroRide") {
+          this.m_player.GetMountedVehicle().QueueEvent(radioEvent);
+        };
+      };
+    };
+  }
+
+  private final func HandleUIUpdate() -> Void {
+    let uiRadioEvent: ref<PocketRadioUIEvent> = new PocketRadioUIEvent();
+    GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(uiRadioEvent);
+  }
+
+  public final func IsActive() -> Bool {
+    if this.IsRestricted() {
+      return false;
+    };
+    return this.m_isOn;
+  }
+
+  public final func GetStation() -> Int32 {
+    return this.m_station;
+  }
+
+  public final func GetStationName() -> CName {
+    return GetRadioStationLocalizedName(Cast<Uint32>(this.m_station));
+  }
+
+  public final func GetTrackName() -> CName {
+    return GetRadioStationCurrentTrackName(RadioStationDataProvider.GetStationNameByIndex(this.m_station));
+  }
+}

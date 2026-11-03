@@ -1,0 +1,561 @@
+
+public class ModioReportController extends inkLogicController {
+
+  private edit let m_reportTypeBtnRef1: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef2: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef3: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef4: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef5: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef6: inkWidgetRef;
+
+  private edit let m_reportTypeBtnRef7: inkWidgetRef;
+
+  private edit let m_reportPanel1: inkWidgetRef;
+
+  private edit let m_reportPanel2: inkWidgetRef;
+
+  private edit let m_reportTypeBtnInStep2Ref: inkWidgetRef;
+
+  private edit let m_reportTypeLabelInStep2Ref: inkTextRef;
+
+  private edit let m_titleMsgRef: inkTextRef;
+
+  private edit let m_hyperlinkButtonRef1: inkWidgetRef;
+
+  private edit let m_hyperlinkButtonRef2: inkWidgetRef;
+
+  private edit let m_agreeBtnRef: inkWidgetRef;
+
+  private edit let m_NoThanksBtnRef: inkWidgetRef;
+
+  private edit let m_detailText: inkTextInputRef;
+
+  private edit let m_detailArea: inkWidgetRef;
+
+  private edit let m_SelectModLabelRef: inkTextRef;
+
+  private edit let m_SelectModImg: inkImageRef;
+
+  private edit let m_detailTextArea: inkWidgetRef;
+
+  private let m_fadeAnim: ref<inkAnimProxy>;
+
+  private let m_currentModID: Int64;
+
+  private let m_currentReportType: Int8;
+
+  private let m_systemHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_modMenuController: wref<inkIGameController>;
+
+  private let m_acceptButtonController: wref<inkButtonController>;
+
+  private let m_bIsOpenIMGDialog: Bool;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    let navControllerForStep2Btn: ref<inkDiscreteNavigationController>;
+    let navControllerForStep2TextArea: ref<inkDiscreteNavigationController>;
+    let platformName: String;
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnPress", this, n"OnTermsPress");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnHoverOver", this, n"OnTermsHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef1, n"OnHoverOut", this, n"OnTermsHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnPress", this, n"OnPrivacyPress");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnHoverOver", this, n"OnPrivacyHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_hyperlinkButtonRef2, n"OnHoverOut", this, n"OnPrivacyHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_agreeBtnRef, n"OnButtonClick", this, n"OnAgreePress");
+    inkWidgetRef.RegisterToCallback(this.m_NoThanksBtnRef, n"OnButtonClick", this, n"OnCancelPress");
+    inkWidgetRef.RegisterToCallback(this.m_agreeBtnRef, n"OnRelease", this, n"OnAgreeTouch");
+    inkWidgetRef.RegisterToCallback(this.m_NoThanksBtnRef, n"OnRelease", this, n"OnCancelTouch");
+    inkWidgetRef.RegisterToCallback(this.m_agreeBtnRef, n"OnHoverOver", this, n"OnAgreeHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_NoThanksBtnRef, n"OnHoverOver", this, n"OnCancelHoveredOver");
+    inkWidgetRef.RegisterToCallback(this.m_detailArea, n"OnRelease", this, n"OnDetailPress");
+    inkWidgetRef.RegisterToCallback(this.m_detailArea, n"OnHoverOver", this, n"OnDetailHoveredOver");
+    if inkWidgetRef.IsValid(this.m_detailTextArea) {
+      (inkWidgetRef.Get(this.m_detailTextArea) as inkCanvas).GetWidget(0).RegisterToCallback(n"OnRelease", this, n"OnDetailTextPress");
+      (inkWidgetRef.Get(this.m_detailTextArea) as inkCanvas).GetWidget(0).SetInteractive(true);
+    };
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonPress");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef1, n"OnRelease", this, n"OnReportTypeBtnPress1");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef2, n"OnRelease", this, n"OnReportTypeBtnPress2");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef3, n"OnRelease", this, n"OnReportTypeBtnPress3");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef4, n"OnRelease", this, n"OnReportTypeBtnPress4");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef5, n"OnRelease", this, n"OnReportTypeBtnPress5");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef6, n"OnRelease", this, n"OnReportTypeBtnPress6");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnRef7, n"OnRelease", this, n"OnReportTypeBtnPress7");
+    inkWidgetRef.RegisterToCallback(this.m_reportTypeBtnInStep2Ref, n"OnRelease", this, n"OnReportTypeBtnInStep2Press");
+    navControllerForStep2Btn = inkWidgetRef.GetController(this.m_reportTypeBtnInStep2Ref) as inkDiscreteNavigationController;
+    navControllerForStep2Btn.OverrideNavigation(inkDiscreteNavigationDirection.Down, inkWidgetRef.Get(this.m_detailArea));
+    navControllerForStep2TextArea = inkWidgetRef.GetController(this.m_detailArea) as inkDiscreteNavigationController;
+    navControllerForStep2TextArea.OverrideNavigation(inkDiscreteNavigationDirection.Down, inkWidgetRef.Get(this.m_hyperlinkButtonRef1));
+    this.m_acceptButtonController = inkWidgetRef.GetControllerByType(this.m_agreeBtnRef, n"inkButtonController") as inkButtonController;
+    this.m_acceptButtonController.SetSelectable(true);
+    this.m_acceptButtonController.SetEnabled(true);
+    this.m_currentReportType = -1;
+    inkWidgetRef.SetVisible(this.m_reportPanel1, true);
+    inkWidgetRef.SetVisible(this.m_reportPanel2, false);
+    (inkWidgetRef.Get(this.m_detailText) as inkText).SetWrapping(true, 1450.00, textWrappingPolicy.PerCharacter);
+    (inkWidgetRef.Get(this.m_detailText) as inkTextInput).SetMaxChars(1000u);
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") {
+      inkWidgetRef.SetInteractive(this.m_detailText, false);
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnPress", this, n"OnTermsPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnHoverOver", this, n"OnTermsHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef1, n"OnHoverOut", this, n"OnTermsHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnPress", this, n"OnPrivacyPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnHoverOver", this, n"OnPrivacyHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_hyperlinkButtonRef2, n"OnHoverOut", this, n"OnPrivacyHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_agreeBtnRef, n"OnButtonClick", this, n"OnAgreePress");
+    inkWidgetRef.UnregisterFromCallback(this.m_NoThanksBtnRef, n"OnButtonClick", this, n"OnCancelPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_agreeBtnRef, n"OnRelease", this, n"OnAgreeTouch");
+    inkWidgetRef.UnregisterFromCallback(this.m_NoThanksBtnRef, n"OnRelease", this, n"OnCancelTouch");
+    inkWidgetRef.UnregisterFromCallback(this.m_agreeBtnRef, n"OnHoverOver", this, n"OnAgreeHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_NoThanksBtnRef, n"OnHoverOver", this, n"OnCancelHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_detailArea, n"OnRelease", this, n"OnDetailPress");
+    inkWidgetRef.UnregisterFromCallback(this.m_detailArea, n"OnHoverOver", this, n"OnDetailHoveredOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef1, n"OnRelease", this, n"OnReportTypeBtnPress1");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef2, n"OnRelease", this, n"OnReportTypeBtnPress2");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef3, n"OnRelease", this, n"OnReportTypeBtnPress3");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef4, n"OnRelease", this, n"OnReportTypeBtnPress4");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef5, n"OnRelease", this, n"OnReportTypeBtnPress5");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef6, n"OnRelease", this, n"OnReportTypeBtnPress6");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnRef7, n"OnRelease", this, n"OnReportTypeBtnPress7");
+    inkWidgetRef.UnregisterFromCallback(this.m_reportTypeBtnInStep2Ref, n"OnRelease", this, n"OnReportTypeBtnInStep2Press");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnButtonPress");
+    this.m_modMenuController.RequestSetFocus(null);
+    if inkWidgetRef.IsValid(this.m_detailTextArea) {
+      (inkWidgetRef.Get(this.m_detailTextArea) as inkCanvas).GetWidget(0).UnregisterFromCallback(n"OnRelease", this, n"OnDetailTextPress");
+    };
+  }
+
+  protected cb func OnReportTypeBtnPress1(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 1);
+  }
+
+  protected cb func OnReportTypeBtnPress2(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 2);
+  }
+
+  protected cb func OnReportTypeBtnPress3(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 3);
+  }
+
+  protected cb func OnReportTypeBtnPress4(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 4);
+  }
+
+  protected cb func OnReportTypeBtnPress5(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 5);
+  }
+
+  protected cb func OnReportTypeBtnPress6(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 6);
+  }
+
+  protected cb func OnReportTypeBtnPress7(evt: ref<inkPointerEvent>) -> Bool {
+    this.OnReportTypeClick(evt, 7);
+  }
+
+  protected cb func OnReportTypeClick(evt: ref<inkPointerEvent>, index: Int8) -> Bool {
+    let navControllerForLink1: ref<inkDiscreteNavigationController>;
+    let navControllerForLink2: ref<inkDiscreteNavigationController>;
+    let selectTypeStr: String;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_currentReportType = index;
+      inkWidgetRef.SetVisible(this.m_reportPanel1, false);
+      inkWidgetRef.SetVisible(this.m_reportPanel2, true);
+      switch index {
+        case 1:
+          selectTypeStr = GetLocalizedText("LocKey#97545");
+          break;
+        case 2:
+          selectTypeStr = GetLocalizedText("LocKey#97539");
+          break;
+        case 3:
+          selectTypeStr = GetLocalizedText("LocKey#97540");
+          break;
+        case 4:
+          selectTypeStr = GetLocalizedText("LocKey#97541");
+          break;
+        case 5:
+          selectTypeStr = GetLocalizedText("LocKey#97542");
+          break;
+        case 6:
+          selectTypeStr = GetLocalizedText("LocKey#97543");
+          break;
+        case 7:
+          selectTypeStr = GetLocalizedText("LocKey#97546");
+      };
+      inkTextRef.SetText(this.m_reportTypeLabelInStep2Ref, selectTypeStr);
+      if (this.m_modMenuController as BrowserModsMenuGameController).IsUsingDPad() {
+        (this.m_modMenuController as inkGameController).SetCursorOverWidget(inkWidgetRef.Get(this.m_detailArea), 0.00, true);
+      };
+      navControllerForLink1 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef1) as inkDiscreteNavigationController;
+      navControllerForLink2 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef2) as inkDiscreteNavigationController;
+      navControllerForLink1.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_detailArea));
+      navControllerForLink2.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_detailArea));
+      evt.Handle();
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnReportTypeBtnInStep2Press(evt: ref<inkPointerEvent>) -> Bool {
+    let navControllerForLink1: ref<inkDiscreteNavigationController>;
+    let navControllerForLink2: ref<inkDiscreteNavigationController>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      inkWidgetRef.SetVisible(this.m_reportPanel1, true);
+      inkWidgetRef.SetVisible(this.m_reportPanel2, false);
+      this.m_modMenuController.RequestSetFocus(null);
+      navControllerForLink1 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef1) as inkDiscreteNavigationController;
+      navControllerForLink2 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef2) as inkDiscreteNavigationController;
+      navControllerForLink1.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_reportTypeBtnRef7));
+      navControllerForLink2.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_reportTypeBtnRef7));
+      if (this.m_modMenuController as BrowserModsMenuGameController).IsUsingDPad() {
+        (this.m_modMenuController as inkGameController).SetCursorOverWidget(inkWidgetRef.Get(this.m_reportTypeBtnRef1), 0.00, true);
+      };
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnButtonPress(evt: ref<inkPointerEvent>) -> Bool {
+    if !this.GetRootWidget().IsVisible() {
+      return false;
+    };
+    if evt.IsAction(n"back") || evt.IsAction(n"close_popup") {
+      this.TryClose();
+    } else {
+      if evt.IsAction(n"mod_confirm_report") {
+        this.OnAgreePress(null);
+      };
+    };
+  }
+
+  protected cb func OnDetailHoveredOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnDetailPress(evt: ref<inkPointerEvent>) -> Bool {
+    let platformName: String;
+    let voName: CName;
+    let voVar: ref<ConfigVarListName>;
+    if evt.IsHandled() {
+      return false;
+    };
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      (inkWidgetRef.Get(this.m_detailText) as inkTextInput).RequestFocus();
+      this.PlaySound(n"Button", n"OnPress");
+      platformName = GetPlatformShortName();
+      if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") {
+        if !this.m_bIsOpenIMGDialog {
+          Modio.OpenIMEDialog((inkWidgetRef.Get(this.m_detailText) as inkText).GetText(), this, n"OnOpenIMEDialogResult");
+          this.m_bIsOpenIMGDialog = true;
+        } else {
+          this.m_bIsOpenIMGDialog = false;
+        };
+      } else {
+        if Equals(platformName, "windows") || Equals(platformName, "windowsGDK") {
+          voVar = this.m_systemHandler.GetUserSettings().GetVar(n"/language", n"OnScreen") as ConfigVarListName;
+          if IsDefined(voVar) {
+            voName = voVar.GetValue();
+            if Equals(voName, n"ja") || Equals(voName, n"ko") || Equals(voName, n"zh-cn") || Equals(voName, n"zh-tw") {
+              Modio.OpenIMEDialog((inkWidgetRef.Get(this.m_detailText) as inkText).GetText(), this, n"OnOpenIMEDialogResult", 1000);
+            };
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnDetailTextPress(evt: ref<inkPointerEvent>) -> Bool {
+    let platformName: String;
+    let voName: CName;
+    let voVar: ref<ConfigVarListName>;
+    if evt.IsHandled() {
+      return false;
+    };
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      (inkWidgetRef.Get(this.m_detailText) as inkTextInput).RequestFocus();
+      this.PlaySound(n"Button", n"OnPress");
+      platformName = GetPlatformShortName();
+      if Equals(platformName, "mac") {
+        voVar = this.m_systemHandler.GetUserSettings().GetVar(n"/language", n"OnScreen") as ConfigVarListName;
+        if IsDefined(voVar) {
+          voName = voVar.GetValue();
+          if Equals(voName, n"ja") || Equals(voName, n"ko") || Equals(voName, n"zh-cn") || Equals(voName, n"zh-tw") {
+            Modio.OpenIMEDialog((inkWidgetRef.Get(this.m_detailText) as inkText).GetText(), this, n"OnOpenIMEDialogResult", 1000);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnOpenIMEDialogResult(str: String, hasResult: Bool) -> Bool {
+    let maxChars: Uint32;
+    if hasResult {
+      maxChars = (inkWidgetRef.Get(this.m_detailText) as inkTextInput).GetMaxChars();
+      if maxChars > 0u && StrLen(str) > Cast<Int32>(maxChars) {
+        (inkWidgetRef.Get(this.m_detailText) as inkText).SetText(Modio.SubStrByChar(str, 0, Cast<Int32>(maxChars)));
+      } else {
+        (inkWidgetRef.Get(this.m_detailText) as inkText).SetText(str);
+      };
+    };
+    this.m_bIsOpenIMGDialog = false;
+  }
+
+  protected cb func OnAgreePress(controller: wref<inkButtonController>) -> Bool {
+    this.SendAgree();
+  }
+
+  public final func SendAgree() -> Void {
+    let detail: String = (inkWidgetRef.Get(this.m_detailText) as inkText).GetText();
+    this.PlaySound(n"Button", n"OnPress");
+    if this.m_currentModID <= 0l {
+      return;
+    };
+    if Cast<Int32>(this.m_currentReportType) < 0 {
+      this.m_systemHandler.RequestSystemNotificationGeneric(n"UI-Modio-ModalContent-ReportTitle", n"UI-Modio-ModalContent-ReportInstructA");
+      return;
+    };
+    if Equals(detail, "") || StrLen(detail) < 3 {
+      this.m_systemHandler.RequestSystemNotificationGeneric(n"UI-Modio-ModalContent-ReportTitle", n"UI-Modio-ModalContent-ReportInstructB");
+      return;
+    };
+    Modio.RequestReport(this.m_currentModID, IntEnum<inkModioReportType>(this.m_currentReportType), detail, "", this, n"OnReportResult");
+    this.m_acceptButtonController.SetSelectable(false);
+    this.m_acceptButtonController.SetEnabled(false);
+  }
+
+  protected cb func OnAgreeTouch(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"tap") {
+      this.SendAgree();
+    };
+  }
+
+  protected cb func OnAgreeHoveredOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnCancelTouch(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"tap") {
+      this.TryClose();
+    };
+  }
+
+  protected cb func OnCancelHoveredOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnCancelPress(controller: wref<inkButtonController>) -> Bool {
+    this.TryClose();
+  }
+
+  protected cb func OnTermsPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      Modio.OpenUrl(0);
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnTermsHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef1).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnTermsHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef1).BindProperty(n"tintColor", this.m_colorNames.redName);
+  }
+
+  protected cb func OnPrivacyPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      Modio.OpenUrl(1);
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  protected cb func OnPrivacyHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef2).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnPrivacyHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_hyperlinkButtonRef2).BindProperty(n"tintColor", this.m_colorNames.redName);
+  }
+
+  public final func OnReportTypeItemClick(index: Int8) -> Void {
+    this.m_currentReportType = index;
+  }
+
+  public final func TryClose() -> Void {
+    this.PlaySound(n"Button", n"OnPress");
+    if NotEquals((inkWidgetRef.Get(this.m_detailText) as inkText).GetText(), "") {
+      this.AskIfReallyWantToClose();
+    } else {
+      this.Close();
+    };
+  }
+
+  public final func AskIfReallyWantToClose() -> Void {
+    this.m_systemHandler.RequestSystemNotificationGenericYesNo(n"UI-Modio-ErrorMessages-WarningReportTitle", n"UI-Modio-ErrorMessages-WarningReportDesc", this, n"OnCloseWarningPopupClosed");
+  }
+
+  protected cb func OnCloseWarningPopupClosed(value: Bool) -> Bool {
+    if value {
+      this.Close();
+    };
+  }
+
+  public final func Close() -> Void {
+    (inkWidgetRef.Get(this.m_detailText) as inkText).SetText("");
+    this.m_modMenuController.RequestSetFocus(null);
+    (this.m_modMenuController as BrowserModsMenuGameController).ActivateNavigation();
+    this.PlayFadeAnimation(0.50);
+  }
+
+  public final func OnOpen() -> Void {
+    let navControllerForLink1: ref<inkDiscreteNavigationController>;
+    let navControllerForLink2: ref<inkDiscreteNavigationController>;
+    this.GetRootWidget().SetVisible(true);
+    this.PlayFadeAnimation(1.00);
+    this.m_currentReportType = -1;
+    inkWidgetRef.SetVisible(this.m_reportPanel1, true);
+    inkWidgetRef.SetVisible(this.m_reportPanel2, false);
+    this.m_acceptButtonController.SetSelectable(true);
+    this.m_acceptButtonController.SetEnabled(true);
+    navControllerForLink1 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef1) as inkDiscreteNavigationController;
+    navControllerForLink2 = inkWidgetRef.GetController(this.m_hyperlinkButtonRef2) as inkDiscreteNavigationController;
+    navControllerForLink1.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_reportTypeBtnRef7));
+    navControllerForLink2.OverrideNavigation(inkDiscreteNavigationDirection.Up, inkWidgetRef.Get(this.m_reportTypeBtnRef7));
+  }
+
+  private final func PlayFadeAnimation(opacity: Float) -> Void {
+    let animDef: ref<inkAnimDef>;
+    let animInterp: ref<inkAnimTransparency>;
+    let widget: wref<inkWidget> = this.GetRootWidget();
+    if widget.GetOpacity() == opacity || this.m_fadeAnim != null {
+      return;
+    };
+    animDef = new inkAnimDef();
+    animInterp = new inkAnimTransparency();
+    animInterp.SetEndTransparency(opacity);
+    animInterp.SetDuration(0.10);
+    animInterp.SetDirection(inkanimInterpolationDirection.To);
+    animInterp.SetUseRelativeDuration(true);
+    animDef.AddInterpolator(animInterp);
+    this.m_fadeAnim = widget.PlayAnimation(animDef);
+    this.m_fadeAnim.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnFadeAnimFinished");
+  }
+
+  protected cb func OnFadeAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    let modMenuController: wref<BrowserModsMenuGameController>;
+    if this.m_fadeAnim != null {
+      this.m_fadeAnim.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnFadeAnimFinished");
+      this.m_fadeAnim = null;
+    };
+    if this.GetRootWidget().GetOpacity() < 0.90 {
+      this.GetRootWidget().SetVisible(false);
+      modMenuController = this.m_modMenuController as BrowserModsMenuGameController;
+      if modMenuController.IsUsingDPad() {
+        modMenuController.FocusMoreOptionButton();
+      } else {
+        modMenuController.ResetCursor();
+      };
+    };
+  }
+
+  public final func IsClosed() -> Bool {
+    if this.GetRootWidget().IsVisible() {
+      return false;
+    };
+    if this.m_fadeAnim != null && this.m_fadeAnim.IsPlaying() {
+      return false;
+    };
+    return true;
+  }
+
+  public final func SetModID(modID: Int64) -> Void {
+    let modLogoPath: String;
+    if this.m_currentModID != modID {
+      (inkWidgetRef.Get(this.m_detailText) as inkText).SetText("");
+    };
+    this.m_currentModID = modID;
+    if IsDefined(this.m_modMenuController) && inkWidgetRef.IsValid(this.m_SelectModImg) {
+      modLogoPath = (this.m_modMenuController as ModioBrowserMenuGameController).GetModLogoPathByModID(modID);
+      if NotEquals(modLogoPath, "") && IsDefined(this.m_systemHandler) {
+        this.m_systemHandler.RequestGameScreenshotByPath(modLogoPath, inkWidgetRef.Get(this.m_SelectModImg) as inkImage);
+      };
+    };
+  }
+
+  public final func SetModName(modName: String) -> Void {
+    inkTextRef.SetText(this.m_SelectModLabelRef, modName);
+  }
+
+  public final func SetSystemHandler(systemHandler: wref<inkISystemRequestsHandler>) -> Void {
+    this.m_systemHandler = systemHandler;
+  }
+
+  public final func SetModMenuController(controller: wref<inkIGameController>) -> Void {
+    this.m_modMenuController = controller;
+  }
+
+  protected cb func OnReportResult(err: Int32) -> Bool {
+    this.m_acceptButtonController.SetSelectable(true);
+    this.m_acceptButtonController.SetEnabled(true);
+    if err == 0 {
+      this.m_systemHandler.RequestSystemNotificationGeneric(n"UI-Modio-ModalContent-ReportTitle", n"UI-Modio-ModalContent-ReportInstructD");
+      this.Close();
+    } else {
+      if !this.m_systemHandler.IsOnline() {
+        this.m_systemHandler.RequestSystemNotificationGeneric(n"UI-Modio-ModalContent-ReportTitle", n"UI-Modio-ErrorMessages-Network");
+      } else {
+        this.m_systemHandler.RequestSystemNotificationGeneric(n"UI-Modio-ModalContent-ReportTitle", n"UI-Modio-ErrorMessages-GenericError");
+      };
+    };
+  }
+}
+
+public class ModioReportReasonButtonController extends inkLogicController {
+
+  private edit let m_buttonCore: inkWidgetRef;
+
+  private edit let m_buttonBorder: inkWidgetRef;
+
+  private edit let m_leftButtonSideBorder: inkWidgetRef;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnRelease");
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_buttonCore).BindProperty(n"tintColor", this.m_colorNames.faintRedName);
+    inkWidgetRef.Get(this.m_buttonBorder).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_leftButtonSideBorder).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.Get(this.m_buttonCore).BindProperty(n"tintColor", this.m_colorNames.mediumRedName);
+    inkWidgetRef.Get(this.m_buttonBorder).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_leftButtonSideBorder).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+  }
+}

@@ -1,0 +1,1789 @@
+
+public class FullscreenVendorGameController extends gameuiMenuGameController {
+
+  private edit let m_TooltipsManagerRef: inkWidgetRef;
+
+  private edit let m_buttonHintsManagerRef: inkWidgetRef;
+
+  private edit let m_playerFiltersContainer: inkWidgetRef;
+
+  private edit let m_vendorFiltersContainer: inkWidgetRef;
+
+  private edit let m_inventoryGridList: inkVirtualCompoundRef;
+
+  private edit let m_vendorSpecialOffersInventoryGridList: inkCompoundRef;
+
+  private edit let m_vendorInventoryGridList: inkVirtualCompoundRef;
+
+  private edit let m_playerInventoryGridScroll: inkWidgetRef;
+
+  private edit let m_vendorInventoryGridScroll: inkWidgetRef;
+
+  private edit let m_notificationRoot: inkWidgetRef;
+
+  private edit let m_emptyStock: inkWidgetRef;
+
+  private edit let m_buyWrapper: inkWidgetRef;
+
+  private edit let m_vendorMoney: inkTextRef;
+
+  private edit let m_vendorName: inkTextRef;
+
+  private edit let m_playerMoney: inkTextRef;
+
+  private edit let m_quantityPicker: inkWidgetRef;
+
+  private edit let m_playerSortingButton: inkWidgetRef;
+
+  private edit let m_vendorSortingButton: inkWidgetRef;
+
+  private edit let m_sortingDropdown: inkWidgetRef;
+
+  private edit let m_playerBalance: inkWidgetRef;
+
+  private edit let m_vendorBalance: inkWidgetRef;
+
+  private let m_TooltipsManager: wref<gameuiTooltipsManager>;
+
+  private let m_buttonHintsController: wref<ButtonHints>;
+
+  private let m_VendorDataManager: ref<VendorDataManager>;
+
+  private let m_player: wref<PlayerPuppet>;
+
+  private let m_itemTypeSorting: [gamedataItemType];
+
+  private let m_InventoryManager: ref<InventoryDataManagerV2>;
+
+  private let m_uiInventorySystem: wref<UIInventoryScriptableSystem>;
+
+  private let m_menuEventDispatcher: wref<inkMenuEventDispatcher>;
+
+  private let m_playerInventoryitemControllers: [wref<InventoryItemDisplayController>];
+
+  private let m_vendorInventoryitemControllers: [wref<InventoryItemDisplayController>];
+
+  private let m_vendorSpecialOfferInventoryitemControllers: [wref<InventoryItemDisplayController>];
+
+  private let m_playerDataSource: ref<ScriptableDataSource>;
+
+  private let m_virtualPlayerListController: wref<inkVirtualGridController>;
+
+  private let m_vendorDataSource: ref<ScriptableDataSource>;
+
+  private let m_virtualVendorListController: wref<inkVirtualGridController>;
+
+  private let m_playerItemsDataView: ref<VendorDataView>;
+
+  private let m_vendorItemsDataView: ref<VendorDataView>;
+
+  private let m_itemsClassifier: ref<ItemDisplayTemplateClassifier>;
+
+  private let m_totalBuyCost: Float;
+
+  private let m_totalSellCost: Float;
+
+  private let m_root: wref<inkWidget>;
+
+  private let m_vendorUserData: ref<VendorUserData>;
+
+  private let m_storageUserData: ref<StorageUserData>;
+
+  private let m_comparisonResolver: ref<InventoryItemPreferredComparisonResolver>;
+
+  private let m_sellJunkPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_quantityPickerPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_confirmationPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_itemPreviewPopupToken: ref<inkGameNotificationToken>;
+
+  private let m_VendorBlackboard: wref<IBlackboard>;
+
+  private let m_VendorBlackboardDef: ref<UI_VendorDef>;
+
+  private let m_VendorUpdatedCallbackID: ref<CallbackHandle>;
+
+  private let m_craftingBlackboard: wref<IBlackboard>;
+
+  private let m_craftingBlackboardDef: ref<UI_CraftingDef>;
+
+  private let m_craftingCallbackID: ref<CallbackHandle>;
+
+  private let m_InventoryBlackboard: wref<IBlackboard>;
+
+  private let m_InventoryCallback: ref<UI_InventoryDef>;
+
+  private let m_InventoryAddedBBID: ref<CallbackHandle>;
+
+  private let m_InventoryRemovedBBID: ref<CallbackHandle>;
+
+  private let m_playerFilterManager: ref<ItemCategoryFliterManager>;
+
+  private let m_vendorFilterManager: ref<ItemCategoryFliterManager>;
+
+  private let m_lastPlayerFilter: ItemFilterCategory;
+
+  private let m_lastVendorFilter: ItemFilterCategory;
+
+  private let m_uiScriptableSystem: wref<UIScriptableSystem>;
+
+  private let m_uiSystem: ref<UISystem>;
+
+  private let m_storageDef: ref<StorageBlackboardDef>;
+
+  private let m_storageBlackboard: wref<IBlackboard>;
+
+  private let m_itemDropQueue: [ItemModParams];
+
+  private let m_isActivePanel: Bool;
+
+  private let m_lastItemHoverOverEvent: ref<ItemDisplayHoverOverEvent>;
+
+  private let m_isComparisionDisabled: Bool;
+
+  private let m_isComparisonSwapped: Bool;
+
+  private let m_lastRequestId: Int32;
+
+  private let sellQueue: [ref<VenodrRequestQueueEntry>];
+
+  private let buyQueue: [ref<VenodrRequestQueueEntry>];
+
+  private let m_boughtQuestItems: [ref<gameItemData>];
+
+  private let m_vendorSoldItems: ref<SoldItemsCache>;
+
+  private let m_vendorUIInventoryItems: [ref<UIInventoryItem>];
+
+  private let m_playerItemDisplayContext: ref<ItemDisplayContextData>;
+
+  private let m_vendorItemDisplayContext: ref<ItemDisplayContextData>;
+
+  private let m_transactionPending: Bool;
+
+  private let m_screenDisplayContext: ScreenDisplayContext;
+
+  private let m_globalSellInputPending: Bool;
+
+  private let m_isPopupPending: Bool;
+
+  private let m_cursorData: ref<MenuCursorUserData>;
+
+  private let m_pressedItemDisplay: wref<InventoryItemDisplayController>;
+
+  protected cb func OnInitialize() -> Bool {
+    this.SetTimeDilatation(true);
+    this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnHandleGlobalPress");
+    this.RegisterToGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleGlobalRelease");
+  }
+
+  protected cb func OnSetUserData(userData: ref<IScriptable>) -> Bool {
+    let vendorData: VendorData;
+    let vendorName: String;
+    let vendorPanelData: ref<VendorPanelData>;
+    this.m_storageDef = GetAllBlackboardDefs().StorageBlackboard;
+    this.m_storageBlackboard = this.GetBlackboardSystem().Get(this.m_storageDef);
+    let storageUserData: ref<StorageUserData> = FromVariant<ref<StorageUserData>>(this.m_storageBlackboard.GetVariant(this.m_storageDef.StorageData));
+    if userData == null && storageUserData == null {
+      return false;
+    };
+    inkWidgetRef.SetVisible(this.m_quantityPicker, false);
+    this.m_vendorUserData = userData as VendorUserData;
+    this.m_storageUserData = storageUserData;
+    if this.m_vendorUserData != null {
+      this.m_storageUserData = null;
+    };
+    if IsDefined(this.m_vendorUserData) || IsDefined(this.m_storageUserData) {
+      vendorPanelData = this.m_vendorUserData.vendorData;
+      vendorData = vendorPanelData.data;
+      this.m_VendorDataManager = new VendorDataManager();
+      if IsDefined(this.m_vendorUserData) {
+        this.m_VendorDataManager.Initialize(this.GetPlayerControlledObject(), vendorData.entityID);
+        vendorName = this.m_VendorDataManager.GetVendorName();
+        if !IsStringValid(vendorName) {
+          vendorName = "MISSING VENDOR NAME";
+        };
+        inkTextRef.SetText(this.m_vendorName, vendorName);
+      } else {
+        if IsDefined(this.m_storageUserData) {
+          this.m_VendorDataManager.Initialize(this.GetPlayerControlledObject(), storageUserData.storageObject.GetEntityID());
+          inkWidgetRef.SetVisible(this.m_playerBalance, false);
+          inkWidgetRef.SetVisible(this.m_vendorBalance, false);
+          inkTextRef.SetText(this.m_vendorName, "Gameplay-Scanning-Devices-GameplayRoles-Storage");
+        };
+      };
+      this.m_lastPlayerFilter = ItemFilterCategory.Invalid;
+      this.m_lastVendorFilter = ItemFilterCategory.AllItems;
+      this.Init();
+      this.UpdateVendorMoney();
+      this.UpdatePlayerMoney();
+      this.m_vendorItemsDataView.DisableSorting();
+      this.PopulateVendorInventory();
+      this.ShowHideVendorStock();
+      this.m_playerItemsDataView.DisableSorting();
+      this.PopulatePlayerInventory();
+      this.SetupDropdown();
+      this.PlayLibraryAnimation(n"vendor_intro");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.SetTimeDilatation(false);
+    this.PlaySound(n"GameMenu", n"OnClose");
+    this.m_InventoryManager.ClearInventoryItemDataCache();
+    this.m_InventoryManager.UnInitialize();
+    this.m_uiInventorySystem.FlushFullscreenCache();
+    this.RemoveBB();
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnPress", this, n"OnHandleGlobalPress");
+    this.UnregisterFromGlobalInputCallback(n"OnPostOnRelease", this, n"OnHandleGlobalRelease");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnCloseMenu", this, n"OnCloseMenu");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.m_menuEventDispatcher.UnregisterFromEvent(n"OnSetScreenDisplayContext", this, n"OnSetScreenDisplayContext");
+    GameInstance.GetTelemetrySystem(this.m_player.GetGame()).LogVendorMenuState(this.m_VendorDataManager.GetVendorID(), false);
+    this.ReleaseVirtualLists();
+  }
+
+  protected cb func OnSetScreenDisplayContext(userData: ref<IScriptable>) -> Bool {
+    let displayContext: ref<ScreenDisplayContextData> = userData as ScreenDisplayContextData;
+    if IsDefined(displayContext) {
+      this.m_screenDisplayContext = displayContext.Context;
+    };
+  }
+
+  protected cb func OnBeforeLeaveScenario(userData: ref<IScriptable>) -> Bool {
+    if Equals(this.m_screenDisplayContext, ScreenDisplayContext.Vendor) || Equals(this.m_screenDisplayContext, ScreenDisplayContext.Storage) {
+      MenuUIUtils.RequestAutoSave(this.m_player, 1.00);
+    };
+  }
+
+  protected cb func OnCloseMenu(userData: ref<IScriptable>) -> Bool {
+    this.ReleaseVirtualLists();
+  }
+
+  private final func InitializeVirtualLists() -> Void {
+    this.m_itemsClassifier = new ItemDisplayTemplateClassifier();
+    this.m_playerItemsDataView = new VendorDataView();
+    this.m_playerDataSource = new ScriptableDataSource();
+    this.m_playerItemsDataView.BindUIScriptableSystem(this.m_uiScriptableSystem);
+    this.m_playerItemsDataView.SetSource(this.m_playerDataSource);
+    this.m_playerItemsDataView.EnableSorting();
+    this.m_playerItemsDataView.SetOpenTime(this.m_VendorDataManager.GetOpenTime());
+    this.m_virtualPlayerListController = inkWidgetRef.GetControllerByType(this.m_inventoryGridList, n"inkVirtualGridController") as inkVirtualGridController;
+    this.m_virtualPlayerListController.SetClassifier(this.m_itemsClassifier);
+    this.m_virtualPlayerListController.SetSource(this.m_playerItemsDataView);
+    this.m_vendorItemsDataView = new VendorDataView();
+    this.m_vendorDataSource = new ScriptableDataSource();
+    this.m_vendorItemsDataView.BindUIScriptableSystem(this.m_uiScriptableSystem);
+    this.m_vendorItemsDataView.SetSource(this.m_vendorDataSource);
+    this.m_vendorItemsDataView.EnableSorting();
+    this.m_vendorItemsDataView.SetVendorGrid(true);
+    this.m_virtualVendorListController = inkWidgetRef.GetControllerByType(this.m_vendorInventoryGridList, n"inkVirtualGridController") as inkVirtualGridController;
+    this.m_virtualVendorListController.SetClassifier(this.m_itemsClassifier);
+    this.m_virtualVendorListController.SetSource(this.m_vendorItemsDataView);
+  }
+
+  private final func ReleaseVirtualLists() -> Void {
+    this.m_virtualPlayerListController.SetClassifier(null);
+    this.m_virtualPlayerListController.SetSource(null);
+    this.m_playerItemsDataView.SetSource(null);
+    this.m_virtualVendorListController.SetSource(null);
+    this.m_virtualVendorListController.SetClassifier(null);
+    this.m_vendorItemsDataView.SetSource(null);
+    this.m_itemsClassifier = null;
+    this.m_playerItemsDataView = null;
+    this.m_playerDataSource = null;
+    this.m_vendorItemsDataView = null;
+    this.m_vendorDataSource = null;
+  }
+
+  private final func SetTimeDilatation(enable: Bool) -> Void {
+    let timeDilationReason: CName = n"VendorStash";
+    let timeSystem: ref<TimeSystem> = GameInstance.GetTimeSystem(this.m_player.GetGame());
+    if enable {
+      timeSystem.SetTimeDilation(timeDilationReason, 0.00, n"Linear", n"Linear");
+      timeSystem.SetTimeDilationOnLocalPlayerZero(timeDilationReason, 0.00, n"Linear", n"Linear");
+    } else {
+      timeSystem.UnsetTimeDilation(timeDilationReason);
+      timeSystem.UnsetTimeDilationOnLocalPlayerZero(timeDilationReason);
+    };
+  }
+
+  protected cb func OnSetMenuEventDispatcher(menuEventDispatcher: wref<inkMenuEventDispatcher>) -> Bool {
+    this.m_menuEventDispatcher = menuEventDispatcher;
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBack", this, n"OnBack");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnCloseMenu", this, n"OnCloseMenu");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnBeforeLeaveScenario", this, n"OnBeforeLeaveScenario");
+    this.m_menuEventDispatcher.RegisterToEvent(n"OnSetScreenDisplayContext", this, n"OnSetScreenDisplayContext");
+  }
+
+  protected cb func OnBack(userData: ref<IScriptable>) -> Bool {
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+      this.m_menuEventDispatcher.SpawnEvent(n"OnVendorClose");
+    };
+  }
+
+  protected cb func OnVendorHubMenuChanged(evt: ref<VendorHubMenuChanged>) -> Bool {
+    this.m_isActivePanel = Equals(evt.item, HubVendorMenuItems.Trade);
+  }
+
+  private final func SetupDropdown() -> Void {
+    let controller: ref<DropdownListController>;
+    let data: ref<DropdownItemData>;
+    let playerSortingButtonController: ref<DropdownButtonController>;
+    let sorting: Int32;
+    let vendorSortingButtonController: ref<DropdownButtonController>;
+    inkWidgetRef.RegisterToCallback(this.m_playerSortingButton, n"OnRelease", this, n"OnPlayerSortingButtonClicked");
+    inkWidgetRef.RegisterToCallback(this.m_vendorSortingButton, n"OnRelease", this, n"OnVendorSortingButtonClicked");
+    controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+    playerSortingButtonController = inkWidgetRef.GetController(this.m_playerSortingButton) as DropdownButtonController;
+    vendorSortingButtonController = inkWidgetRef.GetController(this.m_vendorSortingButton) as DropdownButtonController;
+    controller.Setup(this, SortingDropdownData.GetDefaultDropdownOptions());
+    sorting = this.m_uiScriptableSystem.GetVendorPanelPlayerActiveSorting(0);
+    data = SortingDropdownData.GetDropdownOption(controller.GetData(), IntEnum<ItemSortMode>(sorting));
+    playerSortingButtonController.SetData(data);
+    this.m_playerItemsDataView.SetSortMode(FromVariant<ItemSortMode>(data.identifier));
+    sorting = this.m_uiScriptableSystem.GetVendorPanelVendorActiveSorting(0);
+    data = SortingDropdownData.GetDropdownOption(controller.GetData(), IntEnum<ItemSortMode>(sorting));
+    vendorSortingButtonController.SetData(data);
+    this.m_vendorItemsDataView.SetSortMode(FromVariant<ItemSortMode>(data.identifier));
+  }
+
+  protected cb func OnDropdownItemClickedEvent(evt: ref<DropdownItemClickedEvent>) -> Bool {
+    let setPlayerSortingRequest: ref<UIScriptableSystemSetVendorPanelPlayerSorting>;
+    let setVendorSortingRequest: ref<UIScriptableSystemSetVendorPanelVendorSorting>;
+    let identifier: ItemSortMode = FromVariant<ItemSortMode>(evt.identifier);
+    let data: ref<DropdownItemData> = SortingDropdownData.GetDropdownOption((inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController).GetData(), identifier);
+    if IsDefined(data) {
+      if evt.triggerButton.GetRootWidget() == inkWidgetRef.Get(this.m_playerSortingButton) {
+        evt.triggerButton.SetData(data);
+        this.m_playerItemsDataView.SetSortMode(identifier);
+        setPlayerSortingRequest = new UIScriptableSystemSetVendorPanelPlayerSorting();
+        setPlayerSortingRequest.sortMode = EnumInt(identifier);
+        this.m_uiScriptableSystem.QueueRequest(setPlayerSortingRequest);
+      } else {
+        if evt.triggerButton.GetRootWidget() == inkWidgetRef.Get(this.m_vendorSortingButton) {
+          evt.triggerButton.SetData(data);
+          this.m_vendorItemsDataView.SetSortMode(identifier);
+          setVendorSortingRequest = new UIScriptableSystemSetVendorPanelVendorSorting();
+          setVendorSortingRequest.sortMode = EnumInt(identifier);
+          this.m_uiScriptableSystem.QueueRequest(setVendorSortingRequest);
+        };
+      };
+    };
+  }
+
+  protected cb func OnPlayerSortingButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: ref<DropdownListController>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      inkWidgetRef.SetTranslation(this.m_sortingDropdown, new Vector2(1119.00, 268.00));
+      controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+      controller.SetTriggerButton(inkWidgetRef.GetController(this.m_playerSortingButton) as DropdownButtonController);
+      controller.Toggle();
+      this.OnInventoryItemHoverOut(null);
+    };
+  }
+
+  protected cb func OnVendorSortingButtonClicked(evt: ref<inkPointerEvent>) -> Bool {
+    let controller: ref<DropdownListController>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.PlaySound(n"Button", n"OnPress");
+      inkWidgetRef.SetTranslation(this.m_sortingDropdown, new Vector2(2650.00, 270.00));
+      controller = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+      controller.SetTriggerButton(inkWidgetRef.GetController(this.m_vendorSortingButton) as DropdownButtonController);
+      controller.Toggle();
+      this.OnInventoryItemHoverOut(null);
+    };
+  }
+
+  private final func SetFilters(root: inkWidgetRef, const data: script_ref<[Int32]>, callback: CName) -> Void {
+    let radioGroup: ref<FilterRadioGroup> = inkWidgetRef.GetControllerByType(root, n"FilterRadioGroup") as FilterRadioGroup;
+    radioGroup.SetData(data);
+    radioGroup.RegisterToCallback(n"OnValueChanged", this, callback);
+    if ArraySize(Deref(data)) == 1 {
+      radioGroup.Toggle(Deref(data)[0]);
+    };
+  }
+
+  private final func ToggleFilter(root: inkWidgetRef, data: Int32) -> Void {
+    let radioGroup: ref<FilterRadioGroup> = inkWidgetRef.GetControllerByType(root, n"FilterRadioGroup") as FilterRadioGroup;
+    radioGroup.ToggleData(data);
+  }
+
+  protected cb func OnFilterRadioItemHoverOver(evt: ref<FilterRadioItemHoverOver>) -> Bool {
+    let tooltipData: ref<MessageTooltipData> = new MessageTooltipData();
+    tooltipData.Title = NameToString(ItemFilterCategories.GetLabelKey(evt.identifier));
+    this.m_TooltipsManager.ShowTooltipAtWidget(n"descriptionTooltip", evt.target, tooltipData, gameuiETooltipPlacement.RightTop, true);
+  }
+
+  protected cb func OnFilterRadioItemHoverOut(evt: ref<FilterRadioItemHoverOut>) -> Bool {
+    this.m_TooltipsManager.HideTooltips();
+  }
+
+  protected cb func OnPlayerFilterChange(controller: wref<inkRadioGroupController>, selectedIndex: Int32) -> Bool {
+    let category: ItemFilterCategory = this.m_playerFilterManager.GetAt(selectedIndex);
+    this.m_playerItemsDataView.SetFilterType(category);
+    this.m_lastPlayerFilter = category;
+    this.m_playerItemsDataView.SetSortMode(this.m_playerItemsDataView.GetSortMode());
+    this.PlayLibraryAnimation(n"player_grid_show");
+    (inkWidgetRef.GetController(this.m_playerInventoryGridScroll) as inkScrollController).SetScrollPosition(0.00);
+  }
+
+  protected cb func OnVendorFilterChange(controller: wref<inkRadioGroupController>, selectedIndex: Int32) -> Bool {
+    let category: ItemFilterCategory = this.m_vendorFilterManager.GetAt(selectedIndex);
+    this.m_vendorItemsDataView.SetFilterType(category);
+    this.m_lastVendorFilter = category;
+    this.m_vendorItemsDataView.SetSortMode(this.m_vendorItemsDataView.GetSortMode());
+    this.PlayLibraryAnimation(n"vendor_grid_show");
+    (inkWidgetRef.GetController(this.m_vendorInventoryGridScroll) as inkScrollController).SetScrollPosition(0.00);
+  }
+
+  private final func Init() -> Void {
+    this.m_player = this.GetPlayerControlledObject() as PlayerPuppet;
+    this.m_uiScriptableSystem = UIScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_uiInventorySystem = UIInventoryScriptableSystem.GetInstance(this.m_player.GetGame());
+    this.m_playerItemDisplayContext = ItemDisplayContextData.Make(this.m_player, ItemDisplayContext.VendorPlayer);
+    this.m_vendorItemDisplayContext = ItemDisplayContextData.Make(this.m_player, ItemDisplayContext.Vendor);
+    this.m_TooltipsManager = inkWidgetRef.GetControllerByType(this.m_TooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_TooltipsManager.Setup(ETooltipsStyle.Menus);
+    this.m_buttonHintsController = this.SpawnFromExternal(inkWidgetRef.Get(this.m_buttonHintsManagerRef), r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root").GetController() as ButtonHints;
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(this.GetPlayerControlledObject(), n"LockInHubMenu") {
+      this.m_buttonHintsController.AddButtonHint(n"back", GetLocalizedText("Common-Access-Close"));
+    };
+    this.m_InventoryManager = new InventoryDataManagerV2();
+    this.m_InventoryManager.Initialize(this.m_player);
+    this.m_itemTypeSorting = InventoryDataManagerV2.GetItemTypesForSorting();
+    this.m_VendorDataManager.UpdateOpenTime(this.m_player.GetGame());
+    this.m_comparisonResolver = InventoryItemPreferredComparisonResolver.Make(this.m_uiInventorySystem);
+    inkCompoundRef.RemoveAllChildren(this.m_vendorSpecialOffersInventoryGridList);
+    inkCompoundRef.RemoveAllChildren(this.m_vendorInventoryGridList);
+    inkCompoundRef.RemoveAllChildren(this.m_inventoryGridList);
+    this.SetupBB();
+    this.InitializeVirtualLists();
+    this.m_isComparisionDisabled = this.m_uiScriptableSystem.IsComparisionTooltipDisabled();
+    this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText(this.m_isComparisionDisabled ? "UI-UserActions-EnableComparison" : "UI-UserActions-DisableComparison"));
+    this.m_playerFilterManager = ItemCategoryFliterManager.Make();
+    this.m_vendorFilterManager = ItemCategoryFliterManager.Make();
+    this.PlaySound(n"GameMenu", n"OnOpen");
+    this.SpawnFromExternal(inkWidgetRef.Get(this.m_notificationRoot), r"base\\gameplay\\gui\\widgets\\activity_log\\activity_log_panels.inkwidget", n"RootVert");
+    GameInstance.GetTelemetrySystem(this.m_player.GetGame()).LogVendorMenuState(this.m_VendorDataManager.GetVendorID(), true);
+  }
+
+  protected cb func OnUIVendorItemSoldEvent(evt: ref<UIVendorItemsSoldEvent>) -> Bool {
+    let i: Int32;
+    if ArraySize(evt.itemsID) < 1 {
+      this.m_transactionPending = false;
+      return false;
+    };
+    i = ArraySize(this.sellQueue) - 1;
+    while i >= 0 {
+      if this.sellQueue[i].requestID == evt.requestID {
+        ArrayErase(this.sellQueue, i);
+      };
+      i -= 1;
+    };
+    this.m_lastVendorFilter = ItemFilterCategory.Buyback;
+    this.m_InventoryManager.MarkToRebuild();
+    this.UpdateVendorMoney();
+    this.UpdatePlayerMoney();
+    this.PopulateVendorInventory();
+    this.ShowHideVendorStock();
+    this.PopulatePlayerInventory();
+    this.m_transactionPending = false;
+  }
+
+  protected cb func OnUIVendorItemBoughtEvent(evt: ref<UIVendorItemsBoughtEvent>) -> Bool {
+    let category: ItemFilterCategory;
+    let item: ref<UIInventoryItem>;
+    let itemData: wref<gameItemData>;
+    let itemID: ItemID;
+    let limit: Int32;
+    let i: Int32 = ArraySize(this.buyQueue) - 1;
+    while i >= 0 {
+      if this.buyQueue[i].requestID == evt.requestID {
+        ArrayErase(this.buyQueue, i);
+      };
+      i -= 1;
+    };
+    i = 0;
+    limit = ArraySize(evt.itemsID);
+    while i < limit {
+      itemID = evt.itemsID[i];
+      itemData = this.m_InventoryManager.GetPlayerItemData(itemID);
+      item = UIInventoryItem.Make(this.m_player, itemData);
+      if item.IsQuestItem() {
+        ArrayPush(this.m_boughtQuestItems, item.GetRealItemData());
+      };
+      category = ItemCategoryFliter.GetItemCategoryType(itemData);
+      if NotEquals(category, ItemFilterCategory.Invalid) {
+        this.m_lastPlayerFilter = category;
+      };
+      i += 1;
+    };
+    this.m_InventoryManager.MarkToRebuild();
+    this.UpdateVendorMoney();
+    this.UpdatePlayerMoney();
+    this.PopulateVendorInventory();
+    this.ShowHideVendorStock();
+    this.PopulatePlayerInventory();
+    this.FlagDLCAddedItemsAsInspected(evt.itemsID);
+  }
+
+  private final func FlagDLCAddedItemsAsInspected(const itemsID: script_ref<[ItemID]>) -> Void {
+    let itemData: wref<gameItemData>;
+    let itemInspectedRequest: ref<UIScriptableSystemDLCAddedItemInspected>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(itemsID));
+    while i < limit {
+      itemData = this.m_InventoryManager.GetPlayerItemData(Deref(itemsID)[i]);
+      if itemData.HasTag(n"DLCAdded") {
+        itemInspectedRequest = new UIScriptableSystemDLCAddedItemInspected();
+        itemInspectedRequest.itemTDBID = ItemID.GetTDBID(Deref(itemsID)[i]);
+        this.m_uiScriptableSystem.QueueRequest(itemInspectedRequest);
+      };
+      i += 1;
+    };
+  }
+
+  protected cb func OnCraftingComplete(value: Variant) -> Bool {
+    let command: CraftingCommands = FromVariant<CraftingCommands>(this.m_craftingBlackboard.GetVariant(GetAllBlackboardDefs().UI_Crafting.lastCommand));
+    if Equals(command, CraftingCommands.DisassemblingFinished) {
+      this.m_InventoryManager.MarkToRebuild();
+      this.UpdateVendorMoney();
+      this.UpdatePlayerMoney();
+      this.PopulateVendorInventory();
+      this.ShowHideVendorStock();
+      this.PopulatePlayerInventory();
+    };
+  }
+
+  private final func SetupBB() -> Void {
+    this.m_VendorBlackboardDef = GetAllBlackboardDefs().UI_Vendor;
+    this.m_VendorBlackboard = this.GetBlackboardSystem().Get(this.m_VendorBlackboardDef);
+    if IsDefined(this.m_VendorBlackboard) {
+      this.m_VendorUpdatedCallbackID = this.m_VendorBlackboard.RegisterDelayedListenerVariant(this.m_VendorBlackboardDef.VendorData, this, n"OnVendorUpdated");
+    };
+    this.m_craftingBlackboardDef = GetAllBlackboardDefs().UI_Crafting;
+    this.m_craftingBlackboard = this.GetBlackboardSystem().Get(this.m_craftingBlackboardDef);
+    if IsDefined(this.m_craftingBlackboard) {
+      this.m_craftingCallbackID = this.m_craftingBlackboard.RegisterDelayedListenerVariant(this.m_craftingBlackboardDef.lastItem, this, n"OnCraftingComplete", true);
+    };
+    if IsDefined(this.m_storageUserData) {
+      this.m_InventoryCallback = GetAllBlackboardDefs().UI_Inventory;
+      this.m_InventoryBlackboard = this.GetBlackboardSystem().Get(this.m_InventoryCallback);
+      if IsDefined(this.m_InventoryBlackboard) {
+        this.m_InventoryAddedBBID = this.m_InventoryBlackboard.RegisterDelayedListenerVariant(this.m_InventoryCallback.itemAdded, this, n"OnInventoryItemAdded", false);
+        this.m_InventoryRemovedBBID = this.m_InventoryBlackboard.RegisterDelayedListenerVariant(this.m_InventoryCallback.itemRemoved, this, n"OnInventoryItemRemoved", false);
+      };
+    };
+  }
+
+  private final func RemoveBB() -> Void {
+    if IsDefined(this.m_VendorBlackboard) {
+      this.m_VendorBlackboard.UnregisterDelayedListener(this.m_VendorBlackboardDef.VendorData, this.m_VendorUpdatedCallbackID);
+    };
+    if IsDefined(this.m_craftingBlackboard) {
+      this.m_craftingBlackboard.UnregisterDelayedListener(this.m_craftingBlackboardDef.lastItem, this.m_craftingCallbackID);
+    };
+    if IsDefined(this.m_InventoryBlackboard) {
+      this.m_InventoryBlackboard.UnregisterDelayedListener(this.m_InventoryCallback.itemAdded, this.m_InventoryAddedBBID);
+      this.m_InventoryBlackboard.UnregisterDelayedListener(this.m_InventoryCallback.itemRemoved, this.m_InventoryRemovedBBID);
+    };
+    this.m_VendorBlackboard = null;
+    this.m_storageBlackboard = null;
+    this.m_InventoryBlackboard = null;
+    this.m_storageUserData = null;
+  }
+
+  protected cb func OnInventoryItemAdded(value: Variant) -> Bool {
+    this.Update();
+  }
+
+  protected cb func OnInventoryItemRemoved(value: Variant) -> Bool {
+    this.Update();
+  }
+
+  private final func Update() -> Void {
+    this.m_InventoryManager.MarkToRebuild();
+    this.UpdateVendorMoney();
+    this.UpdatePlayerMoney();
+    this.PopulateVendorInventory();
+    this.ShowHideVendorStock();
+    this.PopulatePlayerInventory();
+  }
+
+  private final func UpdateVendorMoney() -> Void {
+    let vendorMoney: Int32 = MarketSystem.GetVendorMoney(this.m_VendorDataManager.GetVendorInstance());
+    inkTextRef.SetText(this.m_vendorMoney, IntToString(vendorMoney));
+  }
+
+  private final func UpdatePlayerMoney() -> Void {
+    inkTextRef.SetText(this.m_playerMoney, IntToString(VendorDataManager.GetLocalPlayerCurrencyAmount(VendorDataManager.GetLocalPlayer(this.m_player.GetGame()))));
+  }
+
+  private final func ShowHideVendorStock() -> Void {
+    if inkCompoundRef.GetNumChildren(this.m_vendorSpecialOffersInventoryGridList) == 0 && inkCompoundRef.GetNumChildren(this.m_vendorInventoryGridList) == 0 {
+    };
+  }
+
+  protected cb func OnInventoryClick(evt: ref<ItemDisplayClickEvent>) -> Bool {
+    if IsDefined(evt.uiInventoryItem) {
+      if IsDefined(this.m_vendorUserData) {
+        this.HandleVendorSlotClick(evt);
+      } else {
+        if IsDefined(this.m_storageUserData) {
+          this.HandleStorageSlotClick(evt);
+        };
+      };
+    };
+  }
+
+  protected cb func OnItemDisplayHold(evt: ref<ItemDisplayHoldEvent>) -> Bool {
+    if IsDefined(evt.uiInventoryItem) {
+      if IsDefined(this.m_vendorUserData) {
+        this.HandleVendorSlotHold(evt);
+      } else {
+        if IsDefined(this.m_storageUserData) {
+          this.HandleStorageSlotHold(evt);
+        };
+      };
+    };
+  }
+
+  protected cb func OnItemDisplayPress(evt: ref<ItemDisplayPressEvent>) -> Bool {
+    this.m_pressedItemDisplay = evt.display;
+  }
+
+  protected cb func OnHandleGlobalPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"sell_junk") {
+      this.m_globalSellInputPending = true;
+    };
+  }
+
+  protected cb func OnHandleGlobalRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let setComparisionDisabledRequest: ref<UIScriptableSystemSetComparisionTooltipDisabled>;
+    if evt.IsAction(n"sell_junk") && IsDefined(this.m_vendorUserData) {
+      this.m_globalSellInputPending = false;
+      this.OpenSellJunkConfirmation();
+    } else {
+      if evt.IsAction(n"toggle_comparison_tooltip") {
+        if !this.m_isComparisionDisabled && !this.m_isComparisonSwapped && this.CanSwapComparison() {
+          this.m_isComparisonSwapped = true;
+          this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText("UI-UserActions-DisableComparison"));
+        } else {
+          this.m_isComparisonSwapped = false;
+          this.m_isComparisionDisabled = !this.m_isComparisionDisabled;
+          this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText(!this.m_isComparisionDisabled && this.CanSwapComparison() ? "UI-UserActions-SwapComparison" : "UI-UserActions-EnableComparison"));
+        };
+        setComparisionDisabledRequest = new UIScriptableSystemSetComparisionTooltipDisabled();
+        setComparisionDisabledRequest.value = this.m_isComparisionDisabled;
+        this.m_uiScriptableSystem.QueueRequest(setComparisionDisabledRequest);
+        this.InvalidateItemTooltipEvent();
+      };
+    };
+  }
+
+  private final func HandleVendorSlotClick(evt: ref<ItemDisplayClickEvent>) -> Void {
+    let additionalInfo: ref<VendorRequirementsNotMetNotificationData>;
+    let isIconic: Bool;
+    let maxQuantity: Int32;
+    let tempDummy: SItemStackRequirementData;
+    let vendorNotification: ref<UIMenuNotificationEvent>;
+    let targetItem: wref<UIInventoryItem> = evt.uiInventoryItem;
+    let isVendorItem: Bool = Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.Vendor);
+    if (evt.actionName.IsAction(n"click") || evt.actionName.IsAction(n"tap")) && IsDefined(targetItem) && !this.m_globalSellInputPending {
+      if isVendorItem {
+        maxQuantity = this.GetMaxQuantity(targetItem, false, evt.isBuybackStack);
+        if maxQuantity == 0 {
+          vendorNotification = new UIMenuNotificationEvent();
+          vendorNotification.m_notificationType = UIMenuNotificationType.CraftingAmmoCap;
+          GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(vendorNotification);
+          this.PlaySound(n"MapPin", n"OnDelete");
+          return;
+        };
+        if maxQuantity == 1 {
+          this.BuyItem(targetItem, maxQuantity, evt.isBuybackStack);
+          this.PlaySound(n"Item", n"OnBuy");
+          this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+          this.m_TooltipsManager.HideTooltips();
+        } else {
+          if this.GetPrice(targetItem.GetRealItemData(), QuantityPickerActionType.Buy, 1) <= this.m_VendorDataManager.GetLocalPlayerCurrencyAmount() {
+            this.OpenQuantityPicker(targetItem, QuantityPickerActionType.Buy, evt.isBuybackStack);
+          };
+        };
+      } else {
+        if !isVendorItem && this.NotGrenadeOrHealingItem(targetItem) && !evt.isQuestBought {
+          if this.m_transactionPending {
+            return;
+          };
+          if evt.display.GetIsPlayerFavourite() {
+            vendorNotification = new UIMenuNotificationEvent();
+            vendorNotification.m_notificationType = UIMenuNotificationType.InventoryActionBlocked;
+            GameInstance.GetUISystem(this.m_player.GetGame()).QueueEvent(vendorNotification);
+            this.PlaySound(n"MapPin", n"OnDelete");
+            return;
+          };
+          if targetItem.GetQuantity() == 1 {
+            if targetItem.IsEquipped() {
+              this.OpenConfirmationPopup(targetItem, targetItem.GetQuantity(), QuantityPickerActionType.Sell, VendorConfirmationPopupType.EquippedItem);
+            } else {
+              isIconic = targetItem.IsIconic();
+              if isIconic {
+                this.OpenConfirmationPopup(targetItem, targetItem.GetQuantity(), QuantityPickerActionType.Sell);
+              } else {
+                this.SellItem(targetItem.GetRealItemData(), targetItem.GetQuantity());
+              };
+            };
+          } else {
+            this.OpenQuantityPicker(targetItem, QuantityPickerActionType.Sell, false, true);
+          };
+        };
+      };
+    } else {
+      if evt.actionName.IsAction(n"preview_item") && targetItem != null && this.m_pressedItemDisplay != null {
+        this.PlaySound(n"MapPin", n"OnCreate");
+        this.m_pressedItemDisplay = null;
+        if !targetItem.IsRecipe() && (targetItem.IsWeapon() || targetItem.IsClothing()) {
+          if this.m_isPopupPending {
+            return;
+          };
+          this.m_isPopupPending = true;
+          this.m_itemPreviewPopupToken = ItemPreviewHelper.ShowPreviewItem(this, targetItem, targetItem.IsClothing(), n"OnItemPreviewPopup");
+        };
+      };
+    };
+  }
+
+  private final func HandleStorageSlotClick(evt: ref<ItemDisplayClickEvent>) -> Void {
+    let targetItem: wref<UIInventoryItem> = evt.uiInventoryItem;
+    if (evt.actionName.IsAction(n"click") || evt.actionName.IsAction(n"tap")) && IsDefined(targetItem) && this.NotGrenadeOrHealingItem(targetItem) {
+      if Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.VendorPlayer) {
+        if targetItem.GetQuantity() == 1 {
+          if targetItem.IsEquipped() {
+            this.OpenConfirmationPopup(targetItem, targetItem.GetQuantity(), QuantityPickerActionType.TransferToStorage, VendorConfirmationPopupType.StashEquippedItem);
+          } else {
+            this.m_VendorDataManager.TransferItem(this.m_player, this.m_VendorDataManager.GetVendorInstance(), targetItem.GetRealItemData(), targetItem.GetQuantity());
+            this.PlaySound(n"Item", n"OnBuy");
+            this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+            this.m_TooltipsManager.HideTooltips();
+          };
+        } else {
+          this.OpenQuantityPicker(targetItem, QuantityPickerActionType.TransferToStorage);
+        };
+      } else {
+        if targetItem.GetQuantity() == 1 {
+          this.m_VendorDataManager.TransferItem(this.m_VendorDataManager.GetVendorInstance(), this.m_player, targetItem.GetRealItemData(), targetItem.GetQuantity());
+          this.PlaySound(n"Item", n"OnSell");
+          this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Left);
+        } else {
+          this.OpenQuantityPicker(targetItem, QuantityPickerActionType.TransferToPlayer);
+        };
+      };
+    } else {
+      if evt.actionName.IsAction(n"preview_item") && targetItem != null && this.m_pressedItemDisplay != null {
+        this.PlaySound(n"MapPin", n"OnCreate");
+        this.m_pressedItemDisplay = null;
+        if !targetItem.IsRecipe() && (targetItem.IsWeapon() || targetItem.IsClothing()) {
+          this.m_itemPreviewPopupToken = ItemPreviewHelper.ShowPreviewItem(this, targetItem, targetItem.IsClothing(), n"OnItemPreviewPopup");
+        };
+      };
+    };
+  }
+
+  private final func HandleVendorSlotHold(evt: ref<ItemDisplayHoldEvent>) -> Void {
+    let setPlayerFavouriteRequest: ref<UIScriptableSystemSetItemPlayerFavourite>;
+    let targetItem: wref<UIInventoryItem> = evt.uiInventoryItem;
+    let isVendorItem: Bool = Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.Vendor);
+    if evt.actionName.IsAction(n"favourite_item") && !isVendorItem && IsDefined(targetItem) && targetItem.IsWeapon() && this.m_pressedItemDisplay != null {
+      setPlayerFavouriteRequest = new UIScriptableSystemSetItemPlayerFavourite();
+      setPlayerFavouriteRequest.itemID = targetItem.ID;
+      setPlayerFavouriteRequest.favourite = !evt.display.GetIsPlayerFavourite();
+      this.m_uiScriptableSystem.QueueRequest(setPlayerFavouriteRequest);
+      evt.display.SetIsPlayerFavourite(setPlayerFavouriteRequest.favourite);
+      this.UpdateFavouriteHint(setPlayerFavouriteRequest.favourite);
+      this.m_pressedItemDisplay = null;
+      this.PlaySound(n"MapPin", n"OnEnable");
+      this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+    };
+  }
+
+  private final func HandleStorageSlotHold(evt: ref<ItemDisplayHoldEvent>) -> Void {
+    let setPlayerFavouriteRequest: ref<UIScriptableSystemSetItemPlayerFavourite>;
+    let targetItem: wref<UIInventoryItem> = evt.uiInventoryItem;
+    if evt.actionName.IsAction(n"favourite_item") && IsDefined(targetItem) && targetItem.IsWeapon() && this.m_pressedItemDisplay != null {
+      setPlayerFavouriteRequest = new UIScriptableSystemSetItemPlayerFavourite();
+      setPlayerFavouriteRequest.itemID = targetItem.ID;
+      setPlayerFavouriteRequest.favourite = !evt.display.GetIsPlayerFavourite();
+      this.m_uiScriptableSystem.QueueRequest(setPlayerFavouriteRequest);
+      evt.display.SetIsPlayerFavourite(setPlayerFavouriteRequest.favourite);
+      this.UpdateFavouriteHint(setPlayerFavouriteRequest.favourite);
+      this.m_pressedItemDisplay = null;
+      this.PlaySound(n"MapPin", n"OnEnable");
+      this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+    };
+  }
+
+  private final func NotGrenadeOrHealingItem(item: ref<UIInventoryItem>) -> Bool {
+    let itemType: gamedataItemType = item.GetItemType();
+    if Equals(itemType, gamedataItemType.Con_Inhaler) || Equals(itemType, gamedataItemType.Con_Injector) || Equals(itemType, gamedataItemType.Gad_Grenade) {
+      return false;
+    };
+    return true;
+  }
+
+  private final func OpenSellJunkConfirmation() -> Void {
+    let data: ref<VendorSellJunkPopupData>;
+    let resultPrice: Float;
+    let vendorLimitResultPrice: Float;
+    let vendorLimitSellabelItems: array<ref<VendorJunkSellItem>>;
+    let vendorMoney: Int32;
+    let sellableItems: array<wref<gameItemData>> = this.GetSellableJunk();
+    if Cast<Bool>(ArraySize(sellableItems)) {
+      if this.m_isPopupPending {
+        return;
+      };
+      this.m_isPopupPending = true;
+      vendorMoney = MarketSystem.GetVendorMoney(this.m_VendorDataManager.GetVendorInstance());
+      vendorLimitSellabelItems = this.GetLimitedSellableItems(sellableItems, vendorMoney);
+      resultPrice = this.GetBulkSellPrice(sellableItems);
+      vendorLimitResultPrice = this.GetBulkSellPrice(vendorLimitSellabelItems);
+      data = new VendorSellJunkPopupData();
+      data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\vendor_sell_junk_confirmation.inkwidget";
+      data.isBlocking = true;
+      data.useCursor = true;
+      data.queueName = n"modal_popup";
+      data.items = sellableItems;
+      data.itemsQuantity = ArraySize(sellableItems);
+      data.totalPrice = resultPrice;
+      data.limitedTotalPrice = Cast<Int32>(vendorLimitResultPrice);
+      data.limitedItems = vendorLimitSellabelItems;
+      data.limitedItemsQuantity = ArraySize(vendorLimitSellabelItems);
+      this.m_sellJunkPopupToken = this.ShowGameNotification(data);
+      this.m_sellJunkPopupToken.RegisterListener(this, n"OnSellJunkPopupClosed");
+      this.m_buttonHintsController.Hide();
+    };
+  }
+
+  protected cb func OnSellJunkPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    let amounts: array<Int32>;
+    let i: Int32;
+    let itemsData: array<wref<gameItemData>>;
+    let limit: Int32;
+    this.m_isPopupPending = false;
+    this.m_sellJunkPopupToken = null;
+    let sellJunkData: ref<VendorSellJunkPopupCloseData> = data as VendorSellJunkPopupCloseData;
+    if sellJunkData.confirm {
+      i = 0;
+      limit = ArraySize(sellJunkData.limitedItems);
+      while i < limit {
+        ArrayPush(itemsData, sellJunkData.limitedItems[i].item);
+        ArrayPush(amounts, sellJunkData.limitedItems[i].quantity);
+        i += 1;
+      };
+      this.m_VendorDataManager.SellItemsToVendor(itemsData, amounts);
+      this.PlaySound(n"Item", n"OnSell");
+      this.m_TooltipsManager.HideTooltips();
+    } else {
+      this.PlaySound(n"Button", n"OnPress");
+    };
+    this.m_buttonHintsController.Show();
+  }
+
+  protected cb func OnItemPreviewPopup(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_isPopupPending = false;
+    this.m_itemPreviewPopupToken = null;
+  }
+
+  private final func OpenQuantityPicker(itemData: wref<UIInventoryItem>, actionType: QuantityPickerActionType, opt isBuyback: Bool, opt isPlayerItem: Bool) -> Void {
+    let data: ref<QuantityPickerPopupData> = new QuantityPickerPopupData();
+    if this.m_isPopupPending {
+      return;
+    };
+    this.m_isPopupPending = true;
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\item_quantity_picker.inkwidget";
+    data.isBlocking = true;
+    data.useCursor = true;
+    data.queueName = n"modal_popup";
+    data.maxValue = this.GetMaxQuantity(itemData, isPlayerItem, isBuyback);
+    data.inventoryItem = itemData;
+    data.actionType = actionType;
+    data.vendor = this.m_VendorDataManager.GetVendorInstance();
+    data.isBuyback = isBuyback;
+    this.m_quantityPickerPopupToken = this.ShowGameNotification(data);
+    this.m_quantityPickerPopupToken.RegisterListener(this, n"OnQuantityPickerPopupClosed");
+    this.m_buttonHintsController.Hide();
+  }
+
+  private final func GetMaxQuantity(item: wref<UIInventoryItem>, opt isPlayerItem: Bool, opt isBuybackStack: Bool) -> Int32 {
+    let ammoCap: Int32;
+    let playerQuantity: Int32;
+    let result: Int32;
+    let soldItem: ref<SoldItem>;
+    let tags: array<CName>;
+    let vendorQuantity: Int32;
+    let gameInstance: GameInstance = this.m_VendorDataManager.GetVendorInstance().GetGame();
+    let player: ref<PlayerPuppet> = GetPlayer(gameInstance);
+    let transactionSystem: ref<TransactionSystem> = GameInstance.GetTransactionSystem(gameInstance);
+    if isBuybackStack {
+      soldItem = this.m_vendorSoldItems.GetItem(item.GetID());
+      if IsDefined(soldItem) {
+        vendorQuantity = soldItem.quantity;
+      } else {
+        vendorQuantity = item.GetQuantity();
+      };
+    } else {
+      vendorQuantity = item.GetQuantity();
+    };
+    if isPlayerItem {
+      return vendorQuantity;
+    };
+    tags = item.GetItemRecord().Tags();
+    if ArrayContains(tags, n"Grenade") || ArrayContains(tags, n"Injector") || ArrayContains(tags, n"Inhaler") {
+      return 1;
+    };
+    if !ArrayContains(tags, n"Ammo") {
+      return vendorQuantity;
+    };
+    playerQuantity = transactionSystem.GetItemQuantity(player, item.GetID());
+    ammoCap = Cast<Int32>(item.GetItemData().GetStatValueByType(gamedataStatType.Quantity));
+    result = Min(ammoCap - playerQuantity, vendorQuantity);
+    return result;
+  }
+
+  protected cb func OnQuantityPickerPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    let isIconic: Bool;
+    let isLegendary: Bool;
+    this.m_isPopupPending = false;
+    this.m_quantityPickerPopupToken = null;
+    let quantityData: ref<QuantityPickerPopupCloseData> = data as QuantityPickerPopupCloseData;
+    if quantityData.choosenQuantity != -1 {
+      switch quantityData.actionType {
+        case QuantityPickerActionType.TransferToStorage:
+          this.m_VendorDataManager.TransferItem(this.m_player, this.m_VendorDataManager.GetVendorInstance(), quantityData.inventoryItem.GetRealItemData(), quantityData.choosenQuantity);
+          this.PlaySound(n"Item", n"OnSell");
+          this.m_TooltipsManager.HideTooltips();
+          this.PopulateInventories();
+          break;
+        case QuantityPickerActionType.TransferToPlayer:
+          this.m_VendorDataManager.TransferItem(this.m_VendorDataManager.GetVendorInstance(), this.m_player, quantityData.inventoryItem.GetRealItemData(), quantityData.choosenQuantity);
+          this.PlaySound(n"Item", n"OnSell");
+          this.m_TooltipsManager.HideTooltips();
+          this.PopulateInventories();
+          break;
+        case QuantityPickerActionType.Buy:
+          if quantityData.isBuyback {
+            this.BuyItem(quantityData.inventoryItem, quantityData.choosenQuantity, true);
+          } else {
+            this.BuyItem(quantityData.inventoryItem, quantityData.choosenQuantity);
+          };
+          this.PlaySound(n"Item", n"OnBuy");
+          this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+          this.m_TooltipsManager.HideTooltips();
+          break;
+        case QuantityPickerActionType.Sell:
+          isLegendary = quantityData.inventoryItem.GetQualityInt() >= UIItemsHelper.QualityEnumToInt(gamedataQuality.Legendary);
+          isIconic = RPGManager.IsItemIconic(quantityData.inventoryItem.GetItemData());
+          if isLegendary || isIconic {
+            this.OpenConfirmationPopup(quantityData.inventoryItem, quantityData.choosenQuantity, quantityData.actionType);
+          } else {
+            this.SellItem(quantityData.inventoryItem.GetRealItemData(), quantityData.choosenQuantity);
+            this.PlaySound(n"Item", n"OnSell");
+            this.m_TooltipsManager.HideTooltips();
+          };
+      };
+    };
+    this.m_buttonHintsController.Show();
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func GetPrice(item: ref<gameItemData>, actionType: QuantityPickerActionType, quantity: Int32) -> Int32 {
+    if Equals(actionType, QuantityPickerActionType.Buy) {
+      return MarketSystem.GetBuyPrice(this.m_VendorDataManager.GetVendorInstance(), item.GetID()) * quantity;
+    };
+    return RPGManager.CalculateSellPrice(this.m_VendorDataManager.GetVendorInstance().GetGame(), this.m_VendorDataManager.GetVendorInstance(), item.GetID()) * quantity;
+  }
+
+  private final func OpenConfirmationPopup(itemData: wref<UIInventoryItem>, quantity: Int32, actionType: QuantityPickerActionType, opt type: VendorConfirmationPopupType) -> Void {
+    let data: ref<VendorConfirmationPopupData>;
+    if this.m_isPopupPending {
+      return;
+    };
+    this.m_isPopupPending = true;
+    data = new VendorConfirmationPopupData();
+    data.notificationName = n"base\\gameplay\\gui\\widgets\\notifications\\vendor_confirmation.inkwidget";
+    data.isBlocking = true;
+    data.useCursor = true;
+    data.queueName = n"modal_popup";
+    data.inventoryItem = itemData;
+    data.quantity = quantity;
+    data.type = type;
+    data.price = this.GetPrice(itemData.GetRealItemData(), actionType, quantity);
+    this.m_confirmationPopupToken = this.ShowGameNotification(data);
+    this.m_confirmationPopupToken.RegisterListener(this, n"OnConfirmationPopupClosed");
+    this.m_buttonHintsController.Hide();
+    this.m_transactionPending = true;
+  }
+
+  protected cb func OnConfirmationPopupClosed(data: ref<inkGameNotificationData>) -> Bool {
+    this.m_isPopupPending = false;
+    this.m_confirmationPopupToken = null;
+    let resultData: ref<VendorConfirmationPopupCloseData> = data as VendorConfirmationPopupCloseData;
+    if resultData.confirm {
+      if Equals(resultData.type, VendorConfirmationPopupType.StashEquippedItem) {
+        this.m_VendorDataManager.TransferItem(this.m_player, this.m_VendorDataManager.GetVendorInstance(), resultData.inventoryItem.GetRealItemData(), resultData.quantity);
+        this.PlaySound(n"Item", n"OnBuy");
+        this.PlayRumble(RumbleStrength.Heavy, RumbleType.Pulse, RumblePosition.Right);
+        this.m_TooltipsManager.HideTooltips();
+      } else {
+        this.SellItem(resultData.inventoryItem.GetRealItemData(), resultData.quantity);
+      };
+    } else {
+      this.m_transactionPending = false;
+    };
+    this.m_buttonHintsController.Show();
+    this.PlaySound(n"Button", n"OnPress");
+  }
+
+  private final func SellItem(itemData: ref<gameItemData>, quantity: Int32) -> Void {
+    let queueEntry: ref<VenodrRequestQueueEntry>;
+    let itemID: ItemID = itemData.GetID();
+    if !this.IsSellRequestInQueue(itemID) && this.m_VendorDataManager.CanPlayerSellItem(itemID) {
+      this.m_lastRequestId += 1;
+      queueEntry = new VenodrRequestQueueEntry();
+      queueEntry.requestID = this.m_lastRequestId;
+      queueEntry.itemID = itemID;
+      ArrayPush(this.sellQueue, queueEntry);
+      this.m_VendorDataManager.SellItemToVendor(itemData, quantity, queueEntry.requestID);
+      this.PlaySound(n"Item", n"OnSell");
+      this.m_TooltipsManager.HideTooltips();
+      this.m_transactionPending = true;
+    } else {
+      this.m_transactionPending = false;
+    };
+  }
+
+  private final func IsBuyRequestInQueue(itemID: ItemID) -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.buyQueue) {
+      if this.buyQueue[i].itemID == itemID {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func IsSellRequestInQueue(itemID: ItemID) -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.sellQueue) {
+      if this.sellQueue[i].itemID == itemID {
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  private final func BuyItem(item: ref<UIInventoryItem>, quantity: Int32, opt buyback: Bool) -> Void {
+    let queueEntry: ref<VenodrRequestQueueEntry>;
+    let itemID: ItemID = item.GetID();
+    if !this.IsBuyRequestInQueue(itemID) {
+      this.m_lastRequestId += 1;
+      queueEntry = new VenodrRequestQueueEntry();
+      queueEntry.requestID = this.m_lastRequestId;
+      queueEntry.itemID = itemID;
+      ArrayPush(this.buyQueue, queueEntry);
+      if buyback {
+        this.m_VendorDataManager.BuybackItemFromVendor(item.GetRealItemData(), quantity, queueEntry.requestID);
+      } else {
+        this.m_VendorDataManager.BuyItemFromVendor(item.GetRealItemData(), quantity, queueEntry.requestID);
+      };
+    };
+  }
+
+  private final func FilterOutDuplicateVendorItems(const items: script_ref<[ref<VendorGameItemData>]>) -> [ref<VendorGameItemData>] {
+    let alreadyAdded: array<ItemID>;
+    let result: array<ref<VendorGameItemData>>;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(Deref(items));
+    while i < limit {
+      if !ArrayContains(alreadyAdded, Deref(items)[i].itemStack.itemID) {
+        ArrayPush(result, Deref(items)[i]);
+        ArrayPush(alreadyAdded, Deref(items)[i].itemStack.itemID);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func PopulateVendorInventory() -> Void {
+    let buybackItemData: ref<VendorUIInventoryItemData>;
+    let buybackSellingPrice: Int32;
+    let i: Int32;
+    let isAnyNewAppearance: Bool;
+    let itemData: ref<VendorUIInventoryItemData>;
+    let itemRecord: wref<Item_Record>;
+    let items: array<ref<IScriptable>>;
+    let limit: Int32;
+    let playerCurrencyAmount: Int32;
+    let soldItem: ref<SoldItem>;
+    let storageItems: array<ref<gameItemData>>;
+    let vendorInventoryItems: array<ref<VendorGameItemData>>;
+    let vendorItemQuantity: Int32;
+    let vendorObject: wref<GameObject>;
+    let wardrobeItemAppearances: array<CName>;
+    let wardrobeItemIDs: array<ItemID>;
+    ArrayClear(this.m_vendorUIInventoryItems);
+    this.m_vendorFilterManager.Clear();
+    if IsDefined(this.m_vendorUserData) {
+      wardrobeItemIDs = GameInstance.GetWardrobeSystem(this.m_player.GetGame()).GetStoredItemIDs();
+      i = 0;
+      limit = ArraySize(wardrobeItemIDs);
+      while i < limit {
+        itemRecord = TweakDBInterface.GetItemRecord(ItemID.GetTDBID(wardrobeItemIDs[i]));
+        ArrayPush(wardrobeItemAppearances, itemRecord.AppearanceName());
+        i += 1;
+      };
+      playerCurrencyAmount = this.m_VendorDataManager.GetLocalPlayerCurrencyAmount();
+      vendorObject = this.m_VendorDataManager.GetVendorInstance();
+      vendorInventoryItems = this.FilterOutDuplicateVendorItems(this.m_VendorDataManager.GetVendorInventoryItems());
+      this.m_vendorSoldItems = this.m_VendorDataManager.GetVendorSoldItems();
+      i = 0;
+      limit = ArraySize(vendorInventoryItems);
+      while i < limit {
+        ArrayPush(this.m_vendorUIInventoryItems, UIInventoryItem.Make(vendorObject, vendorInventoryItems[i].itemData, this.m_uiInventorySystem.GetInventoryItemsManager()));
+        soldItem = this.m_vendorSoldItems.GetItem(this.m_vendorUIInventoryItems[i].GetID());
+        itemData = new VendorUIInventoryItemData();
+        itemData.Item = this.m_vendorUIInventoryItems[i];
+        itemData.IsVendorItem = true;
+        itemData.DisplayContextData = this.m_vendorItemDisplayContext;
+        itemData.IsDLCAddedActiveItem = this.m_uiScriptableSystem.IsDLCAddedActiveItem(itemData.Item.GetTweakDBID());
+        if !itemData.Item.IsRecipe() {
+          itemData.ComparisonState = this.GetComparisonState(itemData.Item);
+          if itemData.Item.IsClothing() {
+            itemData.IsNotInWardrobe = !ArrayContains(wardrobeItemAppearances, itemData.Item.GetItemRecord().AppearanceName());
+            if itemData.IsNotInWardrobe {
+              isAnyNewAppearance = true;
+            };
+          };
+        };
+        if IsDefined(soldItem) {
+          buybackSellingPrice = this.m_VendorDataManager.GetSellingPrice(itemData.Item.GetID());
+          vendorItemQuantity = itemData.Item.GetQuantity();
+          if soldItem.quantity == vendorItemQuantity {
+            itemData.IsBuybackStack = true;
+          } else {
+            if vendorItemQuantity > soldItem.quantity {
+              itemData.Item.SetQuantity(vendorItemQuantity - soldItem.quantity);
+              buybackItemData = new VendorUIInventoryItemData();
+              buybackItemData.Item = itemData.Item;
+              buybackItemData.ItemPrice = Cast<Float>(buybackSellingPrice);
+              buybackItemData.IsVendorItem = true;
+              buybackItemData.IsBuybackStack = true;
+              buybackItemData.IsEnoughMoney = playerCurrencyAmount >= Cast<Int32>(buybackItemData.ItemPrice);
+              buybackItemData.ComparisonState = itemData.ComparisonState;
+              buybackItemData.OverrideQuantity = soldItem.quantity;
+              buybackItemData.DisplayContextData = this.m_vendorItemDisplayContext;
+              ArrayPush(items, buybackItemData);
+              this.m_vendorFilterManager.AddItem(buybackItemData.Item.GetFilterCategory());
+            };
+          };
+          this.m_vendorFilterManager.AddFilter(ItemFilterCategory.Buyback);
+        } else {
+          this.m_vendorFilterManager.AddItem(itemData.Item.GetFilterCategory());
+        };
+        itemData.ItemPrice = itemData.IsBuybackStack ? Cast<Float>(buybackSellingPrice) : Cast<Float>(this.m_VendorDataManager.GetBuyingPrice(itemData.Item.GetID()));
+        itemData.IsEnoughMoney = playerCurrencyAmount >= Cast<Int32>(itemData.ItemPrice);
+        ArrayPush(items, itemData);
+        i += 1;
+      };
+      if isAnyNewAppearance {
+        this.m_vendorFilterManager.AddFilter(ItemFilterCategory.NewWardrobeAppearances);
+      };
+    } else {
+      if IsDefined(this.m_storageUserData) {
+        storageItems = this.m_VendorDataManager.GetStorageItems();
+        vendorObject = this.m_VendorDataManager.GetVendorInstance();
+        i = 0;
+        limit = ArraySize(storageItems);
+        while i < limit {
+          if !InventoryDataManagerV2.IsItemBlacklisted(storageItems[i]) {
+            storageItems[i].ReinitializePlayerStats(this.m_player.GetGame(), this.m_player.GetEntityID());
+            itemData = new VendorUIInventoryItemData();
+            itemData.Item = UIInventoryItem.Make(vendorObject, storageItems[i], this.m_uiInventorySystem.GetInventoryItemsManager());
+            itemData.IsVendorItem = true;
+            itemData.IsEnoughMoney = true;
+            itemData.ComparisonState = this.GetComparisonState(itemData.Item);
+            itemData.DisplayContextData = this.m_vendorItemDisplayContext;
+            ArrayPush(items, itemData);
+            ArrayPush(this.m_vendorUIInventoryItems, itemData.Item);
+            this.m_vendorFilterManager.AddItem(itemData.Item.GetFilterCategory());
+          };
+          i += 1;
+        };
+      };
+    };
+    this.m_vendorDataSource.Reset(items);
+    this.m_vendorFilterManager.SortFiltersList();
+    if IsDefined(this.m_vendorUserData) {
+      this.m_vendorFilterManager.InsertFilter(0, ItemFilterCategory.AllItems);
+    } else {
+      if IsDefined(this.m_storageUserData) {
+        this.m_vendorFilterManager.AddFilter(ItemFilterCategory.AllItems);
+      };
+    };
+    this.SetFilters(this.m_vendorFiltersContainer, this.m_vendorFilterManager.GetSortedIntFiltersList(), n"OnVendorFilterChange");
+    if Equals(this.m_lastVendorFilter, ItemFilterCategory.Invalid) || !this.m_vendorFilterManager.Contains(this.m_lastVendorFilter) {
+      this.m_lastVendorFilter = this.m_vendorFilterManager.GetAt(0);
+    };
+    if Equals(this.m_lastVendorFilter, ItemFilterCategory.Invalid) {
+      this.m_lastVendorFilter = ItemFilterCategory.AllItems;
+    };
+    this.m_vendorItemsDataView.EnableSorting();
+    this.m_vendorItemsDataView.SetFilterType(this.m_lastVendorFilter);
+    this.m_vendorItemsDataView.SetSortMode(this.m_vendorItemsDataView.GetSortMode());
+    this.m_vendorItemsDataView.DisableSorting();
+    this.ToggleFilter(this.m_vendorFiltersContainer, EnumInt(this.m_lastVendorFilter));
+    inkWidgetRef.SetVisible(this.m_vendorFiltersContainer, ArraySize(items) > 0);
+    this.PlayLibraryAnimation(n"vendor_grid_show");
+  }
+
+  private final func GetSellableJunk() -> [wref<gameItemData>] {
+    let result: array<wref<gameItemData>>;
+    let type: gamedataItemType;
+    let sellableItems: array<wref<gameItemData>> = this.m_VendorDataManager.GetItemsPlayerCanSellFast(this.m_player);
+    let i: Int32 = 0;
+    while i < ArraySize(sellableItems) {
+      type = RPGManager.GetItemRecord(sellableItems[i].GetID()).ItemType().Type();
+      if Equals(type, gamedataItemType.Gen_Junk) || Equals(type, gamedataItemType.Gen_Jewellery) {
+        ArrayPush(result, sellableItems[i]);
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func GetLimitedSellableItems(const items: script_ref<[wref<gameItemData>]>, moneyLimit: Int32) -> [ref<VendorJunkSellItem>] {
+    let currentResultItem: ref<VendorJunkSellItem>;
+    let itemId: ItemID;
+    let itemPrice: Int32;
+    let j: Int32;
+    let quantityLeft: Int32;
+    let result: array<ref<VendorJunkSellItem>>;
+    let moneyLeft: Int32 = moneyLimit;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(items)) {
+      quantityLeft = Deref(items)[i].GetQuantity();
+      itemId = Deref(items)[i].GetID();
+      if !this.m_VendorDataManager.CanPlayerSellItem(itemId) {
+      } else {
+        itemPrice = this.m_VendorDataManager.GetSellingPrice(itemId);
+        while moneyLeft >= itemPrice && quantityLeft > 0 {
+          j = 0;
+          while j < ArraySize(result) {
+            if result[j].item.GetID() == itemId {
+              currentResultItem = result[j];
+            };
+            j += 1;
+          };
+          if currentResultItem == null {
+            currentResultItem = new VendorJunkSellItem();
+            currentResultItem.item = Deref(items)[i];
+            ArrayPush(result, currentResultItem);
+          };
+          currentResultItem.quantity += 1;
+          moneyLeft -= itemPrice;
+          quantityLeft -= 1;
+          currentResultItem = null;
+        };
+      };
+      i += 1;
+    };
+    return result;
+  }
+
+  private final func GetBulkSellPrice(const items: script_ref<[wref<gameItemData>]>) -> Float {
+    let sum: Float;
+    let unitPrice: Float;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(items)) {
+      unitPrice = Cast<Float>(this.m_VendorDataManager.GetSellingPrice(Deref(items)[i].GetID()));
+      sum += unitPrice * Cast<Float>(Deref(items)[i].GetQuantity());
+      i += 1;
+    };
+    return sum;
+  }
+
+  private final func GetBulkSellPrice(const items: script_ref<[ref<VendorJunkSellItem>]>) -> Float {
+    let sum: Float;
+    let unitPrice: Float;
+    let i: Int32 = 0;
+    while i < ArraySize(Deref(items)) {
+      unitPrice = Cast<Float>(this.m_VendorDataManager.GetSellingPrice(Deref(items)[i].item.GetID()));
+      sum += unitPrice * Cast<Float>(Deref(items)[i].quantity);
+      i += 1;
+    };
+    return sum;
+  }
+
+  private final func PopulatePlayerInventory() -> Void {
+    let hasJunkItems: Bool;
+    let i: Int32;
+    let item: wref<UIInventoryItem>;
+    let items: array<ref<IScriptable>>;
+    let limit: Int32;
+    let playerItems: ref<inkHashMap>;
+    let questItemsHidden: Bool;
+    let sellableItems: array<wref<gameItemData>>;
+    let stashBlacklistedTags: array<CName>;
+    let values: array<wref<IScriptable>>;
+    let vendorUIInventoryItemData: ref<VendorUIInventoryItemData>;
+    this.m_playerFilterManager.Clear();
+    this.m_playerFilterManager.AddFilter(ItemFilterCategory.AllItems);
+    if IsDefined(this.m_vendorUserData) {
+      sellableItems = this.m_VendorDataManager.GetItemsPlayerCanSellFast(this.m_player);
+      questItemsHidden = this.m_VendorDataManager.ArePlayerQuestItemsHidden();
+      i = 0;
+      limit = ArraySize(sellableItems);
+      while i < limit {
+        if ItemID.HasFlag(sellableItems[i].GetID(), gameEItemIDFlag.Preview) {
+        } else {
+          vendorUIInventoryItemData = new VendorUIInventoryItemData();
+          vendorUIInventoryItemData.Item = this.m_uiInventorySystem.GetPlayerItemFromAnySource(sellableItems[i]);
+          vendorUIInventoryItemData.IsVendorItem = false;
+          vendorUIInventoryItemData.ItemPrice = Cast<Float>(this.m_VendorDataManager.GetSellingPrice(sellableItems[i].GetID()));
+          vendorUIInventoryItemData.DisplayContextData = this.m_playerItemDisplayContext;
+          ArrayPush(items, vendorUIInventoryItemData);
+          this.m_playerFilterManager.AddItem(vendorUIInventoryItemData.Item.GetFilterCategory());
+          if !hasJunkItems && Equals(vendorUIInventoryItemData.Item.GetItemType(), gamedataItemType.Gen_Junk) || Equals(vendorUIInventoryItemData.Item.GetItemType(), gamedataItemType.Gen_Jewellery) {
+            hasJunkItems = true;
+          };
+        };
+        i += 1;
+      };
+      if questItemsHidden {
+        i = 0;
+        limit = ArraySize(this.m_boughtQuestItems);
+        while i < limit {
+          vendorUIInventoryItemData = new VendorUIInventoryItemData();
+          vendorUIInventoryItemData.Item = this.m_uiInventorySystem.GetPlayerItemFromAnySource(this.m_boughtQuestItems[i]);
+          if vendorUIInventoryItemData.Item.GetOwner() == this.m_player {
+            vendorUIInventoryItemData.IsVendorItem = false;
+            vendorUIInventoryItemData.IsQuestBought = true;
+            vendorUIInventoryItemData.ItemPrice = Cast<Float>(this.m_VendorDataManager.GetSellingPrice(this.m_boughtQuestItems[i].GetID()));
+            vendorUIInventoryItemData.DisplayContextData = this.m_playerItemDisplayContext;
+            ArrayPush(items, vendorUIInventoryItemData);
+          };
+          i += 1;
+        };
+      };
+      if hasJunkItems {
+        this.m_buttonHintsController.AddButtonHint(n"sell_junk", GetLocalizedText("UI-UserActions-SellJunk"));
+      } else {
+        this.m_buttonHintsController.RemoveButtonHint(n"sell_junk");
+      };
+    } else {
+      if IsDefined(this.m_storageUserData) {
+        this.m_uiInventorySystem.FlushTempData();
+        playerItems = this.m_uiInventorySystem.GetPlayerItemsMap();
+        stashBlacklistedTags = UIInventoryItemsManager.GetStashBlacklistedTags();
+        playerItems.GetValues(values);
+        i = 0;
+        limit = ArraySize(values);
+        while i < limit {
+          item = values[i] as UIInventoryItem;
+          if ItemID.HasFlag(item.GetID(), gameEItemIDFlag.Preview) {
+          } else {
+            if item.GetRealItemData().HasAnyOfTags(stashBlacklistedTags) {
+            } else {
+              vendorUIInventoryItemData = new VendorUIInventoryItemData();
+              vendorUIInventoryItemData.Item = values[i] as UIInventoryItem;
+              vendorUIInventoryItemData.IsVendorItem = false;
+              vendorUIInventoryItemData.ComparisonState = this.GetComparisonState(vendorUIInventoryItemData.Item);
+              vendorUIInventoryItemData.DisplayContextData = this.m_playerItemDisplayContext;
+              ArrayPush(items, vendorUIInventoryItemData);
+              this.m_playerFilterManager.AddItem(vendorUIInventoryItemData.Item.GetItemData());
+            };
+          };
+          i += 1;
+        };
+      };
+    };
+    this.m_playerDataSource.Reset(items);
+    this.SetFilters(this.m_playerFiltersContainer, this.m_playerFilterManager.GetSortedIntFiltersList(), n"OnPlayerFilterChange");
+    if Equals(this.m_lastPlayerFilter, ItemFilterCategory.Invalid) || !this.m_playerFilterManager.Contains(this.m_lastPlayerFilter) {
+      this.m_lastPlayerFilter = this.m_playerFilterManager.GetAt(0);
+    };
+    if Equals(this.m_lastPlayerFilter, ItemFilterCategory.Invalid) {
+      this.m_lastPlayerFilter = ItemFilterCategory.AllItems;
+    };
+    this.m_playerItemsDataView.EnableSorting();
+    this.m_playerItemsDataView.SetFilterType(this.m_lastPlayerFilter);
+    this.m_playerItemsDataView.SetSortMode(this.m_playerItemsDataView.GetSortMode());
+    this.m_playerItemsDataView.DisableSorting();
+    this.ToggleFilter(this.m_playerFiltersContainer, EnumInt(this.m_lastPlayerFilter));
+    this.PlayLibraryAnimation(n"player_grid_show");
+  }
+
+  private final func PopulateInventories() -> Void {
+    this.PopulateVendorInventory();
+    this.PopulatePlayerInventory();
+  }
+
+  private final func GetComparisonState(item: wref<UIInventoryItem>) -> ItemComparisonState {
+    if this.m_comparisonResolver.IsComparable(item) {
+      return this.m_comparisonResolver.GetItemComparisonState(item);
+    };
+    return ItemComparisonState.Default;
+  }
+
+  private final func PrepareTooltips() -> Void {
+    this.m_TooltipsManager = inkWidgetRef.GetControllerByType(this.m_TooltipsManagerRef, n"gameuiTooltipsManager") as gameuiTooltipsManager;
+    this.m_TooltipsManager.Setup(ETooltipsStyle.Menus);
+  }
+
+  private final func InvalidateItemTooltipEvent() -> Void {
+    if this.m_lastItemHoverOverEvent != null {
+      this.OnInventoryItemHoverOver(this.m_lastItemHoverOverEvent);
+    };
+  }
+
+  private final func CanSwapComparison() -> Bool {
+    if this.m_lastItemHoverOverEvent != null {
+      return this.m_comparisonResolver.GetOppositePreferredComparisonItem(this.m_lastItemHoverOverEvent.uiInventoryItem) != null;
+    };
+    return false;
+  }
+
+  protected cb func OnInventoryItemHoverOver(evt: ref<ItemDisplayHoverOverEvent>) -> Bool {
+    let inventoryItemToComapre: wref<UIInventoryItem>;
+    let localizedHint: String;
+    let controller: ref<DropdownListController> = inkWidgetRef.GetController(this.m_sortingDropdown) as DropdownListController;
+    this.m_lastItemHoverOverEvent = evt;
+    if this.m_isComparisionDisabled {
+      this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText("UI-UserActions-EnableComparison"));
+    } else {
+      if !this.m_isComparisonSwapped && this.CanSwapComparison() {
+        this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText("UI-UserActions-SwapComparison"));
+      } else {
+        this.m_buttonHintsController.AddButtonHint(n"toggle_comparison_tooltip", GetLocalizedText("UI-UserActions-DisableComparison"));
+      };
+    };
+    this.m_cursorData = new MenuCursorUserData();
+    this.m_cursorData.SetAnimationOverride(n"hoverOnHoldToComplete");
+    if !controller.IsOpened() {
+      if this.m_isComparisonSwapped {
+        inventoryItemToComapre = this.m_comparisonResolver.GetOppositePreferredComparisonItem(evt.uiInventoryItem);
+        if inventoryItemToComapre == null {
+          inventoryItemToComapre = this.m_comparisonResolver.GetPreferredComparisonItem(evt.uiInventoryItem);
+        };
+      } else {
+        inventoryItemToComapre = this.m_comparisonResolver.GetPreferredComparisonItem(evt.uiInventoryItem);
+      };
+      this.ShowTooltipForUIInventoryItem(evt.widget, evt.uiInventoryItem, inventoryItemToComapre, evt.isBuybackStack);
+      if evt.uiInventoryItem != null {
+        if (evt.uiInventoryItem.IsWeapon() || evt.uiInventoryItem.IsClothing()) && !evt.uiInventoryItem.IsRecipe() {
+          this.m_buttonHintsController.AddButtonHint(n"preview_item", GetLocalizedText("UI-UserActions-ItemPreview"));
+        };
+        if evt.uiInventoryItem.IsWeapon() && (Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.VendorPlayer) || IsDefined(this.m_storageUserData)) {
+          this.UpdateFavouriteHint(this.m_uiScriptableSystem.IsItemPlayerFavourite(evt.uiInventoryItem.GetID()));
+        };
+      };
+      if Equals(evt.displayContextData.GetDisplayContext(), ItemDisplayContext.Vendor) && !IsDefined(this.m_storageUserData) && IsDefined(this.m_vendorUserData) {
+        localizedHint = GetLocalizedText("LocKey#17847");
+        this.m_buttonHintsController.AddButtonHint(n"select", localizedHint);
+      } else {
+        if this.m_VendorDataManager.CanPlayerSellItem(evt.uiInventoryItem.GetID()) && !IsDefined(this.m_storageUserData) && IsDefined(this.m_vendorUserData) && this.NotGrenadeOrHealingItem(evt.uiInventoryItem) && !evt.isQuestBought {
+          localizedHint = GetLocalizedText("LocKey#17848");
+          this.m_buttonHintsController.AddButtonHint(n"select", localizedHint);
+        };
+        if IsDefined(this.m_storageUserData) && !IsDefined(this.m_vendorUserData) {
+          localizedHint = LocKeyToString(n"UI-UserActions-TransferItem");
+          this.m_buttonHintsController.AddButtonHint(n"select", localizedHint);
+        };
+      };
+      if evt.uiInventoryItem != null {
+        if this.m_cursorData.GetActionsListSize() >= 0 {
+          this.SetCursorContext(n"Hover", this.m_cursorData);
+        } else {
+          this.SetCursorContext(n"Hover");
+        };
+      } else {
+        this.SetCursorContext(n"Default");
+      };
+    };
+  }
+
+  private final func UpdateFavouriteHint(state: Bool) -> Void {
+    if state {
+      this.m_buttonHintsController.AddButtonHint(n"favourite_item", "[" + GetLocalizedText("Gameplay-Devices-Interactions-Helpers-Hold") + "] " + GetLocalizedText("UI-UserActions-ItemRemoveFavourite"));
+      this.m_cursorData.AddUniqueAction(n"favourite_item");
+    } else {
+      this.m_buttonHintsController.AddButtonHint(n"favourite_item", "[" + GetLocalizedText("Gameplay-Devices-Interactions-Helpers-Hold") + "] " + GetLocalizedText("UI-UserActions-ItemAddFavourite"));
+      this.m_cursorData.AddUniqueAction(n"favourite_item");
+    };
+    if this.m_cursorData.GetActionsListSize() >= 0 {
+      this.SetCursorContext(n"Hover", this.m_cursorData);
+    } else {
+      this.SetCursorContext(n"Hover");
+    };
+  }
+
+  protected cb func OnInventoryDLCAddedItemHoverOver(evt: ref<DLCAddedItemDisplayHoverOverEvent>) -> Bool {
+    let itemInspectedRequest: ref<UIScriptableSystemDLCAddedItemInspected> = new UIScriptableSystemDLCAddedItemInspected();
+    itemInspectedRequest.itemTDBID = evt.itemTDBID;
+    this.m_uiScriptableSystem.QueueRequest(itemInspectedRequest);
+  }
+
+  private final func ShowTooltipForUIInventoryItem(widget: wref<inkWidget>, inspectedItem: wref<UIInventoryItem>, equippedItem: wref<UIInventoryItem>, isBuybackStack: Bool) -> Void {
+    let data: ref<UIInventoryItemTooltipWrapper>;
+    let isComparable: Bool;
+    let itemTooltips: [CName; 2];
+    let tooltipsData: array<ref<ATooltipData>>;
+    let isPlayerItem: Bool = inspectedItem.GetOwner().GetEntityID() == this.m_player.GetEntityID();
+    let placement: gameuiETooltipPlacement = isPlayerItem ? gameuiETooltipPlacement.RightTop : gameuiETooltipPlacement.LeftTop;
+    this.m_TooltipsManager.HideTooltips();
+    if inspectedItem.IsWeapon() {
+      itemTooltips[0] = n"newItemTooltip";
+      itemTooltips[1] = n"newItemTooltipComparision";
+    } else {
+      itemTooltips[0] = n"itemTooltip";
+      itemTooltips[1] = n"itemTooltipComparision";
+    };
+    if IsDefined(inspectedItem) {
+      inspectedItem.GetStatsManagerPure().FlushComparedBars();
+      isComparable = !inspectedItem.IsRecipe() && NotEquals(inspectedItem.GetItemType(), gamedataItemType.Prt_Program) && NotEquals(inspectedItem.GetEquipmentArea(), gamedataEquipmentArea.SystemReplacementCW);
+      if IsDefined(equippedItem) && isComparable {
+        if isPlayerItem {
+          data = UIInventoryItemTooltipWrapper.Make(inspectedItem, this.m_playerItemDisplayContext);
+          if !this.m_isComparisionDisabled {
+            data.m_comparisonData = UIInventoryItemComparisonManager.Make(inspectedItem, equippedItem);
+          };
+          ArrayPush(tooltipsData, IdentifiedWrappedTooltipData.Make(itemTooltips[0], data));
+          if !this.m_isComparisionDisabled {
+            data = UIInventoryItemTooltipWrapper.Make(equippedItem, this.m_playerItemDisplayContext);
+            data.m_comparisonData = UIInventoryItemComparisonManager.Make(equippedItem, inspectedItem);
+            ArrayPush(tooltipsData, IdentifiedWrappedTooltipData.Make(itemTooltips[1], data));
+          };
+        } else {
+          if !this.m_isComparisionDisabled {
+            data = UIInventoryItemTooltipWrapper.Make(equippedItem, this.m_playerItemDisplayContext);
+            data.m_comparisonData = UIInventoryItemComparisonManager.Make(equippedItem, inspectedItem);
+            ArrayPush(tooltipsData, IdentifiedWrappedTooltipData.Make(itemTooltips[0], data));
+          };
+          data = UIInventoryItemTooltipWrapper.Make(inspectedItem, IsDefined(this.m_storageUserData) ? this.m_playerItemDisplayContext : this.m_vendorItemDisplayContext);
+          if !this.m_isComparisionDisabled {
+            data.m_comparisonData = UIInventoryItemComparisonManager.Make(inspectedItem, equippedItem);
+          };
+          if isBuybackStack {
+            data.m_overridePrice = RPGManager.CalculateSellPrice(this.m_VendorDataManager.GetVendorInstance().GetGame(), this.m_VendorDataManager.GetVendorInstance(), inspectedItem.GetID());
+          };
+          ArrayPush(tooltipsData, IdentifiedWrappedTooltipData.Make(itemTooltips[1], data));
+        };
+        this.m_TooltipsManager.ShowTooltipsAtWidget(tooltipsData, widget, placement);
+      } else {
+        data = UIInventoryItemTooltipWrapper.Make(inspectedItem, isPlayerItem || IsDefined(this.m_storageUserData) ? this.m_playerItemDisplayContext : this.m_vendorItemDisplayContext);
+        if isBuybackStack {
+          data.m_overridePrice = RPGManager.CalculateSellPrice(this.m_VendorDataManager.GetVendorInstance().GetGame(), this.m_VendorDataManager.GetVendorInstance(), inspectedItem.GetID());
+        };
+        if Equals(inspectedItem.GetItemType(), gamedataItemType.Prt_Program) {
+          this.m_TooltipsManager.ShowTooltipAtWidget(n"programTooltip", widget, data, placement);
+        } else {
+          if Equals(inspectedItem.GetEquipmentArea(), gamedataEquipmentArea.SystemReplacementCW) {
+            this.m_TooltipsManager.ShowTooltipAtWidget(n"cyberdeckTooltip", widget, data, placement);
+          } else {
+            this.m_TooltipsManager.ShowTooltipAtWidget(itemTooltips[0], widget, data, placement);
+          };
+        };
+      };
+    };
+  }
+
+  protected cb func OnInventoryItemHoverOut(evt: ref<ItemDisplayHoverOutEvent>) -> Bool {
+    this.m_TooltipsManager.HideTooltips();
+    this.m_buttonHintsController.RemoveButtonHint(n"select");
+    this.m_buttonHintsController.RemoveButtonHint(n"preview_item");
+    this.m_buttonHintsController.RemoveButtonHint(n"favourite_item");
+    this.m_lastItemHoverOverEvent = null;
+    this.m_pressedItemDisplay = null;
+  }
+}
+
+public class VendorDataView extends BackpackDataView {
+
+  protected let m_isVendorGrid: Bool;
+
+  protected let m_openTime: GameTime;
+
+  public final func SetVendorGrid(value: Bool) -> Void {
+    this.m_isVendorGrid = value;
+  }
+
+  public final func SetOpenTime(time: GameTime) -> Void {
+    this.m_openTime = time;
+  }
+
+  protected func PreSortingInjection(builder: ref<ItemCompareBuilder>) -> ref<ItemCompareBuilder> {
+    return builder.QuestItem();
+  }
+
+  public func DerivedFilterItem(data: ref<IScriptable>) -> DerivedFilterResult {
+    let m_wrappedData: ref<VendorUIInventoryItemData> = data as VendorUIInventoryItemData;
+    if !IsDefined(m_wrappedData) {
+      return DerivedFilterResult.Pass;
+    };
+    if Equals(this.m_itemFilterType, ItemFilterCategory.Buyback) {
+      return m_wrappedData.IsBuybackStack ? DerivedFilterResult.True : DerivedFilterResult.False;
+    };
+    if Equals(this.m_itemFilterType, ItemFilterCategory.NewWardrobeAppearances) {
+      return m_wrappedData.IsNotInWardrobe ? DerivedFilterResult.True : DerivedFilterResult.False;
+    };
+    return m_wrappedData.IsBuybackStack ? DerivedFilterResult.False : DerivedFilterResult.Pass;
+  }
+}
+
+public class VendorItemVirtualController extends inkVirtualCompoundItemController {
+
+  public let m_data: ref<VendorInventoryItemData>;
+
+  public let m_newData: ref<VendorUIInventoryItemData>;
+
+  public let m_itemViewController: wref<InventoryItemDisplayController>;
+
+  public let m_isSpawnInProgress: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnSelected", this, n"OnSelected");
+  }
+
+  public final func OnDataChanged(value: Variant) -> Void {
+    this.m_newData = FromVariant<ref<IScriptable>>(value) as VendorUIInventoryItemData;
+    let displayToCreate: CName = n"itemDisplay";
+    if IsDefined(this.m_newData) {
+      if this.m_newData.Item.IsWeapon() {
+        displayToCreate = n"weaponDisplay";
+      };
+    } else {
+      this.m_data = FromVariant<ref<IScriptable>>(value) as VendorInventoryItemData;
+      if Equals(InventoryItemData.GetEquipmentArea(this.m_data.ItemData), gamedataEquipmentArea.Weapon) {
+        displayToCreate = n"weaponDisplay";
+      };
+    };
+    if !this.m_isSpawnInProgress {
+      if !IsDefined(this.m_itemViewController) {
+        this.m_isSpawnInProgress = true;
+        ItemDisplayUtils.AsyncSpawnCommonSlotController(this, this.GetRootWidget(), displayToCreate, n"OnSpawned");
+      } else {
+        this.UpdateControllerData();
+      };
+    };
+  }
+
+  protected cb func OnSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    this.m_isSpawnInProgress = false;
+    this.m_itemViewController = widget.GetController() as InventoryItemDisplayController;
+    this.UpdateControllerData();
+  }
+
+  private final func UpdateControllerData() -> Void {
+    let applyDLCAddedIndicator: Bool;
+    if IsDefined(this.m_newData) {
+      if this.m_newData.IsVendorItem {
+        this.m_itemViewController.Setup(this.m_newData.Item, this.m_newData.DisplayContextData, this.m_newData.IsEnoughMoney, false, false, this.m_newData.OverrideQuantity);
+        applyDLCAddedIndicator = this.m_newData.Item.GetItemData().HasTag(n"DLCAdded") && this.m_data.IsDLCAddedActiveItem;
+        this.m_itemViewController.SetDLCNewIndicator(applyDLCAddedIndicator);
+      } else {
+        this.m_itemViewController.Setup(this.m_newData.Item, this.m_newData.DisplayContextData);
+        this.m_itemViewController.SetQuestBought(this.m_newData.IsQuestBought);
+      };
+      this.m_itemViewController.SetComparisonState(this.m_newData.ComparisonState);
+      this.m_itemViewController.SetBuybackStack(this.m_newData.IsBuybackStack);
+      this.m_itemViewController.SetIsPlayerFavourite(this.m_newData.Item.IsPlayerFavourite());
+      return;
+    };
+    if this.m_data.IsVendorItem {
+      this.m_itemViewController.Setup(this.m_data.ItemData, ItemDisplayContext.Vendor, this.m_data.IsEnoughMoney);
+      applyDLCAddedIndicator = InventoryItemData.GetGameItemData(this.m_data.ItemData).HasTag(n"DLCAdded") && this.m_data.IsDLCAddedActiveItem;
+      this.m_itemViewController.SetDLCNewIndicator(applyDLCAddedIndicator);
+    } else {
+      this.m_itemViewController.Setup(this.m_data.ItemData, ItemDisplayContext.VendorPlayer);
+    };
+    this.m_itemViewController.SetComparisonState(this.m_data.ComparisonState);
+    this.m_itemViewController.SetBuybackStack(this.m_data.IsBuybackStack);
+    this.m_itemViewController.SetIsPlayerFavourite(this.m_data.Item.IsPlayerFavourite());
+  }
+
+  protected cb func OnSelected(itemController: wref<inkVirtualCompoundItemController>, discreteNav: Bool) -> Bool {
+    let widget: wref<inkWidget>;
+    if discreteNav {
+      widget = this.GetRootWidget();
+      this.SetCursorOverWidget(widget);
+    };
+  }
+}
+
+public class SoldItemsCache extends IScriptable {
+
+  private let m_cache: [ref<SoldItem>];
+
+  public final func AddItem(itemID: ItemID, quantity: Int32, piecePrice: Int32) -> Void {
+    let item: ref<SoldItem> = new SoldItem();
+    item.itemID = itemID;
+    item.quantity = quantity;
+    item.piecePrice = piecePrice;
+    this.AddItem(item);
+  }
+
+  public final func AddItem(item: ref<SoldItem>) -> Void {
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_cache);
+    while i < limit {
+      if this.m_cache[i].itemID == item.itemID {
+        this.m_cache[i].quantity += item.quantity;
+        return;
+      };
+      i += 1;
+    };
+    ArrayPush(this.m_cache, item);
+  }
+
+  public final func RemoveItem(itemID: ItemID, quantity: Int32) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_cache) {
+      if this.m_cache[i].itemID == itemID {
+        if this.m_cache[i].quantity > quantity {
+          this.m_cache[i].quantity -= quantity;
+        } else {
+          ArrayErase(this.m_cache, i);
+        };
+        break;
+      };
+      i += 1;
+    };
+  }
+
+  public final func GetItem(itemID: ItemID) -> ref<SoldItem> {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_cache) {
+      if this.m_cache[i].itemID == itemID {
+        return this.m_cache[i];
+      };
+      i += 1;
+    };
+    return null;
+  }
+
+  public final func GetItemPrice(itemID: ItemID) -> Int32 {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_cache) {
+      if this.m_cache[i].itemID == itemID {
+        return this.m_cache[i].piecePrice;
+      };
+      i += 1;
+    };
+    return 0;
+  }
+}

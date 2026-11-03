@@ -1,0 +1,1163 @@
+
+public class ModMenuFilterDrawer extends inkLogicController {
+
+  private edit let m_resetFilterButton: inkWidgetRef;
+
+  private edit let m_closeAreaCanvas: inkWidgetRef;
+
+  private edit let m_folderSpawnerWidget: inkWidgetRef;
+
+  private edit let m_scrollAreaRef: inkScrollAreaRef;
+
+  private edit let m_sliderRef: inkWidgetRef;
+
+  private edit let m_contentWindowRef: inkWidgetRef;
+
+  private edit let m_scrollCanvas: inkCompoundRef;
+
+  private edit let m_endOfScrollArea: inkWidgetRef;
+
+  private edit let m_currentNumberOfFiltersAppliedText: inkTextRef;
+
+  private let m_ownerMenu: wref<BrowserModsMenuGameController>;
+
+  private let m_filterFolderList: [wref<ModFilterCategoryFolder>];
+
+  private let m_activeFiltersList: [wref<ModFilterCategoryItem>];
+
+  private let m_activeExceptionFiltersList: [wref<ModFilterExceptionItem>];
+
+  private let m_bVisible: Bool;
+
+  private let m_openAnim: ref<inkAnimProxy>;
+
+  private let m_closeAnim: ref<inkAnimProxy>;
+
+  private let m_scrollPosition: Float;
+
+  private let m_UpperHiddenContentSize: Float;
+
+  private let m_cWindowSize: Float;
+
+  private let m_ContentSize: Float;
+
+  private let m_currentlyNavigatedItem: wref<DrawerNavigableItem>;
+
+  public let m_lastFoldedOrUnfoldedFolder: wref<ModFilterCategoryFolder>;
+
+  public let m_endOfScrollAreaPos: Vector2;
+
+  public let m_cursorPos: Vector2;
+
+  private let m_sliderController: wref<inkSliderController>;
+
+  @default(ModMenuFilterDrawer, 10)
+  private let m_maximumNumberOfFiltersActivatedAtOnce: Int32;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_bVisible = false;
+    inkWidgetRef.RegisterToCallback(this.m_closeAreaCanvas, n"OnRelease", this, n"OnCloseAreaClicked");
+    this.GetRootWidget().SetVisible(false);
+    this.m_sliderController = inkWidgetRef.GetController(this.m_sliderRef) as inkSliderController;
+    inkTextRef.SetText(this.m_currentNumberOfFiltersAppliedText, "0 / " + IntToString(this.m_maximumNumberOfFiltersActivatedAtOnce));
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_closeAreaCanvas, n"OnRelease", this, n"OnCloseAreaClicked");
+  }
+
+  public final func SetNavigatedItem(inNavigable: ref<DrawerNavigableItem>) -> Void {
+    this.m_currentlyNavigatedItem = inNavigable;
+  }
+
+  public final func Setup(ownerMenu: wref<BrowserModsMenuGameController>, folderSetupInfo: [inkModFilterDrawerInput]) -> Void {
+    let currentFilterFolder: ref<ModFilterCategoryFolder>;
+    let currentFilterFolderInitInfo: inkModFilterDrawerInput;
+    this.m_ownerMenu = ownerMenu;
+    let i: Int32 = 0;
+    while i < ArraySize(folderSetupInfo) {
+      currentFilterFolderInitInfo = folderSetupInfo[i];
+      currentFilterFolder = this.SpawnFromLocal(inkWidgetRef.Get(this.m_folderSpawnerWidget), n"ModFilterCategoryFolder").GetController() as ModFilterCategoryFolder;
+      currentFilterFolder.Setup(this, currentFilterFolderInitInfo);
+      ArrayPush(this.m_filterFolderList, currentFilterFolder);
+      i += 1;
+    };
+    this.m_currentlyNavigatedItem = this.m_filterFolderList[0];
+    this.UpdateNavigables();
+  }
+
+  protected cb func OnCloseAreaClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_ownerMenu.HideFilterDrawer();
+    };
+  }
+
+  public final func Hide() -> Void {
+    this.m_closeAnim = this.PlayLibraryAnimation(n"Out");
+    this.m_closeAnim.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnCloseAnimFinished");
+  }
+
+  protected cb func OnOpenAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    if this.m_openAnim != null {
+      this.m_openAnim.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnOpenAnimFinished");
+      this.m_openAnim = null;
+    };
+    this.m_endOfScrollAreaPos = inkCompoundRef.GetChildPosition(this.m_scrollCanvas, inkWidgetRef.Get(this.m_endOfScrollArea));
+  }
+
+  protected cb func OnCloseAnimFinished(anim: ref<inkAnimProxy>) -> Bool {
+    let currentFolder: ref<ModFilterCategoryFolder>;
+    let i: Int32;
+    this.GetRootWidget().SetVisible(false);
+    this.m_bVisible = false;
+    i = 0;
+    while i < ArraySize(this.m_filterFolderList) {
+      currentFolder = this.m_filterFolderList[i];
+      currentFolder.Fold(true);
+      i += 1;
+    };
+    if this.m_closeAnim != null {
+      this.m_closeAnim.UnregisterFromCallback(inkanimEventType.OnFinish, this, n"OnCloseAnimFinished");
+      this.m_closeAnim = null;
+    };
+    this.m_ownerMenu.RequestButtonHintUpdateNextFrame();
+  }
+
+  public final func Show() -> Void {
+    this.GetRootWidget().SetVisible(true);
+    this.m_bVisible = true;
+    this.m_openAnim = this.PlayLibraryAnimation(n"In");
+    this.m_openAnim.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnOpenAnimFinished");
+  }
+
+  public final func IsOpen() -> Bool {
+    return this.m_bVisible;
+  }
+
+  public final func RemoveActiveFilterByName(filterNameToRemove: String, bisExceptionFilter: Bool) -> Bool {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_activeFiltersList) {
+      currentFilterItem = this.m_activeFiltersList[i];
+      if Equals(currentFilterItem.GetFilterName(), filterNameToRemove) {
+        currentFilterItem.ChangeFilterState();
+        return true;
+      };
+      i += 1;
+    };
+    return false;
+  }
+
+  public final func OnUpdatedFilters() -> Void {
+    let activeFiltersFromFolder: array<wref<ModFilterCategoryItem>>;
+    let currentFilter: ref<ModFilterCategoryItem>;
+    let currentFolder: ref<ModFilterCategoryFolder>;
+    let currentOutput: ModFilterDrawerOutput;
+    let filterListOutput: array<ModFilterDrawerOutput>;
+    let i: Int32;
+    let j: Int32;
+    let numberOfActiveFilters: Int32;
+    ArrayClear(this.m_activeFiltersList);
+    numberOfActiveFilters = 0;
+    i = 0;
+    while i < ArraySize(this.m_filterFolderList) {
+      currentFolder = this.m_filterFolderList[i];
+      currentOutput.m_bIsExceptionFilter = currentFolder.IsA(n"ModFilterExceptionFolder");
+      currentOutput.m_bIsLanguageFilter = currentFolder.GetIsLanguageFolder();
+      activeFiltersFromFolder = currentFolder.GetActiveFilters();
+      j = 0;
+      while j < ArraySize(activeFiltersFromFolder) {
+        if numberOfActiveFilters < this.m_maximumNumberOfFiltersActivatedAtOnce {
+          currentFilter = activeFiltersFromFolder[j];
+          currentOutput.m_activeFilterName = currentFilter.GetFilterName();
+          currentOutput.m_localizedFilterName = currentFilter.GetLocalizedFilterName();
+          ArrayPush(filterListOutput, currentOutput);
+          ArrayPush(this.m_activeFiltersList, currentFilter);
+          numberOfActiveFilters += 1;
+        };
+        j += 1;
+      };
+      i += 1;
+    };
+    this.PlaySound(n"Button", n"OnPress");
+    inkTextRef.SetText(this.m_currentNumberOfFiltersAppliedText, IntToString(numberOfActiveFilters) + " / " + IntToString(this.m_maximumNumberOfFiltersActivatedAtOnce));
+    this.UpdateFolderItemAvailableState(numberOfActiveFilters >= this.m_maximumNumberOfFiltersActivatedAtOnce);
+    this.m_ownerMenu.UpdateFiltersFromDrawer(filterListOutput);
+  }
+
+  public final func UpdateFolderItemAvailableState(bhasReachedMaximumAmmountOfActivatedFiltersAtOnce: Bool) -> Void {
+    let currentFolder: ref<ModFilterCategoryFolder>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_filterFolderList) {
+      currentFolder = this.m_filterFolderList[i];
+      currentFolder.UpdateFilterItemAvailableState(bhasReachedMaximumAmmountOfActivatedFiltersAtOnce);
+      i += 1;
+    };
+  }
+
+  public final func ResetAll() -> Void {
+    let currentFolder: ref<ModFilterCategoryFolder>;
+    let i: Int32;
+    this.PlaySound(n"Button", n"OnPress");
+    i = 0;
+    while i < ArraySize(this.m_filterFolderList) {
+      currentFolder = this.m_filterFolderList[i];
+      currentFolder.UnselectAllFilters();
+      i += 1;
+    };
+    this.OnUpdatedFilters();
+  }
+
+  public final func likeFilterStateChanged(bInActivated: Bool) -> Void {
+    this.m_ownerMenu.ChangeLikeFilterStateFromDrawer(bInActivated);
+  }
+
+  public final func UpdateScrollPosition() -> Void {
+    this.m_scrollPosition = inkScrollAreaRef.GetVerticalScrollPosition(this.m_scrollAreaRef);
+  }
+
+  public final func ComputeSizeOfUpperHiddenContentInScrollArea() -> Void {
+    this.m_scrollPosition = inkScrollAreaRef.GetVerticalScrollPosition(this.m_scrollAreaRef);
+    this.m_ContentSize = inkWidgetRef.GetDesiredHeight(this.m_folderSpawnerWidget);
+    this.m_cWindowSize = inkWidgetRef.GetDesiredHeight(this.m_contentWindowRef);
+    if this.m_cWindowSize > this.m_ContentSize {
+      this.m_UpperHiddenContentSize = 0.00;
+    } else {
+      this.m_UpperHiddenContentSize = (this.m_ContentSize - this.m_cWindowSize) * this.m_scrollPosition;
+    };
+  }
+
+  public final func GetUpperHiddenContentSize() -> Float {
+    return this.m_UpperHiddenContentSize;
+  }
+
+  public final func RequestDelayedAdjustSliderForDrawer() -> Void {
+    this.m_ownerMenu.RequestDelayedAdjustSliderForDrawer();
+  }
+
+  public final func AdjustScrollbarAfterFolderManipulation() -> Void {
+    let newScrollPosition: Float;
+    let previousContentSize: Float = this.m_ContentSize;
+    let previousScrollPosition: Float = this.m_scrollPosition;
+    let newContentSize: Float = inkWidgetRef.GetDesiredHeight(this.m_folderSpawnerWidget);
+    if newContentSize < this.m_cWindowSize {
+      newScrollPosition = 0.00;
+    } else {
+      newScrollPosition = (previousScrollPosition * previousContentSize) / newContentSize;
+    };
+    inkScrollAreaRef.ScrollVertical(this.m_scrollAreaRef, newScrollPosition);
+    this.m_sliderController.ChangeProgress(newScrollPosition);
+    if this.m_ownerMenu.IsUsingDPad() {
+      this.m_ownerMenu.SetCursorOverWidget(this.m_lastFoldedOrUnfoldedFolder.GetWidgetToNavigateTo(), 0.00, true);
+    };
+  }
+
+  public final func ReadjustScrollPositionDependingOnTargetPos(targetPosY: Float, widgetHeight: Float) -> Void {
+    let newScrollPos: Float;
+    let bIsTooHigh: Bool = this.m_UpperHiddenContentSize > targetPosY;
+    let bIsTooLow: Bool = targetPosY + widgetHeight * 2.50 - this.m_UpperHiddenContentSize > this.m_cWindowSize;
+    if bIsTooHigh {
+      newScrollPos = targetPosY - widgetHeight < 0.00 ? 0.00 : (targetPosY - widgetHeight) / this.m_ContentSize;
+    } else {
+      if bIsTooLow {
+        newScrollPos = (targetPosY + widgetHeight * 2.50) / this.m_ContentSize;
+      };
+    };
+    if bIsTooLow || bIsTooHigh {
+      inkScrollAreaRef.ScrollVertical(this.m_scrollAreaRef, newScrollPos);
+      this.m_sliderController.ChangeProgress(newScrollPos);
+    };
+  }
+
+  public final func UpdateNavigables() -> Void {
+    let currentFolder: ref<ModFilterCategoryFolder>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_filterFolderList) {
+      currentFolder = this.m_filterFolderList[i];
+      currentFolder.SetPreviousFolderRef(i > 0 ? this.m_filterFolderList[i - 1] : null);
+      currentFolder.SetNextFolderRef(i == ArraySize(this.m_filterFolderList) - 1 ? null : this.m_filterFolderList[i + 1]);
+      currentFolder.UpdateNavigablesForFolderAndItsFilters();
+      i += 1;
+    };
+  }
+
+  public final func NavigateUp() -> Void {
+    if this.m_currentlyNavigatedItem != null {
+      this.m_currentlyNavigatedItem = this.m_currentlyNavigatedItem.NavigateUp(this.m_ownerMenu);
+    } else {
+      this.m_ownerMenu.SetCursorOverWidget(this.m_filterFolderList[0].GetRootWidget(), 0.00, false);
+      this.m_currentlyNavigatedItem = this.m_filterFolderList[0];
+    };
+  }
+
+  public final func NavigateDown() -> Void {
+    if this.m_currentlyNavigatedItem != null {
+      this.m_currentlyNavigatedItem = this.m_currentlyNavigatedItem.NavigateDown(this.m_ownerMenu);
+    } else {
+      this.m_ownerMenu.SetCursorOverWidget(this.m_filterFolderList[0].GetRootWidget(), 0.00, false);
+      this.m_currentlyNavigatedItem = this.m_filterFolderList[0];
+    };
+  }
+
+  public final func GetFolderSpawnerRef() -> ref<inkCompoundWidget> {
+    return inkWidgetRef.Get(this.m_folderSpawnerWidget) as inkCompoundWidget;
+  }
+}
+
+public class ModFilterCategoryFolder extends DrawerNavigableItem {
+
+  protected edit let m_folderNameText: inkTextRef;
+
+  protected edit let m_filterItemSpawner: inkCompoundRef;
+
+  protected edit let m_interactableWidget: inkWidgetRef;
+
+  protected edit let m_arrowWidget: inkWidgetRef;
+
+  protected edit let m_numberOfModsText: inkTextRef;
+
+  protected edit let m_panelOutline: inkWidgetRef;
+
+  protected edit let m_panelBackground: inkWidgetRef;
+
+  protected edit let m_fluffOutline: inkWidgetRef;
+
+  protected edit let m_fluffBackground: inkWidgetRef;
+
+  protected edit let m_arrowOutline: inkWidgetRef;
+
+  protected edit let m_arrowFill: inkWidgetRef;
+
+  protected let m_bAllowMultipleSelection: Bool;
+
+  protected let m_bIsLanguageFolder: Bool;
+
+  protected let m_filterItems: [wref<ModFilterCategoryItem>];
+
+  private let m_selectedActiveFilters: [wref<ModFilterCategoryItem>];
+
+  protected let m_isFolded: Bool;
+
+  protected let m_colorNames: ModsMenuColorsNames;
+
+  protected let m_ownerDrawer: wref<ModMenuFilterDrawer>;
+
+  protected let m_previousFolderRef: wref<ModFilterCategoryFolder>;
+
+  protected let m_nextFolderRef: wref<ModFilterCategoryFolder>;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_interactableWidget, n"OnRelease", this, n"OnFolderClicked");
+    this.m_isFolded = false;
+    inkWidgetRef.RegisterToCallback(this.m_interactableWidget, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_interactableWidget, n"OnHoverOut", this, n"OnHoverOut");
+    this.SetUnhoveredColor();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_interactableWidget, n"OnRelease", this, n"OnFolderClicked");
+    inkWidgetRef.UnregisterFromCallback(this.m_interactableWidget, n"OnHoverOver", this, n"OnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_interactableWidget, n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func GetOwnerDrawer() -> ref<ModMenuFilterDrawer> {
+    return this.m_ownerDrawer;
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.SetHoveredColor();
+    this.m_ownerDrawer.SetNavigatedItem(this);
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.SetUnhoveredColor();
+  }
+
+  private final func SetHoveredColor() -> Void {
+    inkWidgetRef.Get(this.m_folderNameText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_numberOfModsText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_fluffOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_arrowOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_arrowFill).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    inkWidgetRef.Get(this.m_fluffBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenPrimaryBackgroundDarkName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenPrimaryBackgroundDarkName);
+  }
+
+  private final func SetUnhoveredColor() -> Void {
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_fluffOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_arrowOutline).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_arrowFill).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_fluffBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+    if ArraySize(this.m_selectedActiveFilters) > 0 {
+      inkWidgetRef.Get(this.m_folderNameText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+      inkWidgetRef.Get(this.m_numberOfModsText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    } else {
+      inkWidgetRef.Get(this.m_folderNameText).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+      inkWidgetRef.Get(this.m_numberOfModsText).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    };
+  }
+
+  public final func Setup(ownerDrawer: ref<ModMenuFilterDrawer>, folderInfo: inkModFilterDrawerInput) -> Void {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let i: Int32;
+    this.m_ownerDrawer = ownerDrawer;
+    this.m_bAllowMultipleSelection = folderInfo.bAllowMultipleSelection;
+    this.m_bIsLanguageFolder = folderInfo.bIsLanguageFilter;
+    inkTextRef.SetText(this.m_folderNameText, GetLocalizedText(folderInfo.folderNameTextLocKey));
+    ArrayClear(this.m_filterItems);
+    i = 0;
+    while i < ArraySize(folderInfo.listOfFilterItemNames) {
+      currentFilterItem = this.SpawnFromLocal(inkWidgetRef.Get(this.m_filterItemSpawner), n"ModFilterCategoryItem").GetController() as ModFilterCategoryItem;
+      currentFilterItem.Setup(this, folderInfo.listOfFilterItemNames[i], folderInfo.listOfFilterItemLocKeys[i], folderInfo.bAllowMultipleSelection);
+      ArrayPush(this.m_filterItems, currentFilterItem);
+      i += 1;
+    };
+    this.Fold(true);
+    this.UpdateNumberOfFilterText();
+  }
+
+  public final func UpdateFilterItemAvailableState(bhasReachedMaximumAmmountOfActivatedFiltersAtOnce: Bool) -> Void {
+    let currentFilter: ref<ModFilterCategoryItem>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_filterItems) {
+      currentFilter = this.m_filterItems[i];
+      currentFilter.UpdateAvailableStateAndColor(bhasReachedMaximumAmmountOfActivatedFiltersAtOnce);
+      i += 1;
+    };
+  }
+
+  protected cb func OnFolderClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if !this.m_isFolded {
+        this.Fold(false);
+      } else {
+        this.Unfold();
+      };
+      this.PlaySound(n"Button", n"OnPress");
+    };
+  }
+
+  public final func OnFilterItemChange(filterItem: wref<ModFilterCategoryItem>, bNewSelectedState: Bool) -> Void {
+    if !this.m_bAllowMultipleSelection {
+      this.UnselectAllFilters();
+    };
+    this.UpdateFilterState(filterItem, bNewSelectedState);
+    this.m_ownerDrawer.OnUpdatedFilters();
+    this.UpdateNumberOfFilterText();
+    this.SetUnhoveredColor();
+  }
+
+  public func Fold(bIsClosingDrawer: Bool) -> Void {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let i: Int32;
+    if !this.m_isFolded {
+      i = 0;
+      while i < ArraySize(this.m_filterItems) {
+        currentFilterItem = this.m_filterItems[i];
+        currentFilterItem.Hide();
+        i += 1;
+      };
+      inkWidgetRef.SetRotation(this.m_arrowWidget, 0.00);
+      this.m_isFolded = true;
+    };
+    this.m_ownerDrawer.SetNavigatedItem(this);
+    this.m_ownerDrawer.ComputeSizeOfUpperHiddenContentInScrollArea();
+    this.UpdateFolderNavigablesAndNeighbors();
+    if !bIsClosingDrawer {
+      this.m_ownerDrawer.RequestDelayedAdjustSliderForDrawer();
+      this.m_ownerDrawer.m_lastFoldedOrUnfoldedFolder = this;
+    };
+  }
+
+  public final func Unfold() -> Void {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let i: Int32;
+    this.m_ownerDrawer.UpdateScrollPosition();
+    this.m_ownerDrawer.ComputeSizeOfUpperHiddenContentInScrollArea();
+    if this.m_isFolded {
+      i = 0;
+      while i < ArraySize(this.m_filterItems) {
+        currentFilterItem = this.m_filterItems[i];
+        currentFilterItem.Show();
+        i += 1;
+      };
+      this.m_ownerDrawer.UpdateScrollPosition();
+      inkWidgetRef.SetRotation(this.m_arrowWidget, 180.00);
+      this.m_isFolded = false;
+    };
+    this.m_ownerDrawer.SetNavigatedItem(this);
+    this.UpdateFolderNavigablesAndNeighbors();
+    this.m_ownerDrawer.RequestDelayedAdjustSliderForDrawer();
+    this.m_ownerDrawer.m_lastFoldedOrUnfoldedFolder = this;
+  }
+
+  public final func GetSpawnerRef() -> ref<inkCompoundWidget> {
+    return inkWidgetRef.Get(this.m_filterItemSpawner) as inkCompoundWidget;
+  }
+
+  public final func SetPreviousFolderRef(previousFolder: ref<ModFilterCategoryFolder>) -> Void {
+    this.m_previousFolderRef = previousFolder;
+  }
+
+  public final func SetNextFolderRef(nextFolder: ref<ModFilterCategoryFolder>) -> Void {
+    this.m_nextFolderRef = nextFolder;
+  }
+
+  public final func SetupNavigables(upTargetForFolder: ref<DrawerNavigableItem>, downTargetForFolder: ref<DrawerNavigableItem>) -> Void {
+    let currentItem: ref<ModFilterCategoryItem>;
+    let downTargetForItem: ref<DrawerNavigableItem>;
+    let i: Int32;
+    let upTargetForItem: ref<DrawerNavigableItem>;
+    this.SetNavigateTargets(upTargetForFolder, downTargetForFolder);
+    i = 1;
+    while i < ArraySize(this.m_filterItems) {
+      upTargetForItem = i == 0 ? null : this.m_filterItems[i - 1];
+      downTargetForItem = i == ArraySize(this.m_filterItems) - 1 ? this.m_nextFolderRef : null;
+      currentItem = this.m_filterItems[i];
+      currentItem.SetNavigateTargets(upTargetForItem, downTargetForItem);
+      i += 1;
+    };
+  }
+
+  public func UpdateNavigablesForFolderAndItsFilters() -> Void {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let downTarget: ref<DrawerNavigableItem>;
+    let i: Int32;
+    let upTarget: ref<DrawerNavigableItem>;
+    this.UpdateFolderNavigables();
+    i = 0;
+    while i < ArraySize(this.m_filterItems) {
+      currentFilterItem = this.m_filterItems[i];
+      upTarget = i == 0 ? this : this.m_filterItems[i - 1];
+      downTarget = i == ArraySize(this.m_filterItems) - 1 ? this.m_nextFolderRef : this.m_filterItems[i + 1];
+      currentFilterItem.SetNavigateTargets(upTarget, downTarget);
+      i += 1;
+    };
+  }
+
+  public final func UpdateFolderNavigables() -> Void {
+    let downTarget: ref<DrawerNavigableItem>;
+    let upTarget: ref<DrawerNavigableItem>;
+    if this.m_previousFolderRef == null {
+      upTarget = null;
+    } else {
+      upTarget = this.m_previousFolderRef.GetIsFolded() ? this.m_previousFolderRef : this.m_previousFolderRef.GetLastFilterItem();
+    };
+    if this.m_isFolded {
+      downTarget = this.m_nextFolderRef;
+    } else {
+      downTarget = this.GetFirstFilterItem();
+    };
+    this.SetNavigateTargets(upTarget, downTarget);
+  }
+
+  public final func UpdateNeighborFolderNavigables() -> Void {
+    this.m_previousFolderRef.UpdateFolderNavigables();
+    this.m_nextFolderRef.UpdateFolderNavigables();
+  }
+
+  public final func UpdateFolderNavigablesAndNeighbors() -> Void {
+    this.UpdateFolderNavigables();
+    this.UpdateNeighborFolderNavigables();
+  }
+
+  public final func UpdateFilterState(filterItem: wref<ModFilterCategoryItem>, bNewSelectedState: Bool) -> Void {
+    if bNewSelectedState {
+      this.SelectFilter(filterItem);
+    } else {
+      this.UnselectFilter(filterItem);
+    };
+  }
+
+  private final func SelectFilter(filterItem: wref<ModFilterCategoryItem>) -> Void {
+    filterItem.Select();
+    ArrayPush(this.m_selectedActiveFilters, filterItem);
+  }
+
+  private final func UnselectFilter(filterItem: wref<ModFilterCategoryItem>) -> Void {
+    ArrayRemove(this.m_selectedActiveFilters, filterItem);
+    filterItem.Unselect();
+  }
+
+  public final func UnselectAllFilters() -> Void {
+    let item: ref<ModFilterCategoryItem>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_selectedActiveFilters) {
+      item = this.m_selectedActiveFilters[i];
+      item.Unselect();
+      i += 1;
+    };
+    ArrayClear(this.m_selectedActiveFilters);
+    this.UpdateNumberOfFilterText();
+    this.SetUnhoveredColor();
+  }
+
+  protected func EvaluateWidgetPositionAndAdjustIfNecessary() -> Void {
+    let folderPos: Vector2;
+    let drawer: ref<ModMenuFilterDrawer> = this.GetOwnerDrawer();
+    drawer.ComputeSizeOfUpperHiddenContentInScrollArea();
+    folderPos = drawer.GetFolderSpawnerRef().GetChildPosition(this.GetRootWidget());
+    drawer.ReadjustScrollPositionDependingOnTargetPos(folderPos.Y, inkWidgetRef.GetHeight(this.m_widgetToFocusTo));
+  }
+
+  public func GetActiveFilters() -> [wref<ModFilterCategoryItem>] {
+    return this.m_selectedActiveFilters;
+  }
+
+  public final func GetIsLanguageFolder() -> Bool {
+    return this.m_bIsLanguageFolder;
+  }
+
+  public final func GetIsFolded() -> Bool {
+    return this.m_isFolded;
+  }
+
+  public final func GetFirstFilterItem() -> ref<ModFilterCategoryItem> {
+    return this.m_filterItems[0];
+  }
+
+  public final func GetLastFilterItem() -> ref<ModFilterCategoryItem> {
+    return this.m_filterItems[ArraySize(this.m_filterItems) - 1];
+  }
+
+  protected final func UpdateNumberOfFilterText() -> Void {
+    inkTextRef.SetText(this.m_numberOfModsText, IntToString(ArraySize(this.m_selectedActiveFilters)) + "/" + IntToString(ArraySize(this.m_filterItems)));
+  }
+
+  public final func GetFolderPosition() -> Vector2 {
+    return this.m_ownerDrawer.GetFolderSpawnerRef().GetChildPosition(this.GetRootWidget());
+  }
+}
+
+public class ModFilterExceptionFolder extends ModFilterCategoryFolder {
+
+  private let m_likeFilterItem: wref<ModFilterExceptionItem>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+    inkWidgetRef.SetVisible(this.m_widgetToFocusTo, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+  }
+
+  public final func Setup(ownerDrawer: ref<ModMenuFilterDrawer>) -> Void {
+    this.m_ownerDrawer = ownerDrawer;
+    this.m_bAllowMultipleSelection = true;
+    this.m_bIsLanguageFolder = false;
+    inkTextRef.SetText(this.m_folderNameText, GetLocalizedText("UI-Shards-Others"));
+    ArrayClear(this.m_filterItems);
+    this.m_likeFilterItem = this.SpawnFromLocal(inkWidgetRef.Get(this.m_filterItemSpawner), n"ModFilterExceptionItem").GetController() as ModFilterExceptionItem;
+    this.m_likeFilterItem.Setup(this, this.m_ownerDrawer, "Liked", "UI-Modio-MenuContent-Liked");
+    ArrayPush(this.m_filterItems, this.m_likeFilterItem);
+    this.Unfold();
+    this.UpdateNumberOfFilterText();
+  }
+
+  public func Fold(bIsClosingDrawer: Bool) -> Void;
+
+  public func GetWidgetToNavigateTo() -> ref<inkWidget> {
+    if ArraySize(this.m_filterItems) > 0 {
+      return this.m_filterItems[0].GetWidgetToNavigateTo();
+    };
+    return null;
+  }
+
+  public func UpdateNavigablesForFolderAndItsFilters() -> Void {
+    let currentFilterItem: ref<ModFilterCategoryItem>;
+    let downTarget: ref<DrawerNavigableItem>;
+    let i: Int32;
+    let upTarget: ref<DrawerNavigableItem>;
+    this.UpdateFolderNavigables();
+    i = 0;
+    while i < ArraySize(this.m_filterItems) {
+      currentFilterItem = this.m_filterItems[i];
+      upTarget = i == 0 ? this.m_nextNavigateUpTarget : this.m_filterItems[i - 1];
+      downTarget = i == ArraySize(this.m_filterItems) - 1 ? this.m_nextFolderRef : this.m_filterItems[i + 1];
+      currentFilterItem.SetNavigateTargets(upTarget, downTarget);
+      i += 1;
+    };
+  }
+
+  public func SetNavigateTargets(upTarget: ref<DrawerNavigableItem>, downTarget: ref<DrawerNavigableItem>) -> Void {
+    let firstFilterItem: ref<ModFilterCategoryItem>;
+    super.SetNavigateTargets(upTarget, downTarget);
+    if ArraySize(this.m_filterItems) > 0 {
+      firstFilterItem = this.m_filterItems[0];
+      firstFilterItem.SetNavigateTargets(upTarget, firstFilterItem.m_nextNavigateDownTarget);
+    };
+  }
+}
+
+public class ModFilterCategoryItem extends DrawerNavigableItem {
+
+  protected edit let m_filterNameText: inkTextRef;
+
+  protected edit let m_selectorCanvas: inkWidgetRef;
+
+  protected edit let m_checkboxFill: inkImageRef;
+
+  protected edit let m_checkboxOutline: inkImageRef;
+
+  protected edit let m_panelBackground: inkWidgetRef;
+
+  protected edit let m_panelOutline: inkWidgetRef;
+
+  protected let m_filterName: String;
+
+  protected let m_localizedFilterName: String;
+
+  protected let m_isSelected: Bool;
+
+  protected let m_isAvailable: Bool;
+
+  private let m_isCurrentlyHovered: Bool;
+
+  protected let m_ownerFolder: wref<ModFilterCategoryFolder>;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_selectorCanvas, n"OnRelease", this, n"OnFilterClicked");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.m_isSelected = false;
+    this.m_isCurrentlyHovered = false;
+    this.m_isAvailable = true;
+    inkWidgetRef.SetVisible(this.m_checkboxFill, false);
+    this.SetDefaultColor();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_selectorCanvas, n"OnRelease", this, n"OnFilterClicked");
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    this.SetHoveredColor();
+    this.m_isCurrentlyHovered = true;
+    this.m_ownerFolder.GetOwnerDrawer().SetNavigatedItem(this);
+    this.PlaySound(n"Button", n"OnHover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isSelected {
+      this.SetSelectedColor();
+    } else {
+      this.SetDefaultColor();
+    };
+    this.m_isCurrentlyHovered = false;
+  }
+
+  private final func SetHoveredColor() -> Void {
+    if this.m_isAvailable {
+      inkWidgetRef.Get(this.m_filterNameText).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    } else {
+      inkWidgetRef.Get(this.m_filterNameText).BindProperty(n"tintColor", this.m_colorNames.greyName);
+    };
+    inkWidgetRef.Get(this.m_checkboxOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenPrimaryBackgroundDarkName);
+  }
+
+  private final func SetSelectedColor() -> Void {
+    inkWidgetRef.Get(this.m_filterNameText).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_checkboxOutline).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullScreenSecondaryBackground3Name);
+  }
+
+  private final func SetDefaultColor() -> Void {
+    if this.m_isAvailable {
+      inkWidgetRef.Get(this.m_filterNameText).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    } else {
+      inkWidgetRef.Get(this.m_filterNameText).BindProperty(n"tintColor", this.m_colorNames.greyName);
+    };
+    inkWidgetRef.Get(this.m_checkboxOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.faintRedName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+  }
+
+  private final func SetCorrectColor() -> Void {
+    if !this.m_isCurrentlyHovered {
+      if this.m_isSelected {
+        this.SetSelectedColor();
+      } else {
+        this.SetDefaultColor();
+      };
+    } else {
+      this.SetHoveredColor();
+    };
+  }
+
+  public final func Setup(ownerFolder: wref<ModFilterCategoryFolder>, filterName: String, filterTextLocKey: String, allowMultipleSelection: Bool) -> Void {
+    this.m_ownerFolder = ownerFolder;
+    this.m_filterName = filterName;
+    this.m_localizedFilterName = filterTextLocKey;
+    inkTextRef.SetText(this.m_filterNameText, filterTextLocKey);
+    if !allowMultipleSelection {
+      inkImageRef.SetTexturePart(this.m_checkboxFill, n"checkbox_round_tick");
+      inkImageRef.SetTexturePart(this.m_checkboxOutline, n"checkbox_round_stroke");
+    };
+  }
+
+  public final func UpdateState(bNewState: Bool) -> Void {
+    this.m_isSelected = bNewState;
+    inkWidgetRef.SetVisible(this.m_checkboxFill, bNewState);
+    this.SetCorrectColor();
+  }
+
+  public final func UpdateAvailableStateAndColor(bhasReachedMaximumAmmountOfActivatedFiltersAtOnce: Bool) -> Void {
+    if bhasReachedMaximumAmmountOfActivatedFiltersAtOnce && !this.m_isSelected {
+      this.m_isAvailable = false;
+    } else {
+      if !bhasReachedMaximumAmmountOfActivatedFiltersAtOnce {
+        this.m_isAvailable = true;
+      };
+    };
+    this.SetCorrectColor();
+  }
+
+  public final func GetIsSelected() -> Bool {
+    return this.m_isSelected;
+  }
+
+  public func Select() -> Void {
+    this.UpdateState(true);
+  }
+
+  public func Unselect() -> Void {
+    this.UpdateState(false);
+  }
+
+  public final func Hide() -> Void {
+    this.GetRootWidget().SetVisible(false);
+  }
+
+  public final func Show() -> Void {
+    this.GetRootWidget().SetVisible(true);
+  }
+
+  public func ChangeFilterState() -> Void {
+    this.m_ownerFolder.OnFilterItemChange(this, !this.m_isSelected);
+  }
+
+  protected cb func OnFilterClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      if this.m_isAvailable {
+        this.ChangeFilterState();
+      };
+    };
+  }
+
+  public final func GetFilterName() -> String {
+    return this.m_filterName;
+  }
+
+  public final func GetLocalizedFilterName() -> String {
+    return this.m_localizedFilterName;
+  }
+
+  protected func EvaluateWidgetPositionAndAdjustIfNecessary() -> Void {
+    let folderPos: Vector2;
+    let pos: Vector2;
+    let posY: Float;
+    let drawer: ref<ModMenuFilterDrawer> = this.m_ownerFolder.GetOwnerDrawer();
+    drawer.ComputeSizeOfUpperHiddenContentInScrollArea();
+    pos = this.m_ownerFolder.GetSpawnerRef().GetChildPosition(this.GetRootWidget());
+    folderPos = this.m_ownerFolder.GetFolderPosition();
+    posY = folderPos.Y + pos.Y;
+    posY = posY;
+    drawer.ReadjustScrollPositionDependingOnTargetPos(posY, inkWidgetRef.GetHeight(this.m_widgetToFocusTo));
+  }
+}
+
+public class ModFilterExceptionItem extends ModFilterCategoryItem {
+
+  private let m_ownerDrawer: wref<ModMenuFilterDrawer>;
+
+  public func Setup(ownerFolder: wref<ModFilterCategoryFolder>, ownerDrawer: wref<ModMenuFilterDrawer>, filterName: String, filterTextLocKey: String) -> Void {
+    this.m_ownerFolder = ownerFolder;
+    this.m_ownerDrawer = ownerDrawer;
+    this.m_filterName = GetLocalizedText(filterTextLocKey);
+    this.m_localizedFilterName = this.m_filterName;
+    inkTextRef.SetText(this.m_filterNameText, this.m_filterName);
+  }
+
+  public func Select() -> Void {
+    let bWasSelected: Bool = this.GetIsSelected();
+    super.Select();
+    if !bWasSelected {
+      this.m_ownerDrawer.likeFilterStateChanged(true);
+    };
+  }
+
+  public func Unselect() -> Void {
+    let bWasSelected: Bool = this.GetIsSelected();
+    super.Unselect();
+    if bWasSelected {
+      this.m_ownerDrawer.likeFilterStateChanged(false);
+    };
+  }
+
+  protected cb func OnFilterClicked(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.ChangeFilterState();
+    };
+  }
+}
+
+public class SelectedFilterItem extends inkButtonController {
+
+  private edit let m_crossButton: inkWidgetRef;
+
+  private edit let m_filterName: inkTextRef;
+
+  private edit let m_widgetForSize: inkWidgetRef;
+
+  private edit let m_fluffBackground: inkWidgetRef;
+
+  private edit let m_fluffOutline: inkWidgetRef;
+
+  private edit let m_panelOutline: inkWidgetRef;
+
+  private edit let m_panelBackground: inkWidgetRef;
+
+  private let m_owner: wref<SelectedFilterGroup>;
+
+  private let m_name: String;
+
+  private let m_localizedName: String;
+
+  private let m_bisExceptionFilter: Bool;
+
+  private let m_markAsDelete: Bool;
+
+  private let m_colorNames: ModsMenuColorsNames;
+
+  protected cb func OnInitialize() -> Bool {
+    this.m_markAsDelete = false;
+    this.RegisterToCallback(n"OnRelease", this, n"OnSelectedFilterClicked");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    this.SetDefaultColor();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterCallbacks();
+  }
+
+  public final func UnregisterCallbacks() -> Void {
+    this.UnregisterFromCallback(n"OnRelease", this, n"OnSelectedFilterClicked");
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  public final func MarkAsDelete() -> Void {
+    this.m_markAsDelete = true;
+  }
+
+  public final func GetMarkedAsDelete() -> Bool {
+    return this.m_markAsDelete;
+  }
+
+  public final func Setup(owner: ref<SelectedFilterGroup>, filterName: String, localizedFilterName: String, bIsExceptionFilter: Bool) -> Void {
+    this.m_owner = owner;
+    this.m_bisExceptionFilter = bIsExceptionFilter;
+    inkTextRef.SetText(this.m_filterName, localizedFilterName);
+    this.m_name = filterName;
+    this.m_localizedName = localizedFilterName;
+  }
+
+  public final func GetFilterName() -> String {
+    return this.m_name;
+  }
+
+  public final func GetLocalizedFilterName() -> String {
+    return this.m_localizedName;
+  }
+
+  public final func GetIsExceptionFilter() -> Bool {
+    return this.m_bisExceptionFilter;
+  }
+
+  public final func IsFilterName(name: String) -> Bool {
+    return Equals(this.m_name, name);
+  }
+
+  protected cb func OnSelectedFilterClicked(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      this.m_owner.OnSelectedFilterClicked(this);
+    };
+  }
+
+  public final func GetDesiredWidth() -> Float {
+    return inkWidgetRef.GetDesiredWidth(this.m_widgetForSize);
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_owner.GetOwnerMenu().IsFilterDrawerOpen() {
+      return true;
+    };
+    this.SetHoveredColor();
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    this.SetDefaultColor();
+  }
+
+  private final func SetHoveredColor() -> Void {
+    inkWidgetRef.Get(this.m_filterName).BindProperty(n"tintColor", this.m_colorNames.activeBlueName);
+    inkWidgetRef.Get(this.m_crossButton).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    inkWidgetRef.Get(this.m_fluffBackground).BindProperty(n"tintColor", this.m_colorNames.faintBlueName);
+    inkWidgetRef.Get(this.m_fluffOutline).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.mildBlueName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.faintBlueName);
+  }
+
+  private final func SetDefaultColor() -> Void {
+    inkWidgetRef.Get(this.m_crossButton).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_filterName).BindProperty(n"tintColor", this.m_colorNames.activeRedName);
+    inkWidgetRef.Get(this.m_fluffBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+    inkWidgetRef.Get(this.m_fluffOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_panelOutline).BindProperty(n"tintColor", this.m_colorNames.mildRedName);
+    inkWidgetRef.Get(this.m_panelBackground).BindProperty(n"tintColor", this.m_colorNames.fullscreenRedDarkBackgroundName);
+  }
+
+  public final func SetAsExceptionFilterItem() -> Void {
+    this.SetNavigable(false);
+    this.GetRootWidget().SetInteractive(false);
+    inkWidgetRef.SetInteractive(this.m_widgetForSize, false);
+    this.GetRootWidget().SetVisible(true);
+    this.UnregisterCallbacks();
+    inkWidgetRef.SetVisible(this.m_crossButton, false);
+    this.SetDefaultColor();
+  }
+}
+
+public class SelectedFilterGroup extends inkLogicController {
+
+  private edit let m_filterItemSpawner: inkCompoundRef;
+
+  private let m_listOfFilters: [wref<SelectedFilterItem>];
+
+  private let m_owner: wref<BrowserModsMenuGameController>;
+
+  private let m_filterDrawerRef: wref<ModMenuFilterDrawer>;
+
+  protected cb func OnInitialize() -> Bool;
+
+  public final func Setup(owner: ref<BrowserModsMenuGameController>, filterDrawer: ref<ModMenuFilterDrawer>) -> Void {
+    this.m_owner = owner;
+    this.m_filterDrawerRef = filterDrawer;
+  }
+
+  public final func AddFilter(filterName: String, m_localizedFilterName: String, bIsExceptionFilter: Bool) -> ref<SelectedFilterItem> {
+    let currentFilter: ref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_filterItemSpawner), n"SelectedFilterItem");
+    let currentFilterController: ref<SelectedFilterItem> = currentFilter.GetController() as SelectedFilterItem;
+    currentFilterController.Setup(this, filterName, m_localizedFilterName, bIsExceptionFilter);
+    this.m_owner.AddToListOfNavigables(currentFilterController);
+    ArrayPush(this.m_listOfFilters, currentFilterController);
+    currentFilter.SetVisible(false);
+    return currentFilterController;
+  }
+
+  public final func AddExceptionMoreFilter(numberOfHiddenMods: Int32) -> ref<SelectedFilterItem> {
+    let exceptionFilterName: String = "+" + IntToString(numberOfHiddenMods);
+    let exceptionFilter: ref<SelectedFilterItem> = this.AddFilter(exceptionFilterName, exceptionFilterName, false);
+    exceptionFilter.SetAsExceptionFilterItem();
+    return exceptionFilter;
+  }
+
+  public final func MarkFilterAsDelete(filter: ref<SelectedFilterItem>) -> Void {
+    if ArrayContains(this.m_listOfFilters, filter) {
+      filter.MarkAsDelete();
+    };
+  }
+
+  public final func MarkAllFiltersAsDelete() -> Void {
+    let currentFilter: ref<SelectedFilterItem>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_listOfFilters) {
+      currentFilter = this.m_listOfFilters[i];
+      this.MarkFilterAsDelete(currentFilter);
+      i += 1;
+    };
+  }
+
+  public final func DeleteMarkedFilters() -> Void {
+    let currentFilter: ref<SelectedFilterItem>;
+    let listOfFilterItemsToRemove: array<ref<SelectedFilterItem>>;
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_listOfFilters) {
+      currentFilter = this.m_listOfFilters[i];
+      if currentFilter.GetMarkedAsDelete() {
+        inkCompoundRef.RemoveChild(this.m_filterItemSpawner, currentFilter.GetRootWidget());
+        ArrayPush(listOfFilterItemsToRemove, currentFilter);
+      };
+      i += 1;
+    };
+    i = 0;
+    while i < ArraySize(listOfFilterItemsToRemove) {
+      ArrayRemove(this.m_listOfFilters, listOfFilterItemsToRemove[i]);
+      this.m_owner.RemoveFromListOfNavigables(listOfFilterItemsToRemove[i]);
+      i += 1;
+    };
+  }
+
+  public final func GetListOfFilters() -> [wref<SelectedFilterItem>] {
+    return this.m_listOfFilters;
+  }
+
+  public final func OnSelectedFilterClicked(filter: ref<SelectedFilterItem>) -> Void {
+    this.m_filterDrawerRef.RemoveActiveFilterByName(filter.GetFilterName(), filter.GetIsExceptionFilter());
+  }
+
+  public final func GetOwnerMenu() -> wref<BrowserModsMenuGameController> {
+    return this.m_owner;
+  }
+}
+
+public class DrawerNavigableItem extends inkButtonController {
+
+  protected edit let m_widgetToFocusTo: inkWidgetRef;
+
+  protected let m_nextNavigateUpTarget: wref<DrawerNavigableItem>;
+
+  protected let m_nextNavigateDownTarget: wref<DrawerNavigableItem>;
+
+  public func GetWidgetToNavigateTo() -> ref<inkWidget> {
+    return inkWidgetRef.Get(this.m_widgetToFocusTo);
+  }
+
+  public func SetNavigateTargets(upTarget: ref<DrawerNavigableItem>, downTarget: ref<DrawerNavigableItem>) -> Void {
+    this.m_nextNavigateUpTarget = upTarget;
+    this.m_nextNavigateDownTarget = downTarget;
+  }
+
+  public final func NavigateUp(gameController: ref<inkGameController>) -> ref<DrawerNavigableItem> {
+    if this.m_nextNavigateUpTarget == null {
+      return this;
+    };
+    gameController.SetCursorOverWidget(this.m_nextNavigateUpTarget.GetWidgetToNavigateTo(), 0.00, true);
+    this.m_nextNavigateUpTarget.EvaluateWidgetPositionAndAdjustIfNecessary();
+    return this.m_nextNavigateUpTarget;
+  }
+
+  public final func NavigateDown(gameController: ref<inkGameController>) -> ref<DrawerNavigableItem> {
+    if this.m_nextNavigateDownTarget == null {
+      return this;
+    };
+    gameController.SetCursorOverWidget(this.m_nextNavigateDownTarget.GetWidgetToNavigateTo(), 0.00, true);
+    this.m_nextNavigateDownTarget.EvaluateWidgetPositionAndAdjustIfNecessary();
+    return this.m_nextNavigateDownTarget;
+  }
+
+  protected func EvaluateWidgetPositionAndAdjustIfNecessary() -> Void;
+}

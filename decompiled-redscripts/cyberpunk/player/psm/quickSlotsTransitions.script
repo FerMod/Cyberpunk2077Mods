@@ -1,0 +1,772 @@
+
+public abstract class QuickSlotsTransition extends DefaultTransition {
+
+  protected final const func GetUIBlackboard(scriptInterface: ref<StateGameScriptInterface>) -> ref<IBlackboard> {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    return blackboard;
+  }
+
+  protected final func SetUIBlackboardBoolVariable(scriptInterface: ref<StateGameScriptInterface>, id: BlackboardID_Bool, value: Bool) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetBool(id, value);
+  }
+
+  protected final func SetUIBlackboardFloatVariable(scriptInterface: ref<StateGameScriptInterface>, id: BlackboardID_Float, value: Float) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetFloat(id, value);
+  }
+
+  protected final func SetUIBlackboardIntVariable(scriptInterface: ref<StateGameScriptInterface>, id: BlackboardID_Int, value: Int32) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetInt(id, value);
+  }
+
+  protected final func SetUIBlackboardVector4Variable(scriptInterface: ref<StateGameScriptInterface>, id: BlackboardID_Vector4, value: Vector4) -> Void {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UI_QuickSlotsData);
+    blackboard.SetVector4(id, value);
+  }
+
+  protected final func GetQuickSlotsManager(scriptInterface: ref<StateGameScriptInterface>) -> ref<QuickSlotsManager> {
+    return (scriptInterface.owner as PlayerPuppet).GetQuickSlotsManager();
+  }
+
+  protected final const func CheckForAnyItemInEquipmentArea(const scriptInterface: ref<StateGameScriptInterface>, areaType: gamedataEquipmentArea) -> Bool {
+    return EquipmentSystem.GetData(scriptInterface.executionOwner).GetNumberOfItemsInEquipmentArea(areaType) > 0;
+  }
+
+  protected final const func HasAnyVehiclesUnlocked(const scriptInterface: ref<StateGameScriptInterface>) -> Int32 {
+    let playerVehicleList: array<PlayerVehicle>;
+    let vehicleSystem: ref<VehicleSystem> = GameInstance.GetVehicleSystem(scriptInterface.GetGame());
+    vehicleSystem.GetPlayerUnlockedVehicles(playerVehicleList);
+    return ArraySize(playerVehicleList);
+  }
+
+  protected final const func DoesVehicleSupportRadio(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehObject: wref<VehicleObject>;
+    VehicleComponent.GetVehicle(scriptInterface.GetGame(), scriptInterface.executionOwnerEntityID, vehObject);
+    if vehObject != (vehObject as CarObject) && vehObject != (vehObject as BikeObject) {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func CheckNoRadialMenusRestriction(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoRadialMenus");
+  }
+
+  protected final const func CheckVehicleSummonigRestriction(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleSummoning");
+  }
+
+  protected final const func IsPlayerInWheelBlockingWorkspot(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return stateContext.IsStateActive(n"Locomotion", n"workspot") && DefaultTransition.GetPlayerPuppet(scriptInterface).PlayerContainsWorkspotTag(n"BlockRadialWheels");
+  }
+
+  protected final const func IsVehicleDriverAllowedToSelectWeapons(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if stateContext.IsStateActive(n"Vehicle", n"drive") && !VehicleTransition.CanEnterDriverCombat() {
+      return false;
+    };
+    if stateContext.IsStateMachineActive(n"Vehicle") && scriptInterface.GetActionValue(n"Exit") > 0.00 {
+      return false;
+    };
+    return true;
+  }
+
+  protected final const func IsplayerInStateAllowedToSelectWeapons(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let ladderState: CName;
+    if stateContext.IsStateMachineActive(n"LocomotionSwimming") {
+      return false;
+    };
+    ladderState = stateContext.GetStateMachineCurrentState(n"Locomotion");
+    if Equals(ladderState, n"ladder") || Equals(ladderState, n"ladderSprint") || Equals(ladderState, n"ladderSlide") {
+      return false;
+    };
+    return true;
+  }
+}
+
+public abstract class QuickSlotsHoldDecisions extends QuickSlotsDecisions {
+
+  public const func ToQuickSlotsReady(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let hasCancelled: Bool = stateContext.GetBoolParameter(n"RadialWheelCloseRequest");
+    if scriptInterface.GetActionValue(n"CameraAim") > 0.00 {
+      this.SoftBlockAimingForTime(stateContext, scriptInterface, 0.10);
+    };
+    if hasCancelled || stateContext.IsStateActive(n"Vehicle", n"exitingCombat") {
+      stateContext.SetTemporaryFloatParameter(n"rightStickAngle", -1.00, true);
+    };
+    return hasCancelled || this.IsPlayerInAnyMenu(scriptInterface);
+  }
+
+  public const func ToQuickSlotsBusy(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if scriptInterface.IsActionJustReleased(n"SelectWheelItem") {
+      return true;
+    };
+    return false;
+  }
+}
+
+public abstract class QuickSlotsHoldEvents extends QuickSlotsEvents {
+
+  public let m_holdDirection: EDPadSlot;
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetUIBlackboardBoolVariable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, true);
+    this.NotifyQuickSlotsManagerButtonHoldStart(scriptInterface, this.m_holdDirection);
+    stateContext.SetTemporaryFloatParameter(n"rightStickAngle", -1.00, true);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let stickAngle: Float = this.GetStickAngle(stateContext.GetTemporaryFloatParameter(n"rightStickAngle"), scriptInterface);
+    this.SetUIBlackboardFloatVariable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRightStickAngle, stickAngle);
+    stateContext.SetTemporaryFloatParameter(n"rightStickAngle", stickAngle, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected final func NotifyQuickSlotsManagerButtonHoldStart(scriptInterface: ref<StateGameScriptInterface>, dPadItemDirection: EDPadSlot) -> Void {
+    let evt: ref<QuickSlotButtonHoldStartEvent> = new QuickSlotButtonHoldStartEvent();
+    evt.dPadItemDirection = dPadItemDirection;
+    scriptInterface.owner.QueueEvent(evt);
+  }
+
+  protected final func NotifyQuickSlotsManagerButtonHoldEnd(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>, dPadItemDirection: EDPadSlot, tryExecuteCommand: Bool) -> Void {
+    let stateFloat: StateResultFloat = stateContext.GetTemporaryFloatParameter(n"rightStickAngle");
+    let evt: ref<QuickSlotButtonHoldEndEvent> = new QuickSlotButtonHoldEndEvent();
+    evt.dPadItemDirection = dPadItemDirection;
+    evt.rightStickAngle = stateFloat.value;
+    evt.tryExecuteCommand = tryExecuteCommand;
+    if StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoRadialMenus") {
+      stateContext.SetTemporaryFloatParameter(n"rightStickAngle", -1.00, true);
+      this.SetUIBlackboardFloatVariable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRightStickAngle, -1.00);
+      evt.rightStickAngle = -1.00;
+      evt.tryExecuteCommand = false;
+    };
+    scriptInterface.owner.QueueEvent(evt);
+  }
+
+  protected final func GetRightStickAngle(stateFloat: StateResultFloat, scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    if AbsF(scriptInterface.GetActionValue(n"UI_MoveX_Axis")) + AbsF(scriptInterface.GetActionValue(n"UI_MoveY_Axis")) < this.GetStaticFloatParameterDefault("deadZone", 0.40) {
+      return stateFloat.value;
+    };
+    return Rad2Deg(AtanF(scriptInterface.GetActionValue(n"UI_MoveX_Axis"), scriptInterface.GetActionValue(n"UI_MoveY_Axis"))) + 180.00;
+  }
+
+  protected final func GetLeftStickAngle(stateFloat: StateResultFloat, scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    if AbsF(scriptInterface.GetActionValue(n"UI_LookX_Axis")) + AbsF(scriptInterface.GetActionValue(n"UI_LookY_Axis")) < this.GetStaticFloatParameterDefault("deadZone", 0.40) {
+      return stateFloat.value;
+    };
+    return Rad2Deg(AtanF(scriptInterface.GetActionValue(n"UI_LookX_Axis"), scriptInterface.GetActionValue(n"UI_LookY_Axis"))) + 180.00;
+  }
+
+  protected final func GetStickAngle(stateFloat: StateResultFloat, scriptInterface: ref<StateGameScriptInterface>) -> Float {
+    let leftStickInDeadZone: Bool = AbsF(scriptInterface.GetActionValue(n"UI_LookX_Axis")) + AbsF(scriptInterface.GetActionValue(n"UI_LookY_Axis")) < this.GetStaticFloatParameterDefault("deadZone", 0.40);
+    let rightStickInDeadZone: Bool = AbsF(scriptInterface.GetActionValue(n"UI_MoveX_Axis")) + AbsF(scriptInterface.GetActionValue(n"UI_MoveY_Axis")) < this.GetStaticFloatParameterDefault("deadZone", 0.40);
+    if leftStickInDeadZone && rightStickInDeadZone {
+      return stateFloat.value;
+    };
+    if !leftStickInDeadZone {
+      return Rad2Deg(AtanF(scriptInterface.GetActionValue(n"UI_LookX_Axis"), scriptInterface.GetActionValue(n"UI_LookY_Axis"))) + 180.00;
+    };
+    if !rightStickInDeadZone {
+      return Rad2Deg(AtanF(scriptInterface.GetActionValue(n"UI_MoveX_Axis"), scriptInterface.GetActionValue(n"UI_MoveY_Axis"))) + 180.00;
+    };
+    return -1.00;
+  }
+}
+
+public abstract class QuickSlotsTapDecisions extends QuickSlotsDecisions {
+
+  public const func ToQuickSlotsReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetStaticFloatParameterDefault("durationTime", 2.00);
+  }
+
+  public const func ToQuickSlotsBusy(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetStaticFloatParameterDefault("singleTapStayTime", 0.50);
+  }
+}
+
+public abstract class QuickSlotsTapEvents extends QuickSlotsEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+
+  protected final func CallActionRequest(scriptInterface: ref<StateGameScriptInterface>, actionType: QuickSlotActionType) -> Void {
+    let evt: ref<CallAction> = new CallAction();
+    evt.calledAction = actionType;
+    scriptInterface.owner.QueueEvent(evt);
+  }
+}
+
+public class QuickSlotsReadyEvents extends QuickSlotsEvents {
+
+  @default(QuickSlotsReadyEvents, true)
+  public let shouldSendEvent: Bool;
+
+  public let timePressed: Float;
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetUIBlackboardBoolVariable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, false);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let dpadAction: ref<DPADActionPerformed>;
+    let value: Float;
+    if scriptInterface.IsActionJustHeld(n"CallVehicle") {
+      dpadAction = new DPADActionPerformed();
+      dpadAction.action = EHotkey.DPAD_RIGHT;
+      dpadAction.successful = true;
+      dpadAction.state = EUIActionState.COMPLETED;
+      scriptInterface.GetUISystem().QueueEvent(dpadAction);
+      this.shouldSendEvent = true;
+      return;
+    };
+    value = scriptInterface.GetActionValue(n"CallVehicle");
+    if value > 0.00 {
+      this.timePressed += timeDelta;
+      if this.timePressed > 0.10 && this.shouldSendEvent {
+        dpadAction = new DPADActionPerformed();
+        dpadAction.action = EHotkey.DPAD_RIGHT;
+        dpadAction.successful = true;
+        dpadAction.state = EUIActionState.STARTED;
+        scriptInterface.GetUISystem().QueueEvent(dpadAction);
+        this.shouldSendEvent = false;
+      };
+      return;
+    };
+    if this.timePressed > 0.00 && value == 0.00 {
+      this.timePressed = 0.00;
+      dpadAction = new DPADActionPerformed();
+      dpadAction.action = EHotkey.DPAD_RIGHT;
+      dpadAction.successful = false;
+      dpadAction.state = EUIActionState.ABORTED;
+      scriptInterface.GetUISystem().QueueEvent(dpadAction);
+    };
+    this.shouldSendEvent = true;
+  }
+}
+
+public class OnlyVehicleEvents extends QuickSlotsReadyEvents {
+
+  public final const func ToCycleObjective(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsActionJustReleased(n"CycleObjectives") && !this.IsInInputContextState(stateContext, n"uiPhoneContext") && this.CheckConsumableLootDataCondition(scriptInterface);
+  }
+}
+
+public class OnlyVehicleDecisions extends QuickSlotsReadyDecisions {
+
+  private let m_executionOwner: wref<GameObject>;
+
+  private let m_statusEffectListener: ref<DefaultTransitionStatusEffectListener>;
+
+  private let m_hasStatusEffect: Bool;
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_statusEffectListener = new DefaultTransitionStatusEffectListener();
+    this.m_statusEffectListener.m_transitionOwner = this;
+    scriptInterface.GetStatusEffectSystem().RegisterListener(scriptInterface.owner.GetEntityID(), this.m_statusEffectListener);
+    this.m_executionOwner = scriptInterface.executionOwner;
+    this.UpdateHasStatusEffect();
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_statusEffectListener = null;
+  }
+
+  public func OnStatusEffectApplied(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if !this.m_hasStatusEffect {
+      if statusEffect.GameplayTagsContains(n"CustomVehicleSummon") {
+        this.m_hasStatusEffect = true;
+        this.EnableOnEnterCondition(true);
+      };
+    };
+  }
+
+  public func OnStatusEffectRemoved(statusEffect: wref<StatusEffect_Record>) -> Void {
+    if this.m_hasStatusEffect {
+      if statusEffect.GameplayTagsContains(n"CustomVehicleSummon") {
+        this.UpdateHasStatusEffect();
+      };
+    };
+  }
+
+  protected final func UpdateHasStatusEffect() -> Void {
+    this.m_hasStatusEffect = StatusEffectSystem.ObjectHasStatusEffectWithTag(this.m_executionOwner, n"CustomVehicleSummon");
+    this.EnableOnEnterCondition(this.m_hasStatusEffect);
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"CustomVehicleSummon");
+  }
+
+  public final const func ToQuickSlotsReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"CustomVehicleSummon") {
+      return true;
+    };
+    return false;
+  }
+}
+
+public class QuickSlotsBusyDecisions extends QuickSlotsDecisions {
+
+  public final const func ToQuickSlotsReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return this.GetInStateTime() > this.GetStaticFloatParameterDefault("busyDuration", 2.00);
+  }
+}
+
+public class QuickSlotsBusyEvents extends QuickSlotsEvents {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void;
+}
+
+public class QuickSlotsDisabledDecisions extends QuickSlotsDecisions {
+
+  private let m_executionOwner: wref<GameObject>;
+
+  private let m_hasStatusEffect: Bool;
+
+  protected final const func ShouldDisableRadialForReplacer(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let playerStatsBB: ref<IBlackboard> = scriptInterface.GetBlackboardSystem().Get(GetAllBlackboardDefs().UI_PlayerStats);
+    return playerStatsBB.GetBool(GetAllBlackboardDefs().UI_PlayerStats.isReplacer) && !scriptInterface.executionOwner.IsVRReplacer();
+  }
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.EnableOnEnterCondition(true);
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let shouldEnter: Bool = scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.SceneTier) >= this.GetStaticIntParameterDefault("minBlockedSceneTier", 2) || scriptInterface.IsPlayerInBraindance() || this.ShouldDisableRadialForReplacer(scriptInterface) || scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vitals) == 1 || this.IsPlayerInWheelBlockingWorkspot(stateContext, scriptInterface) || StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"FastForward") || StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"Cyberspace") || stateContext.IsStateMachineActive(n"LeftHandCyberware");
+    return shouldEnter && !this.IsPocketRadioOverrideActive(scriptInterface);
+  }
+
+  public final const func ToQuickSlotsReady(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.SceneTier) < this.GetStaticIntParameterDefault("minBlockedSceneTier", 2) && !scriptInterface.IsPlayerInBraindance() && !this.ShouldDisableRadialForReplacer(scriptInterface) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vitals) != 1 && !this.IsPlayerInWheelBlockingWorkspot(stateContext, scriptInterface) && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"FastForward") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"Cyberspace") && !stateContext.IsStateMachineActive(n"LeftHandCyberware");
+  }
+
+  public final const func ToCycleObjective(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsActionJustReleased(n"CycleObjectives") && !this.IsInInputContextState(stateContext, n"uiPhoneContext") && this.CheckConsumableLootDataCondition(scriptInterface);
+  }
+
+  public final const func ToPocketRadioWheel(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsActionJustHeld(n"PocketRadio") && this.IsPocketRadioOverrideActive(scriptInterface);
+  }
+
+  private final const func IsPocketRadioOverrideActive(const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if !IsDefined(player) {
+      return false;
+    };
+    return player.GetPocketRadio().IsRestrictionOverwritten();
+  }
+}
+
+public class QuickSlotsDisabledEvents extends QuickSlotsEvents {
+
+  protected final func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.SetUIBlackboardBoolVariable(scriptInterface, GetAllBlackboardDefs().UI_QuickSlotsData.UIRadialContextRequest, false);
+    this.ForceDisableRadialWheel(scriptInterface);
+  }
+
+  protected final func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    let dpadAction: ref<DPADActionPerformed>;
+    if scriptInterface.IsActionJustReleased(n"CallVehicle") {
+      dpadAction = new DPADActionPerformed();
+      dpadAction.action = EHotkey.DPAD_RIGHT;
+      scriptInterface.GetUISystem().QueueEvent(dpadAction);
+    };
+  }
+}
+
+public class CycleObjectiveDecisions extends QuickSlotsTapDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"CycleObjectives");
+    this.EnableOnEnterCondition(false);
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(true);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    this.EnableOnEnterCondition(false);
+    return scriptInterface.IsActionJustReleased(n"CycleObjectives") && !this.IsInInputContextState(stateContext, n"uiPhoneContext") && this.CheckConsumableLootDataCondition(scriptInterface);
+  }
+}
+
+public class CycleObjectiveEvents extends QuickSlotsTapEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnEnter(stateContext, scriptInterface);
+    GameInstance.GetJournalManager(scriptInterface.GetGame()).TrackPrevNextEntry(true);
+  }
+}
+
+public class WeaponWheelDecisions extends QuickSlotsHoldDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"WeaponWheel");
+    this.EnableOnEnterCondition(scriptInterface.IsActionJustHeld(n"WeaponWheel"));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.EnableOnEnterCondition(true);
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    return scriptInterface.IsActionJustHeld(n"WeaponWheel") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoRadialMenus") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"NoWeaponWheel") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"FocusModeLocomotion") && (!this.IsPlayingAsReplacer(scriptInterface) || this.IsPlayingAsReplacer(scriptInterface) && IsDefined(player) && 0 < GameInstance.GetQuestsSystem(player.GetGame()).GetFact(n"gyro_pattern_wheel_tutorial")) && !stateContext.IsStateMachineActive(n"CombatGadget") && !stateContext.IsStateMachineActive(n"Consumable") && !stateContext.IsStateMachineActive(n"LocomotionTakedown") && !stateContext.GetBoolParameter(n"UnequipToGadgetOrConsumable", true) && NotEquals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"entering") && NotEquals(stateContext.GetStateMachineCurrentState(n"Vehicle"), n"switchSeats") && !this.IsVehicleBlockingCombat(scriptInterface) && !this.IsCinematicCameraEnabled(scriptInterface) && this.IsVehicleDriverAllowedToSelectWeapons(stateContext, scriptInterface) && this.IsplayerInStateAllowedToSelectWeapons(stateContext, scriptInterface) && scriptInterface.GetActionValue(n"UI_Apply") <= 0.00;
+  }
+}
+
+public class VehicleWheelDecisions extends QuickSlotsHoldDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"CallVehicle");
+    this.EnableOnEnterCondition(scriptInterface.IsActionJustHeld(n"CallVehicle"));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.EnableOnEnterCondition(true);
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let vehicleType: gamedataVehicleType = (scriptInterface.executionOwner as PlayerPuppet).GetQuickSlotsManager().GetActiveVehicleType();
+    return !VehicleSystem.IsSummoningVehiclesRestricted(scriptInterface.GetGame()) && (scriptInterface.IsActionJustPressed(n"CallVehicle") && GameInstance.GetVehicleSystem(scriptInterface.executionOwner.GetGame()).IsActivePlayerVehicleOnCooldown(vehicleType) || scriptInterface.IsActionJustHeld(n"CallVehicle"));
+  }
+
+  public const func ToQuickSlotsReady(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    if VehicleSystem.IsSummoningVehiclesRestricted(scriptInterface.GetGame()) {
+      return true;
+    };
+    return super.ToQuickSlotsReady(stateContext, scriptInterface);
+  }
+}
+
+public class VehicleInsideWheelDecisions extends QuickSlotsHoldDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"VehicleInsideWheel");
+    this.EnableOnEnterCondition(scriptInterface.IsActionJustHeld(n"VehicleInsideWheel"));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.EnableOnEnterCondition(true);
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return scriptInterface.IsActionJustHeld(n"VehicleInsideWheel") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"VehicleBlockRadioInput") && this.DoesVehicleSupportRadio(scriptInterface) && scriptInterface.localBlackboard.GetInt(GetAllBlackboardDefs().PlayerStateMachine.Vehicle) > 0;
+  }
+
+  protected const func ToQuickSlotsReady(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return super.ToQuickSlotsReady(stateContext, scriptInterface) || this.IsRadioDisabled(scriptInterface);
+  }
+
+  protected final const func IsRadioDisabled(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let blackboardSystem: ref<BlackboardSystem> = scriptInterface.GetBlackboardSystem();
+    let blackboard: ref<IBlackboard> = blackboardSystem.Get(GetAllBlackboardDefs().UIGameData);
+    return !blackboard.GetBool(GetAllBlackboardDefs().UIGameData.Popup_Radio_Enabled);
+  }
+}
+
+public class VehicleWheelEvents extends QuickSlotsHoldEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_holdDirection = EDPadSlot.VehicleWheel;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToQuickSlotsBusy(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, false);
+  }
+}
+
+public class VehicleInsideWheelEvents extends QuickSlotsHoldEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_holdDirection = EDPadSlot.VehicleInsideWheel;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToQuickSlotsBusy(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, false);
+  }
+}
+
+public class WeaponWheelEvents extends QuickSlotsHoldEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_holdDirection = EDPadSlot.WeaponsWheel;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToQuickSlotsBusy(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, false);
+  }
+}
+
+public class PocketRadioWheelEvents extends QuickSlotsHoldEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_holdDirection = EDPadSlot.PocketRadio;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToQuickSlotsBusy(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, false);
+  }
+}
+
+public class PocketRadioWheelDecisions extends QuickSlotsHoldDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"PocketRadio");
+    this.EnableOnEnterCondition(scriptInterface.IsActionJustHeld(n"PocketRadio"));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.EnableOnEnterCondition(true);
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if !IsDefined(player) {
+      return false;
+    };
+    if scriptInterface.IsActionJustHeld(n"PocketRadio") {
+      if scriptInterface.localBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.MountedToVehicle) && !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"MetroRide") {
+        return false;
+      };
+      if this.IsInInputContextState(stateContext, n"deviceControlContext") {
+        if !StatusEffectSystem.ObjectHasStatusEffectWithTag(scriptInterface.executionOwner, n"BinocularView") {
+          return false;
+        };
+      };
+      return !player.GetPocketRadio().IsRestricted();
+    };
+    return false;
+  }
+
+  protected const func ToQuickSlotsReady(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    return super.ToQuickSlotsReady(stateContext, scriptInterface) || this.IsRadioDisabled(scriptInterface);
+  }
+
+  protected final const func IsRadioDisabled(scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if !IsDefined(player) {
+      return true;
+    };
+    return player.GetPocketRadio().IsRestricted();
+  }
+}
+
+public class VehicleVisualCustomizationEvents extends QuickSlotsHoldEvents {
+
+  protected func OnEnter(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.m_holdDirection = EDPadSlot.VehicleVisualCustomization;
+    super.OnEnter(stateContext, scriptInterface);
+  }
+
+  protected func OnUpdate(timeDelta: Float, stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnUpdate(timeDelta, stateContext, scriptInterface);
+  }
+
+  protected final func OnExitToQuickSlotsBusy(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    this.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, true);
+  }
+
+  protected func OnExit(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    super.OnExit(stateContext, scriptInterface);
+    this.NotifyQuickSlotsManagerButtonHoldEnd(stateContext, scriptInterface, this.m_holdDirection, false);
+  }
+}
+
+public class VehicleVisualCustomizationDecisions extends QuickSlotsHoldDecisions {
+
+  protected final func OnAttach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.RegisterInputListener(this, n"VehicleVisualCustomization");
+    this.EnableOnEnterCondition(scriptInterface.IsActionJustHeld(n"VehicleVisualCustomization"));
+  }
+
+  protected final func OnDetach(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Void {
+    scriptInterface.executionOwner.UnregisterInputListener(this);
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if ListenerAction.IsButtonJustPressed(action) {
+      this.EnableOnEnterCondition(true);
+    };
+    if ListenerAction.IsButtonJustReleased(action) {
+      this.EnableOnEnterCondition(false);
+    };
+  }
+
+  protected final const func EnterCondition(const stateContext: ref<StateContext>, const scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let canVVCBeUpdated: Bool;
+    let errorMessage: String;
+    let isNotFastForward: Bool;
+    let isNotFastForwardAvailable: Bool;
+    let isNotInCombat: Bool;
+    let isNotInDriverCombat: Bool;
+    let isNotInPhoneCall: Bool;
+    let isNotInVehicleScene: Bool;
+    let isNotModBlockedByDamage: Bool;
+    let isNotModInCooldown: Bool;
+    let isNotQuestBlocked: Bool;
+    let isNotRemoteControlling: Bool;
+    let isVVCUpToDate: Bool;
+    let isVehicleCustomizationEnabled: Bool;
+    let isVisualCustomizationTeaser: Bool;
+    let notificationEvent: ref<UIInGameNotificationEvent>;
+    let playerStateMachineBlackboard: ref<IBlackboard>;
+    let questSystem: ref<QuestsSystem>;
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    if !IsDefined(player) {
+      return false;
+    };
+    questSystem = GameInstance.GetQuestsSystem(player.GetGame());
+    if scriptInterface.IsActionJustHeld(n"VehicleVisualCustomization") {
+      playerStateMachineBlackboard = GameInstance.GetBlackboardSystem(player.GetGame()).GetLocalInstanced(GameInstance.GetPlayerSystem(player.GetGame()).GetLocalPlayerControlledGameObject().GetEntityID(), GetAllBlackboardDefs().PlayerStateMachine);
+      isNotInDriverCombat = !StatusEffectSystem.ObjectHasStatusEffect(player, t"BaseStatusEffect.DriverCombat");
+      isNotInVehicleScene = !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"VehicleScene");
+      isNotQuestBlocked = GameInstance.GetQuestsSystem(player.GetGame()).GetFact(n"unlock_car_hud_dpad") != 0;
+      isNotModInCooldown = !StatusEffectSystem.ObjectHasStatusEffect(player, t"BaseStatusEffect.VehicleVisualModCooldown");
+      isNotInPhoneCall = !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"PhoneCall") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"PhoneNoTexting") && !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"PhoneNoCalling");
+      isNotModBlockedByDamage = !player.GetMountedVehicle().GetVehiclePS().GetIsVehicleVisualCustomizationBlockedByDamage();
+      isNotInCombat = !player.IsInCombat();
+      isVisualCustomizationTeaser = player.GetMountedVehicle().GetVehicleComponent().GetIsVehicleVisualCustomizationTeaser();
+      isVVCUpToDate = player.GetMountedVehicle().GetVehicleComponent().GetVisualCustomizationUpToDate();
+      canVVCBeUpdated = questSystem.GetFact(n"sq024_done") == 1 && questSystem.GetFact(n"mq057_done") == 1;
+      isNotFastForwardAvailable = !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"FastForwardHintActive");
+      isNotFastForward = !StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"FastForward");
+      isNotRemoteControlling = playerStateMachineBlackboard.GetBool(GetAllBlackboardDefs().PlayerStateMachine.IsControllingDevice);
+      isVehicleCustomizationEnabled = player.GetMountedVehicle().GetVehicleComponent().GetIsVehicleVisualCustomizationEnabled();
+      if Cast<Bool>(questSystem.GetFact(n"q000_started")) && !Cast<Bool>(questSystem.GetFact(n"dpad_hints_visibility_enabled")) {
+        return false;
+      };
+      if isNotInVehicleScene && isNotQuestBlocked && isNotModInCooldown && isNotModBlockedByDamage && isNotFastForwardAvailable && isNotFastForward && !isVisualCustomizationTeaser && isVVCUpToDate && isNotInDriverCombat && isNotInPhoneCall && !isNotRemoteControlling && isNotInCombat && isVehicleCustomizationEnabled {
+        return true;
+      };
+      if isVehicleCustomizationEnabled {
+        if isVisualCustomizationTeaser {
+          errorMessage = GetLocalizedText("LocKey#96055") + ": " + GetLocalizedText("LocKey#52901") + " >> " + GetLocalizedText("LocKey#28266");
+          player.GetMountedVehicle().GetVehicleComponent().VisualCustomizationBlockedNotification(errorMessage);
+        } else {
+          if !isVVCUpToDate {
+            if canVVCBeUpdated {
+              questSystem.SetFact(n"mq058_failed_to_open_vvc", 1);
+            };
+            player.GetMountedVehicle().GetVehicleComponent().VisualCustomizationBlockedNotification(GetLocalizedText("LocKey#97102"), SimpleMessageType.TwintoneNegative);
+          } else {
+            if isNotModBlockedByDamage {
+              notificationEvent = new UIInGameNotificationEvent();
+              notificationEvent.m_title = GetLocalizedText("LocKey#96051");
+              notificationEvent.m_notificationType = UIInGameNotificationType.ActionRestriction;
+              scriptInterface.GetUISystem().QueueEvent(notificationEvent);
+            } else {
+              player.GetMountedVehicle().GetVehicleComponent().VisualCustomizationBlockedNotification(GetLocalizedText("LocKey#96051"), SimpleMessageType.Negative);
+            };
+          };
+        };
+      } else {
+        errorMessage = "LocKey#96137";
+        player.GetMountedVehicle().GetVehicleComponent().VisualCustomizationBlockedNotification(errorMessage);
+      };
+      this.EnableOnEnterCondition(false);
+      return false;
+    };
+    return false;
+  }
+
+  protected const func ToQuickSlotsReady(stateContext: ref<StateContext>, scriptInterface: ref<StateGameScriptInterface>) -> Bool {
+    let player: ref<PlayerPuppet> = scriptInterface.executionOwner as PlayerPuppet;
+    return super.ToQuickSlotsReady(stateContext, scriptInterface) || StatusEffectSystem.ObjectHasStatusEffectWithTag(player, n"VehicleVisualModCooldown");
+  }
+}

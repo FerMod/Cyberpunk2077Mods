@@ -1,0 +1,198 @@
+
+public class RadioController extends MediaDeviceController {
+
+  public const func GetPS() -> ref<RadioControllerPS> {
+    return this.GetBasePS() as RadioControllerPS;
+  }
+}
+
+public class RadioControllerPS extends MediaDeviceControllerPS {
+
+  protected let m_radioSetup: RadioSetup;
+
+  private persistent let m_wasRadioSetup: Bool;
+
+  protected cb func OnInstantiated() -> Bool {
+    super.OnInstantiated();
+    if !IsStringValid(this.m_deviceName) {
+      this.m_deviceName = "LocKey#96";
+    };
+  }
+
+  protected func GameAttached() -> Void {
+    let station: ERadioStationList = this.GetActiveRadioStation();
+    this.m_activeChannelName = RadioStationDataProvider.GetChannelName(station);
+    this.m_amountOfStations = 15;
+    this.TryInitializeInteractiveState();
+  }
+
+  private final func TryInitializeInteractiveState() -> Void {
+    if !this.m_wasRadioSetup {
+      this.SetInteractionState(this.m_radioSetup.m_isInteractive);
+      this.m_wasRadioSetup = true;
+    };
+  }
+
+  public final func SetActiveStation(radioStationType: ERadioStationList) -> Void {
+    this.m_activeStation = EnumInt(radioStationType);
+  }
+
+  protected const func CanCreateAnyQuickHackActions() -> Bool {
+    return true;
+  }
+
+  public final func GetGlitchSFX() -> CName {
+    return this.m_radioSetup.m_glitchSFX;
+  }
+
+  public final const func GetHighPitchNoiseSFX() -> CName {
+    return this.m_radioSetup.m_highPitchNoiseSFX;
+  }
+
+  public final const func GetHighPitchNoiseVFX() -> FxResource {
+    return this.m_radioSetup.m_hithPitchNoiseVFX;
+  }
+
+  public final const func GetHighPitchNoiseRadius() -> Float {
+    return this.m_radioSetup.m_hithPitchNoiseRadius;
+  }
+
+  public final const func GetAoeDamageSFX() -> CName {
+    return this.m_radioSetup.m_AoeDamageSFX;
+  }
+
+  public final const func GetAoeDamageVFX() -> FxResource {
+    return this.m_radioSetup.m_AoeDamageVFX;
+  }
+
+  protected func GetQuickHackActions(out actions: [ref<DeviceAction>], const context: script_ref<GetActionsContext>) -> Void {
+    ArrayPush(actions, this.ActionQuickHackDistraction());
+    if this.CanAddAoeDamageQuickHack() {
+      ArrayPush(actions, this.ActionQuickHackAoeDamage());
+    };
+    if this.m_radioSetup.m_enableHighPitchNoiseQuickHack {
+      ArrayPush(actions, this.ActionQuickHackHighPitchNoise());
+    };
+    this.FinalizeGetQuickHackActions(actions, context);
+  }
+
+  private final func CanAddAoeDamageQuickHack() -> Bool {
+    return this.m_radioSetup.m_enableAoeDamageQuickHack && RPGManager.DoesPlayerHaveQuickHack(GetPlayer(this.GetGameInstance()), t"DeviceAction.OverloadClassLvl4Hack");
+  }
+
+  public func OnNextStation(evt: ref<NextStation>) -> EntityNotificationType {
+    let station: ERadioStationList;
+    let notifier: ref<ActionNotifier> = new ActionNotifier();
+    notifier.SetNone();
+    if this.IsDisabled() || this.IsUnpowered() || !this.IsON() {
+      return EntityNotificationType.DoNotNotifyEntity;
+    };
+    this.m_previousStation = this.m_activeStation;
+    station = RadioStationDataProvider.GetNextStationTo(this.m_activeStation);
+    this.m_activeStation = EnumInt(station);
+    this.m_activeChannelName = RadioStationDataProvider.GetChannelName(station);
+    this.Notify(notifier, evt);
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  public func OnPreviousStation(evt: ref<PreviousStation>) -> EntityNotificationType {
+    let station: ERadioStationList;
+    let notifier: ref<ActionNotifier> = new ActionNotifier();
+    notifier.SetNone();
+    if this.IsDisabled() || this.IsUnpowered() || !this.IsON() {
+      return EntityNotificationType.DoNotNotifyEntity;
+    };
+    this.m_previousStation = this.m_activeStation;
+    station = RadioStationDataProvider.GetPreviousStationTo(this.m_activeStation);
+    this.m_activeStation = EnumInt(station);
+    this.m_activeChannelName = RadioStationDataProvider.GetChannelName(station);
+    this.Notify(notifier, evt);
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  public func OnQuestDefaultStation(evt: ref<QuestDefaultStation>) -> EntityNotificationType {
+    this.SetDefaultRadioStation();
+    this.m_activeChannelName = RadioStationDataProvider.GetChannelName(this.GetActiveRadioStation());
+    this.UseNotifier(evt);
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  public func GetActiveStationIndex() -> Int32 {
+    this.EnsureRadioStatationPresence();
+    return this.m_activeStation;
+  }
+
+  public final func GetActiveRadioStation() -> ERadioStationList {
+    this.EnsureRadioStatationPresence();
+    return IntEnum<ERadioStationList>(this.m_activeStation);
+  }
+
+  private final func EnsureRadioStatationPresence() -> Void {
+    if !this.m_dataInitialized {
+      this.SetDefaultRadioStation();
+      this.m_dataInitialized = true;
+    };
+  }
+
+  private final func SetDefaultRadioStation() -> Void {
+    let station: ERadioStationList = this.GetStartingStation();
+    this.m_activeStation = EnumInt(station);
+  }
+
+  private final func GetStartingStation() -> ERadioStationList {
+    return this.m_radioSetup.m_randomizeStartingStation ? RadioStationDataProvider.GetRandomStation() : this.m_radioSetup.m_startingStation;
+  }
+
+  public final func OnSpiderbotDistraction(evt: ref<SpiderbotDistraction>) -> EntityNotificationType {
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  public final func CauseDistraction() -> Void {
+    let action: ref<ScriptableDeviceAction> = this.ActionQuickHackDistraction();
+    this.ExecutePSAction(action);
+  }
+
+  protected func ActionQuickHackDistraction() -> ref<QuickHackDistraction> {
+    let action: ref<QuickHackDistraction> = super.ActionQuickHackDistraction();
+    action.SetDurationValue(this.GetDistractionDuration(action));
+    action.SetInactiveWithReason(!this.IsDistracting(), "LocKey#7004");
+    return action;
+  }
+
+  public func OnQuickHackDistraction(evt: ref<QuickHackDistraction>) -> EntityNotificationType {
+    let type: EntityNotificationType = super.OnQuickHackDistraction(evt);
+    if Equals(type, EntityNotificationType.DoNotNotifyEntity) {
+      return type;
+    };
+    if evt.IsStarted() {
+      if this.IsOFF() {
+        this.ExecutePSAction(this.ActionSetDeviceON());
+      };
+      this.ExecutePSAction(this.ActionNextStation());
+    };
+    return EntityNotificationType.SendThisEventToEntity;
+  }
+
+  protected func DetermineGameplayViability(const context: script_ref<GetActionsContext>, hasActiveActions: Bool) -> Bool {
+    return RadioViabilityInterpreter.Evaluate(this, hasActiveActions);
+  }
+
+  public func GetDeviceIconPath() -> String {
+    return "base/gameplay/gui/brushes/devices/icon_radio.widgetbrush";
+  }
+
+  protected func GetBackgroundTextureTweakDBID() -> TweakDBID {
+    return t"DeviceIcons.RadioDeviceBackground";
+  }
+
+  protected func GetDeviceIconTweakDBID() -> TweakDBID {
+    return t"DeviceIcons.RadioDeviceIcon";
+  }
+
+  public func GetDeviceWidget(const context: script_ref<GetActionsContext>) -> SDeviceWidgetPackage {
+    let widgetData: SDeviceWidgetPackage = super.GetDeviceWidget(context);
+    widgetData.deviceStatus = "LocKey#42211";
+    widgetData.textData = this.GetDeviceStatusTextData();
+    return widgetData;
+  }
+}

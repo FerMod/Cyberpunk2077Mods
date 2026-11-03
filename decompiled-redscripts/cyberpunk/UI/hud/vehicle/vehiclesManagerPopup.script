@@ -1,0 +1,258 @@
+
+public class VehiclesManagerDataView extends ScriptableDataView {
+
+  public func SortItem(lhs: ref<IScriptable>, rhs: ref<IScriptable>) -> Bool {
+    let lhsData: ref<VehicleListItemData> = lhs as VehicleListItemData;
+    let rhsData: ref<VehicleListItemData> = rhs as VehicleListItemData;
+    let lhsName: String = GetLocalizedTextByKey(lhsData.m_displayName);
+    let rhsName: String = GetLocalizedTextByKey(rhsData.m_displayName);
+    if lhsData.m_data.forcedFavorite {
+      return !rhsData.m_data.forcedFavorite || UnicodeStringLessThan(lhsName, rhsName);
+    };
+    if rhsData.m_data.forcedFavorite {
+      return false;
+    };
+    if lhsData.m_data.uiFavoriteIndex == rhsData.m_data.uiFavoriteIndex {
+      return UnicodeStringLessThan(lhsName, rhsName);
+    };
+    if lhsData.m_data.uiFavoriteIndex == -1 {
+      return false;
+    };
+    if rhsData.m_data.uiFavoriteIndex == -1 {
+      return true;
+    };
+    return lhsData.m_data.uiFavoriteIndex < rhsData.m_data.uiFavoriteIndex;
+  }
+}
+
+public class VehiclesManagerPopupGameController extends BaseModalListPopupGameController {
+
+  private edit let m_repairOverlay: inkWidgetRef;
+
+  private edit let m_vehicleIconContainer: inkWidgetRef;
+
+  private edit let m_vehicleIcon: inkImageRef;
+
+  private edit let m_scrollArea: inkScrollAreaRef;
+
+  private edit let m_scrollControllerWidget: inkWidgetRef;
+
+  private edit let m_confirmButton: inkWidgetRef;
+
+  private edit let m_favoriteInputHintContainer: inkWidgetRef;
+
+  private edit let m_favoriteInputHint: inkTextRef;
+
+  private let m_dataView: ref<VehiclesManagerDataView>;
+
+  private let m_dataSource: ref<ScriptableDataSource>;
+
+  private let m_quickSlotsManager: wref<QuickSlotsManager>;
+
+  private let m_scrollController: wref<inkScrollController>;
+
+  private let m_selectAnimProxy: ref<inkAnimProxy>;
+
+  @default(VehiclesManagerPopupGameController, 0)
+  private let m_initialIndex: Uint32;
+
+  protected cb func OnPlayerAttach(player: ref<GameObject>) -> Bool {
+    super.OnPlayerAttach(player);
+    this.m_quickSlotsManager = (this.m_playerPuppet as PlayerPuppet).GetQuickSlotsManager();
+    this.m_scrollController = inkWidgetRef.GetControllerByType(this.m_scrollControllerWidget, n"inkScrollController") as inkScrollController;
+    inkWidgetRef.RegisterToCallback(this.m_scrollArea, n"OnScrollChanged", this, n"OnScrollChanged");
+    if GameInstance.GetVehicleSystem(player.GetGame()).IsActivePlayerVehicleOnCooldown(this.m_quickSlotsManager.GetActiveVehicleType()) {
+      this.SelectActiveVehicle();
+    };
+    player.RegisterInputListener(this, n"secondaryAction");
+    this.PlaySound(n"Holocall", n"OnPickingUp");
+  }
+
+  protected cb func OnScrollChanged(value: Vector2) -> Bool {
+    this.m_scrollController.UpdateScrollPositionFromScrollArea();
+  }
+
+  protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsumer) -> Bool {
+    if super.OnAction(action, consumer) {
+      return true;
+    };
+    if Equals(ListenerAction.GetName(action), n"secondaryAction") && ListenerAction.IsButtonJustPressed(action) {
+      ListenerActionConsumer.Consume(consumer);
+      this.ToggleFavorite();
+    };
+  }
+
+  private final func ToggleFavorite() -> Void {
+    let selectedVehicle: ref<VehiclesManagerListItemController> = this.m_listController.GetSelectedItem() as VehiclesManagerListItemController;
+    let selectedVehicleData: ref<VehicleListItemData> = selectedVehicle.GetVehicleData();
+    let index: Uint32 = this.m_listController.GetSelectedIndex();
+    if this.m_selectAnimProxy != null {
+      return;
+    };
+    if GameInstance.GetVehicleSystem(this.m_playerPuppet.GetGame()).TogglePlayerFavoriteVehicle(Cast<GarageVehicleID>(selectedVehicleData.m_data.recordID)) {
+      this.m_dataSource.Reset(VehiclesManagerDataHelper.GetVehicles(this.m_playerPuppet));
+      this.m_listController.SelectItem(index);
+    };
+    this.PlaySound(n"Holocall", n"Navigation");
+  }
+
+  protected func Select(previous: ref<inkVirtualCompoundItemController>, next: ref<inkVirtualCompoundItemController>) -> Void {
+    let selectedVehicle: ref<VehiclesManagerListItemController> = next as VehiclesManagerListItemController;
+    let selectedVehicleData: ref<VehicleListItemData> = selectedVehicle.GetVehicleData();
+    inkWidgetRef.SetOpacity(this.m_vehicleIconContainer, selectedVehicleData.m_repairTimeRemaining == 0.00 ? 1.00 : 0.08);
+    InkImageUtils.RequestSetImage(this, this.m_vehicleIcon, selectedVehicleData.m_icon.GetID());
+    inkWidgetRef.SetVisible(this.m_repairOverlay, selectedVehicleData.m_repairTimeRemaining > 0.00);
+    inkWidgetRef.SetVisible(this.m_confirmButton, selectedVehicleData.m_repairTimeRemaining == 0.00);
+    inkWidgetRef.SetVisible(this.m_favoriteInputHintContainer, !selectedVehicleData.m_data.forcedFavorite);
+    inkTextRef.SetLocalizedTextScript(this.m_favoriteInputHint, selectedVehicleData.m_data.uiFavoriteIndex >= 0 ? "LocKey#96331" : "LocKey#95061");
+  }
+
+  protected func SetupVirtualList() -> Void {
+    this.m_dataView = new VehiclesManagerDataView();
+    this.m_dataSource = new ScriptableDataSource();
+    this.m_dataView.SetSource(this.m_dataSource);
+    this.m_listController.SetSource(this.m_dataView);
+  }
+
+  protected cb func OnShowAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_listController.SelectItem(this.m_initialIndex);
+    this.m_canPlaySwitchAnimation = true;
+    this.PlaySound(n"Holocall", n"OnPickingUp");
+  }
+
+  protected func CleanVirtualList() -> Void {
+    this.m_dataView.SetSource(null);
+    this.m_listController.SetSource(null);
+    this.m_dataView = null;
+    this.m_dataSource = null;
+    this.PlaySound(n"Holocall", n"OnPickingUp");
+  }
+
+  protected func SetupData() -> Void {
+    this.m_dataView.EnableSorting();
+    this.m_dataSource.Reset(VehiclesManagerDataHelper.GetVehicles(this.m_playerPuppet));
+  }
+
+  protected func Activate() -> Void {
+    let selectedVehicle: ref<VehiclesManagerListItemController> = this.m_listController.GetSelectedItem() as VehiclesManagerListItemController;
+    let selectedVehicleData: ref<VehicleListItemData> = selectedVehicle.GetVehicleData();
+    if this.m_selectAnimProxy != null || selectedVehicleData.m_repairTimeRemaining > 0.00 {
+      return;
+    };
+    if selectedVehicleData.m_canBeActive {
+      this.m_quickSlotsManager.SetActiveVehicle(selectedVehicleData.m_data);
+      this.m_quickSlotsManager.SummonActiveVehicle(true);
+    } else {
+      this.m_quickSlotsManager.SummonVehicle(true, selectedVehicleData.m_data.vehicleType, selectedVehicleData.m_data.recordID, selectedVehicleData.m_data.spawnOnlyOnValidRoad);
+    };
+    this.m_selectAnimProxy = this.PlayLibraryAnimationOnTargets(n"selected", SelectWidgets(selectedVehicle.GetRootWidget()));
+    this.m_selectAnimProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnSelectAnimFinished");
+  }
+
+  private final func SelectActiveVehicle() -> Void {
+    let unlockedVehicle: ref<VehicleListItemData>;
+    let vehicle: PlayerVehicle = GameInstance.GetVehicleSystem(this.m_playerPuppet.GetGame()).GetActivePlayerVehicle(this.m_quickSlotsManager.GetActiveVehicleType());
+    let i: Uint32 = 0u;
+    while i < this.m_dataSource.GetArraySize() {
+      unlockedVehicle = this.m_dataView.GetItem(i) as VehicleListItemData;
+      if unlockedVehicle.m_data.recordID == vehicle.recordID {
+        this.m_initialIndex = i;
+        return;
+      };
+      i += 1u;
+    };
+  }
+
+  protected cb func OnSelectAnimFinished(proxy: ref<inkAnimProxy>) -> Bool {
+    this.m_selectAnimProxy = null;
+    this.Close();
+    this.PlaySound(n"Holocall", n"OnHangUp");
+  }
+}
+
+public class VehiclesManagerListItemController extends inkVirtualCompoundItemController {
+
+  private edit let m_label: inkTextRef;
+
+  private edit let m_typeIcon: inkImageRef;
+
+  private edit let m_customizableIcon: inkImageRef;
+
+  private edit let m_repairTime: inkTextRef;
+
+  private let m_vehicleData: ref<VehicleListItemData>;
+
+  public final func GetVehicleData() -> ref<VehicleListItemData> {
+    return this.m_vehicleData;
+  }
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnSelected", this, n"OnSelected");
+    this.RegisterToCallback(n"OnDeselected", this, n"OnDeselected");
+  }
+
+  protected cb func OnDataChanged(value: Variant) -> Bool {
+    let repairTextParams: ref<inkTextParams>;
+    this.m_vehicleData = FromVariant<ref<IScriptable>>(value) as VehicleListItemData;
+    let vehicleRecord: ref<Vehicle_Record> = TweakDBInterface.GetVehicleRecord(this.m_vehicleData.m_data.recordID);
+    if this.m_vehicleData.m_data.overrideDisplay {
+      inkImageRef.SetTexturePart(this.m_typeIcon, this.m_vehicleData.m_data.icon);
+    } else {
+      if Equals(this.m_vehicleData.m_data.vehicleType, gamedataVehicleType.Bike) {
+        inkImageRef.SetTexturePart(this.m_typeIcon, n"motorcycle");
+      } else {
+        if Equals(vehicleRecord.VehDataPackageHandle().DriverCombat().Type(), gamedataDriverCombatType.MountedWeapons) {
+          inkImageRef.SetTexturePart(this.m_typeIcon, n"vehicle_weaponized");
+        } else {
+          inkImageRef.SetTexturePart(this.m_typeIcon, n"car");
+        };
+      };
+    };
+    inkWidgetRef.SetVisible(this.m_customizableIcon, vehicleRecord.HasVisualCustomization() && !vehicleRecord.VisualCustomizationTeaser());
+    inkTextRef.SetLocalizedTextScript(this.m_label, this.m_vehicleData.m_displayName);
+    if this.m_vehicleData.m_repairTimeRemaining > 0.00 {
+      inkTextRef.SetText(this.m_repairTime, "{TIME,time,mm:ss}");
+      repairTextParams = new inkTextParams();
+      repairTextParams.AddTime("TIME", GameTime.MakeGameTime(0, 0, 0, Cast<Int32>(this.m_vehicleData.m_repairTimeRemaining)));
+      inkTextRef.SetTextParameters(this.m_repairTime, repairTextParams);
+      inkWidgetRef.SetVisible(this.m_repairTime, true);
+      this.GetRootWidget().SetState(n"Disabled");
+    } else {
+      inkWidgetRef.SetVisible(this.m_repairTime, false);
+      if this.m_vehicleData.m_data.overrideDisplay {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.activeState);
+      } else {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.uiFavoriteIndex >= 0 ? n"Favorite" : n"Default");
+      };
+    };
+  }
+
+  protected cb func OnSelected(itemController: wref<inkVirtualCompoundItemController>, discreteNav: Bool) -> Bool {
+    if this.m_vehicleData.m_repairTimeRemaining == 0.00 {
+      if this.m_vehicleData.m_data.overrideDisplay {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.activeState);
+      } else {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.uiFavoriteIndex >= 0 ? n"FavoriteActive" : n"Active");
+      };
+    } else {
+      this.GetRootWidget().SetState(n"DisabledActive");
+    };
+    this.PlaySound(n"Holocall", n"Navigation");
+  }
+
+  protected cb func OnDeselected(itemController: wref<inkVirtualCompoundItemController>) -> Bool {
+    if this.m_vehicleData.m_repairTimeRemaining == 0.00 {
+      if this.m_vehicleData.m_data.overrideDisplay {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.defaultState);
+      } else {
+        this.GetRootWidget().SetState(this.m_vehicleData.m_data.uiFavoriteIndex >= 0 ? n"Favorite" : n"Default");
+      };
+    } else {
+      this.GetRootWidget().SetState(n"Disabled");
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.PlaySound(n"Holocall", n"OnHangUp");
+  }
+}

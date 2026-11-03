@@ -1,0 +1,163 @@
+
+public class PaginationController extends inkLogicController {
+
+  private edit let m_paginationRoot: inkHorizontalPanelRef;
+
+  public edit let m_nextArrow: inkWidgetRef;
+
+  public edit let m_previousArrow: inkWidgetRef;
+
+  private let m_paginationNumbers: [wref<PaginationNumberController>];
+
+  @default(PaginationController, 2)
+  private const let m_halfPaginationDisplay: Int32;
+
+  @default(PaginationController, 5)
+  private const let m_fullPaginationDisplay: Int32;
+
+  public final func SetData(pageCount: Int32) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_paginationNumbers) {
+      this.m_paginationNumbers[i].UnregisterFromCallback(n"OnRelease", this, n"OnNumberReleased");
+      inkCompoundRef.RemoveChild(this.m_paginationRoot, this.m_paginationNumbers[i].GetRootWidget());
+      i += 1;
+    };
+    ArrayClear(this.m_paginationNumbers);
+    i = 0;
+    while i < pageCount {
+      this.CreatePageNumber(i);
+      i += 1;
+    };
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_paginationNumbers) {
+      this.m_paginationNumbers[i].UnregisterFromCallback(n"OnRelease", this, n"OnNumberReleased");
+      i += 1;
+    };
+  }
+
+  private final func CreatePageNumber(number: Int32) -> Void {
+    let paginationNumberWidget: wref<inkWidget> = this.SpawnFromLocal(inkWidgetRef.Get(this.m_paginationRoot), n"paginationItem");
+    let paginationNumberController: wref<PaginationNumberController> = paginationNumberWidget.GetController() as PaginationNumberController;
+    paginationNumberController.SetData(number);
+    ArrayPush(this.m_paginationNumbers, paginationNumberController);
+    paginationNumberController.RegisterToCallback(n"OnRelease", this, n"OnNumberReleased");
+  }
+
+  public final func GetPaginationNumbers() -> [wref<PaginationNumberController>] {
+    return this.m_paginationNumbers;
+  }
+
+  public final func SetActivePageNumber(index: Int32) -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_paginationNumbers) {
+      this.m_paginationNumbers[i].SetActive(false);
+      this.m_paginationNumbers[i].SetVisible(false);
+      i += 1;
+    };
+    if index <= this.m_halfPaginationDisplay {
+      i = 0;
+      while i < Min(this.m_fullPaginationDisplay, ArraySize(this.m_paginationNumbers)) {
+        this.m_paginationNumbers[i].SetVisible(true);
+        i += 1;
+      };
+    } else {
+      if index >= ArraySize(this.m_paginationNumbers) - this.m_halfPaginationDisplay {
+        i = ArraySize(this.m_paginationNumbers) - this.m_fullPaginationDisplay;
+        while i < ArraySize(this.m_paginationNumbers) {
+          this.m_paginationNumbers[i].SetVisible(true);
+          i += 1;
+        };
+      } else {
+        i = index - this.m_halfPaginationDisplay;
+        while i <= index + this.m_halfPaginationDisplay {
+          this.m_paginationNumbers[i].SetVisible(true);
+          i += 1;
+        };
+      };
+    };
+    this.m_paginationNumbers[index].SetActive(true);
+  }
+}
+
+public class PaginationArrowController extends inkLogicController {
+
+  protected edit let m_arrowFilled: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+    inkWidgetRef.SetVisible(this.m_arrowFilled, false);
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_arrowFilled, true);
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    inkWidgetRef.SetVisible(this.m_arrowFilled, false);
+  }
+}
+
+public class PaginationNumberController extends inkLogicController {
+
+  public edit let m_numberText: inkTextRef;
+
+  public edit let m_line: inkWidgetRef;
+
+  private let m_pageNumber: Int32;
+
+  @default(PaginationNumberController, false)
+  private let m_isActiveNumber: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.UnregisterFromCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isActiveNumber {
+      return false;
+    };
+    inkWidgetRef.SetState(this.m_numberText, n"Hover");
+  }
+
+  protected cb func OnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if this.m_isActiveNumber {
+      return false;
+    };
+    inkWidgetRef.SetState(this.m_numberText, n"Default");
+  }
+
+  public final func SetData(number: Int32) -> Void {
+    let numberText: String = IntToString(number + 1);
+    inkTextRef.SetText(this.m_numberText, numberText);
+    this.m_pageNumber = number;
+  }
+
+  public final func GetPageNumber() -> Int32 {
+    return this.m_pageNumber;
+  }
+
+  public final func SetActive(active: Bool) -> Void {
+    this.m_isActiveNumber = active;
+    inkWidgetRef.SetState(this.m_numberText, this.m_isActiveNumber ? n"Hover" : n"Default");
+    inkWidgetRef.SetState(this.m_line, this.m_isActiveNumber ? n"Hover" : n"Default");
+  }
+
+  public final func SetVisible(visible: Bool) -> Void {
+    this.GetRootWidget().SetVisible(visible);
+  }
+}

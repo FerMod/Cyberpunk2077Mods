@@ -1,0 +1,293 @@
+
+public class CharacterCreationAttributeData extends IScriptable {
+
+  public let label: String;
+
+  public let desc: String;
+
+  public let value: Int32;
+
+  public let attribute: gamedataStatType;
+
+  public let icon: CName;
+
+  public let maxValue: Int32;
+
+  public let minValue: Int32;
+
+  public let maxed: Bool;
+
+  public let atMinimum: Bool;
+
+  public final func SetValue(val: Int32) -> Void {
+    this.value = val;
+  }
+
+  public final func SetMaxed(val: Bool) -> Void {
+    this.maxed = val;
+  }
+
+  public final func SetAtMinimum(val: Bool) -> Void {
+    this.atMinimum = val;
+  }
+}
+
+public class characterCreationStatsAttributeBtn extends inkLogicController {
+
+  public edit let m_value: inkTextRef;
+
+  public edit let m_label: inkTextRef;
+
+  public edit let m_icon: inkImageRef;
+
+  public edit let m_buttons: inkImageRef;
+
+  public edit let m_selector: inkImageRef;
+
+  public edit let m_addBtnhitArea: inkWidgetRef;
+
+  public edit let m_minusBtnhitArea: inkWidgetRef;
+
+  public edit let m_minMaxLabel: inkWidgetRef;
+
+  public edit let m_minMaxLabelText: inkTextRef;
+
+  public let data: ref<CharacterCreationAttributeData>;
+
+  public let animating: Bool;
+
+  public let m_minusEnabled: Bool;
+
+  public let m_addEnabled: Bool;
+
+  public let m_maxed: Bool;
+
+  private let m_isPlusOrMinusBtnHoveredOver: Bool;
+
+  private let m_inputDisabled: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    inkWidgetRef.RegisterToCallback(this.m_addBtnhitArea, n"OnRelease", this, n"OnAdd");
+    inkWidgetRef.RegisterToCallback(this.m_minusBtnhitArea, n"OnRelease", this, n"OnMinus");
+    inkWidgetRef.RegisterToCallback(this.m_addBtnhitArea, n"OnHoverOver", this, n"OnPlusHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_addBtnhitArea, n"OnHoverOut", this, n"OnPlusHoverOut");
+    inkWidgetRef.RegisterToCallback(this.m_minusBtnhitArea, n"OnHoverOver", this, n"OnMinusHoverOver");
+    inkWidgetRef.RegisterToCallback(this.m_minusBtnhitArea, n"OnHoverOut", this, n"OnMinusHoverOut");
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOver", this, n"OnHitAreaOnHoverOver");
+    this.GetRootWidget().RegisterToCallback(n"OnHoverOut", this, n"OnHitAreaOnHoverOut");
+    this.m_addEnabled = true;
+    this.m_minusEnabled = true;
+    this.m_isPlusOrMinusBtnHoveredOver = false;
+    this.m_inputDisabled = false;
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    inkWidgetRef.UnregisterFromCallback(this.m_addBtnhitArea, n"OnRelease", this, n"OnAdd");
+    inkWidgetRef.UnregisterFromCallback(this.m_minusBtnhitArea, n"OnRelease", this, n"OnMinus");
+    inkWidgetRef.UnregisterFromCallback(this.m_addBtnhitArea, n"OnHoverOver", this, n"OnHitAreaOnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_addBtnhitArea, n"OnHoverOut", this, n"OnHitAreaOnHoverOut");
+    inkWidgetRef.UnregisterFromCallback(this.m_minusBtnhitArea, n"OnHoverOver", this, n"OnHitAreaOnHoverOver");
+    inkWidgetRef.UnregisterFromCallback(this.m_minusBtnhitArea, n"OnHoverOut", this, n"OnHitAreaOnHoverOut");
+    this.GetRootWidget().UnregisterFromCallback(n"OnHoverOver", this, n"OnHitAreaOnHoverOver");
+    this.GetRootWidget().UnregisterFromCallback(n"OnHoverOut", this, n"OnHitAreaOnHoverOut");
+  }
+
+  public final func SetInputDisabled(disable: Bool) -> Void {
+    if NotEquals(this.m_inputDisabled, disable) {
+      this.m_isPlusOrMinusBtnHoveredOver = false;
+      this.RefreshVisibility();
+    };
+    this.m_inputDisabled = disable;
+  }
+
+  public final func Refresh() -> Void {
+    inkTextRef.SetText(this.m_value, ToString(this.data.value));
+    this.animating = false;
+    this.RefreshVisibility();
+  }
+
+  public final func Increment() -> Void {
+    if this.animating {
+      return;
+    };
+    this.animating = true;
+    this.CallCustomCallback(n"OnValueIncremented");
+  }
+
+  public final func Decrement() -> Void {
+    if this.animating {
+      return;
+    };
+    this.animating = true;
+    this.CallCustomCallback(n"OnValueDecremented");
+  }
+
+  public final func SetData(attribute: gamedataStatType, value: Int32) -> Void {
+    this.data = new CharacterCreationAttributeData();
+    let str: String = EnumValueToString("gamedataStatType", Cast<Int64>(EnumInt(attribute)));
+    let record: ref<UICharacterCreationAttribute_Record> = TweakDBInterface.GetUICharacterCreationAttributeRecord(TDBID.Create("UICharacterCreationGeneral." + str));
+    this.data.value = value;
+    this.data.attribute = attribute;
+    this.data.icon = record.IconPath();
+    this.data.desc = record.Description();
+    let statsRecord: ref<Stat_Record> = record.Attribute();
+    this.data.label = statsRecord.LocalizedName();
+    inkTextRef.SetText(this.m_label, this.data.label);
+    switch attribute {
+      case gamedataStatType.Intelligence:
+        inkImageRef.SetTexturePart(this.m_icon, n"ico_int");
+        break;
+      case gamedataStatType.Cool:
+        inkImageRef.SetTexturePart(this.m_icon, n"ico_cool");
+        break;
+      case gamedataStatType.Strength:
+        inkImageRef.SetTexturePart(this.m_icon, n"ico_body");
+        break;
+      case gamedataStatType.Reflexes:
+        inkImageRef.SetTexturePart(this.m_icon, n"ico_ref");
+        break;
+      case gamedataStatType.TechnicalAbility:
+        inkImageRef.SetTexturePart(this.m_icon, n"ico_tech");
+    };
+  }
+
+  private final func RefreshVisibility() -> Void {
+    if this.m_isPlusOrMinusBtnHoveredOver {
+      if !this.m_addEnabled {
+        inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_minus_idle");
+        inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_left");
+      } else {
+        if !this.m_minusEnabled {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_plus_idle");
+          inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_right");
+        } else {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_idle");
+        };
+      };
+    } else {
+      if this.m_addEnabled && this.m_minusEnabled {
+        inkImageRef.SetTexturePart(this.m_buttons, n"points_idle");
+        inkImageRef.SetTexturePart(this.m_selector, n"cell_perks");
+      } else {
+        if !this.m_addEnabled {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_minus_idle");
+          inkImageRef.SetTexturePart(this.m_selector, n"cell_perks");
+        } else {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_plus_idle");
+          inkImageRef.SetTexturePart(this.m_selector, n"cell_perks");
+        };
+      };
+    };
+  }
+
+  protected cb func OnMinus(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        if this.m_minusEnabled {
+          this.PlaySound(n"MapPin", n"OnEnable");
+          this.Decrement();
+        } else {
+          this.PlaySound(n"MapPin", n"OnDisable");
+        };
+      };
+    };
+  }
+
+  protected cb func OnAdd(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      if e.IsAction(n"click") || e.IsAction(n"tap") {
+        if this.m_addEnabled {
+          this.PlaySound(n"MapPin", n"OnCreate");
+          this.Increment();
+        } else {
+          this.PlaySound(n"MapPin", n"OnDisable");
+        };
+      };
+    };
+  }
+
+  protected cb func OnHitAreaOnHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      this.GetRootWidget().SetState(n"SemiHover");
+      this.CallCustomCallback(n"OnBtnHoverOver");
+    };
+  }
+
+  protected cb func OnHitAreaOnHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      this.GetRootWidget().SetState(n"Default");
+      this.CallCustomCallback(n"OnBtnHoverOut");
+    };
+  }
+
+  protected cb func OnPlusHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      if this.m_minusEnabled && this.m_addEnabled {
+        inkImageRef.SetTexturePart(this.m_buttons, n"points_hover_plus");
+        inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_right");
+      } else {
+        if !this.m_addEnabled {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_minus_hover");
+          inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_right");
+        } else {
+          if !this.m_minusEnabled {
+            inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_plus_hover");
+            inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_right");
+          };
+        };
+      };
+      this.m_isPlusOrMinusBtnHoveredOver = true;
+    };
+  }
+
+  protected cb func OnPlusHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      this.m_isPlusOrMinusBtnHoveredOver = false;
+      this.RefreshVisibility();
+    };
+  }
+
+  protected cb func OnMinusHoverOver(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      if this.m_minusEnabled && this.m_addEnabled {
+        inkImageRef.SetTexturePart(this.m_buttons, n"points_hover_minus");
+        inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_left");
+      } else {
+        if !this.m_minusEnabled {
+          inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_plus_hover");
+          inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_left");
+        } else {
+          if !this.m_addEnabled {
+            inkImageRef.SetTexturePart(this.m_buttons, n"points_locked_minus_hover");
+            inkImageRef.SetTexturePart(this.m_selector, n"cell_perks_left");
+          };
+        };
+      };
+      this.m_isPlusOrMinusBtnHoveredOver = true;
+    };
+  }
+
+  protected cb func OnMinusHoverOut(e: ref<inkPointerEvent>) -> Bool {
+    if !this.m_inputDisabled {
+      this.m_isPlusOrMinusBtnHoveredOver = false;
+      this.RefreshVisibility();
+    };
+  }
+
+  public final func ManageBtnVisibility(addEnabled: Bool, minusEnabled: Bool) -> Void {
+    this.m_addEnabled = addEnabled;
+    this.m_minusEnabled = minusEnabled;
+    this.RefreshVisibility();
+  }
+
+  public final func ManageLabel(atMin: Bool, atMax: Bool) -> Void {
+    inkWidgetRef.SetVisible(this.m_minMaxLabel, atMin || atMax);
+    if atMax {
+      inkTextRef.SetText(this.m_minMaxLabelText, "LocKey#42807");
+    } else {
+      if atMin {
+        inkTextRef.SetText(this.m_minMaxLabelText, "LocKey#42808");
+      };
+    };
+  }
+}

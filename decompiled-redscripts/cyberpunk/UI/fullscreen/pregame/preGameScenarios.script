@@ -1,0 +1,971 @@
+
+public class MenuScenario_PreGameSubMenu extends inkMenuScenario {
+
+  protected let m_prevScenario: CName;
+
+  protected let m_currSubMenuName: CName;
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    if Equals(this.m_prevScenario, n"None") {
+      this.m_prevScenario = prevScenario;
+    };
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    if Equals(nextScenario, this.m_prevScenario) {
+      this.m_prevScenario = n"None";
+    };
+  }
+
+  protected final func OpenSubMenu(menuName: CName, opt userData: ref<IScriptable>) -> Void {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if NotEquals(this.m_currSubMenuName, n"None") {
+      menuState.CloseMenu(this.m_currSubMenuName);
+    };
+    this.m_currSubMenuName = menuName;
+    menuState.OpenMenu(this.m_currSubMenuName, userData);
+    this.OnSubmenuOpen();
+  }
+
+  protected func OnSubmenuOpen() -> Void;
+
+  protected final func CloseSubMenu() -> Void {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if NotEquals(this.m_currSubMenuName, n"None") {
+      menuState.CloseMenu(this.m_currSubMenuName);
+    };
+    this.m_currSubMenuName = n"None";
+  }
+
+  protected cb func OnRequestPatchNotes() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnOpenPatchNotes");
+  }
+
+  protected cb func OnRequestCloseUpdateMods() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnCloseUpdateMods");
+  }
+
+  protected cb func OnRequestOpenModioBrowser() -> Bool {
+    this.OnSwitchToModioMenu();
+  }
+
+  protected cb func OnSwitchToModioMenu() -> Bool {
+    let platformName: String;
+    if !this.GetSystemRequestsHandler().GetIsSignedIn() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGenericYesNo(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-Tooltips-RequestLoginCDPR", this, n"OnRequestCDPRAccountPopupCallBack");
+      return true;
+    };
+    if !this.GetSystemRequestsHandler().IsOnline() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-ErrorMessages-ModioOutage");
+      return true;
+    };
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") || Equals(platformName, "windowsGDK") {
+      Modio.RequestRestrictionStatus(this, n"OnRequestRestrictionStatusCallBack");
+      return true;
+    };
+    if !this.CheckModioMenuCanOpen() {
+      return true;
+    };
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Mods");
+  }
+
+  protected cb func OnRequestRestrictionStatusCallBack(status: Int32) -> Bool {
+    if !this.GetSystemRequestsHandler().IsOnline() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-ErrorMessages-ModioOutage");
+      return true;
+    };
+    if status == 0 {
+      this.OpenModioMenu();
+    } else {
+      if status == 2 && (Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro")) {
+        Modio.OpenSigninDialog(this, n"OnOpenSigninDialogResult");
+      } else {
+        if NotEquals(GetPlatformShortName(), "emporium") {
+          Modio.ShowMsgDialog(1, GetLocalizedText("Gameplay-Scanning-Devices-GameplayActions-Error"), GetLocalizedText("UI-Modio-ErrorMessages-NotAllowedToInteractWithUGC"), GetLocalizedText("Gameplay-Devices-Interactions-Ok"));
+        };
+      };
+    };
+  }
+
+  public final func OpenModioMenu() -> Void {
+    if !this.CheckModioMenuCanOpen() {
+      return;
+    };
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Mods");
+  }
+
+  public final func CheckModioMenuCanOpen() -> Bool {
+    if !this.GetSystemRequestsHandler().IsOnline() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-ErrorMessages-ModioOutage");
+      return false;
+    };
+    if !Modio.IsAuthorized() && this.GetSystemRequestsHandler().GetIsSignedIn() {
+      Modio.RequestLoginModio(this, n"OnModioLoginResult");
+      return false;
+    };
+    if !Modio.IsInitialized() {
+      Modio.RequestInitModio(this, n"OnModioInitResult");
+    };
+    return true;
+  }
+
+  protected cb func OnEulaDisplay() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_EULA");
+  }
+
+  protected cb func OnPitchScreenDisplay() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Pitch");
+  }
+
+  protected cb func OnRequetClosePatchNotes() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnClosePatchNotes");
+  }
+
+  protected cb func OnRequestShowMainMenuTooltip(userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnShowMainMenuTooltip", userData);
+  }
+
+  protected cb func OnRequestHideMainMenuTooltip() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnHideMainMenuTooltip");
+  }
+
+  protected cb func OnRequetCloseExpansionPopup() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnCloseExpansionPopup");
+  }
+
+  protected cb func OnRequetPurchaseDisabledError() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnPurchaseDisabledError");
+  }
+
+  protected cb func OnBack() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if NotEquals(this.m_currSubMenuName, n"None") {
+      if !menuState.DispatchEvent(this.m_currSubMenuName, n"OnBack") {
+        this.CloseSubMenu();
+      };
+    } else {
+      this.SwitchToScenario(this.m_prevScenario);
+    };
+  }
+
+  protected cb func OnHandleEngagementScreen(evt: ref<ShowEngagementScreen>) -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if IsDefined(menuState) {
+      if NotEquals(this.m_currSubMenuName, n"None") {
+        menuState.DispatchEvent(this.m_currSubMenuName, n"OnBack");
+      };
+      menuState.CloseAllMenus();
+    };
+    this.CloseSubMenu();
+    if evt.show {
+      this.OnSwitchToEngagementScreen();
+    } else {
+      this.SwitchToScenario(n"MenuScenario_SingleplayerMenu");
+      this.GetMenusState().OpenMenu(n"singleplayer_menu");
+    };
+  }
+
+  protected cb func OnSwitchToEngagementScreen() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_EngagementScreen");
+    this.OpenSubMenu(n"engagement_screen");
+  }
+
+  protected cb func OnHandleInitializeUserScreen(evt: ref<ShowInitializeUserScreen>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    let patchNotesCheckData: ref<PatchNotesCheckData>;
+    let requestsHandler: wref<inkISystemRequestsHandler>;
+    if evt.show {
+      this.OnSwitchToInitializeUserScreen();
+    } else {
+      requestsHandler = this.GetSystemRequestsHandler();
+      this.OnCloseInitializeUserScreen();
+      requestsHandler.UpdateLaunchCounter();
+      patchNotesCheckData = new PatchNotesCheckData();
+      patchNotesCheckData.m_ownExpansion = requestsHandler.IsAdditionalContentEnabled(n"EP1") || requestsHandler.IsAdditionalContentEnabled(n"EP1");
+      menuState = this.GetMenusState();
+      menuState.DispatchEvent(n"singleplayer_menu", n"OnCheckPatchNotes", patchNotesCheckData);
+      menuState.DispatchEvent(n"singleplayer_menu", n"OnShowOneTimeMessages");
+      if requestsHandler.ShouldDisplayGog() {
+        this.DisplayGog();
+      };
+    };
+  }
+
+  protected func DisplayGog() -> Void;
+
+  protected cb func OnSwitchToInitializeUserScreen() -> Bool {
+    this.OpenSubMenu(n"initialize_user_screen");
+  }
+
+  protected cb func OnCloseInitializeUserScreen() -> Bool {
+    let data: ref<SingleplayerMenuData>;
+    if Equals(this.m_currSubMenuName, n"initialize_user_screen") {
+      this.CloseSubMenu();
+      data = new SingleplayerMenuData();
+      data.mainMenuShownFirstTime = true;
+      this.GetMenusState().OpenMenu(n"singleplayer_menu", data);
+    };
+  }
+}
+
+public class MenuScenario_EngagementScreen extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnBack() -> Bool;
+}
+
+public class MenuScenario_SingleplayerMenu extends MenuScenario_PreGameSubMenu {
+
+  @default(MenuScenario_SingleplayerMenu, false)
+  private let m_expansionHintShown: Bool;
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let data: ref<SingleplayerMenuData> = new SingleplayerMenuData();
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if Equals(prevScenario, n"None") {
+      menuState.ShowMenus(true);
+    };
+    data.showExpansionHint = this.m_expansionHintShown;
+    menuState.OpenMenu(n"singleplayer_menu", data);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    this.GetMenusState().CloseMenu(n"singleplayer_menu");
+  }
+
+  protected cb func OnLoadGame() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_LoadGame");
+  }
+
+  protected cb func OnSwitchToSettings() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Settings");
+  }
+
+  protected cb func OnSwitchToModioMenu() -> Bool {
+    let platformName: String;
+    if !this.GetSystemRequestsHandler().GetIsSignedIn() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGenericYesNo(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-Tooltips-RequestLoginCDPR", this, n"OnRequestCDPRAccountPopupCallBack");
+      return true;
+    };
+    if !this.GetSystemRequestsHandler().IsOnline() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-ErrorMessages-ModioOutage");
+      return true;
+    };
+    platformName = GetPlatformShortName();
+    if Equals(platformName, "ps5") || Equals(platformName, "ps5pro") || Equals(platformName, "xseriesx") || Equals(platformName, "xseriess") || Equals(platformName, "emporium") || Equals(platformName, "windowsGDK") {
+      Modio.RequestRestrictionStatus(this, n"OnRequestRestrictionStatusCallBack");
+      return true;
+    };
+    if !this.CheckModioMenuCanOpen() {
+      return true;
+    };
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Mods");
+  }
+
+  protected cb func OnRequestRestrictionStatusCallBack(status: Int32) -> Bool {
+    if !this.GetSystemRequestsHandler().IsOnline() {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-ErrorMessages-ModioOutage");
+      return true;
+    };
+    if status == 0 {
+      this.OpenModioMenu();
+    } else {
+      if status == 2 && (Equals(GetPlatformShortName(), "ps5") || Equals(GetPlatformShortName(), "ps5pro")) {
+        Modio.OpenSigninDialog(this, n"OnOpenSigninDialogResult");
+      } else {
+        if NotEquals(GetPlatformShortName(), "emporium") {
+          Modio.ShowMsgDialog(1, GetLocalizedText("Gameplay-Scanning-Devices-GameplayActions-Error"), GetLocalizedText("UI-Modio-ErrorMessages-NotAllowedToInteractWithUGC"), GetLocalizedText("Gameplay-Devices-Interactions-Ok"));
+        };
+      };
+    };
+  }
+
+  protected cb func OnOpenSigninDialogResult(status: Int32) -> Bool {
+    if status == 0 {
+      this.OnSwitchToModioMenu();
+    };
+  }
+
+  protected final func IsGogDisPlaying() -> Bool {
+    let menuWidget: ref<inkWidget> = this.GetMenusState().OpenMenu(n"singleplayer_menu");
+    let gogContainer: wref<inkCompoundWidget> = menuWidget.GetController().GetWidget(n"GogPanel/GogContainer") as inkCompoundWidget;
+    if IsDefined(gogContainer) {
+      if Cast<Bool>(gogContainer.GetNumChildren()) {
+        return true;
+      };
+    };
+    return false;
+  }
+
+  protected cb func OnRequestCDPRAccountPopupCallBack(value: Bool) -> Bool {
+    if !value {
+      return true;
+    };
+    if !this.IsGogDisPlaying() {
+      this.DisplayGog();
+    };
+  }
+
+  protected cb func OnModioTermsPopupClose(evt: ref<ModioTermsPopupCloseEvent>) -> Bool {
+    if evt.m_isAccepted {
+      Modio.RequestLoginModio(this, n"OnModioLoginResult", true);
+    };
+  }
+
+  protected cb func OnModioInitResult(isSuccess: Bool) -> Bool {
+    if isSuccess {
+      this.OnSwitchToModioMenu();
+    } else {
+      this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-Tooltips-RequestLoginModio");
+    };
+  }
+
+  protected cb func OnModioLoginResult(status: Int32) -> Bool {
+    if status == 0 {
+      this.OnSwitchToModioMenu();
+    } else {
+      if status == 2 {
+        this.GetMenusState().DispatchEvent(n"singleplayer_menu", n"OnShowModioTerms");
+      } else {
+        this.GetSystemRequestsHandler().RequestSystemNotificationGeneric(n"UI-Modio-ErrorMessages-PopupTitle", n"UI-Modio-Tooltips-RequestLoginModio");
+      };
+    };
+  }
+
+  protected cb func OnSwitchToCredits() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Credits");
+  }
+
+  protected cb func OnSwitchToCreditsEp1() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_CreditsEp1");
+  }
+
+  protected cb func OnCreditsPicker() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_CreditsPicker");
+  }
+
+  protected cb func OnBuyGame() -> Bool {
+    TrialHelper.ShowUpgradeTrialVersionCommerceDialog();
+  }
+
+  protected cb func OnSwitchToDlc() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_DLC");
+  }
+
+  protected func DisplayGog() -> Void {
+    this.OnGOGProfile();
+  }
+
+  protected cb func OnGOGProfile() -> Bool {
+    let menuWidget: ref<inkWidget> = this.GetMenusState().OpenMenu(n"singleplayer_menu");
+    let gogContainer: wref<inkCompoundWidget> = menuWidget.GetController().GetWidget(n"GogPanel/GogContainer") as inkCompoundWidget;
+    if IsDefined(gogContainer) {
+      if Cast<Bool>(gogContainer.GetNumChildren()) {
+        gogContainer.RemoveAllChildren();
+      } else {
+        this.SpawnGogPopupWidget(menuWidget, gogContainer);
+      };
+    };
+  }
+
+  protected cb func OnReloadGOGProfile() -> Bool {
+    let menuWidget: ref<inkWidget> = this.GetMenusState().OpenMenu(n"singleplayer_menu");
+    let gogContainer: wref<inkCompoundWidget> = menuWidget.GetController().GetWidget(n"GogPanel/GogContainer") as inkCompoundWidget;
+    if IsDefined(gogContainer) {
+      gogContainer.RemoveAllChildren();
+      this.SpawnGogPopupWidget(menuWidget, gogContainer);
+    };
+  }
+
+  private final func SpawnGogPopupWidget(menuWidget: ref<inkWidget>, gogContainer: wref<inkCompoundWidget>) -> Void {
+    let gogPopupController: wref<GOGProfileLogicController>;
+    let gogPopupWidget: ref<inkWidget> = menuWidget.GetController().SpawnFromExternal(gogContainer, r"base\\gameplay\\gui\\fullscreen\\main_menu\\gog_popup.inkwidget", n"Root");
+    if gogPopupWidget != null {
+      gogPopupController = gogPopupWidget.GetController() as GOGProfileLogicController;
+      if gogPopupController != null {
+        gogPopupController.SetMenuState(EGOGMenuState.MainMenu);
+        gogPopupController.SetGogContainer(gogContainer);
+      };
+    };
+  }
+
+  protected cb func OnExpansionHint() -> Bool {
+    this.m_expansionHintShown = true;
+  }
+
+  protected cb func OnCloseSettings() -> Bool {
+    if Equals(this.m_currSubMenuName, n"settings_main") {
+      this.CloseSubMenu();
+    };
+  }
+
+  protected cb func OnDebug() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_NewGame");
+  }
+
+  protected cb func OnNewGame() -> Bool {
+    this.CloseSubMenu();
+    if this.GetSystemRequestsHandler().IsAdditionalContentEnabled(n"EP1") {
+      this.SwitchToScenario(n"MenuScenario_ExpansionNewGame");
+    } else {
+      this.SwitchToScenario(n"MenuScenario_Difficulty");
+    };
+  }
+
+  protected func OnSubmenuOpen() -> Void {
+    this.GetMenusState().CloseMenu(n"singleplayer_menu");
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    if NotEquals(this.m_currSubMenuName, n"None") {
+      this.CloseSubMenu();
+      this.GetMenusState().OpenMenu(n"singleplayer_menu");
+    } else {
+      this.SwitchToScenario(this.m_prevScenario);
+    };
+  }
+}
+
+public class MenuScenario_Settings extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"settings_main", userData);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"settings_main");
+  }
+
+  protected cb func OnSwitchToBrightnessSettings() -> Bool {
+    this.OpenSubMenu(n"brightness_settings");
+  }
+
+  protected cb func OnSwitchToHDRSettings() -> Bool {
+    this.OpenSubMenu(n"hdr_settings");
+  }
+
+  protected cb func OnSwitchToControllerPanel() -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    this.OpenSubMenu(menuState.GetControllerMenuName());
+  }
+
+  protected cb func OnSwitchToControllerPanel_DEBUG() -> Bool {
+    this.OpenSubMenu(n"controller_switch2");
+  }
+
+  protected func OnSubmenuOpen() -> Void {
+    this.GetMenusState().CloseMenu(n"settings_main");
+  }
+
+  protected cb func OnSettingsBack() -> Bool {
+    if NotEquals(this.m_currSubMenuName, n"None") {
+      this.CloseSubMenu();
+      this.GetMenusState().OpenMenu(n"settings_main");
+    } else {
+      this.CloseSettings(false);
+    };
+  }
+
+  protected cb func OnCloseSettingsScreen() -> Bool {
+    this.CloseSettings(true);
+  }
+
+  private final func CloseSettings(forceCloseSettings: Bool) -> Void {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if forceCloseSettings {
+      menuState.CloseMenu(n"settings_main");
+      if NotEquals(this.m_currSubMenuName, n"None") {
+        if !menuState.DispatchEvent(this.m_currSubMenuName, n"OnBack") {
+          this.CloseSubMenu();
+        };
+      } else {
+        this.SwitchToScenario(this.m_prevScenario);
+      };
+    } else {
+      menuState.DispatchEvent(n"settings_main", n"OnBack");
+    };
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+}
+
+public class MenuScenario_Mods extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"modio_browser_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"modio_browser_menu");
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_SingleplayerMenu");
+  }
+}
+
+public class MenuScenario_CreditsPicker extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"credits_picker");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"credits_picker");
+  }
+
+  protected cb func OnSwitchToCredits() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Credits");
+  }
+
+  protected cb func OnSwitchToCreditsEp1() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_CreditsEp1");
+  }
+}
+
+public class MenuScenario_Credits extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let data: ref<CreditsData> = new CreditsData();
+    data.isFinalBoards = false;
+    data.showRewardPrompt = false;
+    super.OnEnterScenario(prevScenario, userData);
+    this.OpenSubMenu(n"credits", data);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+  }
+
+  protected cb func OnBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+
+  protected cb func OnSettingsBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+}
+
+public class MenuScenario_CreditsEp1 extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let data: ref<CreditsData> = new CreditsData();
+    data.isFinalBoards = false;
+    data.showRewardPrompt = false;
+    super.OnEnterScenario(prevScenario, userData);
+    this.OpenSubMenu(n"credits_ep1", data);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+  }
+
+  protected cb func OnBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+
+  protected cb func OnSettingsBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+}
+
+public class MenuScenario_NewGame extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"new_game_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"new_game_menu");
+  }
+}
+
+public class MenuScenario_LoadGame extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"load_game_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"load_game_menu");
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+}
+
+public class MenuScenario_MultiplayerMenu extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    if Equals(prevScenario, n"None") {
+      menuState.ShowMenus(true);
+    };
+    menuState.OpenMenu(n"multiplayer_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"multiplayer_menu");
+  }
+
+  protected cb func OnFindServers() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_FindServers");
+  }
+
+  protected cb func OnPlayRecordedSession() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_PlayRecordedSession");
+  }
+
+  protected cb func OnBoothMode() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_BoothMode");
+  }
+}
+
+public class MenuScenario_FindServers extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"find_servers");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"find_servers");
+  }
+}
+
+public class MenuScenario_PlayRecordedSession extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.GetMenusState().OpenMenu(n"play_recorded_session");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"play_recorded_session");
+  }
+}
+
+public class MenuScenario_BoothMode extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    this.GetMenusState().OpenMenu(n"booth_mode");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    this.GetMenusState().CloseMenu(n"booth_mode");
+  }
+}
+
+public class MenuScenario_LifePathSelection extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"character_customization_background");
+    menuState.OpenMenu(n"life_path_selection");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    if NotEquals(nextScenario, n"MenuScenario_BodyTypeSelection") {
+      menuState.CloseMenu(n"character_customization_background");
+    };
+    menuState.CloseMenu(n"life_path_selection");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_BodyTypeSelection");
+  }
+}
+
+public class MenuScenario_BodyTypeSelection extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"gender_selection");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"gender_selection");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_CharacterCustomization");
+  }
+}
+
+public class MenuScenario_CharacterCustomization extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    let morphMenuUserData: ref<MorphMenuUserData> = new MorphMenuUserData();
+    morphMenuUserData.m_optionsListInitialized = Equals(prevScenario, n"MenuScenario_StatsAdjustment");
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"player_puppet");
+    menuState.OpenMenu(n"character_customization", morphMenuUserData);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    if NotEquals(nextScenario, n"MenuScenario_StatsAdjustment") {
+      menuState.CloseMenu(n"player_puppet");
+    };
+    menuState.CloseMenu(n"character_customization");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_StatsAdjustment");
+  }
+}
+
+public class MenuScenario_StatsAdjustment extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    let statsMenuUserData: ref<StatsMenuUserData> = new StatsMenuUserData();
+    statsMenuUserData.m_menuVisited = Equals(prevScenario, n"MenuScenario_Summary");
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"player_puppet");
+    menuState.OpenMenu(n"statistics_adjustment", statsMenuUserData);
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"statistics_adjustment");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_Summary");
+  }
+}
+
+public class MenuScenario_Summary extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"player_puppet");
+    menuState.OpenMenu(n"character_customization_summary");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"character_customization_summary");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.GetMenusState().ShowMenus(false);
+  }
+}
+
+public class MenuScenario_Difficulty extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"singleplayer_menu_difficulty");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"character_customization_background");
+    menuState.CloseMenu(n"singleplayer_menu_difficulty");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_LifePathSelection");
+  }
+}
+
+public class MenuScenario_ExpansionNewGame extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"expansion_new_game_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnLeaveScenario(nextScenario);
+    menuState = this.GetMenusState();
+    menuState.CloseMenu(n"character_customization_background");
+    menuState.CloseMenu(n"expansion_new_game_menu");
+  }
+
+  protected cb func OnAccept() -> Bool {
+    this.SwitchToScenario(n"MenuScenario_Difficulty");
+  }
+}
+
+public class MenuScenario_DLC extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    super.OnEnterScenario(prevScenario, userData);
+    this.OpenSubMenu(n"dlc_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+  }
+
+  protected cb func OnSettingsBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(this.m_prevScenario);
+  }
+}
+
+public class MenuScenario_EULA extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"pitch_eula");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"pitch_eula");
+  }
+
+  protected cb func OnSwitchToPitchMenu() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Pitch");
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_SingleplayerMenu");
+  }
+}
+
+public class MenuScenario_Pitch extends MenuScenario_PreGameSubMenu {
+
+  private let m_fallbackScenario: CName;
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    if Equals(prevScenario, n"MenuScenario_SingleplayerMenu") || Equals(prevScenario, n"MenuScenario_LoadGame") {
+      this.m_fallbackScenario = prevScenario;
+    } else {
+      this.m_fallbackScenario = n"MenuScenario_SingleplayerMenu";
+    };
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"pitch_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    super.OnLeaveScenario(nextScenario);
+    this.GetMenusState().CloseMenu(n"pitch_menu");
+  }
+
+  protected cb func OnSwitchToTelemetryScreen() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_Telemetry");
+  }
+
+  protected cb func OnMainMenuBack() -> Bool {
+    this.CloseSubMenu();
+    this.SwitchToScenario(n"MenuScenario_SingleplayerMenu");
+  }
+
+  protected cb func OnMainMenu() -> Bool {
+    let requestsHandler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    let patchNotesCheckData: ref<PatchNotesCheckData> = new PatchNotesCheckData();
+    patchNotesCheckData.m_ownExpansion = requestsHandler.IsAdditionalContentEnabled(n"EP1");
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    this.SwitchToScenario(this.m_fallbackScenario);
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnCheckPatchNotes", patchNotesCheckData);
+  }
+}
+
+public class MenuScenario_Telemetry extends MenuScenario_PreGameSubMenu {
+
+  protected cb func OnEnterScenario(prevScenario: CName, userData: ref<IScriptable>) -> Bool {
+    let menuState: wref<inkMenusState>;
+    super.OnEnterScenario(prevScenario, userData);
+    menuState = this.GetMenusState();
+    menuState.OpenMenu(n"pitch_telemetry_menu");
+  }
+
+  protected cb func OnLeaveScenario(nextScenario: CName) -> Bool {
+    this.GetMenusState().CloseMenu(n"pitch_telemetry_menu");
+  }
+
+  protected cb func OnMainMenu() -> Bool {
+    let requestsHandler: wref<inkISystemRequestsHandler> = this.GetSystemRequestsHandler();
+    let patchNotesCheckData: ref<PatchNotesCheckData> = new PatchNotesCheckData();
+    patchNotesCheckData.m_ownExpansion = requestsHandler.IsAdditionalContentEnabled(n"EP1");
+    let menuState: wref<inkMenusState> = this.GetMenusState();
+    this.SwitchToScenario(n"MenuScenario_SingleplayerMenu");
+    menuState.DispatchEvent(n"singleplayer_menu", n"OnCheckPatchNotes", patchNotesCheckData);
+  }
+}

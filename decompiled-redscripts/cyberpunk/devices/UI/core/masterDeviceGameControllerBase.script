@@ -1,0 +1,219 @@
+
+public class MasterDeviceInkGameControllerBase extends DeviceInkGameControllerBase {
+
+  protected let m_thumbnailWidgetsData: [SThumbnailWidgetPackage];
+
+  private let m_onThumbnailWidgetsUpdateListener: ref<CallbackHandle>;
+
+  private let m_onCleanPasswordListener: ref<CallbackHandle>;
+
+  private let m_keypadController: wref<KeypadDeviceController>;
+
+  protected cb func OnInitialize() -> Bool {
+    super.OnInitialize();
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    super.OnUninitialize();
+  }
+
+  protected cb func OnDeviceWidgetSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    super.OnDeviceWidgetSpawned(widget, userData);
+    this.TrySaveKeypadController(widget);
+  }
+
+  private final func TrySaveKeypadController(widget: ref<inkWidget>) -> Void {
+    let keypadController: ref<KeypadDeviceController> = widget.GetController() as KeypadDeviceController;
+    if IsDefined(keypadController) {
+      this.m_keypadController = keypadController;
+    };
+  }
+
+  protected final func CreateThumbnailWidgetAsync(parentWidget: wref<inkWidget>, widgetData: SThumbnailWidgetPackage) -> Void {
+    let screenDef: ScreenDefinitionPackage;
+    let spawnData: ref<AsyncSpawnData>;
+    if this.HasThumbnailWidgetData(widgetData) {
+      return;
+    };
+    screenDef = this.GetScreenDefinition();
+    spawnData = new AsyncSpawnData();
+    spawnData.Initialize(this, n"OnThumbnailWidgetSpawned", ToVariant(widgetData), this);
+    widgetData.libraryID = this.RequestWidgetFromLibrary(parentWidget, TweakDBInterface.GetWidgetDefinitionRecord(widgetData.widgetTweakDBID), screenDef.screenDefinition.TerminalScreenType(), screenDef.style, widgetData.libraryID, widgetData.libraryPath, spawnData);
+    this.AddThumbnailWidgetData(widgetData);
+  }
+
+  protected cb func OnThumbnailWidgetSpawned(widget: ref<inkWidget>, userData: ref<IScriptable>) -> Bool {
+    let spawnData: ref<AsyncSpawnData>;
+    let widgetData: SThumbnailWidgetPackage;
+    if widget != null {
+      widget.SetSizeRule(inkESizeRule.Stretch);
+    };
+    spawnData = userData as AsyncSpawnData;
+    if spawnData != null {
+      widgetData = FromVariant<SThumbnailWidgetPackage>(spawnData.m_widgetData);
+      widgetData.widget = widget;
+      widgetData.libraryID = spawnData.m_libraryID;
+      this.UpdateThumbnailWidgetData(widgetData, this.GetThumbnailWidgetDataIndex(widgetData));
+      this.InitializeThumbnailWidget(widget, widgetData);
+    };
+  }
+
+  protected final func CreateThumbnailWidget(parentWidget: wref<inkWidget>, const widgetData: script_ref<SThumbnailWidgetPackage>) -> wref<inkWidget> {
+    let screenDef: ScreenDefinitionPackage = this.GetScreenDefinition();
+    let widget: ref<inkWidget> = this.FindWidgetInLibrary(parentWidget, TweakDBInterface.GetWidgetDefinitionRecord(Deref(widgetData).widgetTweakDBID), screenDef.screenDefinition.TerminalScreenType(), screenDef.style, Deref(widgetData).libraryID, Deref(widgetData).libraryPath);
+    if widget != null {
+      widget.SetSizeRule(inkESizeRule.Stretch);
+    };
+    return widget;
+  }
+
+  protected final func UpdateThumbnailWidgetData(const widgetData: script_ref<SThumbnailWidgetPackage>, index: Int32) -> Void {
+    if index >= 0 && index < ArraySize(this.m_thumbnailWidgetsData) {
+      this.m_thumbnailWidgetsData[index] = Deref(widgetData);
+    };
+  }
+
+  protected final func GetThumbnailWidgetDataIndex(widgetData: SThumbnailWidgetPackage) -> Int32 {
+    let screenDef: ScreenDefinitionPackage = this.GetScreenDefinition();
+    widgetData.libraryID = this.GetCurrentFullLibraryID(TweakDBInterface.GetWidgetDefinitionRecord(widgetData.widgetTweakDBID), screenDef.screenDefinition.TerminalScreenType(), screenDef.style);
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_thumbnailWidgetsData) {
+      if Equals(this.m_thumbnailWidgetsData[i].ownerID, widgetData.ownerID) && Equals(this.m_thumbnailWidgetsData[i].widgetName, widgetData.widgetName) && this.m_thumbnailWidgetsData[i].widgetTweakDBID == widgetData.widgetTweakDBID && Equals(this.m_thumbnailWidgetsData[i].libraryPath, widgetData.libraryPath) && Equals(this.m_thumbnailWidgetsData[i].libraryID, widgetData.libraryID) {
+        return i;
+      };
+      i += 1;
+    };
+    return -1;
+  }
+
+  protected final func GetThumbnailWidget(const widgetData: script_ref<SThumbnailWidgetPackage>) -> wref<inkWidget> {
+    let index: Int32 = this.GetThumbnailWidgetDataIndex(Deref(widgetData));
+    if index >= 0 && index < ArraySize(this.m_thumbnailWidgetsData) {
+      return this.m_thumbnailWidgetsData[index].widget;
+    };
+    return null;
+  }
+
+  protected final func HasThumbnailWidgetData(const widgetData: script_ref<SThumbnailWidgetPackage>) -> Bool {
+    return this.GetThumbnailWidgetDataIndex(Deref(widgetData)) >= 0;
+  }
+
+  protected final func HasThumbnailWidget(const widgetData: script_ref<SThumbnailWidgetPackage>) -> Bool {
+    return this.GetThumbnailWidget(widgetData) != null;
+  }
+
+  protected final func AddThumbnailWidgetData(const widgetData: script_ref<SThumbnailWidgetPackage>) -> Void {
+    ArrayPush(this.m_thumbnailWidgetsData, Deref(widgetData));
+  }
+
+  protected final func AddThumbnailWidget(widget: ref<inkWidget>, widgetData: SThumbnailWidgetPackage) -> wref<inkWidget> {
+    let screenDef: ScreenDefinitionPackage = this.GetScreenDefinition();
+    widgetData.libraryID = this.GetCurrentFullLibraryID(TweakDBInterface.GetWidgetDefinitionRecord(widgetData.widgetTweakDBID), screenDef.screenDefinition.TerminalScreenType(), screenDef.style);
+    widgetData.widget = widget;
+    ArrayPush(this.m_thumbnailWidgetsData, widgetData);
+    return widgetData.widget;
+  }
+
+  protected final func InitializeThumbnailWidget(widget: ref<inkWidget>, const widgetData: script_ref<SThumbnailWidgetPackage>) -> Void {
+    let controller: ref<DeviceThumbnailWidgetControllerBase> = widget.GetController() as DeviceThumbnailWidgetControllerBase;
+    if controller != null {
+      controller.Initialize(this, widgetData);
+    };
+    widget.SetVisible(true);
+  }
+
+  protected final func HideThumbnailWidgets() -> Void {
+    let i: Int32 = 0;
+    while i < ArraySize(this.m_thumbnailWidgetsData) {
+      if this.m_thumbnailWidgetsData[i].widget != null {
+        this.m_thumbnailWidgetsData[i].widget.SetVisible(false);
+      };
+      i += 1;
+    };
+  }
+
+  protected func UpdateActionWidgets(const widgetsData: script_ref<[SActionWidgetPackage]>) -> Void {
+    super.UpdateActionWidgets(widgetsData);
+  }
+
+  protected func UpdateThumbnailWidgets(const widgetsData: script_ref<[SThumbnailWidgetPackage]>) -> Void {
+    this.HideThumbnailWidgets();
+  }
+
+  protected func UpdateDeviceWidgets(const widgetsData: script_ref<[SDeviceWidgetPackage]>) -> Void {
+    super.UpdateDeviceWidgets(widgetsData);
+  }
+
+  protected func Refresh(state: EDeviceStatus) -> Void {
+    super.Refresh(state);
+  }
+
+  protected func GetOwner() -> ref<InteractiveMasterDevice> {
+    return this.GetOwnerEntity() as InteractiveMasterDevice;
+  }
+
+  protected func RegisterBlackboardCallbacks(blackboard: ref<IBlackboard>) -> Void {
+    super.RegisterBlackboardCallbacks(blackboard);
+    if IsDefined(blackboard) {
+      this.m_onThumbnailWidgetsUpdateListener = blackboard.RegisterListenerVariant(this.GetOwner().GetBlackboardDef().ThumbnailWidgetsData, this, n"OnThumbnailWidgetsUpdate");
+      this.m_onCleanPasswordListener = blackboard.RegisterListenerBool(this.GetOwner().GetBlackboardDef().CleanPassword, this, n"OnCleanPassword");
+    };
+  }
+
+  protected func UnRegisterBlackboardCallbacks(blackboard: ref<IBlackboard>) -> Void {
+    super.UnRegisterBlackboardCallbacks(blackboard);
+    if IsDefined(blackboard) {
+      blackboard.UnregisterListenerVariant(this.GetOwner().GetBlackboardDef().ThumbnailWidgetsData, this.m_onThumbnailWidgetsUpdateListener);
+      blackboard.UnregisterListenerBool(this.GetOwner().GetBlackboardDef().CleanPassword, this.m_onCleanPasswordListener);
+    };
+  }
+
+  protected cb func OnThumbnailWidgetsUpdate(value: Variant) -> Bool {
+    let widgetsData: array<SThumbnailWidgetPackage> = FromVariant<array<SThumbnailWidgetPackage>>(value);
+    this.UpdateThumbnailWidgets(widgetsData);
+  }
+
+  protected cb func OnCleanPassword(value: Bool) -> Bool {
+    if IsDefined(this.m_keypadController) {
+      this.m_keypadController.ClearPassword();
+    };
+  }
+
+  protected cb func OnThumbnailActionCallback(e: ref<inkPointerEvent>) -> Bool {
+    let action: ref<ScriptableDeviceAction>;
+    let controller: ref<DeviceThumbnailWidgetControllerBase>;
+    let executor: ref<PlayerPuppet>;
+    if e.IsAction(n"click") || e.IsAction(n"tap") {
+      controller = e.GetCurrentTarget().GetController() as DeviceThumbnailWidgetControllerBase;
+      if controller != null {
+        action = controller.GetAction();
+      };
+      executor = GetPlayer(this.GetOwner().GetGame());
+      this.ExecuteAction(action, executor);
+    };
+  }
+
+  protected final func RequestDeviceWidgetsUpdate(const devices: script_ref<[PersistentID]>) -> Void {
+    let deviceWidgetsEvent: ref<RequestDeviceWidgetsUpdateEvent> = new RequestDeviceWidgetsUpdateEvent();
+    deviceWidgetsEvent.requesters = Deref(devices);
+    deviceWidgetsEvent.screenDefinition = this.GetOwner().GetScreenDefinition();
+    this.GetOwner().QueueEvent(deviceWidgetsEvent);
+  }
+
+  protected final func RequestDeviceWidgetsUpdate(device: PersistentID) -> Void {
+    let deviceWidgetEvent: ref<RequestDeviceWidgetUpdateEvent> = new RequestDeviceWidgetUpdateEvent();
+    deviceWidgetEvent.requester = device;
+    deviceWidgetEvent.screenDefinition = this.GetOwner().GetScreenDefinition();
+    this.GetOwner().QueueEvent(deviceWidgetEvent);
+  }
+
+  protected final func RequestThumbnailWidgetsUpdate() -> Void {
+    let thumbnailWidgetsEvent: ref<RequestThumbnailWidgetsUpdateEvent> = new RequestThumbnailWidgetsUpdateEvent();
+    thumbnailWidgetsEvent.screenDefinition = this.GetOwner().GetScreenDefinition();
+    this.GetOwner().QueueEvent(thumbnailWidgetsEvent);
+  }
+
+  protected final func IsOwner(deviceID: PersistentID) -> Bool {
+    return Equals(deviceID, this.GetOwner().GetDevicePS().GetID());
+  }
+}

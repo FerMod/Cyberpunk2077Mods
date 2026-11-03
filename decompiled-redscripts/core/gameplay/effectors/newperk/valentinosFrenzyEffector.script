@@ -1,0 +1,40 @@
+
+public class ValentinosFrenzyEffector extends Effector {
+
+  public let m_countToRefund: Int32;
+
+  public let m_weaponToRefund: CName;
+
+  protected func Initialize(record: TweakDBID, game: GameInstance, parentRecord: TweakDBID) -> Void {
+    this.m_countToRefund = TweakDBInterface.GetInt(record + t".countToRefund", 1);
+    this.m_weaponToRefund = TweakDBInterface.GetCName(record + t".weapon", n"WeaponRight");
+  }
+
+  protected func ActionOn(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  protected func RepeatedAction(owner: ref<GameObject>) -> Void {
+    this.ProcessAction(owner);
+  }
+
+  private final func ProcessAction(owner: ref<GameObject>) -> Void {
+    let refundEvent: ref<SetAmmoCountEvent>;
+    let weapon: wref<WeaponObject>;
+    if Equals(this.m_weaponToRefund, n"WeaponRight") {
+      weapon = GameObject.GetRightActiveWeapon(owner);
+    } else {
+      if Equals(this.m_weaponToRefund, n"WeaponLeft") {
+        weapon = GameObject.GetLeftActiveWeapon(owner);
+      } else {
+        return;
+      };
+    };
+    if IsDefined(weapon) && WeaponObject.HasAvailableAmmoInInventory(weapon) && WeaponObject.GetMagazineCapacity(weapon) > WeaponObject.GetMagazineAmmoCount(weapon) && this.m_countToRefund > 0 {
+      refundEvent = new SetAmmoCountEvent();
+      refundEvent.ammoTypeID = WeaponObject.GetAmmoType(weapon);
+      refundEvent.count = Cast<Uint32>(this.m_countToRefund) + WeaponObject.GetMagazineAmmoCount(weapon);
+      weapon.QueueEvent(refundEvent);
+    };
+  }
+}

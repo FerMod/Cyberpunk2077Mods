@@ -1,0 +1,130 @@
+
+public class NewPerkTabsController extends inkLogicController {
+
+  private edit let m_tabText: inkTextRef;
+
+  private edit let m_currentAttributePoints: inkTextRef;
+
+  private edit let m_currentAttributeIcon: inkImageRef;
+
+  private edit let m_leftArrow: inkWidgetRef;
+
+  private edit let m_rightArrow: inkWidgetRef;
+
+  private edit let m_attributePointsWrapper: inkWidgetRef;
+
+  private edit let m_attributePointsText: inkTextRef;
+
+  private edit let m_perkPointsWrapper: inkWidgetRef;
+
+  private edit let m_perkPointsText: inkTextRef;
+
+  private edit let m_espionagePointsWrapper: inkWidgetRef;
+
+  private edit let m_espionagePointsText: inkTextRef;
+
+  private edit const let m_bars: [inkWidgetRef];
+
+  private let m_dataManager: wref<PlayerDevelopmentDataManager>;
+
+  private let m_initData: ref<NewPerksScreenInitData>;
+
+  private let m_isEspionageUnlocked: Bool;
+
+  public final func SetData(dataManager: wref<PlayerDevelopmentDataManager>, initData: wref<NewPerksScreenInitData>, opt isEspionageUnlocked: Bool) -> Void {
+    this.m_dataManager = dataManager;
+    this.m_initData = initData;
+    this.m_isEspionageUnlocked = isEspionageUnlocked;
+    let attributeData: ref<AttributeData> = dataManager.GetAttribute(dataManager.GetAttributeRecordIDFromEnum(initData.perkMenuAttribute));
+    inkTextRef.SetText(this.m_tabText, attributeData.label);
+    inkTextRef.SetText(this.m_currentAttributePoints, IntToString(attributeData.value));
+    inkWidgetRef.SetVisible(this.m_currentAttributePoints, NotEquals(initData.perkMenuAttribute, PerkMenuAttribute.Espionage));
+    inkImageRef.SetTexturePart(this.m_currentAttributeIcon, PerkAttributeHelper.GetIconAtlasPart(initData.perkMenuAttribute));
+    inkWidgetRef.SetVisible(this.m_attributePointsWrapper, NotEquals(initData.perkMenuAttribute, PerkMenuAttribute.Espionage));
+    inkWidgetRef.SetVisible(this.m_perkPointsWrapper, NotEquals(initData.perkMenuAttribute, PerkMenuAttribute.Espionage));
+    inkWidgetRef.SetVisible(this.m_espionagePointsWrapper, Equals(initData.perkMenuAttribute, PerkMenuAttribute.Espionage));
+    inkTextRef.SetText(this.m_attributePointsText, IntToString(this.m_dataManager.GetAttributePoints()));
+    inkTextRef.SetText(this.m_perkPointsText, IntToString(this.m_dataManager.GetPerkPoints()));
+    inkTextRef.SetText(this.m_espionagePointsText, IntToString(this.m_dataManager.GetSpyPerkPoints()));
+    this.UpdateBars();
+  }
+
+  public final func SetValues(attributePointsVal: Int32, perkPointsVal: Int32, espionagePointsVal: Int32) -> Void {
+    let attributeData: ref<AttributeData> = this.m_dataManager.GetAttribute(this.m_dataManager.GetAttributeRecordIDFromEnum(this.m_initData.perkMenuAttribute));
+    inkTextRef.SetText(this.m_attributePointsText, IntToString(attributePointsVal));
+    inkTextRef.SetText(this.m_perkPointsText, IntToString(perkPointsVal));
+    inkTextRef.SetText(this.m_espionagePointsText, IntToString(espionagePointsVal));
+    inkTextRef.SetText(this.m_currentAttributePoints, IntToString(attributeData.value));
+  }
+
+  private final func UpdateBars() -> Void {
+    let attributeIndex: Int32;
+    let i: Int32 = 0;
+    let limit: Int32 = ArraySize(this.m_bars);
+    while i < limit {
+      attributeIndex = EnumInt(this.m_initData.perkMenuAttribute);
+      inkWidgetRef.SetState(this.m_bars[i], i == attributeIndex ? n"Active" : n"Default");
+      i += 1;
+    };
+    inkWidgetRef.SetVisible(this.m_bars[limit - 1], this.m_isEspionageUnlocked);
+  }
+}
+
+public class NewPerkTabsArrowController extends inkLogicController {
+
+  private edit let m_direction: NewPerkTabsArrowDirection;
+
+  private let m_hovered: Bool;
+
+  private let m_pressed: Bool;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnPress", this, n"OnPress");
+    this.RegisterToCallback(n"OnRelease", this, n"OnRelease");
+    this.RegisterToCallback(n"OnHoverOver", this, n"OnHoverOver");
+    this.RegisterToCallback(n"OnHoverOut", this, n"OnHoverOut");
+  }
+
+  protected cb func OnPress(evt: ref<inkPointerEvent>) -> Bool {
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      this.m_pressed = true;
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnRelease(evt: ref<inkPointerEvent>) -> Bool {
+    let clickEvent: ref<NewPerksTabArrowClickedEvent>;
+    if evt.IsAction(n"click") || evt.IsAction(n"tap") {
+      clickEvent = new NewPerksTabArrowClickedEvent();
+      clickEvent.direction = this.m_direction;
+      this.QueueEvent(clickEvent);
+      this.m_pressed = false;
+      this.UpdateState();
+    };
+  }
+
+  protected cb func OnHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hovered = true;
+    this.UpdateState();
+  }
+
+  protected cb func OnHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_hovered = false;
+    this.m_pressed = false;
+    this.UpdateState();
+  }
+
+  private final func UpdateState() -> Void {
+    let stateToSet: CName;
+    if this.m_pressed {
+      stateToSet = n"Press";
+    } else {
+      if this.m_hovered {
+        stateToSet = n"Hover";
+      } else {
+        stateToSet = n"Default";
+      };
+    };
+    this.GetRootWidget().SetState(stateToSet);
+  }
+}

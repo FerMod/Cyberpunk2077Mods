@@ -1,0 +1,284 @@
+
+public class TransferSaveSystemNotificationLogicController extends inkGenericSystemNotificationLogicController {
+
+  protected edit let m_contentBlock: inkWidgetRef;
+
+  protected edit let m_spinnerBlock: inkWidgetRef;
+
+  protected edit let m_errorBlock: inkWidgetRef;
+
+  protected edit let m_saveImageContainer: inkWidgetRef;
+
+  protected edit let m_saveImage: inkImageRef;
+
+  protected edit let m_saveImageEmpty: inkWidgetRef;
+
+  protected edit let m_saveImageSpinner: inkWidgetRef;
+
+  protected edit let m_messageText: inkTextRef;
+
+  protected edit let m_spinnerText: inkTextRef;
+
+  protected edit let m_errorText: inkTextRef;
+
+  protected edit let m_proceedButtonWidget: inkWidgetRef;
+
+  protected edit let m_cancelButtonWidget: inkWidgetRef;
+
+  private let m_systemRequestHandler: wref<inkISystemRequestsHandler>;
+
+  private let m_transferSaveData: wref<TransferSaveData>;
+
+  private let m_transferSaveDataSet: Bool;
+
+  private let m_systemRequestsHandlerSet: Bool;
+
+  private let m_cancelButtonHovered: Bool;
+
+  private let m_currentState: TransferSaveState;
+
+  protected cb func OnInitialize() -> Bool {
+    this.RegisterToCallback(n"OnDataSetByToken", this, n"OnDataSetByToken");
+    this.RegisterToGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalPreRelease");
+    inkWidgetRef.RegisterToCallback(this.m_cancelButtonWidget, n"OnRelease", this, n"OnCancelClick");
+    inkWidgetRef.GetController(this.m_cancelButtonWidget).RegisterToCallback(n"OnHoverOver", this, n"OnCancelHoverOver");
+    inkWidgetRef.GetController(this.m_cancelButtonWidget).RegisterToCallback(n"OnHoverOut", this, n"OnCancelHoverOut");
+  }
+
+  protected cb func OnUninitialize() -> Bool {
+    this.UnregisterFromCallback(n"OnDataSetByToken", this, n"OnDataSetByToken");
+    this.UnregisterFromGlobalInputCallback(n"OnPreOnRelease", this, n"OnGlobalPreRelease");
+    if IsDefined(this.m_systemRequestHandler) {
+      this.m_systemRequestHandler.UnregisterFromCallback(n"OnSaveTransferUpdate", this, n"OnSaveTransferUpdate");
+    };
+  }
+
+  protected cb func OnDataSetByToken() -> Bool {
+    this.m_transferSaveData = this.GetScriptableData() as TransferSaveData;
+    this.DisableDefaultInputHandler();
+    this.m_transferSaveDataSet = true;
+    this.SetupData();
+  }
+
+  protected cb func OnGlobalPreRelease(evt: ref<inkPointerEvent>) -> Bool {
+    if this.CanCancelOrProceed() {
+      if evt.IsAction(n"proceed_popup") && !this.m_cancelButtonHovered {
+        this.HandleProceedClick();
+      } else {
+        if evt.IsAction(n"cancel_popup") || evt.IsAction(n"proceed_popup") && this.m_cancelButtonHovered {
+          this.TriggerCancel();
+        };
+      };
+    };
+  }
+
+  private final func HandleProceedClick() -> Void {
+    if Equals(this.m_currentState, TransferSaveState.ExportConfirmation) {
+      this.m_systemRequestHandler.ExportSavedGame(this.m_transferSaveData.saveIndex);
+    } else {
+      this.TriggerProceed();
+    };
+  }
+
+  private final func CanCancelOrProceed() -> Bool {
+    return NotEquals(this.m_currentState, TransferSaveState.ExportSpinner) && NotEquals(this.m_currentState, TransferSaveState.ImportLoading);
+  }
+
+  protected cb func OnCancelClick(e: ref<inkPointerEvent>) -> Bool {
+    if (e.IsAction(n"click") || e.IsAction(n"tap")) && this.CanCancelOrProceed() {
+      this.TriggerCancel();
+    };
+  }
+
+  protected cb func OnCancelHoverOver(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_cancelButtonHovered = true;
+  }
+
+  protected cb func OnCancelHoverOut(evt: ref<inkPointerEvent>) -> Bool {
+    this.m_cancelButtonHovered = false;
+  }
+
+  public final func SetSystemRequestHandler(handler: wref<inkISystemRequestsHandler>) -> Void {
+    if IsDefined(this.m_systemRequestHandler) {
+      this.m_systemRequestHandler.UnregisterFromCallback(n"OnSaveTransferUpdate", this, n"OnSaveTransferUpdate");
+    };
+    this.m_systemRequestHandler = handler;
+    this.m_systemRequestHandler.RegisterToCallback(n"OnSaveTransferUpdate", this, n"OnSaveTransferUpdate");
+    this.m_systemRequestsHandlerSet = true;
+    this.SetupData();
+  }
+
+  private final func SetupData() -> Void {
+    if this.m_transferSaveDataSet && this.m_systemRequestsHandlerSet {
+      if Equals(this.m_transferSaveData.action, TransferSaveAction.Export) {
+        this.UpdateState(TransferSaveState.ExportConfirmation);
+        this.SetSaveImage();
+      };
+      if Equals(this.m_transferSaveData.action, TransferSaveAction.Import) {
+        this.m_systemRequestHandler.ImportSavedGame();
+      };
+      this.m_transferSaveDataSet = false;
+      this.m_systemRequestsHandlerSet = false;
+    };
+  }
+
+  private final func SetSaveImage() -> Void {
+    if IsDefined(inkWidgetRef.Get(this.m_saveImage)) {
+      this.m_systemRequestHandler.RequestSavedGameScreenshot(this.m_transferSaveData.saveIndex, inkWidgetRef.Get(this.m_saveImage) as inkImage);
+    };
+  }
+
+  protected cb func OnSaveTransferUpdate(status: inkSaveTransferStatus) -> Bool {
+    if Equals(status, inkSaveTransferStatus.ImportSuccess) {
+      if IsDefined(this.m_systemRequestHandler) {
+        this.m_systemRequestHandler.RequestSavesForLoad();
+      };
+      this.TriggerProceed();
+    };
+    switch status {
+      case inkSaveTransferStatus.ExportStarted:
+        this.UpdateState(TransferSaveState.ExportSpinner);
+        break;
+      case inkSaveTransferStatus.ExportSuccess:
+        this.UpdateState(TransferSaveState.ExportSuccess);
+        break;
+      case inkSaveTransferStatus.ExportFailed:
+        this.UpdateState(TransferSaveState.ExportFailed);
+        break;
+      case inkSaveTransferStatus.ImportChecking:
+        this.UpdateState(TransferSaveState.ImportSpinner);
+        break;
+      case inkSaveTransferStatus.ImportStarted:
+        this.UpdateState(TransferSaveState.ImportLoading);
+        break;
+      case inkSaveTransferStatus.ImportNoSave:
+        this.UpdateState(TransferSaveState.ImportNoSave);
+        break;
+      case inkSaveTransferStatus.ImportFailed:
+        this.UpdateState(TransferSaveState.ImportFailed);
+        break;
+      case inkSaveTransferStatus.ImportNotEnoughSpace:
+        this.UpdateState(TransferSaveState.ImportNotEnoughSpace);
+    };
+  }
+
+  private final func UpdateState(state: TransferSaveState) -> Void {
+    this.m_currentState = state;
+    this.UpdateText(state);
+    this.UpdateStateVisibility(state);
+    this.UpdateButtonsVisibility(state);
+  }
+
+  private final func UpdateText(state: TransferSaveState) -> Void {
+    switch state {
+      case TransferSaveState.ExportConfirmation:
+        inkTextRef.SetText(this.m_messageText, "UI-SystemNotification-SaveTransfer-ExportConfirmation");
+        break;
+      case TransferSaveState.ExportSpinner:
+        inkTextRef.SetText(this.m_messageText, "UI-SystemNotification-SaveTransfer-ExportSpinner");
+        break;
+      case TransferSaveState.ExportSuccess:
+        inkTextRef.SetText(this.m_messageText, "UI-SystemNotification-SaveTransfer-ExportSuccess");
+        break;
+      case TransferSaveState.ExportFailed:
+        inkTextRef.SetText(this.m_errorText, "UI-SystemNotification-SaveTransfer-ExportFailed");
+        break;
+      case TransferSaveState.ImportSpinner:
+        inkTextRef.SetText(this.m_spinnerText, "UI-SystemNotification-SaveTransfer-ImportSpinner");
+        break;
+      case TransferSaveState.ImportLoading:
+        inkTextRef.SetText(this.m_messageText, "UI-SystemNotification-SaveTransfer-ImportLoading");
+        break;
+      case TransferSaveState.ImportNoSave:
+        inkTextRef.SetText(this.m_errorText, "UI-SystemNotification-SaveTransfer-ImportNoSave");
+        break;
+      case TransferSaveState.ImportFailed:
+        inkTextRef.SetText(this.m_errorText, "UI-SystemNotification-SaveTransfer-ImportFailed");
+        break;
+      case TransferSaveState.ImportNotEnoughSpace:
+        inkTextRef.SetText(this.m_errorText, "UI-Notifications-SaveNotEnoughSpace");
+    };
+  }
+
+  private final func UpdateButtonsVisibility(state: TransferSaveState) -> Void {
+    switch state {
+      case TransferSaveState.ExportConfirmation:
+        inkWidgetRef.SetVisible(this.m_proceedButtonWidget, true);
+        inkWidgetRef.SetVisible(this.m_cancelButtonWidget, true);
+        break;
+      case TransferSaveState.ImportLoading:
+      case TransferSaveState.ExportSpinner:
+        inkWidgetRef.SetVisible(this.m_proceedButtonWidget, false);
+        inkWidgetRef.SetVisible(this.m_cancelButtonWidget, false);
+        break;
+      case TransferSaveState.ImportNotEnoughSpace:
+      case TransferSaveState.ImportFailed:
+      case TransferSaveState.ImportNoSave:
+      case TransferSaveState.ImportSpinner:
+      case TransferSaveState.ExportFailed:
+        inkWidgetRef.SetVisible(this.m_proceedButtonWidget, false);
+        inkWidgetRef.SetVisible(this.m_cancelButtonWidget, true);
+        break;
+      case TransferSaveState.ExportSuccess:
+        inkWidgetRef.SetVisible(this.m_proceedButtonWidget, true);
+        inkWidgetRef.SetVisible(this.m_cancelButtonWidget, false);
+    };
+  }
+
+  private final func UpdateStateVisibility(state: TransferSaveState) -> Void {
+    let isError: Bool = Equals(state, TransferSaveState.ImportNoSave) || Equals(state, TransferSaveState.ImportFailed) || Equals(state, TransferSaveState.ExportFailed) || Equals(state, TransferSaveState.ImportNotEnoughSpace);
+    this.GetRootWidget().SetState(isError ? n"Warning" : n"Default");
+    inkWidgetRef.SetOpacity(this.m_saveImage, Equals(state, TransferSaveState.ExportSpinner) ? 0.60 : 1.00);
+    switch state {
+      case TransferSaveState.ExportSuccess:
+      case TransferSaveState.ExportConfirmation:
+        inkWidgetRef.SetVisible(this.m_contentBlock, true);
+        inkWidgetRef.SetVisible(this.m_spinnerBlock, false);
+        inkWidgetRef.SetVisible(this.m_errorBlock, false);
+        inkWidgetRef.SetVisible(this.m_saveImageContainer, true);
+        inkWidgetRef.SetVisible(this.m_saveImageSpinner, false);
+        inkWidgetRef.SetVisible(this.m_saveImageEmpty, false);
+        break;
+      case TransferSaveState.ExportSpinner:
+        inkWidgetRef.SetVisible(this.m_contentBlock, true);
+        inkWidgetRef.SetVisible(this.m_spinnerBlock, false);
+        inkWidgetRef.SetVisible(this.m_errorBlock, false);
+        inkWidgetRef.SetVisible(this.m_saveImageContainer, true);
+        inkWidgetRef.SetVisible(this.m_saveImageSpinner, true);
+        inkWidgetRef.SetVisible(this.m_saveImageEmpty, false);
+        break;
+      case TransferSaveState.ImportNotEnoughSpace:
+      case TransferSaveState.ImportNoSave:
+      case TransferSaveState.ImportFailed:
+      case TransferSaveState.ExportFailed:
+        inkWidgetRef.SetVisible(this.m_contentBlock, false);
+        inkWidgetRef.SetVisible(this.m_spinnerBlock, false);
+        inkWidgetRef.SetVisible(this.m_errorBlock, true);
+        break;
+      case TransferSaveState.ImportSpinner:
+        inkWidgetRef.SetVisible(this.m_contentBlock, false);
+        inkWidgetRef.SetVisible(this.m_spinnerBlock, true);
+        inkWidgetRef.SetVisible(this.m_errorBlock, false);
+        break;
+      case TransferSaveState.ImportLoading:
+        inkWidgetRef.SetVisible(this.m_contentBlock, true);
+        inkWidgetRef.SetVisible(this.m_spinnerBlock, false);
+        inkWidgetRef.SetVisible(this.m_errorBlock, false);
+        inkWidgetRef.SetVisible(this.m_saveImageContainer, false);
+        inkWidgetRef.SetVisible(this.m_saveImageSpinner, false);
+        inkWidgetRef.SetVisible(this.m_saveImageEmpty, true);
+    };
+  }
+}
+
+public class TransferSaveGameController extends inkGameController {
+
+  private edit let m_notificationController: inkWidgetRef;
+
+  protected cb func OnInitialize() -> Bool {
+    let controller: wref<TransferSaveSystemNotificationLogicController> = inkWidgetRef.GetControllerByType(this.m_notificationController, n"TransferSaveSystemNotificationLogicController") as TransferSaveSystemNotificationLogicController;
+    if IsDefined(controller) {
+      controller.SetSystemRequestHandler(this.GetSystemRequestsHandler());
+    };
+  }
+}
