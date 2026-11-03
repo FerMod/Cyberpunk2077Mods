@@ -1,10 +1,10 @@
 module SelfDestructVehicle
 
-// Sim time when the warning sound last played for this vehicle.
+// True once the self-destruct sequence has been triggered for this vehicle.
 @addField(VehicleObject)
-private let m_selfDestructWarningTime: Float;
+private let m_selfDestructTriggered: Bool = false;
 
-// Cached settings ref, following the wiki pattern.
+// Cached settings ref.
 @addField(PlayerPuppet)
 protected let m_selfDestructSettings: wref<SelfDestructVehicleSettings>;
 
@@ -41,7 +41,13 @@ protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsu
 // ---- Warning sound + delayed explosion ----
 @addMethod(VehicleObject)
 public final func TrySelfDestruct() -> Void {
-  if this.IsDestroyed() || !this.IsPlayerDriver() {
+  if this.IsDestroyed() {
+    return;
+  }
+  if !this.IsPlayerDriver() {
+    return;
+  }
+  if this.m_selfDestructTriggered {
     return;
   }
 
@@ -50,18 +56,15 @@ public final func TrySelfDestruct() -> Void {
     return;
   }
 
-  // Play the warning once per self-destruct window, not for every key press.
-  let now: Float = EngineTime.ToFloat(GameInstance.GetTimeSystem(this.GetGame()).GetSimTime());
-  if this.m_selfDestructWarningTime == 0.0 || now >= this.m_selfDestructWarningTime + settings.playerDelay {
-    this.m_selfDestructWarningTime = now;
-    GameInstance
-      .GetAudioSystem(this.GetGame())
-      .PlayOnEmitter(
-        n"v_car_explosion_warning_start",
-        this.GetEntityID(),
-        n"vehicle_engine_emitter"
-      );
-  }
+  this.m_selfDestructTriggered = true;
+
+  GameInstance
+    .GetAudioSystem(this.GetGame())
+    .PlayOnEmitter(
+      n"v_car_explosion_warning_start",
+      this.GetEntityID(),
+      n"vehicle_engine_emitter"
+    );
 
   GameInstance
     .GetDelaySystem(this.GetGame())
