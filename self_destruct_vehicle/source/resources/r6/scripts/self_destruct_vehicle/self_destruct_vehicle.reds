@@ -30,7 +30,7 @@ protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsu
     if action.IsAction(n"SelfDestructTrigger") && action.IsButtonJustPressed() {
       let vehicle: wref<VehicleObject> = this.m_mountedVehicle as VehicleObject;
       if IsDefined(vehicle) && vehicle.IsPlayerDriver() {
-        vehicle.TrySelfDestruct();
+        vehicle.TrySelfDestruct(this.m_selfDestructSettings.selfDestructDelay);
       }
     }
   }
@@ -40,7 +40,7 @@ protected cb func OnAction(action: ListenerAction, consumer: ListenerActionConsu
 
 // ---- Warning sound + delayed explosion ----
 @addMethod(VehicleObject)
-public final func TrySelfDestruct() -> Void {
+public final func TrySelfDestruct(delay: Float) -> Void {
   if this.IsDestroyed() {
     return;
   }
@@ -48,11 +48,6 @@ public final func TrySelfDestruct() -> Void {
     return;
   }
   if this.m_selfDestructTriggered {
-    return;
-  }
-
-  let settings: ref<SelfDestructVehicleSettings> = SelfDestructVehicleSettings.Get(this.GetGame());
-  if !IsDefined(settings) {
     return;
   }
 
@@ -68,6 +63,6 @@ public final func TrySelfDestruct() -> Void {
 
   GameInstance
     .GetDelaySystem(this.GetGame())
-    .DelayEvent(this, new VehicleExplodeEvent(), settings.playerDelay);
+    .DelayEvent(this, new VehicleExplodeEvent(), delay);
 }
 

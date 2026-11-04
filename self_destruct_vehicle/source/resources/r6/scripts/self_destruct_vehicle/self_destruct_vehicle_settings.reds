@@ -9,7 +9,7 @@ public class SelfDestructVehicleSettings extends ScriptableSystem {
   @runtimeProperty("ModSettings.min", "0.0")
   @runtimeProperty("ModSettings.max", "15.0")
   @runtimeProperty("ModSettings.step", "0.1")
-  public let playerDelay: Float = 5.0;
+  public let selfDestructDelay: Float = 5.0;
 
   @runtimeProperty("ModSettings.mod", "Self Destruct Vehicle")
   @runtimeProperty("ModSettings.category", "Key Bindings")
