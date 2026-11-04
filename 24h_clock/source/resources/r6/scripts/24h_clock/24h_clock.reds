@@ -45,7 +45,10 @@ public struct Clock24hUtils {
       isGlitchEnabled = GameTimeUtils.IsTimeDisplayGlitched(player as PlayerPuppet);
       gameTime = timeSystem.GetGameTime();
       timeController.UpdateTime(isGlitchEnabled, gameTime);
-      if !isGlitchEnabled {
+      if isGlitchEnabled {
+        // Time unavailable. Replace the stock "--:-- AM/PM" label with a plain "--:--".
+        Clock24hUtils.SetClockText(inkWidgetRef.Get(timeContainer), "--:--");
+      } else {
         Clock24hUtils
           .SetClockText(inkWidgetRef.Get(timeContainer), Clock24hUtils.Format(gameTime));
       }
